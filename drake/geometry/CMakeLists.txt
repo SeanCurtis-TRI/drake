@@ -1,4 +1,3 @@
-
 # List all source files used to build libdrakeGeometry.
 set(sources
     )
