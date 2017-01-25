@@ -6,9 +6,9 @@ namespace drake {
 namespace geometry {
 
 /**
- The bullet-based implementation of the geometry engine.
+ The fcl-based implementation of the geometry engine.
  */
-class BulletGeometryEngine : public GeometryEngine {
+class FclGeometryEngine : public GeometryEngine {
 
 };
 }  // namespace geometry

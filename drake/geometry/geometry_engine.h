@@ -9,7 +9,7 @@ namespace geometry {
  Bullet and FCL.)  Historically, this replaces the DrakeCollision::Model
  class.
  */
-public DRAKE_EXPORT GeometryEngine {
+class GeometryEngine {
  public:
   virtual ~GeometryEngine() {}
 };
