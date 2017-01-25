@@ -10,6 +10,17 @@ load(
 
 package(default_visibility = ["//visibility:public"])
 
+cc_library(
+    name = "geometry_world",
+    srcs = [
+    ],
+    hdrs = [
+        "geometry_engine.h",
+        "geometry_world.h",
+    ],
+    linkstatic = 1,
+)
+
 drake_cc_library(
     name = "identifier",
     srcs = [],
