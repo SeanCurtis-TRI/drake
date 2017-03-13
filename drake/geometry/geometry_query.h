@@ -39,8 +39,35 @@ class GeometryQuery {
    Computes the contact across all elements in the world.  Only reports results
    for elements in *contact*; if two elements are separated, there will be no
    result for this pair.
+
+   This method is affected by collision filtering; element pairs that have
+   been filtered will not produce contacts, even if the elements are
+   penetrating.
    */
   bool ComputeContact() const;
+
+  /**
+   Computes the pair-wise nearest points for the explicitly indicated pairs of
+   bodies.
+
+   *@param[in]  pairs       A "list" of
+   */
+
+  // TODO(SeanCurtis-TRI): The list of Model functions not yet explicitly
+  //  accounted for:
+  //      closestPointsPairwise -- for an explicit set of pairs
+  //      collisionDetectFromPoints -- distance from points to nearest object
+  //      potentialCollisionPoints -- really frigging weird; could include
+  //        multiple penetrating points, but also non penetrating points.
+  //        a) This is not called outside of tests.
+  //        b) This seems to be a *very* bullet-specific method.
+  //      collidingPoints -- which points are within distance d of a body
+  //      collidingPointsCHeckOnly -- simply query if any point is "near" a body
+  //      collisionRaycast - cast one or more rays and report hit distance
+  //
+  /**
+
+   */
 
 };
 }  // namespace geometry
