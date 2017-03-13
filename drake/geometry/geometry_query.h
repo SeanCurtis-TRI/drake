@@ -29,6 +29,16 @@ class GeometryQuery {
   // should not be considered complete.  Each of these fundamental queries may
   // have different variants depending on the scope.
 
+  //----------------------------------------------------------------------------
+  /** @name                   Proximity Queries
+
+   These queries represent _proximity_ queries -- queries to determine what is
+   near by, or what is closest.  This is not about overlapping -- the proximity
+   of overlapping objects should be zero.
+   */
+
+  //@{
+
   // NOTE: This maps to Model::closestPointsAllToAll().
   /**
    Computes the pair-wise nearest points for all elements in the world.
@@ -69,6 +79,21 @@ class GeometryQuery {
    */
   bool NearestToPoints(const Eigen::Matrix3Xd& points,
                        std::vector<PointProximity>* near_bodies) const;
+
+  //@}
+
+  //----------------------------------------------------------------------------
+  /** @name                Collision Queries
+
+   These queries detect _collisions_ between geometry.  Two geometries collide
+   if they overlap each other and are not explicitly excluded through
+   @ref collision_filter_concepts "collision filtering".  These algorithms find
+   those colliding cases, characterize them, and report the essential
+   characteristics of that collision.
+   */
+
+  //@{
+
   // NOTE: This maps to Model::ComputeMaximumDepthCollisionPoints().
   /**
    Computes the contact across all elements in the world.  Only reports results
@@ -87,6 +112,16 @@ class GeometryQuery {
    */
   bool ComputeContact(std::vector<Contact>& contacts) const;
 
+  //@}
+
+  //----------------------------------------------------------------------------
+  /** @name                  Raycast Queries
+
+   These queries perform raycast queries.  Raycast queries report what, if
+   anything, lies in a particular direction from a query point.
+   */
+
+  //@{
 
   // NOTE: This maps to Model::collisionRaycast().
   /**
@@ -112,6 +147,8 @@ class GeometryQuery {
   bool CastRays(const Eigen::Matrix3Xd& origin,
                 const Eigen::Matrix3Xd& ray_endpoint,
                 Eigen::VectorXd* distances, Eigen::Matrix3Xd* normals) const;
+
+  //@}
 
   // TODO(SeanCurtis-TRI): The list of Model functions not yet explicitly
   //  accounted for:
