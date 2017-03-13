@@ -38,7 +38,6 @@ class GeometryWorld {
   // implementation best suited for particular queries.
   BulletGeometryEngine bullet_engine_;
   FclGeometryEngine fcl_engine_;
-
 };
 }  // namespace geometry
 }  // namespace drake
