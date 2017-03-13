@@ -1,5 +1,7 @@
 #pragma once
 
+#include "drake/geometry/geometry_query_results.h"
+
 namespace drake {
 namespace geometry {
 
@@ -15,47 +17,104 @@ namespace geometry {
     - Ray-geometry intersection
  */
 class GeometryQuery {
+ public:
   // TODO(SeanCurtis-TRI): Determine how to limit the scope of these queries.
   //    e.g., limit it to just those elements belonging to a single input,
   //      limit it to a subset of elements in a single input,
   //      limit it to a subset of elements which span multiple inputs.
-  // TODO(SeanCurtis-TRI): Determine the return value format. Currently uses
-  //      PointPair.  However, the struct is overloaded so a value can have
-  //      different interpretations based on how it is used.  Remove this
-  //      ambiguity.
+
+  // TODO(SeanCurtis-TRI): Should I return error codes instead of booleans?
 
   // NOTE: This is just a taxonomy of the *types* of queries; the interfaces
-  // are not remotely complete.  Each of these fundamental queries may have
-  // different variants depending on the scope.
+  // should not be considered complete.  Each of these fundamental queries may
+  // have different variants depending on the scope.
 
+  // NOTE: This maps to Model::closestPointsAllToAll().
   /**
    Computes the pair-wise nearest points for all elements in the world.
 
+   The output vector will *not* be cleared.  Contact information will merely be
+   added to the vector.
+
+   @param[out]  near_points     All contacts will be aggregated in this
+                                structure.
    @returns True if the operation was successful.
    */
-  bool ComputePairwiseClosestPoints() const;
+  bool ComputePairwiseClosestPoints(
+      std::vector<NearestPair>* near_points) const;
 
-  /**
-   Computes the contact across all elements in the world.  Only reports results
-   for elements in *contact*; if two elements are separated, there will be no
-   result for this pair.
-
-   This method is affected by collision filtering; element pairs that have
-   been filtered will not produce contacts, even if the elements are
-   penetrating.
-   */
-  bool ComputeContact() const;
-
+  // NOTE: This maps to Model::closestPointsPairwise().
   /**
    Computes the pair-wise nearest points for the explicitly indicated pairs of
    bodies.
 
-   *@param[in]  pairs       A "list" of
+   @param[in]  pairs        A "list" of body pairs to find the distance between.
+   @param[out] near_points  A similarly sized list of distance structs.
+   @returns True if the operation was successful.
    */
+  bool ComputePairwiseClosestPoints(
+      const std::vector<GeometryFramePair>& pairs,
+      std::vector<NearestPair>* near_points) const;
+
+  // NOTE: This maps to Model::collisionDetectFromPoints().
+  /**
+   Determines the nearest body/element to a point for a set of points.
+
+   @param[in]   points        An ordered list of `N` points represented
+                              column-wise by a `3 x N` Matrix.
+   @param[out]  near_bodies   A vector of `N` PointProximity instances such that
+                              the iᵗʰ instance reports the nearest body/element
+                              to the iᵗʰ point.
+   @returns True if the operation was successful.
+   */
+  bool NearestToPoints(const Eigen::Matrix3Xd& points,
+                       std::vector<PointProximity>* near_bodies) const;
+  // NOTE: This maps to Model::ComputeMaximumDepthCollisionPoints().
+  /**
+   Computes the contact across all elements in the world.  Only reports results
+   for elements in *contact*; if two elements are separated, there will be no
+   result for that pair.
+
+   This method is affected by collision filtering; element pairs that have
+   been filtered will not produce contacts, even if their collision geometry is
+   penetrating.
+
+   The output vector will *not* be cleared.  Contact information will merely be
+   added to the vector.
+
+   @param[out]  contacts    All contacts will be aggregated in this structure.
+   @returns True if the operation was successful.
+   */
+  bool ComputeContact(std::vector<Contact>& contacts) const;
+
+
+  // NOTE: This maps to Model::collisionRaycast().
+  /**
+   Performs one or more raycasts against the scene geometry.
+
+   @param[in]  origin           A `3 x N` matrix where each column specifies the
+                                position of a ray's origin in the world frame.
+                                If `origin` is `3 x 1`, the same origin is used
+                                for all rays.
+   @param[in]  ray_endpoint     A `3 x N` matrix where each column specifies a
+                                point *away* from the corresponding origin
+                                through which the ray passes.
+   @param[out] distances        A `N`-length vector of distance values. The
+                                `iᵗʰ` value is the distance along the `iᵗʰ` ray.
+                                The value is negative if the ray didn't hit any
+                                surface.
+   @param[out] normals          A `3 x N` matrix of values, where the `iᵗʰ`
+                                column is the normal of the surface where the
+                                `iᵗʰ` ray intersected. Values are undefined if
+                                the `iᵗʰ` distance is negative.
+   @returns True if the operation was successful.
+   */
+  bool CastRays(const Eigen::Matrix3Xd& origin,
+                const Eigen::Matrix3Xd& ray_endpoint,
+                Eigen::VectorXd* distances, Eigen::Matrix3Xd* normals) const;
 
   // TODO(SeanCurtis-TRI): The list of Model functions not yet explicitly
   //  accounted for:
-  //      closestPointsPairwise -- for an explicit set of pairs
   //      collisionDetectFromPoints -- distance from points to nearest object
   //      potentialCollisionPoints -- really frigging weird; could include
   //        multiple penetrating points, but also non penetrating points.
@@ -63,12 +122,7 @@ class GeometryQuery {
   //        b) This seems to be a *very* bullet-specific method.
   //      collidingPoints -- which points are within distance d of a body
   //      collidingPointsCHeckOnly -- simply query if any point is "near" a body
-  //      collisionRaycast - cast one or more rays and report hit distance
   //
-  /**
-
-   */
-
 };
 }  // namespace geometry
 }  // namespace drake
