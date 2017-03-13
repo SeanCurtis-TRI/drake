@@ -9,8 +9,11 @@ namespace geometry {
  This class serves as the basis for connecting frames, moved according to
  arbitrary mechanisms, with geometry used for collision and visualization that
  can be queried by any system in the diagram.
+
+ For geometry queries, we only need the kinematics of the frame: position,
+ velocity, and acceleration in the world frame.
  */
-class GeometryFrame {
+class GeometryKinematics {
  public:
  private:
   // TODO(SeanCurtis-TRI): How to represent pose, pose', and pose''?
