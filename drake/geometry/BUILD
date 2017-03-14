@@ -10,7 +10,16 @@ load(
 
 package(default_visibility = ["//visibility:public"])
 
-cc_library(
+drake_cc_library(
+    name = "geometry_indexes",
+    srcs = [],
+    hdrs = ["geometry_indexes.h"],
+    deps = [
+        "//drake/common:type_safe_index",
+    ],
+)
+
+drake_cc_library(
     name = "geometry_world",
     srcs = [
     ],
