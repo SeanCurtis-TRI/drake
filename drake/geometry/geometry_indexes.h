@@ -12,5 +12,8 @@ using BundleIndex = TypeSafeIndex<class BundleTag>;
 /// GeometryWorld
 using KinematicsIndex = TypeSafeIndex<class KinematicsTag>;
 
+/// Type used to identify a geometry instance by index in GeometryWorld.
+using GeometryIndex = TypeSafeIndex<class GeometryTag>;
+
 }  // namespace geometry
 }  // namespace drake
