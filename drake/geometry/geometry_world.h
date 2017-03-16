@@ -9,7 +9,7 @@ namespace drake {
 namespace geometry {
 
 // Forward declarations.
-class Geometry;
+class GeometryInstance;
 
 // TODO(SeanCurtis-TRI): Review this documentation to confirm that it's consistent
 // with what I ended up implementing.
@@ -62,11 +62,27 @@ class GeometryWorld {
    @{
    */
 
-  // TODO(SeanCurtis-TRI): Work through the parameters for geometry and pose.
+  /**
+   Requests a new channel for declaring frames and geometry to GeometryWorld.
+   @sa GeometryChannel
+   */
+  unique_ptr<GeometryChannel> RequestChannel();
+
+  /**
+   Requests an instance of geometry channel for a previously requested channel.
+   Throws an exception if the `channel_id` does not refer to an existing
+   channel.
+   @param channel_id  The identifier for the desired channel.
+   @sa GeometryChannel
+   */
+  // TODO(SeanCurtis-TRI): Should this confirm that there is only one extant
+  // instance of this channel?
+  unique_ptr<GeometryChannel> ReconnectChannel(ChannelId channel_id);
+
   /**
    Adds the given geometry to the world as anchored geometry.
    @param geometry      The geometry to add to the world.
-   @param X_FG          A transform from the geometry's canonical space to
+   @param X_WG          A transform from the geometry's canonical space to
                         world space.
    @return The index for the added geometry.
    */
@@ -74,6 +90,24 @@ class GeometryWorld {
                                  const Isometry3<Scalar>& X_WG);
 
   /** @} */
+
+  /**
+   Provides a set of frame kinematics data. GeometryWorld uses this to update
+   its knowledge of the kinematics of the geometry. It is essential that this
+   is called for *all* open GeometryChannel instances before invoking a query to
+   prevent making queries in an inconsistent state.
+
+   This is the only mechanism for updating the state of the geometry in
+   GeometryWorld.
+
+   Several circumstances will lead to an exception being thrown:
+     - One or more of the frames has _not_ had its data set,
+     - The data set does not come from a known GeometryChannel,
+     - The frames in the dataset are inconsistent of the declared frames.
+   @param frame_kinematics  The kinematics data for the frames in a single
+                            GeometryChannel.
+   */
+  void UpdateFrames(const FrameKinematicsSet& frame_kinematics);
 
  private:
   // GeometryWorld has members that are specific implementations of the
