@@ -3,7 +3,7 @@
 #include "drake/common/drake_copyable.h"
 #include "drake/common/eigen_types.h"
 #include "drake/geometry/bullet_geometry_engine.h"
-#include "drake/geometry/geometry_indexes.h"
+#include "drake/geometry/geometry_ids.h"
 
 namespace drake {
 namespace geometry {
@@ -68,10 +68,10 @@ class GeometryWorld {
    @param geometry      The geometry to add to the world.
    @param X_FG          A transform from the geometry's canonical space to
                         world space.
-   @return The index f
+   @return The index for the added geometry.
    */
-  GeometryIndex AddAnchoredGeometry(std::unique_ptr<Geometry> geometry,
-                                    const Isometry3<Scalar>& X_WG);
+  GeometryId AddAnchoredGeometry(std::unique_ptr<GeometryInstance> geometry,
+                                 const Isometry3<Scalar>& X_WG);
 
   /** @} */
 
