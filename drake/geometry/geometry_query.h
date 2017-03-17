@@ -54,7 +54,7 @@ class GeometryQuery {
    @returns True if the operation was successful.
    */
   bool ComputePairwiseClosestPoints(
-      std::vector<NearestPair>* near_points) const;
+      std::vector<NearestPair<T>>* near_points) const;
 
   // NOTE: This maps to Model::closestPointsAllToAll().
   /**
@@ -70,7 +70,7 @@ class GeometryQuery {
    */
   bool ComputePairwiseClosestPoints(
       const std::vector<int>& ids_to_check,
-      std::vector<NearestPair>* near_points) const;
+      std::vector<NearestPair<T>>* near_points) const;
 
   // NOTE: This maps to Model::closestPointsPairwise().
   /**
@@ -88,7 +88,7 @@ class GeometryQuery {
    */
   bool ComputePairwiseClosestPoints(
       const std::vector<GeometryFramePair>& pairs,
-      std::vector<NearestPair>* near_points) const;
+      std::vector<NearestPair<T>>* near_points) const;
 
   // NOTE: This maps to Model::collisionDetectFromPoints().
   /**
@@ -102,7 +102,7 @@ class GeometryQuery {
    @returns True if the operation was successful.
    */
   bool FindClosestBodies(const Eigen::Matrix3Xd& points,
-                         std::vector<PointProximity>* near_bodies) const;
+                         std::vector<PointProximity<T>>* near_bodies) const;
 
   // NOTE: This maps to Model::collidingPoints().
   /**
@@ -125,8 +125,8 @@ class GeometryQuery {
    */
   // TODO(SeanCurtis-TRI): Should this return a vector, or popualate a passed-in
   // vector?
-  std::vector<size_t> FindGeometryProximalPoints(const Eigen::Matrix3Xd& points,
-                                                 double distance) const;
+  std::vector<size_t> FindGeometryProximalPoints(
+      const Eigen::Matrix3X<T>& points, double distance) const;
 
   /**
    Given a vector of `points` in the world coordinate frame, reports if _any_
@@ -145,7 +145,7 @@ class GeometryQuery {
                           to check for collisions with the model.
   @return True if any point is closer than `distance` units to collision
           geometry. **/
-  bool IsAnyGeometryNear(const Eigen::Matrix3Xd& points,
+  bool IsAnyGeometryNear(const Eigen::Matrix3X<T>& points,
                          double distance) const;
 
   //@}
@@ -178,7 +178,7 @@ class GeometryQuery {
    @param[out]  contacts    All contacts will be aggregated in this structure.
    @returns True if the operation was successful.
    */
-  bool ComputeContact(std::vector<Contact>* contacts) const;
+  bool ComputeContact(std::vector<Contact<T>>* contacts) const;
 
   //@}
 
@@ -212,9 +212,9 @@ class GeometryQuery {
                                 the `iᵗʰ` distance is negative.
    @returns True if the operation was successful.
    */
-  bool CastRays(const Eigen::Matrix3Xd& origin,
-                const Eigen::Matrix3Xd& ray_endpoint,
-                Eigen::VectorXd* distances, Eigen::Matrix3Xd* normals) const;
+  bool CastRays(const Eigen::Matrix3X<T>& origin,
+                const Eigen::Matrix3X<T>& ray_endpoint,
+                Eigen::VectorXd* distances, Eigen::Matrix3X<T>* normals) const;
 
   //@}
 

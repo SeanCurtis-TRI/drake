@@ -12,13 +12,16 @@ namespace geometry {
 
 /**
  The data for a single contact between two bodies/elements.
+
+ @tparam T The underlying scalar type. Must be a valid Eigen scalar.
  */
+template <typename T>
 struct Contact {
   /** The point of contact in the world frame. */
-  Eigen::Vector3d point_W;
+  Eigen::Vector3<T> point_W;
 
   /** The contact normal in the world frame. */
-  Eigen::Vector3d normal_W;
+  Eigen::Vector3<T> normal_W;
 
   /** The penetration distance. */
   double distance{};
@@ -26,13 +29,16 @@ struct Contact {
 
 /**
  The data for reporting the distance between two bodies/elements.
+
+ @tparam T The underlying scalar type. Must be a valid Eigen scalar.
  */
+template <typename T>
 struct NearestPair {
   /** The point on A nearest B, in A's frame. */
-  Eigen::Vector3d p_A_A;
+  Eigen::Vector3<T> p_A_A;
 
   /** The point on B nearest A, in B's frame. */
-  Eigen::Vector3d p_B_B;
+  Eigen::Vector3<T> p_B_B;
 
   /** The distance between p_A_A and p_B_B (measured in a common frame). */
   double distance{};
@@ -40,10 +46,13 @@ struct NearestPair {
 
 /**
  The data for reporting the body/element nearest a point.
+
+ @tparam T The underlying scalar type. Must be a valid Eigen scalar.
  */
+template <typename T>
 struct PointProximity {
   /** The point on A nearest the query point, in A's frame. */
-  Eigen::Vector3d p_A_A;
+  Eigen::Vector3<T>p_A_A;
 
   /** The distance between p_A_A and p_B_B (measured in a common frame). */
   double distance{};
