@@ -8,10 +8,12 @@ namespace geometry {
 
 // NOTE: These classes don't exist yet in the multibody namespace yet. These are
 // dummy placeholders to simply allow the declarations below to be "valid".
+template <typename T>
 class SpatialPose {
 
 };
 
+template <typename T>
 class SpatialAcceleration {
 
 };
@@ -25,7 +27,10 @@ class SpatialAcceleration {
  Attempts to set a frame with an invalid id, will be considered an error.
  Frames that are *not* explicitly set will maintain current position with
  zero velocity and zero acceleration.
+
+ @tparam T The underlying scalar type. Must be a valid Eigen scalar.
  */
+template <typename T>
 class FrameKinematicsSet {
  public:
   DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(FrameKinematicsSet)
@@ -39,7 +44,7 @@ class FrameKinematicsSet {
    @param frame_id    The identifier for the target frame `F`.
    @param X_WF        The pose fo the frame `F` in the world frame `W`.
    */
-  void SetFramePose(FrameId frame_id, const SpatialPose& X_WF);
+  void SetFramePose(FrameId frame_id, const SpatialPose<T>& X_WF);
 
   /** Sets the pose and velocity kinematics data for the indicated frame, `F`.
    If the frame identifier does not map to a known frame in this set, an
@@ -48,8 +53,8 @@ class FrameKinematicsSet {
    @param X_WF        The pose fo the frame `F` in the world frame `W`.
    @param V_WF        The velocity of frame `F` measured and expressed in `W`.
    */
-  void SetFrameVelocity(FrameId frame_id, const SpatialPose& X_WF,
-                        const SpatialVelocity& V_WF);
+  void SetFrameVelocity(FrameId frame_id, const SpatialPose<T>& X_WF,
+                        const drake::multibody::SpatialVelocity<T>& V_WF);
 
   /** Sets the pose and velocity kinematics data for the indicated frame, `F`.
    If the frame identifier does not map to a known frame in this set, an
@@ -60,9 +65,9 @@ class FrameKinematicsSet {
    @param A_WF        The acceleration of frame `F` measured and expressed in
                       `W`.
    */
-  void SetFrameFullKinematics(FrameId frame_id, const SpatialPose& X_WF,
-                              const drake::multibody::SpatialVelocity& V_WF,
-                              const SpatialAcceleration& A_WF);
+  void SetFrameFullKinematics(FrameId frame_id, const SpatialPose<T>& X_WF,
+                              const drake::multibody::SpatialVelocity<T>& V_WF,
+                              const SpatialAcceleration<T>& A_WF);
 
   /** Reports the identifier for the channel from which this kinematics data
    comes from. */
@@ -104,14 +109,14 @@ class FrameKinematicsSet {
   std::vector<KinematicsWriteState> frame_write_state_;
 
   // The poses for the declared frames.  'N' poses for 'N' declared frames.
-  std::vector<SpatialPose> poses_;
+  std::vector<SpatialPose<T>> poses_;
 
   // The velocities for the declared frames.  'N' poses for 'N' declared frames.
-  std::vector<drake::multibody::SpatialVelocity> velocities_;
+  std::vector<drake::multibody::SpatialVelocity<T>> velocities_;
 
   // The accelerations for the declared frames.  'N' poses for 'N' declared
   // frames.
-  std::vector<SpatialAcceleration> accelerations_;
+  std::vector<SpatialAcceleration<T>> accelerations_;
 };
 
 }  // namespace geometry
