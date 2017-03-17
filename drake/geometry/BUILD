@@ -11,25 +11,6 @@ load(
 package(default_visibility = ["//visibility:public"])
 
 drake_cc_library(
-    name = "geometry_ids",
-    srcs = [],
-    hdrs = ["geometry_ids.h"],
-    deps = [
-        ":type_safe_int_id",
-    ],
-)
-
-drake_cc_library(
-    name = "geometry_world",
-    srcs = [
-    ],
-    hdrs = [
-        "geometry_engine.h",
-        "geometry_world.h",
-    ],
-)
-
-drake_cc_library(
     name = "frame_kinematics_set",
     srcs = [
         "frame_kinematics_set.cc",
@@ -41,6 +22,32 @@ drake_cc_library(
         ":geometry_ids",
         "//drake/common",
         "//drake/multibody/multibody_tree/math:spatial_velocity",
+    ],
+)
+
+drake_cc_library(
+    name = "geometry_ids",
+    srcs = [],
+    hdrs = ["geometry_ids.h"],
+    deps = [
+        ":type_safe_int_id",
+    ],
+)
+
+drake_cc_library(
+    name = "geometry_instance",
+    srcs = [],
+    hdrs = ["geometry_instance.h"],
+    deps = [],
+)
+
+drake_cc_library(
+    name = "geometry_world",
+    srcs = [
+    ],
+    hdrs = [
+        "geometry_engine.h",
+        "geometry_world.h",
     ],
 )
 

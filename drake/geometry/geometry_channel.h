@@ -93,7 +93,7 @@ class GeometryChannel {
    */
   GeometryId DeclareGeometry(drake::systems::Context<T>* context,
                              FrameId id,
-                             unique_ptr<GeometryInstance<T>> geometry,
+                             std::unique_ptr<GeometryInstance> geometry,
                              const Isometry3<T>& X_FG);
 
   /**
@@ -118,7 +118,7 @@ class GeometryChannel {
    */
   GeometryId DeclareGeometry(drake::systems::Context<T>* context,
                              GeometryId id,
-                             unique_ptr<GeometryInstance<T>> geometry,
+                             std::unique_ptr<GeometryInstance> geometry,
                              const Isometry3<T>& X_FG);
 
   /** @} */
