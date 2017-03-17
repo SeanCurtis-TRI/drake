@@ -68,10 +68,15 @@ class FrameKinematicsSet {
    comes from. */
   ChannelId get_channel() const { return id_; }
 
-  // Only allow GeometryChannel to set the channel id.
+  // Only allow GeometryChannel to construct the set.
   friend class GeometryChannel;
 
  private:
+
+  // Private constructor disables arbitrary construction; only a GeometryChannel
+  // can create one -- tying the set to the originating channel.
+  FrameKinematicsSet(ChannelId id);
+
   // Sets the channel id to which this data set belongs.
   void set_channel(ChannelId id) { id_ = id; }
 
@@ -82,6 +87,11 @@ class FrameKinematicsSet {
     POSE_VELOCITY,
     ALL
   };
+
+  // A version value to facilitate maintaining synchronization between a
+  // persisted set and the context. Structural changes to the membership of a
+  // set lead to advances in version number.
+  int64_t version_{0};
 
   // A map from frame id to its position in the corresponding vectors. For 'N'
   // declared frames, there should be `N` entries.  Every FrameId returned by
