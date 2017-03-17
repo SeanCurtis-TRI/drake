@@ -120,13 +120,15 @@ class GeometryWorld {
 
   /**
    Adds the given geometry to the world as anchored geometry.
+   @param context       A mutable context.
    @param geometry      The geometry to add to the world.
    @param X_WG          A transform from the geometry's canonical space to
                         world space.
    @returns The index for the added geometry.
    */
-  GeometryId AddAnchoredGeometry(std::unique_ptr<GeometryInstance> geometry,
-                                 const Isometry3<Scalar>& X_WG);
+  GeometryId AddAnchoredGeometry(drake::systems::Context<T>* context,
+                                 std::unique_ptr<GeometryInstance> geometry,
+                                 const Isometry3<T>& X_WG);
 
   /** @} */
 

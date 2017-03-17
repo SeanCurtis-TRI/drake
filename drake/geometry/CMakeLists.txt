@@ -8,6 +8,7 @@ set(sources
 set(installed_headers
     frame_kinematics_set.h
     geometry_ids.h
+    geometry_instance.h
     identifier.h
     )
 
