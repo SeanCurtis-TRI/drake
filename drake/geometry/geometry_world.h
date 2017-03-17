@@ -4,6 +4,8 @@
 #include "drake/common/eigen_types.h"
 #include "drake/geometry/bullet_geometry_engine.h"
 #include "drake/geometry/geometry_ids.h"
+#include "drake/systems/framework/context.h"
+#include "drake/systems/framework/value.h"
 
 namespace drake {
 namespace geometry {
@@ -64,32 +66,29 @@ class GeometryWorld {
 
   /**
    Requests a new channel for declaring frames and geometry to GeometryWorld.
+   @param context   A mutable context.
    @sa GeometryChannel
    */
-  unique_ptr<GeometryChannel> RequestChannel();
-
-  /**
-   Requests an instance of geometry channel for a previously requested channel.
-   Throws an exception if the `channel_id` does not refer to an existing
-   channel.
-   @param channel_id  The identifier for the desired channel.
-   @sa GeometryChannel
-   */
-  // TODO(SeanCurtis-TRI): Should this confirm that there is only one extant
-  // instance of this channel?
-  unique_ptr<GeometryChannel> ReconnectChannel(ChannelId channel_id);
+  unique_ptr<GeometryChannel> RequestChannel(drake::systems::Context* context);
 
   /**
    Adds the given geometry to the world as anchored geometry.
    @param geometry      The geometry to add to the world.
    @param X_WG          A transform from the geometry's canonical space to
                         world space.
-   @return The index for the added geometry.
+   @returns The index for the added geometry.
    */
   GeometryId AddAnchoredGeometry(std::unique_ptr<GeometryInstance> geometry,
                                  const Isometry3<Scalar>& X_WG);
 
   /** @} */
+
+  /**
+   Allocates the context state that GeometryWorld requires.
+   @returns  A vector of abstract values which will be accessed and managed by
+             GeometryWorld.
+   */
+  std::vector<drake::systems::AbstractValue*> AllocateAbstractValues();
 
   /**
    Provides a set of frame kinematics data. GeometryWorld uses this to update

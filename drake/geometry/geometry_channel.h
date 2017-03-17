@@ -4,6 +4,7 @@
 #include "drake/common/eigen_types.h"
 #include "drake/geometry/frame_kinematics_set.h"
 #include "drake/geometry/geometry_indexes.h"
+#include "drake/systems/framework/context.h"
 
 namespace drake {
 namespace geometry {
@@ -33,16 +34,42 @@ class GeometryInstance;   // NOTE: This does not exist yet.
     - removing frames from its geometry set,
     -->
     - populating frame kinematics in a provided object.
+
+ The upstream frame owner should request a channel from GeometryWorld. The
+ upstream frame owner should persist this channel. It is through this channel
+ that the upstream owner can guarantee consistency with GeometryWorld (see
+ UpdateFrameKinematicsSet()). It is the owner's responsibility to _close_ the
+ channel before destroying it. Failure to close before destroying is considered
+ to be an error.
  */
 class GeometryChannel {
  public:
-  DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(GeometryChannel)
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(GeometryChannel)
+
+  ~GeometryChannel();
+
+  /**
+   Closes the channel.  This informs GeometryWorld that the upstream frame
+   owner is *done* moving geometry. The frames and geometry declared through
+   this channel will be _removed_ from GeometryWorld.
+   */
+  void Close();
+
+  /**
+   @name Declaring Frames and Geometry
+
+   These methods serve as the mechanism for the upstream frame owner to inform
+   GeometryWorld about the frames it intends to move and the geometry that
+   "hangs" on those frames.
+   @{
+   */
 
   /**
    Declares a new frame on this channel, receiving the unique id for the new
    frame.
+   @param context  A mutable context.
    */
-  FrameId DeclareFrame();
+  FrameId DeclareFrame(drake::systems::Context* context);
 
   /**
    Declares a `geometry` instance as "hanging" from the specified frame at the
@@ -52,6 +79,7 @@ class GeometryChannel {
    If the `id` is not a valid frame identifier declared through this channel, an
    exception will be thrown.
 
+   @param context     A mutable context.
    @param id          The id for the frame `F` to hang the geometry on.
    @param geometry    The geometry to hang.
    @param X_FG        the transform X_FG which transforms the geometry
@@ -59,7 +87,8 @@ class GeometryChannel {
                       i.e., the geometry's pose relative to its parent.
    @return A unique identifier for the added geometry.
    */
-  GeometryId DeclareGeometry(FrameId id,
+  GeometryId DeclareGeometry(drake::systems::Context* context,
+                             FrameId id,
                              unique_ptr<GeometryInstance> geometry,
                              const Isometry3& X_FG);
 
@@ -75,6 +104,7 @@ class GeometryChannel {
    If the `id` is not a valid geometry identifier declared through this channel,
    an exception will be thrown.
 
+   @param context     A mutable context.
    @param id          The id for the geometry to hang the declared geometry on.
    @param geometry    The geometry to hang.
    @param X_FG        the transform X_FG which transforms the geometry
@@ -82,20 +112,46 @@ class GeometryChannel {
                       i.e., the geometry's pose relative to its parent.
    @return A unique identifier for the added geometry.
    */
-  GeometryId DeclareGeometry(GeometryId id,
+  GeometryId DeclareGeometry(drake::systems::Context* context,
+                             GeometryId id,
                              unique_ptr<GeometryInstance> geometry,
                              const Isometry3& X_FG);
 
-  /**
-   Requests a frame kinematics set for this channel. The set will have *no*
-   kinematics values for any of the set's frames. The caller should invoke this
-   once (per unique context), set the kinematics values for *all* of the frames,
-   and then provide this object for the GeometryWorld.
+  /** @} */
 
-   In the System architecture, this will serve as the value for the
-   AbstractValue output port.
+  /** @name Writing Frame Kinematics Values
+   These methods enable the upstream frame owner to communicate particular
+   _values_ for the declared frames. They:
+
+      - provide access to a convenience class (FrameKinematcisSet) and
+      - a method for keeping a persisted instance of FrameKinematicsSet in sync
+      with the current context.
+   @{
    */
-  FrameKinematicsSet& GetCleanFrameSet();
+
+  /**
+   Requests a frame kinematics set for this channel. This can be invoked once
+   and the instance can be persisted in the upstream frame owner. However, it
+   must be kept current (see UpdateFrameKinematicsSet()).
+
+   It is recommended that this be invoked after receiving a requested channel
+   and persisted by the upstream frame owner. Disposing of the frame and
+   requesting a new frame kinematics set would be _valid_ but inefficient.
+   */
+  FrameKinematicsSet GetFrameSet();
+
+  /**
+   The upstream moving frame owner should invoke this method prior to setting
+   frame kinematics data. This should be done *each* time guaranteeing the
+   set reflects the state in the context.
+
+   @param context       The context to update the frame kinematics set against.
+   @param frame_set     The frame set to update.
+   */
+  void UpdateFrameKinematicsSet(const drake::systems::Context& context,
+                                FrameKinematicsSet* frame_set);
+
+  /** @} */
 
   // TODO(SeanCurtis-TRI): Functionality to look at in the future
   //  - Remove geometry (or sub-trees of geometry).
