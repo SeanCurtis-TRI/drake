@@ -22,6 +22,9 @@ class SpatialAcceleration {
 
 };
 
+// Forward declarations.
+template <typename T> class GeometryChannel;
+
 /**
  Represents the kinematics data for a set of declared geometry frames. It serves
  as the value object that transports frame kinematics from an upstream owner to
@@ -79,7 +82,7 @@ class FrameKinematicsSet {
   ChannelId get_channel() const { return id_; }
 
   // Only allow GeometryChannel to construct the set.
-  friend class GeometryChannel;
+  friend class GeometryChannel<T>;
 
  private:
 
