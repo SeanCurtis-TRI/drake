@@ -41,7 +41,10 @@ class GeometryInstance;   // NOTE: This does not exist yet.
  UpdateFrameKinematicsSet()). It is the owner's responsibility to _close_ the
  channel before destroying it. Failure to close before destroying is considered
  to be an error.
+
+ @tparam T The underlying scalar type. Must be a valid Eigen scalar.
  */
+template <typename T>
 class GeometryChannel {
  public:
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(GeometryChannel)
@@ -70,7 +73,7 @@ class GeometryChannel {
    frame.
    @param context  A mutable context.
    */
-  FrameId DeclareFrame(drake::systems::Context* context);
+  FrameId DeclareFrame(drake::systems::Context<T>* context);
 
   /**
    Declares a `geometry` instance as "hanging" from the specified frame at the
@@ -88,10 +91,10 @@ class GeometryChannel {
                       i.e., the geometry's pose relative to its parent.
    @return A unique identifier for the added geometry.
    */
-  GeometryId DeclareGeometry(drake::systems::Context* context,
+  GeometryId DeclareGeometry(drake::systems::Context<T>* context,
                              FrameId id,
-                             unique_ptr<GeometryInstance> geometry,
-                             const Isometry3& X_FG);
+                             unique_ptr<GeometryInstance<T>> geometry,
+                             const Isometry3<T>& X_FG);
 
   /**
    Declares a `geometry` instance as "hanging" from the specified geometry's
@@ -113,10 +116,10 @@ class GeometryChannel {
                       i.e., the geometry's pose relative to its parent.
    @return A unique identifier for the added geometry.
    */
-  GeometryId DeclareGeometry(drake::systems::Context* context,
+  GeometryId DeclareGeometry(drake::systems::Context<T>* context,
                              GeometryId id,
-                             unique_ptr<GeometryInstance> geometry,
-                             const Isometry3& X_FG);
+                             unique_ptr<GeometryInstance<T>> geometry,
+                             const Isometry3<T>& X_FG);
 
   /** @} */
 
@@ -124,7 +127,7 @@ class GeometryChannel {
    These methods enable the upstream frame owner to communicate particular
    _values_ for the declared frames. They:
 
-      - provide access to a convenience class (FrameKinematcisSet) and
+      - provide access to a convenience class (FrameKinematicsSet) and
       - a method for keeping a persisted instance of FrameKinematicsSet in sync
       with the current context.
    @{
@@ -139,7 +142,7 @@ class GeometryChannel {
    and persisted by the upstream frame owner. Disposing of the frame and
    requesting a new frame kinematics set would be _valid_ but inefficient.
    */
-  FrameKinematicsSet GetFrameKinematicsSet();
+  FrameKinematicsSet<T> GetFrameKinematicsSet();
 
   /**
    The upstream moving frame owner should invoke this method prior to setting
@@ -149,8 +152,8 @@ class GeometryChannel {
    @param context       The context to update the frame kinematics set against.
    @param frame_set     The frame set to update.
    */
-  void UpdateFrameKinematicsSet(const drake::systems::Context& context,
-                                FrameKinematicsSet* frame_set);
+  void UpdateFrameKinematicsSet(const drake::systems::Context<T>& context,
+                                FrameKinematicsSet<T>* frame_set);
 
   /** @} */
 
@@ -161,21 +164,18 @@ class GeometryChannel {
   //  - Unanchor the frame
 
   // Provides access to the private constructor.
-  friend class GeometryWorld;
+  friend class GeometryWorld<T>;
 
  private:
   // Private constructor; GeometryWorld instantiates them upon request and
   // they cannot be created any other way.
-  GeometryChannel(FrameSetId index, GeometryWorld* geometry_world);
+  GeometryChannel(FrameSetId index, GeometryWorld<T>* geometry_world);
 
   // The index associated with this channel.
   ChannelId index_;
 
   // A handle to the geometry_world_ to coordinate the channel's operations.
-  GeometryWorld* geometry_world_;
-
-  // The frames declared in this channel.
-  GeometryFrameSet frame_set_{};
+  GeometryWorld<T>* geometry_world_;
 };
 }  // namespace geometry
 }  // namespace drake
