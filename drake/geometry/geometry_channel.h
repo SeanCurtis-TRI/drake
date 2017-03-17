@@ -3,14 +3,13 @@
 #include "drake/common/drake_copyable.h"
 #include "drake/common/eigen_types.h"
 #include "drake/geometry/frame_kinematics_set.h"
-#include "drake/geometry/geometry_indexes.h"
 #include "drake/systems/framework/context.h"
 
 namespace drake {
 namespace geometry {
 
 // Forward declarations.
-class GeometryWorld;
+template <typename T> class GeometryWorld;
 class GeometryInstance;   // NOTE: This does not exist yet.
 
 /**
@@ -169,10 +168,10 @@ class GeometryChannel {
  private:
   // Private constructor; GeometryWorld instantiates them upon request and
   // they cannot be created any other way.
-  GeometryChannel(FrameSetId index, GeometryWorld<T>* geometry_world);
+  GeometryChannel(ChannelId index, GeometryWorld<T>* geometry_world);
 
   // The index associated with this channel.
-  ChannelId index_;
+  ChannelId id_;
 
   // A handle to the geometry_world_ to coordinate the channel's operations.
   GeometryWorld<T>* geometry_world_;

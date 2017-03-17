@@ -1,8 +1,10 @@
 #pragma once
 
+#include <memory>
+
 #include "drake/common/drake_copyable.h"
 #include "drake/common/eigen_types.h"
-#include "drake/geometry/bullet_geometry_engine.h"
+//#include "drake/geometry/bullet_geometry_engine.h"
 #include "drake/geometry/geometry_ids.h"
 #include "drake/systems/framework/context.h"
 #include "drake/systems/framework/value.h"
@@ -116,7 +118,7 @@ class GeometryWorld {
    @param context   A mutable context.
    @sa GeometryChannel
    */
-  unique_ptr<GeometryChannel> RequestChannel(drake::systems::Context* context);
+  std::unique_ptr<GeometryChannel<T>> RequestChannel(drake::systems::Context<T>* context);
 
   /**
    Adds the given geometry to the world as anchored geometry.
@@ -152,18 +154,21 @@ class GeometryWorld {
      - One or more of the frames has _not_ had its data set,
      - The data set does not come from a known GeometryChannel,
      - The frames in the dataset are inconsistent of the declared frames.
+
+   @param context           A mutable context.
    @param frame_kinematics  The kinematics data for the frames in a single
                             GeometryChannel.
    */
-  void UpdateFrames(const FrameKinematicsSet& frame_kinematics);
+  void UpdateFrames(drake::systems::Context<T>* context,
+                    const FrameKinematicsSet<T>& frame_kinematics);
 
  private:
   // GeometryWorld has members that are specific implementations of the
   // GeometryEngine interface. It does this so that it can support multiple
   // geometry engine implementations simultaneously to allow for picking the
   // implementation best suited for particular queries.
-  BulletGeometryEngine bullet_engine_;
-  FclGeometryEngine fcl_engine_;
+//  BulletGeometryEngine bullet_engine_;
+//  FclGeometryEngine fcl_engine_;
 };
 }  // namespace geometry
 }  // namespace drake
