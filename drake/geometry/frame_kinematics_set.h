@@ -1,6 +1,10 @@
 #pragma once
 
+#include <unordered_map>
+#include <vector>
+
 #include "drake/common/drake_copyable.h"
+#include "drake/geometry/geometry_ids.h"
 #include "drake/multibody/multibody_tree/math/spatial_velocity.h"
 
 namespace drake {
@@ -35,6 +39,7 @@ class FrameKinematicsSet {
  public:
   DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(FrameKinematicsSet)
 
+  // TODO(SeanCurtis-TRI): Is this method strictly necessary? Should it be private?
   /** Clears all of the kinematics data. */
   void Clear();
 
@@ -85,24 +90,25 @@ class FrameKinematicsSet {
   // Sets the channel id to which this data set belongs.
   void set_channel(ChannelId id) { id_ = id; }
 
+  // Attempts to get the index for the given frame id, throwing an exception if
+  // the frame id given does *not* belong in this set.
+  size_t GetIndexOrThrowIfInvalid(FrameId id) const;
+
   // Specifies the state of any particular state's
   enum class KinematicsWriteState {
-    UNWRITTEN,
-    POSE,
-    POSE_VELOCITY,
-    ALL
+    UNWRITTEN = 0,
+    POSE = 1,
+    POSE_VELOCITY = 3,
+    ALL = 7
   };
 
-  // A version value to facilitate maintaining synchronization between a
-  // persisted set and the context. Structural changes to the membership of a
-  // set lead to advances in version number.
-  int64_t version_{0};
+  const ChannelId id_;
 
   // A map from frame id to its position in the corresponding vectors. For 'N'
   // declared frames, there should be `N` entries.  Every FrameId returned by
   // GeometryChannel::DeclareFrame() should be stored here. It is a bijection
   // from that set of FrameIds to the sequence [0, N-1].
-  std::unordered_map<FrameId, int> frame_indices_;
+  std::unordered_map<FrameId, size_t> frame_indices_;
 
   // The write state of each frame. It is set to UNWRITTEN in Clear() and set to
   // the appropriate value for each of the three Set...() methods.
@@ -117,6 +123,11 @@ class FrameKinematicsSet {
   // The accelerations for the declared frames.  'N' poses for 'N' declared
   // frames.
   std::vector<SpatialAcceleration<T>> accelerations_;
+
+  // A version value to facilitate maintaining synchronization between a
+  // persisted set and the context. Structural changes to the membership of a
+  // set lead to advances in version number.
+  int64_t version_{0};
 };
 
 }  // namespace geometry
