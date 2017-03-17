@@ -26,6 +26,20 @@ drake_cc_library(
 )
 
 drake_cc_library(
+    name = "geometry_channel",
+    srcs = ["geometry_channel.cc"],
+    hdrs = ["geometry_channel.h"],
+    deps = [
+        ":frame_kinematics_set",
+        ":geometry_ids",
+        ":geometry_instance",
+        ":geometry_world",
+        "//drake/common",
+        "//drake/systems/framework:context",
+    ],
+)
+
+drake_cc_library(
     name = "geometry_ids",
     srcs = [],
     hdrs = ["geometry_ids.h"],
