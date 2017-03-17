@@ -16,8 +16,9 @@ class GeometryInstance;
 // TODO(SeanCurtis-TRI): Review this documentation to confirm that it's consistent
 // with what I ended up implementing.
 /**
- GeometryWorld is the structure that tracks the geometric elements in a
- simulation. The geometric elements are associated with "parent" frames; as
+ GeometryWorld is the structure that coordinates the geometric elements across
+ various independent subsystems in a simulation. The geometric elements are
+ associated with "parent" frames; as
  the frame moves, the geometry moves with it in a rigid manner. GeometryWorld
  performs geometric queries on the geometry (e.g., ray intersection, minimum
  distance between geometries, intersection information, etc.)  These queries
@@ -36,6 +37,52 @@ class GeometryInstance;
  the associated geometry moves with it.  The associated geometry can consist of
  a single shape, or a hierarchy of shapes (such that the whole hierarchy is
  treated as a single rigid union of shapes.)
+
+ @section geom_world_workflow Workflow for Upstream Frame Owners
+
+ For an upstream frame owner, the expected work flow is as follows in two
+ phases: initialization (a.k.a. declaration) and setting values.
+
+ @subsection geom_world_declare_workflow For initialization/declaration:
+
+ @code
+ // Assuming the following variables are defined.
+ Context& context;
+ GeometryWorld* geometry_world;
+
+ // Open a channel -- should be stored in a persistent variable, preferably a
+ // member variable.
+ channel_ = geometry_world->RequestChannel(context);
+
+ // Declare moving frames and the hanging geometry. The caller is responsible
+ // for saving the FrameId instances for use later.
+ FrameId f0 = channel_->DeclareFrame(context);
+ GeometryId g0 = channel->DeclareGeometry(context, f0, instance, pose0);
+ FrameId f1 = channel_->DeclareFrame(context);
+ GeometryId g1 = channel->DeclareGeometry(context, f1, instance, pose0);
+ ...
+
+ // Acquire and persist a FrameKinematicsSet instance (preferably in a member
+ // variable).
+ frame_kinetics_set_ = channel_->GetFrameKinematicsSet();
+ @endcode
+
+ @subsection geom_world_value_workflow For setting values during the simulation.
+
+ @code{.cpp}
+ // Assume the following variables are defined.
+ const Context& context;
+
+ // Always re-sync the frame kinematics set with the particular context.
+ channel_->UpdateFrameKinematicsSet(context, &frame_kinematics_set_);
+ foreach ( FrameId frame_id : frames_ ) {
+    // Compute SpatialPose, SpatialVelocity, and SpatialAcceleration
+    SpatialPose X_WF = ...;
+    SpatialVelocity V_WF = ...;
+    SpatialAcceleration A_WF = ...;
+    frame_kinematics_set_.SetFrameFullKinematics(frame_id, X_WF, V_WF, A_WF);
+ }
+ @endcode
  */
 template <typename T>
 class GeometryWorld {

@@ -64,6 +64,7 @@ class GeometryChannel {
    @{
    */
 
+  // TODO(SeanCurtis-TRI): Add metadata. E.g., name, some kind of payload, etc.
   /**
    Declares a new frame on this channel, receiving the unique id for the new
    frame.
@@ -138,7 +139,7 @@ class GeometryChannel {
    and persisted by the upstream frame owner. Disposing of the frame and
    requesting a new frame kinematics set would be _valid_ but inefficient.
    */
-  FrameKinematicsSet GetFrameSet();
+  FrameKinematicsSet GetFrameKinematicsSet();
 
   /**
    The upstream moving frame owner should invoke this method prior to setting
