@@ -85,6 +85,8 @@ class GeometryInstance;
     frame_kinematics_set_.SetFrameFullKinematics(frame_id, X_WF, V_WF, A_WF);
  }
  @endcode
+
+ @tparam T The underlying scalar type. Must be a valid Eigen scalar.
  */
 template <typename T>
 class GeometryWorld {
@@ -139,7 +141,7 @@ class GeometryWorld {
    @returns  A vector of abstract values which will be accessed and managed by
              GeometryWorld.
    */
-  std::vector<drake::systems::AbstractValue*> AllocateAbstractValues();
+  std::vector<std::unique_ptr<drake::systems::AbstractValue*>> AllocateAbstractValues();
 
   /**
    Provides a set of frame kinematics data. GeometryWorld uses this to update
@@ -155,7 +157,7 @@ class GeometryWorld {
      - The data set does not come from a known GeometryChannel,
      - The frames in the dataset are inconsistent of the declared frames.
 
-   @param context           A mutable context.
+   @param context           A mutable context; used for updating cache.
    @param frame_kinematics  The kinematics data for the frames in a single
                             GeometryChannel.
    */

@@ -2,6 +2,7 @@
 set(sources
     frame_kinematics_set.cc
     geometry_channel.cc
+    geometry_state.cc
     )
 
 # List headers that should be installed with Drake so that they
@@ -11,6 +12,7 @@ set(installed_headers
     geometry_channel.h
     geometry_ids.h
     geometry_instance.h
+    geometry_state.h
     identifier.h
     )
 
