@@ -56,6 +56,16 @@ drake_cc_library(
 )
 
 drake_cc_library(
+    name = "geometry_state",
+    srcs = ["geometry_state.cc"],
+    hdrs = ["geometry_state.h"],
+    deps = [
+        ":geometry_ids",
+        "//drake/common",
+    ],
+)
+
+drake_cc_library(
     name = "geometry_world",
     srcs = [
     ],
