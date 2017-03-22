@@ -1,19 +1,19 @@
 #pragma once
 
-#include "drake/geometry/type_safe_int_id.h"
+#include "drake/geometry/identifier.h"
 
 namespace drake {
 namespace geometry {
 
 /// Type used to identify geometry channels by index in GeometryWorld.
-using ChannelId = TypeSafeIntId<class ChannelTag>;
+using ChannelId = Identifier<class ChannelTag>;
 
 /// Type used to identify a frame kinematics instance by index in
 /// GeometryWorld
-using FrameId = TypeSafeIntId<class KinematicsTag>;
+using FrameId = Identifier<class KinematicsTag>;
 
 /// Type used to identify a geometry instance by index in GeometryWorld.
-using GeometryId = TypeSafeIntId<class GeometryTag>;
+using GeometryId = Identifier<class GeometryTag>;
 
 }  // namespace geometry
 }  // namespace drake
