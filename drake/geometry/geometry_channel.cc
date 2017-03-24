@@ -2,7 +2,6 @@
 
 #include "drake/common/drake_assert.h"
 #include "drake/geometry/geometry_instance.h"
-#include "drake/geometry/geometry_world.h"
 
 namespace drake {
 namespace geometry {
@@ -11,22 +10,19 @@ using drake::systems::Context;
 using std::unique_ptr;
 
 template <typename T>
-GeometryChannel<T>::GeometryChannel(ChannelId index,
-                                    GeometryWorld<T>* geometry_world)
-    : id_(index), geometry_world_(geometry_world) {
-  DRAKE_ASSERT(geometry_world != nullptr);
+GeometryChannel<T>::GeometryChannel(ChannelId index) : id_(index),
+                                                       is_open_(true) {
 }
 
 template <typename T>
 GeometryChannel<T>::~GeometryChannel() {
-  DRAKE_DEMAND(geometry_world_ == nullptr);
+  DRAKE_DEMAND(!is_open_);
 }
 
 template <typename T>
-void GeometryChannel<T>::Close() {
-  // TODO(SeanCurtis-TRI): Do the work on geometry world's side to close the
-  // channel.
-  geometry_world_ = nullptr;
+void GeometryChannel<T>::Close(Context<T>* context) {
+  // TODO(SeanCurtis-TRI): Modify the context to remove this geometry's data.
+  is_open_ = false;
 }
 
 template <typename T>
