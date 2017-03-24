@@ -14,6 +14,8 @@ namespace geometry {
 
 // Forward declarations.
 class GeometryInstance;
+template <typename T> class GeometryChannel;
+template <typename T> class FrameKinematicsSet;
 
 // TODO(SeanCurtis-TRI): Review this documentation to confirm that it's consistent
 // with what I ended up implementing.
@@ -93,6 +95,9 @@ class GeometryWorld {
  public:
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(GeometryWorld)
 
+  /** Default constructor. */
+  GeometryWorld() {}
+
   /** @name Frame and Geometry Registration
 
    This is the interface that allows entities to inform GeometryWorld of
@@ -141,7 +146,7 @@ class GeometryWorld {
    @returns  A vector of abstract values which will be accessed and managed by
              GeometryWorld.
    */
-  std::vector<std::unique_ptr<drake::systems::AbstractValue*>> AllocateAbstractValues();
+  std::vector<std::unique_ptr<drake::systems::AbstractValue>> AllocateAbstractValues();
 
   /**
    Provides a set of frame kinematics data. GeometryWorld uses this to update
