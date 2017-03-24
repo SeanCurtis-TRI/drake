@@ -2,6 +2,7 @@
 
 #include "drake/common/drake_assert.h"
 #include "drake/geometry/geometry_instance.h"
+#include "drake/geometry/geometry_state.h"
 
 namespace drake {
 namespace geometry {
@@ -27,28 +28,33 @@ void GeometryChannel<T>::Close(Context<T>* context) {
 
 template <typename T>
 FrameId GeometryChannel<T>::DeclareFrame(Context<T>* context) {
-  // TODO(SeanCurtis-TRI): Do the work!
-  static int NEXT_FRAME = 1;
-  return FrameId(NEXT_FRAME++);
+  auto state =
+      context->get_mutable_state()->template get_abstract_state<GeometryState<T>>(0);
+  FrameId id = state.RequestFrameIdForChannel(id_);
+  return id;
 }
 
 template <typename T>
 GeometryId GeometryChannel<T>::DeclareGeometry(Context<T>* context,
-                                            FrameId id,
+                                            FrameId frame_id,
                                             unique_ptr<GeometryInstance> geometry,
                                             const Isometry3<T>& X_FG) {
+  auto state =
+      context->get_mutable_state()->template get_abstract_state<GeometryState<T>>(0);
+  GeometryId id = state.RequestGeometryIdForFrame(id_, frame_id);
   // TODO(SeanCurtis-TRI): Do the work!
-  static int NEXT_GEOMETRY = 1;
-  return GeometryId(NEXT_GEOMETRY++);
+  return id;
 }
 
 template <typename T>
 GeometryId GeometryChannel<T>::DeclareGeometry(Context<T>* context,
-                                            GeometryId id,
+                                            GeometryId geometry_id,
                                             unique_ptr<GeometryInstance> geometry,
                                             const Isometry3<T>& X_FG) {
-  // TODO(SeanCurtis-TRI): Do the work!
-  return DeclareGeometry(context, FrameId(0), geometry, X_FG);
+  auto state =
+      context->get_mutable_state()->template get_abstract_state<GeometryState<T>>(0);
+  auto frame_id = state.GetFrameId(geometry_id);
+  return DeclareGeometry(context, frame_id, geometry, X_FG);
 }
 
 template <typename T>
