@@ -48,7 +48,11 @@ class GeometryChannel {
  public:
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(GeometryChannel)
 
+  /** Destructor; detects if it has been closed properly. */
   ~GeometryChannel();
+
+  /** Reports the channels unique identifier. */
+  ChannelId get_id() const { return id_; }
 
   /**
    Closes the channel.  This informs GeometryWorld that the upstream frame

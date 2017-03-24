@@ -54,7 +54,7 @@ GeometryId GeometryChannel<T>::DeclareGeometry(Context<T>* context,
   auto state =
       context->get_mutable_state()->template get_abstract_state<GeometryState<T>>(0);
   auto frame_id = state.GetFrameId(geometry_id);
-  return DeclareGeometry(context, frame_id, geometry, X_FG);
+  return DeclareGeometry(context, frame_id, std::move(geometry), X_FG);
 }
 
 template <typename T>
@@ -69,5 +69,9 @@ void GeometryChannel<T>::UpdateFrameKinematicsSet(const Context<T>& context,
                                                   FrameKinematicsSet<T>* frame_set) {
   // TODO(SeanCurtis-TRI): Do this work.
 }
+
+// Explicitly instantiates on the most common scalar types.
+template class GeometryChannel<double>;
+
 }  // namespace geometry
 }  // namespace drake
