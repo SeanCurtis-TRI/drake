@@ -16,6 +16,7 @@ drake_cc_library(
         "frame_kinematics_set.cc",
         "geometry_channel.cc",
         "geometry_state.cc",
+        "geometry_world.cc",
     ],
     hdrs = [
         "frame_kinematics_set.h",
