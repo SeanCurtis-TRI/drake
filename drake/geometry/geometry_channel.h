@@ -54,8 +54,10 @@ class GeometryChannel {
    Closes the channel.  This informs GeometryWorld that the upstream frame
    owner is *done* moving geometry. The frames and geometry declared through
    this channel will be _removed_ from GeometryWorld.
+
+   @param context       A mutable context.
    */
-  void Close();
+  void Close(drake::systems::Context<T>* context);
 
   /**
    @name Declaring Frames and Geometry
@@ -83,7 +85,7 @@ class GeometryChannel {
    exception will be thrown.
 
    @param context     A mutable context.
-   @param id          The id for the frame `F` to hang the geometry on.
+   @param frame_id    The id for the frame `F` to hang the geometry on.
    @param geometry    The geometry to hang.
    @param X_FG        the transform X_FG which transforms the geometry
                       from its canonical frame `G` to the parent frame `F`,
@@ -91,7 +93,7 @@ class GeometryChannel {
    @return A unique identifier for the added geometry.
    */
   GeometryId DeclareGeometry(drake::systems::Context<T>* context,
-                             FrameId id,
+                             FrameId frame_id,
                              std::unique_ptr<GeometryInstance> geometry,
                              const Isometry3<T>& X_FG);
 
@@ -107,16 +109,16 @@ class GeometryChannel {
    If the `id` is not a valid geometry identifier declared through this channel,
    an exception will be thrown.
 
-   @param context     A mutable context.
-   @param id          The id for the geometry to hang the declared geometry on.
-   @param geometry    The geometry to hang.
-   @param X_FG        the transform X_FG which transforms the geometry
-                      from its canonical frame `G` to the parent frame `F`,
-                      i.e., the geometry's pose relative to its parent.
+   @param context      A mutable context.
+   @param geometry_id  The id for the geometry to hang the declared geometry on.
+   @param geometry     The geometry to hang.
+   @param X_FG         the transform X_FG which transforms the geometry
+                       from its canonical frame `G` to the parent frame `F`,
+                       i.e., the geometry's pose relative to its parent.
    @return A unique identifier for the added geometry.
    */
   GeometryId DeclareGeometry(drake::systems::Context<T>* context,
-                             GeometryId id,
+                             GeometryId geometry_id,
                              std::unique_ptr<GeometryInstance> geometry,
                              const Isometry3<T>& X_FG);
 
@@ -168,13 +170,13 @@ class GeometryChannel {
  private:
   // Private constructor; GeometryWorld instantiates them upon request and
   // they cannot be created any other way.
-  GeometryChannel(ChannelId index, GeometryWorld<T>* geometry_world);
+  GeometryChannel(ChannelId index);
 
   // The index associated with this channel.
   ChannelId id_;
 
-  // A handle to the geometry_world_ to coordinate the channel's operations.
-  GeometryWorld<T>* geometry_world_;
+  // Tracks whether this channel was closed before destroyed.
+  bool is_open_;
 };
 }  // namespace geometry
 }  // namespace drake
