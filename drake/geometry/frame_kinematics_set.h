@@ -105,7 +105,8 @@ class FrameKinematicsSet {
     ALL = 7
   };
 
-  const ChannelId id_;
+  // The channel id of the channel to which this set belongs.
+  ChannelId id_;
 
   // A map from frame id to its position in the corresponding vectors. For 'N'
   // declared frames, there should be `N` entries.  Every FrameId returned by
