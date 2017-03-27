@@ -28,8 +28,6 @@ template <typename T>
 GeometryId GeometryWorld<T>::AddAnchoredGeometry(Context<T>* context,
                                unique_ptr<GeometryInstance> geometry,
                                const Isometry3<T>& X_WG) {
-  auto& state = context->get_mutable_state()
-      ->template get_mutable_abstract_state<GeometryState<T>>(0);
   GeometryId id = GeometryId::get_new_id();
 
   // TODO(SeanCurtis-TRI): Actually do this work.
