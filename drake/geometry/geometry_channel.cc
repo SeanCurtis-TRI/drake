@@ -28,8 +28,8 @@ void GeometryChannel<T>::Close(Context<T>* context) {
 
 template <typename T>
 FrameId GeometryChannel<T>::DeclareFrame(Context<T>* context) {
-  auto state =
-      context->get_mutable_state()->template get_abstract_state<GeometryState<T>>(0);
+  auto& state = context->get_mutable_state()
+                    ->template get_mutable_abstract_state<GeometryState<T>>(0);
   FrameId id = state.RequestFrameIdForChannel(id_);
   return id;
 }
@@ -39,8 +39,8 @@ GeometryId GeometryChannel<T>::DeclareGeometry(Context<T>* context,
                                             FrameId frame_id,
                                             unique_ptr<GeometryInstance> geometry,
                                             const Isometry3<T>& X_FG) {
-  auto state =
-      context->get_mutable_state()->template get_abstract_state<GeometryState<T>>(0);
+  auto& state = context->get_mutable_state()
+      ->template get_mutable_abstract_state<GeometryState<T>>(0);
   GeometryId id = state.RequestGeometryIdForFrame(id_, frame_id);
   // TODO(SeanCurtis-TRI): Do the work!
   return id;
@@ -51,8 +51,8 @@ GeometryId GeometryChannel<T>::DeclareGeometry(Context<T>* context,
                                             GeometryId geometry_id,
                                             unique_ptr<GeometryInstance> geometry,
                                             const Isometry3<T>& X_FG) {
-  auto state =
-      context->get_mutable_state()->template get_abstract_state<GeometryState<T>>(0);
+  auto& state = context->get_mutable_state()
+      ->template get_mutable_abstract_state<GeometryState<T>>(0);
   auto frame_id = state.GetFrameId(geometry_id);
   return DeclareGeometry(context, frame_id, std::move(geometry), X_FG);
 }

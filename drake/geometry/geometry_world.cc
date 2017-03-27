@@ -16,8 +16,8 @@ using std::vector;
 template <typename T>
 unique_ptr<GeometryChannel<T>> GeometryWorld<T>::RequestChannel(
     Context<T>* context) {
-  auto state =
-      context->get_mutable_state()->template get_abstract_state<GeometryState<T>>(0);
+  auto& state = context->get_mutable_state()
+                    ->template get_mutable_abstract_state<GeometryState<T>>(0);
   ChannelId id = state.RequestChannelId();
   // Can't use make_unique because the constructor is private, friended to
   // GeometryWorld.
@@ -28,8 +28,8 @@ template <typename T>
 GeometryId GeometryWorld<T>::AddAnchoredGeometry(Context<T>* context,
                                unique_ptr<GeometryInstance> geometry,
                                const Isometry3<T>& X_WG) {
-  auto state =
-      context->get_mutable_state()->template get_abstract_state<GeometryState<T>>(0);
+  auto& state = context->get_mutable_state()
+      ->template get_mutable_abstract_state<GeometryState<T>>(0);
   GeometryId id = GeometryId::get_new_id();
 
   // TODO(SeanCurtis-TRI): Actually do this work.
