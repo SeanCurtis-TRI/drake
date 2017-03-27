@@ -3,6 +3,7 @@ set(sources
     frame_kinematics_set.cc
     geometry_channel.cc
     geometry_state.cc
+    geometry_world.cc
     )
 
 # List headers that should be installed with Drake so that they
@@ -13,6 +14,7 @@ set(installed_headers
     geometry_ids.h
     geometry_instance.h
     geometry_state.h
+    geometry_world.h
     identifier.h
     )
 
@@ -27,6 +29,7 @@ add_library_with_exports(LIB_NAME drakeGeometry
 
 target_link_libraries(drakeGeometry
     drakeCommon
+    drakeSystemFramework
     )
 
 if(BUILD_TESTING)
