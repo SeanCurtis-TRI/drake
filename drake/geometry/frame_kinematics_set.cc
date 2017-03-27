@@ -51,7 +51,8 @@ void FrameKinematicsSet<T>::SetFrameFullKinematics(
 
 template <typename T>
 size_t FrameKinematicsSet<T>::GetIndexOrThrowIfInvalid(FrameId frame_id) const {
-  unordered_map<FrameId, size_t>::const_iterator itr = frame_indices_.find(frame_id);
+  unordered_map<FrameId, size_t>::const_iterator itr =
+      frame_indices_.find(frame_id);
   if (itr != frame_indices_.end()) {
     return itr->second;
   }
@@ -60,6 +61,9 @@ size_t FrameKinematicsSet<T>::GetIndexOrThrowIfInvalid(FrameId frame_id) const {
       " FrameKinematicsSet for channel " << id_ << ".";
   throw std::runtime_error(ss.str());
 }
+
+// Explicitly instantiates on the most common scalar types.
+template class FrameKinematicsSet<double>;
 
 }  // namespace geometry
 }  // namespace drake
