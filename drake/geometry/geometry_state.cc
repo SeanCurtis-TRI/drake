@@ -66,7 +66,7 @@ ChannelId GeometryState<T>::RequestChannelId() {
 }
 
 template <typename T>
-bool GeometryState<T>::IsChannelOpen(ChannelId id) {
+bool GeometryState<T>::ChannelIsOpen(ChannelId id) const {
   return channel_frame_map_.find(id) != channel_frame_map_.end();
 }
 
