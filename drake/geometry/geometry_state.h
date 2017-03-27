@@ -60,7 +60,7 @@ class GeometryState {
   ChannelId RequestChannelId();
 
   /** Reports if the channel with the given id is open. */
-  bool IsChannelOpen(ChannelId id);
+  bool ChannelIsOpen(ChannelId id) const;
 
   /** Requests a new FrameId for the given channel. Throws an exception if the
    channel id is not an open channel.

@@ -24,9 +24,9 @@ void ExpectErrorMessage(const char* err_msg, const char* reg_exp) {
 GTEST_TEST(GeometryStateTest, ChannelRequest) {
   GeometryState<double> state;
   ChannelId c1 = state.RequestChannelId();
-  EXPECT_TRUE(state.IsChannelOpen(c1));
+  EXPECT_TRUE(state.ChannelIsOpen(c1));
   ChannelId c2 = ChannelId::get_new_id();
-  EXPECT_FALSE(state.IsChannelOpen(c2));
+  EXPECT_FALSE(state.ChannelIsOpen(c2));
 }
 
 // Tests the request of frames. This simultaneously tests the request
