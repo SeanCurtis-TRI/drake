@@ -57,6 +57,20 @@ drake_cc_library(
 )
 
 drake_cc_googletest(
+    name = "frame_kinematics_set_test",
+    deps = [":geometry_world"]
+)
+
+drake_cc_googletest(
+    name = "geometry_channel_test",
+    deps = [
+        ":geometry_world",
+        "//drake/systems/framework:abstract_values",
+        "//drake/systems/framework:leaf_context",
+    ],
+)
+
+drake_cc_googletest(
     name = "geometry_state_test",
     deps = [":geometry_world"]
 )

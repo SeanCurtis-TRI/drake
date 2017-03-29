@@ -59,6 +59,15 @@ class GeometryState {
    */
   ChannelId RequestChannelId();
 
+  /** Closes the indicated channel, removing all frames and geometry associated
+   with that channel.
+
+   Throws an exception if the channel is not currently open.
+
+   @param channel_id    The id for the open channel to close.
+   */
+  void CloseChannel(ChannelId channel_id);
+
   /** Reports if the channel with the given id is open. */
   bool ChannelIsOpen(ChannelId id) const;
 

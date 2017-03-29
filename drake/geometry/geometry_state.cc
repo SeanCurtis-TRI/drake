@@ -66,6 +66,22 @@ ChannelId GeometryState<T>::RequestChannelId() {
 }
 
 template <typename T>
+void GeometryState<T>::CloseChannel(ChannelId channel_id) {
+  FrameIdSet& frames = GetValueOrThrow(channel_id, &channel_frame_map_);
+  for (auto frame_id : frames) {
+    GeometryIdSet& geometries = GetValueOrThrow(frame_id, &frame_geometry_map_);
+    for (auto geometry_id : geometries) {
+      // TODO(SeanCurtis-TRI): Do the further work to remove the geometry:
+      //  1. Delete the instance.
+      geometry_frame_map_.erase(geometry_id);
+    }
+    frame_channel_map_.erase(frame_id);
+    frame_geometry_map_.erase(frame_id);
+  }
+  channel_frame_map_.erase(channel_id);
+}
+
+template <typename T>
 bool GeometryState<T>::ChannelIsOpen(ChannelId id) const {
   return channel_frame_map_.find(id) != channel_frame_map_.end();
 }
