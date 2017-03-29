@@ -146,8 +146,12 @@ class GeometryChannel {
    It is recommended that this be invoked after receiving a requested channel
    and persisted by the upstream frame owner. Disposing of the frame and
    requesting a new frame kinematics set would be _valid_ but inefficient.
+
+   @param context       The context against which all declarations have been
+                        made.
    */
-  FrameKinematicsSet<T> GetFrameKinematicsSet();
+  FrameKinematicsSet<T> GetFrameKinematicsSet(
+      const drake::systems::Context<T>& context);
 
   /**
    The upstream moving frame owner should invoke this method prior to setting
