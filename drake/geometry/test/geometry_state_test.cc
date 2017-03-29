@@ -4,6 +4,8 @@
 
 #include <gtest/gtest.h>
 
+#include "drake/geometry/geometry_channel.h"
+
 namespace drake {
 namespace geometry {
 namespace  {
@@ -109,10 +111,59 @@ GTEST_TEST(GeometryStateTest, ChannelFromGeometry) {
     GTEST_FAIL() << "Expected std::runtime_error";
   } catch (const std::runtime_error& err) {
     ExpectErrorMessage(err.what(),
-                       "Referenced geometry \\d+ does not belong to a known frame.");
+                       "Referenced geometry \\d+ does not belong to a known "
+                       "frame.");
   }
 }
 
+// This confirms that closing a channel clears the data associated with the
+// channel.
+GTEST_TEST(GeometryStateTest, ClosingChannelClearsData) {
+  GeometryState<double> state;
+  ChannelId channel_id = state.RequestChannelId();
+
+  // Creates k frames with n geometries each.
+  const int frame_count = 2;
+  const int geometry_count = 3;
+  FrameId frames[frame_count];
+  GeometryId geometries[frame_count * geometry_count];
+  for (int f = 0; f < frame_count; ++f) {
+    frames[f] = state.RequestFrameIdForChannel(channel_id);
+    int geometry_position = f * geometry_count;
+    for (int g = 0; g < geometry_count; ++g) {
+      geometries[geometry_position++] =
+          state.RequestGeometryIdForFrame(channel_id, frames[f]);
+    }
+  }
+  // Confirms that the same channel is reachable from all geometries.
+  for (int i = 0; i < frame_count * geometry_count; ++i) {
+    EXPECT_EQ(state.GetChannelId(geometries[i]), channel_id);
+  }
+
+  state.CloseChannel(channel_id);
+  EXPECT_FALSE(state.ChannelIsOpen(channel_id));
+  // confirm frames have been closed
+  for (int f = 0; f < frame_count; ++f) {
+    try {
+      state.GetChannelId(frames[f]);
+      GTEST_FAIL();
+    } catch (const std::runtime_error& err) {
+      ExpectErrorMessage(err.what(),
+                         "Referenced frame \\d+ has not been declared.");
+    }
+  }
+  // confirm geometries have been closed
+  for (int g = 0; g < frame_count * geometry_count; ++g) {
+    try {
+      state.GetChannelId(geometries[g]);
+      GTEST_FAIL();
+    } catch (const std::runtime_error& err) {
+      ExpectErrorMessage(err.what(),
+                         "Referenced geometry \\d+ does not belong to a known "
+                         "frame.");
+    }
+  }
+}
 }  // namespace
 }  // namespace geometry
 }  // namespace drake

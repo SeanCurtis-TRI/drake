@@ -22,6 +22,9 @@ GeometryChannel<T>::~GeometryChannel() {
 
 template <typename T>
 void GeometryChannel<T>::Close(Context<T>* context) {
+  auto& state = context->get_mutable_state()
+      ->template get_mutable_abstract_state<GeometryState<T>>(0);
+  state.CloseChannel(id_);
   // TODO(SeanCurtis-TRI): Modify the context to remove this geometry's data.
   is_open_ = false;
 }
@@ -58,15 +61,16 @@ GeometryId GeometryChannel<T>::DeclareGeometry(Context<T>* context,
 }
 
 template <typename T>
-FrameKinematicsSet<T> GeometryChannel<T>::GetFrameKinematicsSet() {
+FrameKinematicsSet<T> GeometryChannel<T>::GetFrameKinematicsSet(
+    const Context<T>& context) {
   FrameKinematicsSet<T> set(id_);
   // TODO(SeanCurtis-TRI): Populate this from the reference data.
   return set;
 }
 
 template <typename T>
-void GeometryChannel<T>::UpdateFrameKinematicsSet(const Context<T>& context,
-                                                  FrameKinematicsSet<T>* frame_set) {
+void GeometryChannel<T>::UpdateFrameKinematicsSet(
+    const Context<T>& context, FrameKinematicsSet<T>* frame_set) {
   // TODO(SeanCurtis-TRI): Do this work.
 }
 
