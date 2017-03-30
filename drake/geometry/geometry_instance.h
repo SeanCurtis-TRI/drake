@@ -1,5 +1,6 @@
 #pragma once
 
+#include "drake/common/drake_copyable.h"
 namespace drake {
 namespace geometry {
 
@@ -8,9 +9,7 @@ namespace geometry {
  sort), a pose (relative to a parent frame), material information, and an
  opaque collection of metadata.
  */
-class GeometryInstance {
-
-};
+class GeometryInstance {};
 
 }  // namespace geometry
 }  // namespace drake
