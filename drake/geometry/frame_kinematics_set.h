@@ -13,17 +13,13 @@ namespace geometry {
 // NOTE: These classes don't exist yet in the multibody namespace yet. These are
 // dummy placeholders to simply allow the declarations below to be "valid".
 template <typename T>
-class SpatialPose {
-
-};
+class SpatialPose {};
 
 template <typename T>
-class SpatialAcceleration {
+class SpatialAcceleration {};
 
-};
-
-// Forward declarations.
-template <typename T> class GeometryChannel;
+// forward declaration
+template <typename T> class GeometryWorld;
 
 /**
  Represents the kinematics data for a set of declared geometry frames. It serves
@@ -42,7 +38,8 @@ class FrameKinematicsSet {
  public:
   DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(FrameKinematicsSet)
 
-  // TODO(SeanCurtis-TRI): Is this method strictly necessary? Should it be private?
+  // TODO(SeanCurtis-TRI): Is this method strictly necessary?
+  // Should it be private?
   /** Clears all of the kinematics data. */
   void Clear();
 
@@ -77,21 +74,18 @@ class FrameKinematicsSet {
                               const drake::multibody::SpatialVelocity<T>& V_WF,
                               const SpatialAcceleration<T>& A_WF);
 
-  /** Reports the identifier for the channel from which this kinematics data
-   comes from. */
-  ChannelId get_channel() const { return id_; }
+  /** Reports the identifier for the geometry source to which this kinematics
+   data applies. */
+  SourceId get_source_id() const { return id_; }
 
-  // Only allow GeometryChannel to construct the set.
-  friend class GeometryChannel<T>;
+  // Only allow GeometryWorld to construct the set.
+  friend class GeometryWorld<T>;
 
  private:
-
-  // Private constructor disables arbitrary construction; only a GeometryChannel
-  // can create one -- tying the set to the originating channel.
-  FrameKinematicsSet(ChannelId id);
-
-  // Sets the channel id to which this data set belongs.
-  void set_channel(ChannelId id) { id_ = id; }
+  // Private constructor disables arbitrary construction; only a GeometryWorld
+  // can create one. This guarantees that they can only be instantiated for
+  // valid source ids.
+  explicit FrameKinematicsSet(SourceId id);
 
   // Attempts to get the index for the given frame id, throwing an exception if
   // the frame id given does *not* belong in this set.
@@ -106,11 +100,11 @@ class FrameKinematicsSet {
   };
 
   // The channel id of the channel to which this set belongs.
-  ChannelId id_;
+  SourceId id_;
 
   // A map from frame id to its position in the corresponding vectors. For 'N'
   // declared frames, there should be `N` entries.  Every FrameId returned by
-  // GeometryChannel::DeclareFrame() should be stored here. It is a bijection
+  // GeometryWorld::RegisterFrame() should be stored here. It is a bijection
   // from that set of FrameIds to the sequence [0, N-1].
   std::unordered_map<FrameId, size_t> frame_indices_;
 

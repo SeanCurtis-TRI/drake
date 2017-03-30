@@ -1,7 +1,8 @@
 # List all source files used to build libdrakeGeometry.
 set(sources
     frame_kinematics_set.cc
-    geometry_channel.cc
+    geometry_context.cc
+    geometry_instance.cc
     geometry_state.cc
     geometry_world.cc
     )
@@ -10,7 +11,7 @@ set(sources
 # are available elsewhere via #include "drake/geometry/xxx.h".
 set(installed_headers
     frame_kinematics_set.h
-    geometry_channel.h
+    geometry_context.h
     geometry_ids.h
     geometry_instance.h
     geometry_state.h

@@ -30,9 +30,9 @@ Value& GetValueOrThrow(const Key& key, std::unordered_map<Key, Value>* map) {
 
 // Specializations for missing key based on key types.
 template <>
-std::string get_missing_id_message<ChannelId>( const ChannelId& key) {
+std::string get_missing_id_message<SourceId>( const SourceId& key) {
   std::stringstream ss;
-  ss << "Referenced channel " << key << " is not open.";
+  ss << "Referenced geometry source " << key << " is not active.";
   return ss.str();
 }
 
@@ -59,15 +59,15 @@ GeometryState<T>::GeometryState() {}
 // about overflow.
 
 template <typename T>
-ChannelId GeometryState<T>::RequestChannelId() {
-  ChannelId id = ChannelId::get_new_id();
-  channel_frame_map_[id];   // Initialize an empty set.
+SourceId GeometryState<T>::RequestSourceId() {
+  SourceId id = SourceId::get_new_id();
+  source_frame_map_[id];   // Initialize an empty set.
   return id;
 }
 
 template <typename T>
-void GeometryState<T>::CloseChannel(ChannelId channel_id) {
-  FrameIdSet& frames = GetValueOrThrow(channel_id, &channel_frame_map_);
+void GeometryState<T>::RemoveSource(SourceId source_id) {
+  FrameIdSet& frames = GetValueOrThrow(source_id, &source_frame_map_);
   for (auto frame_id : frames) {
     GeometryIdSet& geometries = GetValueOrThrow(frame_id, &frame_geometry_map_);
     for (auto geometry_id : geometries) {
@@ -75,31 +75,31 @@ void GeometryState<T>::CloseChannel(ChannelId channel_id) {
       //  1. Delete the instance.
       geometry_frame_map_.erase(geometry_id);
     }
-    frame_channel_map_.erase(frame_id);
+    frame_source_map_.erase(frame_id);
     frame_geometry_map_.erase(frame_id);
   }
-  channel_frame_map_.erase(channel_id);
+  source_frame_map_.erase(source_id);
 }
 
 template <typename T>
-bool GeometryState<T>::ChannelIsOpen(ChannelId id) const {
-  return channel_frame_map_.find(id) != channel_frame_map_.end();
+bool GeometryState<T>::SourceIsActive(SourceId id) const {
+  return source_frame_map_.find(id) != source_frame_map_.end();
 }
 
 template <typename T>
-FrameId GeometryState<T>::RequestFrameIdForChannel(ChannelId channel_id) {
-  FrameIdSet& set = GetValueOrThrow(channel_id, &channel_frame_map_);
+FrameId GeometryState<T>::RequestFrameIdForSource(SourceId source_id) {
+  FrameIdSet& set = GetValueOrThrow(source_id, &source_frame_map_);
   FrameId frame_id = FrameId::get_new_id();
   set.insert(frame_id);
-  frame_channel_map_[frame_id] = channel_id;
+  frame_source_map_[frame_id] = source_id;
   frame_geometry_map_[frame_id];  // Initialize an empty set.
   return frame_id;
 }
 
 template <typename T>
-GeometryId GeometryState<T>::RequestGeometryIdForFrame(ChannelId channel_id,
+GeometryId GeometryState<T>::RequestGeometryIdForFrame(SourceId source_id,
                                                        FrameId frame_id) {
-  FrameIdSet& set = GetValueOrThrow(channel_id, &channel_frame_map_);
+  FrameIdSet& set = GetValueOrThrow(source_id, &source_frame_map_);
   FrameIdSet::iterator itr = set.find(frame_id);
   if (itr != set.end()) {
     GeometryId id = GeometryId::get_new_id();
@@ -110,20 +110,20 @@ GeometryId GeometryState<T>::RequestGeometryIdForFrame(ChannelId channel_id,
     return id;
   }
   std::stringstream ss;
-  ss << "Referenced frame " << frame_id << " for channel " << channel_id << ".";
-  ss << " But the frame doesn't belong to the channel.";
+  ss << "Referenced frame " << frame_id << " for source " << source_id << ".";
+  ss << " But the frame doesn't belong to the source.";
   throw std::runtime_error(ss.str());
 }
 
 template <typename T>
-ChannelId GeometryState<T>::GetChannelId(FrameId frame_id) {
-  return GetValueOrThrow(frame_id, &frame_channel_map_);
+SourceId GeometryState<T>::GetSourceId(FrameId frame_id) {
+  return GetValueOrThrow(frame_id, &frame_source_map_);
 }
 
 template <typename T>
-ChannelId GeometryState<T>::GetChannelId(GeometryId geometry_id) {
+SourceId GeometryState<T>::GetSourceId(GeometryId geometry_id) {
   FrameId frame_id = GetFrameId(geometry_id);
-  return GetChannelId(frame_id);
+  return GetSourceId(frame_id);
 }
 
 template <typename T>

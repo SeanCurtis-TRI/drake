@@ -13,12 +13,10 @@ package(default_visibility = ["//visibility:public"])
 drake_cc_library(
     name = "geometry_world",
     srcs = [
-        "geometry_channel.cc",
         "geometry_state.cc",
         "geometry_world.cc",
     ],
     hdrs = [
-        "geometry_channel.h",
         "geometry_engine.h",
         "geometry_instance.h",
         "geometry_state.h",
@@ -26,9 +24,9 @@ drake_cc_library(
     ],
     deps = [
         ":frame_kinematics_set",
+        ":geometry_context",
         ":geometry_ids",
         "//drake/common",
-        "//drake/systems/framework:context",
     ],
 )
 
@@ -40,6 +38,13 @@ drake_cc_library(
         ":geometry_ids",
         "//drake/multibody/multibody_tree/math:spatial_velocity",
     ],
+)
+
+drake_cc_library(
+    name = "geometry_context",
+    srcs = ["geometry_context.cc"],
+    hdrs = ["geometry_context.h"],
+    deps = ["//drake/systems/framework:leaf_context"],
 )
 
 drake_cc_library(
@@ -62,7 +67,7 @@ drake_cc_googletest(
 )
 
 drake_cc_googletest(
-    name = "geometry_channel_test",
+    name = "geometry_world_test",
     deps = [
         ":geometry_world",
         "//drake/systems/framework:abstract_values",
