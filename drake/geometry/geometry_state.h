@@ -15,11 +15,11 @@ namespace geometry {
 /** A collection of unique frame ids. */
 using FrameIdSet = std::unordered_set<FrameId>;
 
-/** A map between a channel identifier and the frame identifiers it owns. */
-using ChannelFrameMap = std::unordered_map<ChannelId, FrameIdSet>;
+/** A map between a source identifier and the frame identifiers it owns. */
+using SourceFrameMap = std::unordered_map<SourceId, FrameIdSet>;
 
 /** A map from a frame id to it's assigned channel id. */
-using FrameChannelMap = std::unordered_map<FrameId, ChannelId>;
+using FrameSourceMap = std::unordered_map<FrameId, SourceId>;
 
 /** A collection of unique frame ids. */
 using GeometryIdSet = std::unordered_set<GeometryId>;
@@ -54,41 +54,41 @@ class GeometryState {
    @{
    */
 
-  /** Distributes the next available channel id.
-   @returns A newly allocated channel id.
+  /** Distributes the next available geometyry source id.
+   @returns A newly allocated geometry source id.
    */
-  ChannelId RequestChannelId();
+  SourceId RequestSourceId();
 
-  /** Closes the indicated channel, removing all frames and geometry associated
-   with that channel.
+  /** Removes the indicated source, removing all frames and geometry registered
+   on that source identifier.
 
-   Throws an exception if the channel is not currently open.
+   Throws an exception if the source is not currently active.
 
-   @param channel_id    The id for the open channel to close.
+   @param source_id    The id for the active geometry source to remove.
    */
-  void CloseChannel(ChannelId channel_id);
+  void RemoveSource(SourceId source_id);
 
-  /** Reports if the channel with the given id is open. */
-  bool ChannelIsOpen(ChannelId id) const;
+  /** Reports if the source with the given id is active. */
+  bool SourceIsActive(SourceId id) const;
 
-  /** Requests a new FrameId for the given channel. Throws an exception if the
-   channel id is not an open channel.
+  /** Requests a new FrameId for the given geometry source. Throws an exception
+   if the source id is does not represent an active geometry source.
 
-   @param channel_id    The id of the channel for which this frame is allocated.
+   @param source_id    The id of the source for which this frame is allocated.
    @returns  A newly allocated frame id.
    */
-  FrameId RequestFrameIdForChannel(ChannelId channel_id);
+  FrameId RequestFrameIdForSource(SourceId source_id);
 
   /** Requests a new GeometryId for the given frame and channel. Throws an
    exception if the channel doesn't exist, or the frame doesn't belong to the
    channel, or if the frame does not belong to the channel.
 
-   @param channel_id    The id of the channel on which the geometry is being
+   @param source_id    The id of the channel on which the geometry is being
                         declared.
    @param frame_id      The id of the frame on which the geometry is to hang.
    @returns  A newly allocated geometry id.
    */
-  GeometryId RequestGeometryIdForFrame(ChannelId channel_id, FrameId frame_id);
+  GeometryId RequestGeometryIdForFrame(SourceId source_id, FrameId frame_id);
 
   /** @} */
 
@@ -110,9 +110,10 @@ class GeometryState {
    @{
    */
 
-  /** Retrieves the channel id on which the given frame id is declared.
+  /** Retrieves the geometry source id on which the given frame id is
+   registered.
 
-   An exception is thrown if the id does _not_ map to an open channel.
+   An exception is thrown if the id does _not_ map to an active source.
    <!--
    todo(SeanCurtis-TRI): Determine if optional<id> is the right way to go.
    The result is "optional". If the given id doesn't actually map to a channel,
@@ -120,14 +121,14 @@ class GeometryState {
    -->
 
    @param frame_id      The query frame id.
-   @returns An optional ChannelId based on a successful lookup.
+   @returns The identifier of the source that registered this frame.
    */
-  ChannelId GetChannelId(FrameId frame_id);
+  SourceId GetSourceId(FrameId frame_id);
 
-  /** Retrieves the channel id on which the given geometry id is ultimately
-   declared.
+  /** Retrieves the geometry source id on which the given geometry id is
+   ultimately registered.
 
-   An exception is thrown if the id does _not_ map to declared frame.
+   An exception is thrown if the id does _not_ map to an active source.
    <!--
    todo(SeanCurtis-TRI): Determine if optional<id> is the right way to go.
    The result is "optional". If the given id doesn't actually map to a channel,
@@ -135,9 +136,9 @@ class GeometryState {
    -->
 
    @param frame_id      The query geometry id.
-   @returns An optional ChannelId based on a successful lookup.
+   @returns The identifier of the source that registered this geometry.
    */
-  ChannelId GetChannelId(GeometryId geometry_id);
+  SourceId GetSourceId(GeometryId geometry_id);
 
   /** Retrieves the frame id on which the given geometry id is declared.
 
@@ -156,11 +157,12 @@ class GeometryState {
   /** @} */
 
  private:
-  // The open channels and the frames that have been declared on them.
-  ChannelFrameMap channel_frame_map_;
+  // The active geometry sources and the frames that have been registered
+  // on them.
+  SourceFrameMap source_frame_map_;
 
-  // The map between frames and the channel on which they were declared.
-  FrameChannelMap frame_channel_map_;
+  // The map between frames and the sources on which they were registered.
+  FrameSourceMap frame_source_map_;
 
   // Map from frame ids to the geometry that has been hung on it.
   FrameGeometryMap frame_geometry_map_;

@@ -5,6 +5,7 @@
 #include "drake/common/drake_copyable.h"
 #include "drake/common/eigen_types.h"
 //#include "drake/geometry/bullet_geometry_engine.h"
+#include "drake/geometry/frame_kinematics_set.h"
 #include "drake/geometry/geometry_ids.h"
 #include "drake/systems/framework/context.h"
 #include "drake/systems/framework/value.h"
@@ -14,8 +15,8 @@ namespace geometry {
 
 // Forward declarations.
 class GeometryInstance;
-template <typename T> class GeometryChannel;
 template <typename T> class FrameKinematicsSet;
+template <typename T> class GeometryContext;
 
 // TODO(SeanCurtis-TRI): Review this documentation to confirm that it's consistent
 // with what I ended up implementing.
@@ -98,34 +99,97 @@ class GeometryWorld {
   /** Default constructor. */
   GeometryWorld() {}
 
-  /** @name Frame and Geometry Registration
+  /** @name Registration methods
 
-   This is the interface that allows entities to inform GeometryWorld of
-   simulation geometry.  The geometry could be anchored or dynamic.
+   The registration methods are how system entities inform GeometryWorld of
+   geometry and its dynamic properties (e.g., does it move or is it anchored).
 
-   By definition, anchored geometry is fixed to the world frame. As such,
-   registering anchored geometry only requires the geometry data itself and its
-   pose relative to the world frame.
-
-   Like with anchored geometry, registering dynamic geometry requires the
-   geometry data and a pose. Unlike anchored geometry, the frame in which the
-   pose is defined is arbitrary and can move over time. Dynamic geometry must
-   be associated with an instance of GeometryKinematics -- the specification of
-   the movement of the geometry's _driving_ frame measured and expressed in the
-   world frame.  The GeometryKinematics instance must, in turn, be included
-   in a GeometryBundle.
-
-   This interface provides all the methods necessary to register geometry, its
-   data, and define its associated frame.
+   Upstream entities use these methods to:
+     - register themselves as geometry sources,
+     - register moving frames,
+     - register geometry moved by registered frames,
+     - register anchored geometry,
+     - remove geometry (moving and anchored), and
+     - remove moving frames (and affixed geometry).
    @{
    */
 
   /**
-   Requests a new channel for declaring frames and geometry to GeometryWorld.
-   @param context   A mutable context.
-   @sa GeometryChannel
+   Registers a new geometry source to GeometryWorld. Receives the unique
+   identifier for this new source.
+   @param context   A mutable geometry context.
    */
-  std::unique_ptr<GeometryChannel<T>> RequestChannel(drake::systems::Context<T>* context);
+  SourceId RegisterNewSource(GeometryContext<T>* context);
+
+  /** Removes the active geometry source from GeometryWorld.
+   Throws an exception if the identifier doesn't represent an active source.
+
+   * @param source_id   The identifier of an active geometry source.
+   * @param context     The geometry context to modify.
+   */
+  void RemoveSource(SourceId source_id, GeometryContext<T>* context);
+
+  // TODO(SeanCurtis-TRI): Add metadata. E.g., name, some kind of payload, etc.
+  /**
+   Declares a new frame on this channel, receiving the unique id for the new
+   frame.
+   @param source_id     The identifier for the geometry source registering the
+                        frame.
+   @param context       A mutable context.
+   */
+  FrameId RegisterFrame(SourceId source_id, GeometryContext<T>* context);
+
+  /**
+   Declares a `geometry` instance as "hanging" from the specified frame at the
+   given pose relative to the frame. The geometry is _rigidly_ affixed to the
+   parent frame.
+
+   If the `id` is not a valid frame identifier declared through this channel, an
+   exception will be thrown.
+
+   @param source_id   The identifier for the geometry source registering the
+                      frame.
+   @param context     A mutable context.
+   @param frame_id    The id for the frame `F` to hang the geometry on.
+   @param geometry    The geometry to hang.
+   @param X_FG        the transform X_FG which transforms the geometry
+                      from its canonical frame `G` to the parent frame `F`,
+                      i.e., the geometry's pose relative to its parent.
+   @return A unique identifier for the added geometry.
+   */
+  GeometryId RegisterGeometry(SourceId source_id,
+                              GeometryContext<T>* context,
+                              FrameId frame_id,
+                              std::unique_ptr<GeometryInstance> geometry,
+                              const Isometry3<T>& X_FG);
+
+  /**
+   Declares a `geometry` instance as "hanging" from the specified geometry's
+   frame `F`, with the given pose relative to that frame. The geometry is
+   _rigidly_ affixed to the parent frame.
+
+   This method enables the owner entity to construct rigid hierarchies of posed
+   geometries. This rigid structure will all be driven by the declared frame
+   to which the root geometry was attached.
+
+   If the `id` is not a valid geometry identifier declared through this channel,
+   an exception will be thrown.
+
+   @param source_id    The identifier for the geometry source registering the
+                       frame.
+   @param context      A mutable context.
+   @param geometry_id  The id for the geometry to hang the declared geometry on.
+   @param geometry     The geometry to hang.
+   @param X_FG         the transform X_FG which transforms the geometry
+                       from its canonical frame `G` to the parent frame `F`,
+                       i.e., the geometry's pose relative to its parent.
+   @return A unique identifier for the added geometry.
+   */
+  GeometryId RegisterGeometry(SourceId source_id,
+                              GeometryContext<T>* context,
+                              GeometryId geometry_id,
+                              std::unique_ptr<GeometryInstance> geometry,
+                              const Isometry3<T>& X_FG);
 
   /**
    Adds the given geometry to the world as anchored geometry.
@@ -135,9 +199,55 @@ class GeometryWorld {
                         world space.
    @returns The index for the added geometry.
    */
-  GeometryId AddAnchoredGeometry(drake::systems::Context<T>* context,
-                                 std::unique_ptr<GeometryInstance> geometry,
-                                 const Isometry3<T>& X_WG);
+  GeometryId RegisterAnchoredGeometry(
+      GeometryContext<T>* context, std::unique_ptr<GeometryInstance> geometry,
+      const Isometry3<T>& X_WG);
+
+  /** @} */
+
+  /** @name Evaluation methods
+
+   These are the methods through which values for registered frames are provided
+   to GeometryWorld.
+
+   @{
+   */
+
+  /**
+   Requests a frame kinematics set for the given geometry source. This should be
+   invoked every time the frame kinematics values are evaluated and provided.
+
+   Aborts if the source identifier does not reference an active source.
+
+   @param source_id     The identifier of the evaluating geometry source.
+   @param context       The context against which all declarations have been
+                        made.
+   */
+  FrameKinematicsSet<T> GetFrameKinematicsSet(SourceId source_id,
+                                              const GeometryContext<T>& context);
+
+  /**
+   Sets the kinematics _values_ from the given value set. GeometryWorld consumes
+   the set of frame kinematics data to update the poses of the geometry affixed
+   to the frames in the set. It is essential that this is called once for each
+   registered geometry source before invoking a query. Failure to do so will
+   lead to queries on a world with inconsistent state.
+
+   This is the only mechanism for updating the state of the geometry in
+   GeometryWorld.
+
+   Several circumstances will lead to an exception being thrown:
+     - One or more of the frames registered by the invoking geometry source has
+       _not_ had its data set,
+     - The data set does not come from a known geometry source,
+     - The frames in the set are inconsistent with the registered frames.
+
+   @param frame_kinematics  The kinematics data for the frames registered by a
+                            single source.
+   @param context           A mutable context; used for updating cache.
+   */
+  void SetFrameKinematics(const FrameKinematicsSet<T>& frame_kinematics,
+                          GeometryContext<T>* context);
 
   /** @} */
 
@@ -148,26 +258,6 @@ class GeometryWorld {
    */
   std::vector<std::unique_ptr<drake::systems::AbstractValue>> AllocateAbstractValues();
 
-  /**
-   Provides a set of frame kinematics data. GeometryWorld uses this to update
-   its knowledge of the kinematics of the geometry. It is essential that this
-   is called for *all* open GeometryChannel instances before invoking a query to
-   prevent making queries in an inconsistent state.
-
-   This is the only mechanism for updating the state of the geometry in
-   GeometryWorld.
-
-   Several circumstances will lead to an exception being thrown:
-     - One or more of the frames has _not_ had its data set,
-     - The data set does not come from a known GeometryChannel,
-     - The frames in the dataset are inconsistent of the declared frames.
-
-   @param context           A mutable context; used for updating cache.
-   @param frame_kinematics  The kinematics data for the frames in a single
-                            GeometryChannel.
-   */
-  void UpdateFrames(drake::systems::Context<T>* context,
-                    const FrameKinematicsSet<T>& frame_kinematics);
 
  private:
   // GeometryWorld has members that are specific implementations of the

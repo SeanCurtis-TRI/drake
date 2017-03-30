@@ -4,7 +4,7 @@
 
 #include <gtest/gtest.h>
 
-#include "drake/geometry/geometry_channel.h"
+#include "drake/geometry/geometry_ids.h"
 
 namespace drake {
 namespace geometry {
@@ -21,79 +21,92 @@ void ExpectErrorMessage(const char* err_msg, const char* reg_exp) {
   EXPECT_PRED2(matcher, err_msg, reg_exp);
 }
 
-// Confirms that requested channels are considered "open". This simultaneously
-// tests channel request and channel "openness" query.
-GTEST_TEST(GeometryStateTest, ChannelRequest) {
+// Confirms that requested source are considered "active". This simultaneously
+// tests source registration and "activeness" query.
+GTEST_TEST(GeometryStateTest, SourceRequest) {
   GeometryState<double> state;
-  ChannelId c1 = state.RequestChannelId();
-  EXPECT_TRUE(state.ChannelIsOpen(c1));
-  ChannelId c2 = ChannelId::get_new_id();
-  EXPECT_FALSE(state.ChannelIsOpen(c2));
+  SourceId s1 = state.RequestSourceId();
+  EXPECT_TRUE(state.SourceIsActive(s1));
+  SourceId s2 = SourceId::get_new_id();
+  EXPECT_FALSE(state.SourceIsActive(s2));
 }
 
 // Tests the request of frames. This simultaneously tests the request
 // functionality as well as that the frame is properly registered with the
-// channel.
-GTEST_TEST(GeometryStateTest, FrameRequest) {
+// source.
+GTEST_TEST(GeometryStateTest, FrameRequestValidSource) {
   GeometryState<double> state;
-  ChannelId c1 = state.RequestChannelId();
-  FrameId f1 = state.RequestFrameIdForChannel(c1);
-  // Channel from frame should be the requesting channel.
-  ChannelId parent = state.GetChannelId(f1);
-  EXPECT_EQ(c1, parent);
+  SourceId s1 = state.RequestSourceId();
+  FrameId f1 = state.RequestFrameIdForSource(s1);
+  // Source from frame should be the requesting source.
+  SourceId parent = state.GetSourceId(f1);
+  EXPECT_EQ(s1, parent);
+}
 
-  // Requesting a frame for a closed channel throws an exception
-  ChannelId closed = ChannelId::get_new_id();
+// Requesting a frame for an inactive source throws an exception.
+GTEST_TEST(GeometryStateTest, FrameRequestBadSource) {
+  GeometryState<double> state;
+  SourceId closed = SourceId::get_new_id();
   try {
-    state.RequestFrameIdForChannel(closed);
+    state.RequestFrameIdForSource(closed);
     GTEST_FAIL() << "Expected std::runtime_error";
   } catch (const std::runtime_error& err ) {
-    ExpectErrorMessage(err.what(), "Referenced channel \\d+ is not open.");
+    ExpectErrorMessage(err.what(),
+                       "Referenced geometry source \\d+ is not active.");
   }
 }
 
 // Tests attempts to declare geometry on frames.
-GTEST_TEST(GeometryStateTest, GeometryRequest) {
-  GeometryState<double> state;
-  ChannelId c1 = state.RequestChannelId();
-  FrameId f1 = state.RequestFrameIdForChannel(c1);
+GTEST_TEST(GeometryStateTest, GeometryRequestGoodSource) {
+  GeometryState<double> state;bazel
+  SourceId s1 = state.RequestSourceId();
+  FrameId f1 = state.RequestFrameIdForSource(s1);
 
   // Tests "positive" behavior. Good parameters lead to good results.
-  GeometryId g_id = state.RequestGeometryIdForFrame(c1, f1);
+  GeometryId g_id = state.RequestGeometryIdForFrame(s1, f1);
   FrameId parent_frame = state.GetFrameId(g_id);
   EXPECT_EQ(parent_frame, f1);
-  ChannelId parent_channel = state.GetChannelId(g_id);
-  EXPECT_EQ(parent_channel, c1);
+  SourceId parent_source = state.GetSourceId(g_id);
+  EXPECT_EQ(parent_source, s1);
+}
 
-  // Tests bad behavior, inconsistent parameters produce exceptions.
+// Tests attempts to declare geometry on frames with an inactive source.
+GTEST_TEST(GeometryStateTest, GeometryRequestBadSource) {
+  GeometryState<double> state;
+  FrameId f1 = FrameId::get_new_id();
 
-  // Case 1: Closed channel.
-  ChannelId closed = ChannelId::get_new_id();
+  SourceId closed = SourceId::get_new_id();
   try {
-    g_id = state.RequestGeometryIdForFrame(closed, f1);
+    state.RequestGeometryIdForFrame(closed, f1);
     GTEST_FAIL() << "Expected std::runtime_error";
   } catch (const std::runtime_error& err) {
-    ExpectErrorMessage(err.what(), "Referenced channel \\d+ is not open.");
-  }
-
-  // Case 2: Frame doesn't belong to an open channel.
-  FrameId invalid_frame = FrameId::get_new_id();
-  try {
-    g_id = state.RequestGeometryIdForFrame(c1, invalid_frame);
-    GTEST_FAIL() << "Expected std::runtime_error";
-  } catch (const std::runtime_error& err) {
-    ExpectErrorMessage(err.what(), "Referenced frame \\d+ for channel \\d+\\."
-    " But the frame doesn't belong to the channel.");
+    ExpectErrorMessage(err.what(),
+                       "Referenced geometry source \\d+ is not active.");
   }
 }
 
-// Tests the ChannelId from FrameId query with bad arguments. The positive test
+// Frame doesn't belong to an inactive source.
+GTEST_TEST(GeometryStateTest, GeometryRequestBadFrame) {
+  GeometryState<double> state;
+  SourceId s1 = state.RequestSourceId();
+
+  FrameId invalid_frame = FrameId::get_new_id();
+  try {
+    state.RequestGeometryIdForFrame(s1, invalid_frame);
+    GTEST_FAIL() << "Expected std::runtime_error";
+  } catch (const std::runtime_error& err) {
+    ExpectErrorMessage(err.what(), "Referenced frame \\d+ for source \\d+\\."
+        " But the frame doesn't belong to the source.");
+  }
+}
+
+// Tests the SourceId from FrameId query with bad arguments. The positive test
 // has been implicitly conducted above (see test FrameRequest).
-GTEST_TEST(GeometryStateTest, ChannelFromFrame) {
+GTEST_TEST(GeometryStateTest, SourceFromFrame) {
   GeometryState<double> state;
   FrameId frame_id = FrameId::get_new_id();
   try {
-    state.GetChannelId(frame_id);
+    state.GetSourceId(frame_id);
     GTEST_FAIL() << "Expected std::runtime_error";
   } catch (const std::runtime_error& err) {
     ExpectErrorMessage(err.what(),
@@ -103,11 +116,11 @@ GTEST_TEST(GeometryStateTest, ChannelFromFrame) {
 
 // Tests the FrameId from GeometryId query with bad arguments. The positive test
 // has been implicitly tested above (see test GeometryRequest).
-GTEST_TEST(GeometryStateTest, ChannelFromGeometry) {
+GTEST_TEST(GeometryStateTest, SourceFromGeometry) {
   GeometryState<double> state;
   GeometryId g_id = GeometryId::get_new_id();
   try {
-    state.GetChannelId(g_id);
+    state.GetSourceId(g_id);
     GTEST_FAIL() << "Expected std::runtime_error";
   } catch (const std::runtime_error& err) {
     ExpectErrorMessage(err.what(),
@@ -116,11 +129,11 @@ GTEST_TEST(GeometryStateTest, ChannelFromGeometry) {
   }
 }
 
-// This confirms that closing a channel clears the data associated with the
-// channel.
-GTEST_TEST(GeometryStateTest, ClosingChannelClearsData) {
+// This confirms that removing a source clears the data associated with the
+// source.
+GTEST_TEST(GeometryStateTest, RemoveSourceClearsData) {
   GeometryState<double> state;
-  ChannelId channel_id = state.RequestChannelId();
+  SourceId source_id = state.RequestSourceId();
 
   // Creates k frames with n geometries each.
   const int frame_count = 2;
@@ -128,24 +141,24 @@ GTEST_TEST(GeometryStateTest, ClosingChannelClearsData) {
   FrameId frames[frame_count];
   GeometryId geometries[frame_count * geometry_count];
   for (int f = 0; f < frame_count; ++f) {
-    frames[f] = state.RequestFrameIdForChannel(channel_id);
+    frames[f] = state.RequestFrameIdForSource(source_id);
     int geometry_position = f * geometry_count;
     for (int g = 0; g < geometry_count; ++g) {
       geometries[geometry_position++] =
-          state.RequestGeometryIdForFrame(channel_id, frames[f]);
+          state.RequestGeometryIdForFrame(source_id, frames[f]);
     }
   }
-  // Confirms that the same channel is reachable from all geometries.
+  // Confirms that the same source is reachable from all geometries.
   for (int i = 0; i < frame_count * geometry_count; ++i) {
-    EXPECT_EQ(state.GetChannelId(geometries[i]), channel_id);
+    EXPECT_EQ(state.GetSourceId(geometries[i]), source_id);
   }
 
-  state.CloseChannel(channel_id);
-  EXPECT_FALSE(state.ChannelIsOpen(channel_id));
+  state.RemoveSource(source_id);
+  EXPECT_FALSE(state.SourceIsActive(source_id));
   // confirm frames have been closed
   for (int f = 0; f < frame_count; ++f) {
     try {
-      state.GetChannelId(frames[f]);
+      state.GetSourceId(frames[f]);
       GTEST_FAIL();
     } catch (const std::runtime_error& err) {
       ExpectErrorMessage(err.what(),
@@ -155,7 +168,7 @@ GTEST_TEST(GeometryStateTest, ClosingChannelClearsData) {
   // confirm geometries have been closed
   for (int g = 0; g < frame_count * geometry_count; ++g) {
     try {
-      state.GetChannelId(geometries[g]);
+      state.GetSourceId(geometries[g]);
       GTEST_FAIL();
     } catch (const std::runtime_error& err) {
       ExpectErrorMessage(err.what(),

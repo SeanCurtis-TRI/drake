@@ -9,7 +9,7 @@ using drake::multibody::SpatialVelocity;
 using std::unordered_map;
 
 template <typename T>
-FrameKinematicsSet<T>::FrameKinematicsSet(ChannelId id) : id_(id) {}
+FrameKinematicsSet<T>::FrameKinematicsSet(SourceId id) : id_(id) {}
 
 template <typename T>
 void FrameKinematicsSet<T>::Clear() {

@@ -5,8 +5,8 @@
 namespace drake {
 namespace geometry {
 
-/// Type used to identify geometry channels by index in GeometryWorld.
-using ChannelId = Identifier<class ChannelTag>;
+/// Type used to identify geometry sources by index in GeometryWorld.
+using SourceId = Identifier<class SourceTag>;
 
 /// Type used to identify a frame kinematics instance by index in
 /// GeometryWorld

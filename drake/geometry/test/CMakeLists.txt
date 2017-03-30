@@ -10,7 +10,7 @@ target_link_libraries(geometry_state_test
     drakeGeometry
     )
 
-drake_add_cc_test(geometry_channel_test geometry_channel_test.cc)
-target_link_libraries(geometry_channel_test
+drake_add_cc_test(geometry_world_test geometry_world_test.cc)
+target_link_libraries(geometry_world_test
     drakeGeometry
     )

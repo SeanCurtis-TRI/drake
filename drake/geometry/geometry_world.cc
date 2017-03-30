@@ -1,6 +1,7 @@
 #include "drake/geometry/geometry_world.h"
 
-#include "drake/geometry/geometry_channel.h"
+#include "drake/geometry/geometry_context.h"
+#include "drake/geometry/geometry_instance.h"
 #include "drake/geometry/geometry_state.h"
 
 namespace drake {
@@ -14,24 +15,78 @@ using std::unique_ptr;
 using std::vector;
 
 template <typename T>
-unique_ptr<GeometryChannel<T>> GeometryWorld<T>::RequestChannel(
-    Context<T>* context) {
+SourceId GeometryWorld<T>::RegisterNewSource(GeometryContext<T>* context) {
   auto& state = context->get_mutable_state()
                     ->template get_mutable_abstract_state<GeometryState<T>>(0);
-  ChannelId id = state.RequestChannelId();
-  // Can't use make_unique because the constructor is private, friended to
-  // GeometryWorld.
-  return unique_ptr<GeometryChannel<T>>(new GeometryChannel<T>(id));
+  return state.RequestSourceId();
 }
 
 template <typename T>
-GeometryId GeometryWorld<T>::AddAnchoredGeometry(Context<T>* context,
+void GeometryWorld<T>::RemoveSource(SourceId source_id, GeometryContext<T>* context) {
+  auto& state = context->get_mutable_state()
+      ->template get_mutable_abstract_state<GeometryState<T>>(0);
+  return state.RemoveSource(source_id);
+}
+
+template <typename T>
+FrameId GeometryWorld<T>::RegisterFrame(SourceId source_id,
+                                        GeometryContext<T>* context) {
+  auto& state = context->get_mutable_state()
+      ->template get_mutable_abstract_state<GeometryState<T>>(0);
+  FrameId id = state.RequestFrameIdForSource(source_id);
+  // TODO(SeanCurtis-TRI): Instantiate frame in data and handle eventual
+  // payload.
+  return id;
+}
+
+template <typename T>
+GeometryId GeometryWorld<T>::RegisterGeometry(SourceId source_id,
+                                              GeometryContext<T>* context,
+                                              FrameId frame_id,
+                                              unique_ptr<GeometryInstance> geometry,
+                                              const Isometry3<T>& X_FG) {
+  auto& state = context->get_mutable_state()
+      ->template get_mutable_abstract_state<GeometryState<T>>(0);
+  GeometryId id = state.RequestGeometryIdForFrame(source_id, frame_id);
+  // TODO(SeanCurtis-TRI): Do the work!
+  return id;
+}
+
+template <typename T>
+GeometryId GeometryWorld<T>::RegisterGeometry(SourceId source_id,
+                                              GeometryContext<T>* context,
+                                              GeometryId geometry_id,
+                                              unique_ptr<GeometryInstance> geometry,
+                                              const Isometry3<T>& X_FG) {
+  auto& state = context->get_mutable_state()
+      ->template get_mutable_abstract_state<GeometryState<T>>(0);
+  auto frame_id = state.GetFrameId(geometry_id);
+  // TODO(SeanCurtis-TRI): The actual code should hang it on the frame
+  // associated with the geometry_id.
+  return RegisterGeometry(source_id, context, frame_id, std::move(geometry), X_FG);
+}
+
+template <typename T>
+GeometryId GeometryWorld<T>::RegisterAnchoredGeometry(GeometryContext<T>* context,
                                unique_ptr<GeometryInstance> geometry,
                                const Isometry3<T>& X_WG) {
   GeometryId id = GeometryId::get_new_id();
-
   // TODO(SeanCurtis-TRI): Actually do this work.
   return id;
+}
+
+template <typename T>
+FrameKinematicsSet<T> GeometryWorld<T>::GetFrameKinematicsSet(SourceId source_id,
+    const GeometryContext<T>& context) {
+  DRAKE_DEMAND(context.get_state().template get_abstract_state<GeometryState<T>>(0).SourceIsActive(source_id));
+  FrameKinematicsSet<T> set(source_id);
+  return set;
+}
+
+template <typename T>
+void GeometryWorld<T>::SetFrameKinematics(
+                                    const FrameKinematicsSet<T>& frame_kinematics, GeometryContext<T>* context) {
+  // TODO(SeanCurtis-TRI): Do this work.
 }
 
 template <typename T>
@@ -39,12 +94,6 @@ vector<unique_ptr<AbstractValue>> GeometryWorld<T>::AllocateAbstractValues() {
   vector<unique_ptr<AbstractValue>> values;
   values.push_back(make_unique<Value<GeometryState<T>>>());
   return values;
-}
-
-template <typename T>
-void GeometryWorld<T>::UpdateFrames(Context<T>* context,
-                  const FrameKinematicsSet<T>& frame_kinematics) {
-
 }
 
 // Explicitly instantiates on the most common scalar types.
