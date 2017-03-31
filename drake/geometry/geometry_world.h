@@ -133,11 +133,12 @@ class GeometryWorld {
   /**
    Declares a new frame on this channel, receiving the unique id for the new
    frame.
+
+   @param context       A mutable context.
    @param source_id     The identifier for the geometry source registering the
                         frame.
-   @param context       A mutable context.
    */
-  FrameId RegisterFrame(SourceId source_id, GeometryContext<T>* context);
+  FrameId RegisterFrame(GeometryContext<T>* context, SourceId source_id);
 
   /**
    Declares a `geometry` instance as "hanging" from the specified frame at the
@@ -147,9 +148,9 @@ class GeometryWorld {
    If the `id` is not a valid frame identifier declared through this channel, an
    exception will be thrown.
 
+   @param context     A mutable context.
    @param source_id   The identifier for the geometry source registering the
                       frame.
-   @param context     A mutable context.
    @param frame_id    The id for the frame `F` to hang the geometry on.
    @param geometry    The geometry to hang.
    @param X_FG        the transform X_FG which transforms the geometry
@@ -157,8 +158,8 @@ class GeometryWorld {
                       i.e., the geometry's pose relative to its parent.
    @return A unique identifier for the added geometry.
    */
-  GeometryId RegisterGeometry(SourceId source_id,
-                              GeometryContext<T>* context,
+  GeometryId RegisterGeometry(GeometryContext<T>* context,
+                              SourceId source_id,
                               FrameId frame_id,
                               std::unique_ptr<GeometryInstance> geometry,
                               const Isometry3<T>& X_FG);
@@ -175,9 +176,9 @@ class GeometryWorld {
    If the `id` is not a valid geometry identifier declared through this channel,
    an exception will be thrown.
 
-   @param source_id    The identifier for the geometry source registering the
-                       frame.
    @param context      A mutable context.
+   @param source_id    The identifier for the geometry source registering the
+                       geometry.
    @param geometry_id  The id for the geometry to hang the declared geometry on.
    @param geometry     The geometry to hang.
    @param X_FG         the transform X_FG which transforms the geometry
@@ -185,8 +186,8 @@ class GeometryWorld {
                        i.e., the geometry's pose relative to its parent.
    @return A unique identifier for the added geometry.
    */
-  GeometryId RegisterGeometry(SourceId source_id,
-                              GeometryContext<T>* context,
+  GeometryId RegisterGeometry(GeometryContext<T>* context,
+                              SourceId source_id,
                               GeometryId geometry_id,
                               std::unique_ptr<GeometryInstance> geometry,
                               const Isometry3<T>& X_FG);
@@ -194,13 +195,15 @@ class GeometryWorld {
   /**
    Adds the given geometry to the world as anchored geometry.
    @param context       A mutable context.
+   @param source_id     The identifier for the geometry source registering the
+                        geometry.
    @param geometry      The geometry to add to the world.
    @param X_WG          A transform from the geometry's canonical space to
                         world space.
    @returns The index for the added geometry.
    */
   GeometryId RegisterAnchoredGeometry(
-      GeometryContext<T>* context, std::unique_ptr<GeometryInstance> geometry,
+      GeometryContext<T>* context, SourceId source_id, std::unique_ptr<GeometryInstance> geometry,
       const Isometry3<T>& X_WG);
 
   /** @} */
@@ -219,12 +222,12 @@ class GeometryWorld {
 
    Aborts if the source identifier does not reference an active source.
 
-   @param source_id     The identifier of the evaluating geometry source.
    @param context       The context against which all declarations have been
                         made.
+   @param source_id     The identifier of the evaluating geometry source.
    */
-  FrameKinematicsSet<T> GetFrameKinematicsSet(SourceId source_id,
-                                              const GeometryContext<T>& context);
+  FrameKinematicsSet<T> GetFrameKinematicsSet(const GeometryContext<T>& context,
+                                              SourceId source_id);
 
   /**
    Sets the kinematics _values_ from the given value set. GeometryWorld consumes
@@ -242,12 +245,12 @@ class GeometryWorld {
      - The data set does not come from a known geometry source,
      - The frames in the set are inconsistent with the registered frames.
 
+   @param context           A mutable context; used for updating cache.
    @param frame_kinematics  The kinematics data for the frames registered by a
                             single source.
-   @param context           A mutable context; used for updating cache.
    */
-  void SetFrameKinematics(const FrameKinematicsSet<T>& frame_kinematics,
-                          GeometryContext<T>* context);
+  void SetFrameKinematics(GeometryContext<T>* context,
+                          const FrameKinematicsSet<T>& frame_kinematics);
 
   /** @} */
 
