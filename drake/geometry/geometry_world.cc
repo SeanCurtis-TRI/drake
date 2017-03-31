@@ -15,22 +15,21 @@ using std::unique_ptr;
 using std::vector;
 
 template <typename T>
-SourceId GeometryWorld<T>::RegisterNewSource(GeometryContext<T>* context) {
-  auto& state = context->get_mutable_state()
-                    ->template get_mutable_abstract_state<GeometryState<T>>(0);
-  return state.RequestSourceId();
+SourceId GeometryWorld<T>::RegisterNewSource() {
+  SourceId id = SourceId::get_new_id();
+  sources_.insert(id);
+  return id;
 }
 
 template <typename T>
-void GeometryWorld<T>::RemoveSource(SourceId source_id, GeometryContext<T>* context) {
-  auto& state = context->get_mutable_state()
-      ->template get_mutable_abstract_state<GeometryState<T>>(0);
-  return state.RemoveSource(source_id);
+bool GeometryWorld<T>::SourceIsRegistered(SourceId id) const {
+  return sources_.find(id) != sources_.end();
 }
 
 template <typename T>
 FrameId GeometryWorld<T>::RegisterFrame(GeometryContext<T>* context,
                                         SourceId source_id) {
+  DRAKE_DEMAND(SourceIsRegistered(source_id));
   auto& state = context->get_mutable_state()
       ->template get_mutable_abstract_state<GeometryState<T>>(0);
   FrameId id = state.RequestFrameIdForSource(source_id);
@@ -45,6 +44,7 @@ GeometryId GeometryWorld<T>::RegisterGeometry(GeometryContext<T>* context,
                                               FrameId frame_id,
                                               unique_ptr<GeometryInstance> geometry,
                                               const Isometry3<T>& X_FG) {
+  DRAKE_DEMAND(SourceIsRegistered(source_id));
   auto& state = context->get_mutable_state()
       ->template get_mutable_abstract_state<GeometryState<T>>(0);
   GeometryId id = state.RequestGeometryIdForFrame(source_id, frame_id);
@@ -58,6 +58,7 @@ GeometryId GeometryWorld<T>::RegisterGeometry(GeometryContext<T>* context,
                                               GeometryId geometry_id,
                                               unique_ptr<GeometryInstance> geometry,
                                               const Isometry3<T>& X_FG) {
+  DRAKE_DEMAND(SourceIsRegistered(source_id));
   auto& state = context->get_mutable_state()
       ->template get_mutable_abstract_state<GeometryState<T>>(0);
   auto frame_id = state.GetFrameId(geometry_id);
@@ -71,15 +72,35 @@ GeometryId GeometryWorld<T>::RegisterAnchoredGeometry(GeometryContext<T>* contex
                                                       SourceId source_id,
                                unique_ptr<GeometryInstance> geometry,
                                const Isometry3<T>& X_WG) {
+  DRAKE_DEMAND(SourceIsRegistered(source_id));
   GeometryId id = GeometryId::get_new_id();
   // TODO(SeanCurtis-TRI): Actually do this work.
   return id;
 }
 
 template <typename T>
+void GeometryWorld<T>::RemoveSource(GeometryContext<T>* context,
+                                    SourceId source_id) {
+  DRAKE_DEMAND(SourceIsRegistered(source_id));
+  auto& state = context->get_mutable_state()
+      ->template get_mutable_abstract_state<GeometryState<T>>(0);
+  state.RemoveSource(source_id);
+  sources_.erase(source_id);
+}
+
+template <typename T>
+void GeometryWorld<T>::ClearSource(GeometryContext<T>* context,
+                                   SourceId source_id) {
+  DRAKE_DEMAND(SourceIsRegistered(source_id));
+  auto& state = context->get_mutable_state()
+      ->template get_mutable_abstract_state<GeometryState<T>>(0);
+  state.ClearSource(source_id);
+}
+
+template <typename T>
 FrameKinematicsSet<T> GeometryWorld<T>::GetFrameKinematicsSet(
     const GeometryContext<T>& context, SourceId source_id) {
-  DRAKE_DEMAND(context.get_state().template get_abstract_state<GeometryState<T>>(0).SourceIsActive(source_id));
+  DRAKE_DEMAND(SourceIsRegistered(source_id));
   FrameKinematicsSet<T> set(source_id);
   return set;
 }
