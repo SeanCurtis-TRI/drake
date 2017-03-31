@@ -29,8 +29,8 @@ void GeometryWorld<T>::RemoveSource(SourceId source_id, GeometryContext<T>* cont
 }
 
 template <typename T>
-FrameId GeometryWorld<T>::RegisterFrame(SourceId source_id,
-                                        GeometryContext<T>* context) {
+FrameId GeometryWorld<T>::RegisterFrame(GeometryContext<T>* context,
+                                        SourceId source_id) {
   auto& state = context->get_mutable_state()
       ->template get_mutable_abstract_state<GeometryState<T>>(0);
   FrameId id = state.RequestFrameIdForSource(source_id);
@@ -40,8 +40,8 @@ FrameId GeometryWorld<T>::RegisterFrame(SourceId source_id,
 }
 
 template <typename T>
-GeometryId GeometryWorld<T>::RegisterGeometry(SourceId source_id,
-                                              GeometryContext<T>* context,
+GeometryId GeometryWorld<T>::RegisterGeometry(GeometryContext<T>* context,
+                                              SourceId source_id,
                                               FrameId frame_id,
                                               unique_ptr<GeometryInstance> geometry,
                                               const Isometry3<T>& X_FG) {
@@ -53,8 +53,8 @@ GeometryId GeometryWorld<T>::RegisterGeometry(SourceId source_id,
 }
 
 template <typename T>
-GeometryId GeometryWorld<T>::RegisterGeometry(SourceId source_id,
-                                              GeometryContext<T>* context,
+GeometryId GeometryWorld<T>::RegisterGeometry(GeometryContext<T>* context,
+                                              SourceId source_id,
                                               GeometryId geometry_id,
                                               unique_ptr<GeometryInstance> geometry,
                                               const Isometry3<T>& X_FG) {
@@ -63,11 +63,12 @@ GeometryId GeometryWorld<T>::RegisterGeometry(SourceId source_id,
   auto frame_id = state.GetFrameId(geometry_id);
   // TODO(SeanCurtis-TRI): The actual code should hang it on the frame
   // associated with the geometry_id.
-  return RegisterGeometry(source_id, context, frame_id, std::move(geometry), X_FG);
+  return RegisterGeometry(context, source_id, frame_id, std::move(geometry), X_FG);
 }
 
 template <typename T>
 GeometryId GeometryWorld<T>::RegisterAnchoredGeometry(GeometryContext<T>* context,
+                                                      SourceId source_id,
                                unique_ptr<GeometryInstance> geometry,
                                const Isometry3<T>& X_WG) {
   GeometryId id = GeometryId::get_new_id();
@@ -76,8 +77,8 @@ GeometryId GeometryWorld<T>::RegisterAnchoredGeometry(GeometryContext<T>* contex
 }
 
 template <typename T>
-FrameKinematicsSet<T> GeometryWorld<T>::GetFrameKinematicsSet(SourceId source_id,
-    const GeometryContext<T>& context) {
+FrameKinematicsSet<T> GeometryWorld<T>::GetFrameKinematicsSet(
+    const GeometryContext<T>& context, SourceId source_id) {
   DRAKE_DEMAND(context.get_state().template get_abstract_state<GeometryState<T>>(0).SourceIsActive(source_id));
   FrameKinematicsSet<T> set(source_id);
   return set;
@@ -85,7 +86,7 @@ FrameKinematicsSet<T> GeometryWorld<T>::GetFrameKinematicsSet(SourceId source_id
 
 template <typename T>
 void GeometryWorld<T>::SetFrameKinematics(
-                                    const FrameKinematicsSet<T>& frame_kinematics, GeometryContext<T>* context) {
+    GeometryContext<T>* context, const FrameKinematicsSet<T>& frame_kinematics) {
   // TODO(SeanCurtis-TRI): Do this work.
 }
 
