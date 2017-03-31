@@ -9,7 +9,11 @@ namespace geometry {
  sort), a pose (relative to a parent frame), material information, and an
  opaque collection of metadata.
  */
-class GeometryInstance {};
+class GeometryInstance {
+ public:
+  DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(GeometryInstance)
 
+  GeometryInstance() = default;
+};
 }  // namespace geometry
 }  // namespace drake

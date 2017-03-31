@@ -27,67 +27,110 @@ template <typename T> class GeometryContext;
  the frame moves, the geometry moves with it in a rigid manner. GeometryWorld
  performs geometric queries on the geometry (e.g., ray intersection, minimum
  distance between geometries, intersection information, etc.)  These queries
- depend on the state of the frames.  The frame state is provided as input to
- the queries.
+ depend on the state of the frames.  The frame state is provided to
+ GeometryWorld, updating its state, prior to performing queries.
 
  As geometry is introduced into the simulator, it must be registered with
  GeometryWorld so that it can be included in the queries.
 
- The GeometryWorld paradigm uses the GeometryFrame class as the interface
- between the geometry and the simulation.  Ultimately, the simulation is
- responsible for moving frames.  Different systems can use different
- mechanisms for moving frames; these are the *drivers* of the frames.
+ GeometryWorld is ignorant of the interpretation of the geometry and of what
+ mechanisms cause it to move. This knowledge is owned by a "geometry source".
+ Any class that computes frame kinematics values and can specify the attached
+ geometry could serve as a geometry source. These classes must register
+ themselves as geometry sources with GeometryWorld. When executed in a System,
+ they must be part of a LeafSystem which connects an appropriately-typed output
+ port to a GeometrySystem input port.
 
- Geometry is "hung" on a GeometryFrame in a *rigid* manner.  As the frame moves,
+ Geometry sources register frames with GeometryWorld, declaring the frames that
+ the source owns and is responsible for computing kinematics values (pose,
+ velocity, and acceleration). The geometry source can also "hang" geometry on
+ those registered frames in a "rigid" manner.  As the frame moves,
  the associated geometry moves with it.  The associated geometry can consist of
  a single shape, or a hierarchy of shapes (such that the whole hierarchy is
- treated as a single rigid union of shapes.)
+ treated as a single rigid union of shapes).
 
- @section geom_world_workflow Workflow for Upstream Frame Owners
+ @section geom_world_workflow Workflow for Geometry Sources
 
- For an upstream frame owner, the expected work flow is as follows in two
- phases: initialization (a.k.a. declaration) and setting values.
+ For a class that serves as a geometry source, the expected work flow is as
+ follows in two phases: registration and evaluation.
 
- @subsection geom_world_declare_workflow For initialization/declaration:
+ @subsection geom_world_declare_workflow Registration:
 
  @code
  // Assuming the following variables are defined.
- Context& context;
+ GeometryContext& context;
  GeometryWorld* geometry_world;
 
- // Open a channel -- should be stored in a persistent variable, preferably a
- // member variable.
- channel_ = geometry_world->RequestChannel(context);
+ // Register as a geometry source. It is important to save the unique SourceId
+ // into a class member.
+ source_id_ = geometry_world->RegisterNewSource();
 
- // Declare moving frames and the hanging geometry. The caller is responsible
- // for saving the FrameId instances for use later.
- FrameId f0 = channel_->DeclareFrame(context);
- GeometryId g0 = channel->DeclareGeometry(context, f0, instance, pose0);
- FrameId f1 = channel_->DeclareFrame(context);
- GeometryId g1 = channel->DeclareGeometry(context, f1, instance, pose0);
- ...
-
- // Acquire and persist a FrameKinematicsSet instance (preferably in a member
- // variable).
- frame_kinetics_set_ = channel_->GetFrameKinematicsSet();
+ // Declare moving frames and the hanging geometry. The geometry source is
+ // responsible for saving the FrameId instances for use later.
+ FrameId f0 = geometry_world->RegisterFrame(context, source_id_);
+ // Instantiate the geometry to hang on the frame and define its pose.
+ unique_ptr<GeometryInstance> instance = ...;
+ Isometry3<double> pose = ...;
+ GeometryId g0 = geometry_world->RegisterGeometry(context, source_id_, f0,
+                                                  move(instance), pose0);
+ FrameId f1 = geometry_world->RegisterFrame(context, source_id_);
+ instance.reset(...);  // Create a new GeometryInstance.
+ GeometryId g1 = geometry_world->RegisterGeometry(context, source_id_, f1,
+                                                  move(instance), pose0);
+ // continue registering frames and geometries.
  @endcode
 
  @subsection geom_world_value_workflow For setting values during the simulation.
 
  @code{.cpp}
  // Assume the following variables are defined.
- const Context& context;
+ const GeometryContext& context;
+ GeometryWorld* geometry_world;
 
- // Always re-sync the frame kinematics set with the particular context.
- channel_->UpdateFrameKinematicsSet(context, &frame_kinematics_set_);
+ // Acquire an instance of FrameKinematicsSet and populate it with kinematics
+ // values.
+ FrameKinematicsSet fks = geometry_world->GetFrameKinematicsSet(source_id_);
+
  foreach ( FrameId frame_id : frames_ ) {
     // Compute SpatialPose, SpatialVelocity, and SpatialAcceleration
     SpatialPose X_WF = ...;
     SpatialVelocity V_WF = ...;
     SpatialAcceleration A_WF = ...;
-    frame_kinematics_set_.SetFrameFullKinematics(frame_id, X_WF, V_WF, A_WF);
+    fks.SetFrameFullKinematics(frame_id, X_WF, V_WF, A_WF);
  }
+ geometry_world->SetFrameKinematics(context, fks);
  @endcode
+
+ @subsection geom_world_usage_notes Notes on workflow
+
+ These code snippets shows a general workflow as an order of operations, but
+ should not be taken as a literal suggestion. It merely underscores several
+ things:
+   - A geometry source must register itself before doing anything else.
+   - The SourceId returned is very important and should be saved as a member of
+     the class. All operations on GeometryWorld depend on that unique id.
+   - In order to register a geometry, the frame it hangs on must be registered
+     first.
+   - The geometry source is responsible for creating and defining the
+     GeometryInstance. GeometryWorld merely takes ownership when passed over.
+   - When evaluating frames' kinematic values for a particular context, always
+     acquire a new instance of the FrameKinematicsSet from GeometryWorld.
+
+  What these examples _don't_ cover:
+    - The example shows saving FrameId values in local variables (e.g., `f0`).
+      In practice, these values would be saved into a mapping structure that
+      will associate the FrameId with the source of that frame's values. How
+      that mapping is done is up to the class serving as geometry source.
+    - It provides no details on _how_ to instantiate a GeometryInstance (see
+      that class's documentation for details).
+    - It doesn't give an example of building a _hierarchy_ of geometry
+      instances. Each GeometryInstance includes a frame, so new geometry can be
+      "hung" from previously registered geometries.
+    - There are methods for _removing_ registered frames and geometries.
+
+  Finally, the outlined work flow assumes execution independent of the System
+  architecture. The workflow changes slightly when running in a Diagram. For
+  details on the change, see GeometrySystem.
 
  @tparam T The underlying scalar type. Must be a valid Eigen scalar.
  */
@@ -117,17 +160,11 @@ class GeometryWorld {
   /**
    Registers a new geometry source to GeometryWorld. Receives the unique
    identifier for this new source.
-   @param context   A mutable geometry context.
    */
-  SourceId RegisterNewSource(GeometryContext<T>* context);
+  SourceId RegisterNewSource();
 
-  /** Removes the active geometry source from GeometryWorld.
-   Throws an exception if the identifier doesn't represent an active source.
-
-   * @param source_id   The identifier of an active geometry source.
-   * @param context     The geometry context to modify.
-   */
-  void RemoveSource(SourceId source_id, GeometryContext<T>* context);
+  /** Reports if the identifier references a registered source. */
+  bool SourceIsRegistered(SourceId id) const;
 
   // TODO(SeanCurtis-TRI): Add metadata. E.g., name, some kind of payload, etc.
   /**
@@ -208,6 +245,71 @@ class GeometryWorld {
 
   /** @} */
 
+  /** @name Removal methods
+
+   These methods provide the interface for removing registered sources, frames,
+   and geometries.
+   @{
+   */
+
+  /**
+   Removes the given source from the set of active sources. All registered
+   frames and geometries for this source will also be removed from the world.
+   After this call, the source_id will no longer accept registration of frames
+   or geometry.
+
+   The system aborts if the `source_id` is not an active source.
+
+   @param context     The context.
+   @param source_id   The identifier of the source to be deactivated and
+                      removed.
+   */
+  void RemoveSource(GeometryContext<T>* context, SourceId source_id);
+
+  /**
+   Clears all the registered frames and geometries from this source, but leaves
+   the source active for future registration of frames and geometries.
+
+   The system aborts if the `source_id` is not an active source.
+
+   @param context     The context.
+   @param source_id   The identifier of the source to be deactivated and
+                      removed.
+   */
+  void ClearSource(GeometryContext<T>* context, SourceId source_id);
+
+  /**
+   Removes the given frame from the the indicated source's frames. All
+   registered geometries connected to this frame will also be removed from the
+   world.
+
+   The system aborts if the `source_id` is not an active source, or if the
+   `frame_id` does not belong to the given source.
+
+   @param context     The context.
+   @param source_id   The identifier for the owner geometry source.
+   @param frame_id    The identifier of the frame to remove.
+   */
+  void RemoveFrame(GeometryContext<T>* context, SourceId source_id,
+                   FrameId frame_id);
+
+
+  /**
+   Removes the given geometry from the the indicated source's geometries. All
+   registered geometries connected to this geometry will also be removed from
+   the world.
+
+   The system aborts if the `source_id` is not an active source, or if the
+   `frame_id` does not belong to the given source.
+
+   @param context     The context.
+   @param source_id   The identifier for the owner geometry source.
+   @param geometry_id The identifier of the geometry to remove.
+   */
+  void RemoveGeometry(GeometryContext<T>* context, SourceId source_id,
+                      GeometryId geometry_id);
+  /** @} */
+
   /** @name Evaluation methods
 
    These are the methods through which values for registered frames are provided
@@ -269,6 +371,9 @@ class GeometryWorld {
   // implementation best suited for particular queries.
 //  BulletGeometryEngine bullet_engine_;
 //  FclGeometryEngine fcl_engine_;
+
+  // The set of all registered sources.
+  std::unordered_set<SourceId> sources_;
 };
 }  // namespace geometry
 }  // namespace drake

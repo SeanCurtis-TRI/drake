@@ -10,7 +10,7 @@ using SourceId = Identifier<class SourceTag>;
 
 /// Type used to identify a frame kinematics instance by index in
 /// GeometryWorld
-using FrameId = Identifier<class KinematicsTag>;
+using FrameId = Identifier<class FrameTag>;
 
 /// Type used to identify a geometry instance by index in GeometryWorld.
 using GeometryId = Identifier<class GeometryTag>;

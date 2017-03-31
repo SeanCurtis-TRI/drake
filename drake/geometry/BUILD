@@ -55,6 +55,13 @@ drake_cc_library(
 )
 
 drake_cc_library(
+    name = "geometry_instance",
+    srcs = ["geometry_instance.cc"],
+    hdrs = ["geometry_instance.h"],
+    deps = ["//drake/common"],
+)
+
+drake_cc_library(
     name = "identifier",
     srcs = [],
     hdrs = ["identifier.h"],
@@ -63,21 +70,16 @@ drake_cc_library(
 
 drake_cc_googletest(
     name = "frame_kinematics_set_test",
-    deps = [":geometry_world"]
+    deps = [":geometry_world"],
 )
 
 drake_cc_googletest(
     name = "geometry_world_test",
     deps = [
+        ":geometry_instance",
         ":geometry_world",
-        "//drake/systems/framework:abstract_values",
-        "//drake/systems/framework:leaf_context",
-    ],
-)
-
-drake_cc_googletest(
-    name = "geometry_state_test",
-    deps = [":geometry_world"]
+        "//drake/common",
+    ]
 )
 
 drake_cc_googletest(
