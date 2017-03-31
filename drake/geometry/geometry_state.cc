@@ -1,6 +1,7 @@
 #include "drake/geometry/geometry_state.h"
 
 #include <sstream>
+#include <string>
 
 namespace drake {
 namespace geometry {
@@ -42,21 +43,21 @@ Value& GetMutableValueOrThrow(const Key& key,
 
 // Specializations for missing key based on key types.
 template <>
-std::string get_missing_id_message<SourceId>( const SourceId& key) {
+std::string get_missing_id_message<SourceId>(const SourceId& key) {
   std::stringstream ss;
   ss << "Referenced geometry source " << key << " is not active.";
   return ss.str();
 }
 
 template <>
-std::string get_missing_id_message<FrameId>( const FrameId& key) {
+std::string get_missing_id_message<FrameId>(const FrameId& key) {
   std::stringstream ss;
   ss << "Referenced frame " << key << " has not been registered.";
   return ss.str();
 }
 
 template <>
-std::string get_missing_id_message<GeometryId>( const GeometryId& key) {
+std::string get_missing_id_message<GeometryId>(const GeometryId& key) {
   std::stringstream ss;
   ss << "Referenced geometry " << key << " does not belong to a known frame.";
   return ss.str();

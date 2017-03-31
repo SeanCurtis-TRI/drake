@@ -1,5 +1,8 @@
 #include "drake/geometry/geometry_world.h"
 
+#include <utility>
+#include <vector>
+
 #include "drake/geometry/geometry_context.h"
 #include "drake/geometry/geometry_instance.h"
 #include "drake/geometry/geometry_state.h"
@@ -39,39 +42,35 @@ FrameId GeometryWorld<T>::RegisterFrame(GeometryContext<T>* context,
 }
 
 template <typename T>
-GeometryId GeometryWorld<T>::RegisterGeometry(GeometryContext<T>* context,
-                                              SourceId source_id,
-                                              FrameId frame_id,
-                                              unique_ptr<GeometryInstance> geometry,
-                                              const Isometry3<T>& X_FG) {
+GeometryId GeometryWorld<T>::RegisterGeometry(
+    GeometryContext<T>* context, SourceId source_id, FrameId frame_id,
+    unique_ptr<GeometryInstance> geometry, const Isometry3<T>& X_FG) {
   DRAKE_DEMAND(SourceIsRegistered(source_id));
   auto& state = context->get_mutable_state()
-      ->template get_mutable_abstract_state<GeometryState<T>>(0);
+                    ->template get_mutable_abstract_state<GeometryState<T>>(0);
   GeometryId id = state.RequestGeometryIdForFrame(source_id, frame_id);
   // TODO(SeanCurtis-TRI): Do the work!
   return id;
 }
 
 template <typename T>
-GeometryId GeometryWorld<T>::RegisterGeometry(GeometryContext<T>* context,
-                                              SourceId source_id,
-                                              GeometryId geometry_id,
-                                              unique_ptr<GeometryInstance> geometry,
-                                              const Isometry3<T>& X_FG) {
+GeometryId GeometryWorld<T>::RegisterGeometry(
+    GeometryContext<T>* context, SourceId source_id, GeometryId geometry_id,
+    unique_ptr<GeometryInstance> geometry, const Isometry3<T>& X_FG) {
   DRAKE_DEMAND(SourceIsRegistered(source_id));
   auto& state = context->get_mutable_state()
-      ->template get_mutable_abstract_state<GeometryState<T>>(0);
+                    ->template get_mutable_abstract_state<GeometryState<T>>(0);
   auto frame_id = state.GetFrameId(geometry_id);
   // TODO(SeanCurtis-TRI): The actual code should hang it on the frame
   // associated with the geometry_id.
-  return RegisterGeometry(context, source_id, frame_id, std::move(geometry), X_FG);
+  return RegisterGeometry(context, source_id, frame_id, std::move(geometry),
+                          X_FG);
 }
 
 template <typename T>
-GeometryId GeometryWorld<T>::RegisterAnchoredGeometry(GeometryContext<T>* context,
-                                                      SourceId source_id,
-                               unique_ptr<GeometryInstance> geometry,
-                               const Isometry3<T>& X_WG) {
+GeometryId GeometryWorld<T>::RegisterAnchoredGeometry(
+    GeometryContext<T>* context, SourceId source_id,
+    unique_ptr<GeometryInstance> geometry, const Isometry3<T>& X_WG) {
   DRAKE_DEMAND(SourceIsRegistered(source_id));
   GeometryId id = GeometryId::get_new_id();
   // TODO(SeanCurtis-TRI): Actually do this work.
@@ -107,7 +106,8 @@ FrameKinematicsSet<T> GeometryWorld<T>::GetFrameKinematicsSet(
 
 template <typename T>
 void GeometryWorld<T>::SetFrameKinematics(
-    GeometryContext<T>* context, const FrameKinematicsSet<T>& frame_kinematics) {
+    GeometryContext<T>* context,
+    const FrameKinematicsSet<T>& frame_kinematics) {
   // TODO(SeanCurtis-TRI): Do this work.
 }
 

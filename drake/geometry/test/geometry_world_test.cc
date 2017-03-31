@@ -155,21 +155,21 @@ TEST_F(GeometryWorldTest, ClearSourceData) {
   SourceId s_id = world_->RegisterNewSource();
 
   // Creates k frames with n geometries each.
-  const int frame_count = 2;
-  const int geometry_count = 3;
-  FrameId frames[frame_count];
-  GeometryId geometries[frame_count * geometry_count];
-  for (int f = 0; f < frame_count; ++f) {
+  const int kFrameCount = 2;
+  const int kGeometryCount = 3;
+  FrameId frames[kFrameCount];
+  GeometryId geometries[kFrameCount * kGeometryCount];
+  for (int f = 0; f < kFrameCount; ++f) {
     frames[f] = world_->RegisterFrame(context_.get(), s_id);
-    int geometry_position = f * geometry_count;
-    for (int g = 0; g < geometry_count; ++g) {
+    int geometry_position = f * kGeometryCount;
+    for (int g = 0; g < kGeometryCount; ++g) {
       geometries[geometry_position++] =
           world_->RegisterGeometry(context_.get(), s_id, frames[f],
           make_unique<GeometryInstance>(), pose_);
     }
   }
   // Confirms that the same source is reachable from all geometries.
-  for (int i = 0; i < frame_count * geometry_count; ++i) {
+  for (int i = 0; i < kFrameCount * kGeometryCount; ++i) {
     EXPECT_EQ(geometry_state_->GetSourceId(geometries[i]), s_id);
   }
 
@@ -177,7 +177,7 @@ TEST_F(GeometryWorldTest, ClearSourceData) {
   EXPECT_TRUE(world_->SourceIsRegistered(s_id));
 
   // confirm frames have been closed
-  for (int f = 0; f < frame_count; ++f) {
+  for (int f = 0; f < kFrameCount; ++f) {
     try {
       geometry_state_->GetSourceId(frames[f]);
       GTEST_FAIL();
@@ -187,7 +187,7 @@ TEST_F(GeometryWorldTest, ClearSourceData) {
     }
   }
   // confirm geometries have been closed
-  for (int g = 0; g < frame_count * geometry_count; ++g) {
+  for (int g = 0; g < kFrameCount * kGeometryCount; ++g) {
     try {
       geometry_state_->GetSourceId(geometries[g]);
       GTEST_FAIL();

@@ -1,10 +1,11 @@
 #pragma once
 
 #include <memory>
+#include <unordered_set>
+#include <vector>
 
 #include "drake/common/drake_copyable.h"
 #include "drake/common/eigen_types.h"
-//#include "drake/geometry/bullet_geometry_engine.h"
 #include "drake/geometry/frame_kinematics_set.h"
 #include "drake/geometry/geometry_ids.h"
 #include "drake/systems/framework/context.h"
@@ -18,8 +19,8 @@ class GeometryInstance;
 template <typename T> class FrameKinematicsSet;
 template <typename T> class GeometryContext;
 
-// TODO(SeanCurtis-TRI): Review this documentation to confirm that it's consistent
-// with what I ended up implementing.
+// TODO(SeanCurtis-TRI): Review this documentation to confirm that it's
+// consistent with what I ended up implementing.
 /**
  GeometryWorld is the structure that coordinates the geometric elements across
  various independent subsystems in a simulation. The geometric elements are
@@ -240,8 +241,8 @@ class GeometryWorld {
    @returns The index for the added geometry.
    */
   GeometryId RegisterAnchoredGeometry(
-      GeometryContext<T>* context, SourceId source_id, std::unique_ptr<GeometryInstance> geometry,
-      const Isometry3<T>& X_WG);
+      GeometryContext<T>* context, SourceId source_id,
+      std::unique_ptr<GeometryInstance> geometry, const Isometry3<T>& X_WG);
 
   /** @} */
 
@@ -361,8 +362,8 @@ class GeometryWorld {
    @returns  A vector of abstract values which will be accessed and managed by
              GeometryWorld.
    */
-  std::vector<std::unique_ptr<drake::systems::AbstractValue>> AllocateAbstractValues();
-
+  std::vector<std::unique_ptr<drake::systems::AbstractValue>>
+  AllocateAbstractValues();
 
  private:
   // GeometryWorld has members that are specific implementations of the
