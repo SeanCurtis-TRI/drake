@@ -58,7 +58,7 @@ GTEST_TEST(GeometryStateTest, FrameRequestBadSource) {
 
 // Tests attempts to declare geometry on frames.
 GTEST_TEST(GeometryStateTest, GeometryRequestGoodSource) {
-  GeometryState<double> state;bazel
+  GeometryState<double> state;
   SourceId s1 = state.RequestSourceId();
   FrameId f1 = state.RequestFrameIdForSource(s1);
 
