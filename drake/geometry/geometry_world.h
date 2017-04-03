@@ -141,7 +141,7 @@ class GeometryWorld {
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(GeometryWorld)
 
   /** Default constructor. */
-  GeometryWorld() {}
+  GeometryWorld() = default;
 
   /** @name Registration methods
 
