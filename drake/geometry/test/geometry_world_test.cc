@@ -47,6 +47,54 @@ class GeometryWorldTest : public ::testing::Test {
         &context_->get_mutable_abstract_state<GeometryState<double>>(0);
   }
 
+  // This method sets up a dummy tree to facilitate testing, returning the
+  // identifier of the source that owns the assets.
+  SourceId SetUpDummyTree() {
+    SourceId s_id = world_->RegisterNewSource();
+
+    // Creates k frames with n geometries each.
+    for (int f = 0; f < kFrameCount; ++f) {
+      frames_[f] = world_->RegisterFrame(context_.get(), s_id);
+      int geometry_position = f * kGeometryCount;
+      for (int g = 0; g < kGeometryCount; ++g) {
+        geometries_[geometry_position++] =
+            world_->RegisterGeometry(context_.get(), s_id, frames_[f],
+                                     make_unique<GeometryInstance>(), pose_);
+      }
+    }
+    // Confirms that the same source is reachable from all geometries.
+    for (int i = 0; i < kFrameCount * kGeometryCount; ++i) {
+      EXPECT_EQ(geometry_state_->GetSourceId(geometries_[i]), s_id);
+    }
+    return s_id;
+  }
+
+  // This method confirms that the stored dummy identifiers don't map to any
+  // active source identifier.
+  void AssertDummyTreeCleared() {
+    // confirm frames have been closed
+    for (int f = 0; f < kFrameCount; ++f) {
+      try {
+        geometry_state_->GetSourceId(frames_[f]);
+        GTEST_FAIL();
+      } catch (const std::runtime_error& err) {
+        ExpectErrorMessage(err.what(),
+                           "Referenced frame \\d+ has not been registered.");
+      }
+    }
+    // confirm geometries have been closed
+    for (int g = 0; g < kFrameCount * kGeometryCount; ++g) {
+      try {
+        geometry_state_->GetSourceId(geometries_[g]);
+        GTEST_FAIL();
+      } catch (const std::runtime_error& err) {
+        ExpectErrorMessage(err.what(),
+                           "Referenced geometry \\d+ does not belong to a known "
+                               "frame.");
+      }
+    }
+  }
+
   // Members owned by the test class.
   unique_ptr<GeometryWorld<double>> world_;
   unique_ptr<GeometryContext<double>> context_;
@@ -55,6 +103,14 @@ class GeometryWorldTest : public ::testing::Test {
   GeometryState<double>* geometry_state_;
   unique_ptr<GeometryInstance> instance_;
   Isometry3<double> pose_;
+
+  // Values for setting up and testing the dummy tree.
+  constexpr static int kFrameCount = 2;
+  constexpr static int kGeometryCount = 3;
+  // The frame ids created in the dummy tree instantiation.
+  FrameId frames_[kFrameCount];
+  // The geometry ids created in the dummy tree instantiation.
+  GeometryId geometries_[kFrameCount * kGeometryCount];
 };
 
 // Tests the lifespan of a geometry sources. This implicitly tests the
@@ -152,51 +208,19 @@ TEST_F(GeometryWorldTest, GetFrameIdFromBadId) {
 // This tests that clearing a source eliminates all of its geometry and frames,
 // leaving the source active.
 TEST_F(GeometryWorldTest, ClearSourceData) {
-  SourceId s_id = world_->RegisterNewSource();
-
-  // Creates k frames with n geometries each.
-  const int kFrameCount = 2;
-  const int kGeometryCount = 3;
-  FrameId frames[kFrameCount];
-  GeometryId geometries[kFrameCount * kGeometryCount];
-  for (int f = 0; f < kFrameCount; ++f) {
-    frames[f] = world_->RegisterFrame(context_.get(), s_id);
-    int geometry_position = f * kGeometryCount;
-    for (int g = 0; g < kGeometryCount; ++g) {
-      geometries[geometry_position++] =
-          world_->RegisterGeometry(context_.get(), s_id, frames[f],
-          make_unique<GeometryInstance>(), pose_);
-    }
-  }
-  // Confirms that the same source is reachable from all geometries.
-  for (int i = 0; i < kFrameCount * kGeometryCount; ++i) {
-    EXPECT_EQ(geometry_state_->GetSourceId(geometries[i]), s_id);
-  }
-
+  SourceId s_id = SetUpDummyTree();
   world_->ClearSource(context_.get(), s_id);
   EXPECT_TRUE(world_->SourceIsRegistered(s_id));
+  AssertDummyTreeCleared();
+}
 
-  // confirm frames have been closed
-  for (int f = 0; f < kFrameCount; ++f) {
-    try {
-      geometry_state_->GetSourceId(frames[f]);
-      GTEST_FAIL();
-    } catch (const std::runtime_error& err) {
-      ExpectErrorMessage(err.what(),
-                         "Referenced frame \\d+ has not been registered.");
-    }
-  }
-  // confirm geometries have been closed
-  for (int g = 0; g < kFrameCount * kGeometryCount; ++g) {
-    try {
-      geometry_state_->GetSourceId(geometries[g]);
-      GTEST_FAIL();
-    } catch (const std::runtime_error& err) {
-      ExpectErrorMessage(err.what(),
-                         "Referenced geometry \\d+ does not belong to a known "
-                             "frame.");
-    }
-  }
+// This tests that clearing a source eliminates all of its geometry and frames,
+// leaving the source active.
+TEST_F(GeometryWorldTest, RemoveSourceData) {
+  SourceId s_id = SetUpDummyTree();
+  world_->RemoveSource(context_.get(), s_id);
+  EXPECT_FALSE(world_->SourceIsRegistered(s_id));
+  AssertDummyTreeCleared();
 }
 
 //-------------------- DEATH TESTS ------------------------------

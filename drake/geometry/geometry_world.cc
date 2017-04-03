@@ -61,8 +61,7 @@ GeometryId GeometryWorld<T>::RegisterGeometry(
   auto& state = context->get_mutable_state()
                     ->template get_mutable_abstract_state<GeometryState<T>>(0);
   auto frame_id = state.GetFrameId(geometry_id);
-  // TODO(SeanCurtis-TRI): The actual code should hang it on the frame
-  // associated with the geometry_id.
+  // TODO(SeanCurtis-TRI): X_FG must be modified.
   return RegisterGeometry(context, source_id, frame_id, std::move(geometry),
                           X_FG);
 }
