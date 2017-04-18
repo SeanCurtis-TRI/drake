@@ -325,12 +325,9 @@ class GeometryWorld {
 
    Aborts if the source identifier does not reference an active source.
 
-   @param context       The context against which all declarations have been
-                        made.
    @param source_id     The identifier of the evaluating geometry source.
    */
-  FrameKinematicsSet<T> GetFrameKinematicsSet(const GeometryContext<T>& context,
-                                              SourceId source_id);
+  FrameKinematicsSet<T> GetFrameKinematicsSet(SourceId source_id);
 
   /**
    Sets the kinematics _values_ from the given value set. GeometryWorld consumes
