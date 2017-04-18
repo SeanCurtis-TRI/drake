@@ -96,8 +96,7 @@ void GeometryWorld<T>::ClearSource(GeometryContext<T>* context,
 }
 
 template <typename T>
-FrameKinematicsSet<T> GeometryWorld<T>::GetFrameKinematicsSet(
-    const GeometryContext<T>& context, SourceId source_id) {
+FrameKinematicsSet<T> GeometryWorld<T>::GetFrameKinematicsSet(SourceId source_id) {
   DRAKE_DEMAND(SourceIsRegistered(source_id));
   FrameKinematicsSet<T> set(source_id);
   return set;
