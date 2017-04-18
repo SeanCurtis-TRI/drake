@@ -70,7 +70,10 @@ drake_cc_library(
 
 drake_cc_googletest(
     name = "frame_kinematics_set_test",
-    deps = [":geometry_world"],
+    deps = [
+        ":frame_kinematics_set",
+        ":geometry_world",
+    ],
 )
 
 drake_cc_googletest(
