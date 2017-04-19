@@ -54,7 +54,7 @@ class GeometryWorldTest : public ::testing::Test {
 
     // Creates k frames with n geometries each.
     for (int f = 0; f < kFrameCount; ++f) {
-      frames_[f] = world_->RegisterFrame(context_.get(), s_id);
+      frames_.push_back(world_->RegisterFrame(context_.get(), s_id));
       int geometry_position = f * kGeometryCount;
       for (int g = 0; g < kGeometryCount; ++g) {
         geometries_[geometry_position++] =
@@ -108,7 +108,7 @@ class GeometryWorldTest : public ::testing::Test {
   constexpr static int kFrameCount = 2;
   constexpr static int kGeometryCount = 3;
   // The frame ids created in the dummy tree instantiation.
-  FrameId frames_[kFrameCount];
+  std::vector<FrameId> frames_;
   // The geometry ids created in the dummy tree instantiation.
   GeometryId geometries_[kFrameCount * kGeometryCount];
 };
@@ -221,6 +221,61 @@ TEST_F(GeometryWorldTest, RemoveSourceData) {
   world_->RemoveSource(context_.get(), s_id);
   EXPECT_FALSE(world_->SourceIsRegistered(s_id));
   AssertDummyTreeCleared();
+}
+
+// Tests the validation of frame kinematics data provided.
+TEST_F(GeometryWorldTest, ValidateKinematicsData) {
+  SourceId s_id = SetUpDummyTree();
+  FrameKinematicsSet<double> fks = world_->GetFrameKinematicsSet(s_id);
+  // Create one pose per frame.
+  std::vector<SpatialPose<double>> poses;
+  for (size_t i = 0; i < frames_.size(); ++i) {
+    poses.emplace_back();
+  }
+  // Case: Valid data.
+  fks.ReportPoses(frames_, poses);
+  EXPECT_NO_THROW(world_->SetFrameKinematics(context_.get(), fks));
+
+  // Case: Strictly missing required frames.
+  fks.Clear();
+  fks.ReportPose(frames_[0], poses[0]);
+  try {
+    world_->SetFrameKinematics(context_.get(), fks);
+    GTEST_FAIL();
+  } catch (const std::logic_error& err) {
+    ExpectErrorMessage(err.what(),
+                       "Disagreement in expected number of frames \\(\\d+\\) "
+                       "and the given number of frames \\(\\d+\\).");
+  }
+
+  // Case: Strictly adding frames that don't belong.
+  fks.Clear();
+  fks.ReportPoses(frames_, poses);
+  fks.ReportPose(FrameId::get_new_id(), SpatialPose<double>());
+  try {
+    world_->SetFrameKinematics(context_.get(), fks);
+    GTEST_FAIL();
+  } catch (const std::logic_error& err) {
+    ExpectErrorMessage(err.what(),
+                       "Disagreement in expected number of frames \\(\\d+\\) "
+                           "and the given number of frames \\(\\d+\\).");
+  }
+
+  // Case: Correct number; required frame swapped with invalid frame.
+  fks.Clear();
+  std::vector<FrameId> frames_subset(++frames_.begin(), frames_.end());
+  std::vector<SpatialPose<double>> pose_subset(++poses.begin(), poses.end());
+  fks.ReportPoses(frames_subset, pose_subset);
+  fks.ReportPose(FrameId::get_new_id(), SpatialPose<double>());
+  try {
+    world_->SetFrameKinematics(context_.get(), fks);
+    GTEST_FAIL();
+  } catch (const std::logic_error& err) {
+    ExpectErrorMessage(err.what(),
+                       "Frame id provided in kinematics data \\(\\d+\\) "
+                       "that does not belong to the source \\(\\d+\\)."
+                       " At least one required frame id is also missing.");
+  }
 }
 
 //-------------------- DEATH TESTS ------------------------------

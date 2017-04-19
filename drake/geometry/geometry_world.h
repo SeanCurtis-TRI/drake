@@ -348,6 +348,9 @@ class GeometryWorld {
    @param context           A mutable context; used for updating cache.
    @param frame_kinematics  The kinematics data for the frames registered by a
                             single source.
+   @throws std::logic_error If the frame kinematics data is missing any data for
+                            registered frames, or includes frame ids that were
+                            not registered with the associated source.
    */
   void SetFrameKinematics(GeometryContext<T>* context,
                           const FrameKinematicsSet<T>& frame_kinematics);
@@ -369,6 +372,12 @@ class GeometryWorld {
   // implementation best suited for particular queries.
 //  BulletGeometryEngine bullet_engine_;
 //  FclGeometryEngine fcl_engine_;
+
+  // Performs the work for confirming the frame values provided in the
+  // kinematics set cover the expected set of frames (and no more). Throws an
+  // exception if invalid.
+  void ValidateKinematicsSet(GeometryContext<T>* context,
+                             const FrameKinematicsSet<T>& frame_kinematics);
 
   // The set of all registered sources.
   std::unordered_set<SourceId> sources_;

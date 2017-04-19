@@ -143,6 +143,12 @@ FrameId GeometryState<T>::GetFrameId(GeometryId geometry_id) const {
   return GetValueOrThrow(geometry_id, &geometry_frame_map_);
 }
 
+template <typename T>
+const FrameIdSet& GeometryState<T>::GetFramesForSource(
+    SourceId source_id) const {
+  return GetValueOrThrow(source_id, &source_frame_map_);
+}
+
 // Explicitly instantiates on the most common scalar types.
 template class GeometryState<double>;
 
