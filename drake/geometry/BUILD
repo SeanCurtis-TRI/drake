@@ -55,6 +55,13 @@ drake_cc_library(
 )
 
 drake_cc_library(
+    name = "geometry_index",
+    srcs = [],
+    hdrs = ["geometry_index.h"],
+    deps = ["//drake/common:type_safe_index"],
+)
+
+drake_cc_library(
     name = "geometry_instance",
     srcs = ["geometry_instance.cc"],
     hdrs = ["geometry_instance.h"],
