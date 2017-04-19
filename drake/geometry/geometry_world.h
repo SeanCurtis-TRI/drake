@@ -15,7 +15,7 @@ namespace drake {
 namespace geometry {
 
 // Forward declarations.
-class GeometryInstance;
+template <typename T> class GeometryInstance;
 template <typename T> class FrameKinematicsSet;
 template <typename T> class GeometryContext;
 
@@ -191,16 +191,12 @@ class GeometryWorld {
                       frame.
    @param frame_id    The id for the frame `F` to hang the geometry on.
    @param geometry    The geometry to hang.
-   @param X_FG        the transform X_FG which transforms the geometry
-                      from its canonical frame `G` to the parent frame `F`,
-                      i.e., the geometry's pose relative to its parent.
    @return A unique identifier for the added geometry.
    */
   GeometryId RegisterGeometry(GeometryContext<T>* context,
                               SourceId source_id,
                               FrameId frame_id,
-                              std::unique_ptr<GeometryInstance> geometry,
-                              const Isometry3<T>& X_FG);
+                              std::unique_ptr<GeometryInstance<T>> geometry);
 
   /**
    Declares a `geometry` instance as "hanging" from the specified geometry's
@@ -219,16 +215,12 @@ class GeometryWorld {
                        geometry.
    @param geometry_id  The id for the geometry to hang the declared geometry on.
    @param geometry     The geometry to hang.
-   @param X_FG         the transform X_FG which transforms the geometry
-                       from its canonical frame `G` to the parent frame `F`,
-                       i.e., the geometry's pose relative to its parent.
    @return A unique identifier for the added geometry.
    */
   GeometryId RegisterGeometry(GeometryContext<T>* context,
                               SourceId source_id,
                               GeometryId geometry_id,
-                              std::unique_ptr<GeometryInstance> geometry,
-                              const Isometry3<T>& X_FG);
+                              std::unique_ptr<GeometryInstance<T>> geometry);
 
   /**
    Adds the given geometry to the world as anchored geometry.
@@ -236,13 +228,11 @@ class GeometryWorld {
    @param source_id     The identifier for the geometry source registering the
                         geometry.
    @param geometry      The geometry to add to the world.
-   @param X_WG          A transform from the geometry's canonical space to
-                        world space.
    @returns The index for the added geometry.
    */
   GeometryId RegisterAnchoredGeometry(
       GeometryContext<T>* context, SourceId source_id,
-      std::unique_ptr<GeometryInstance> geometry, const Isometry3<T>& X_WG);
+      std::unique_ptr<GeometryInstance<T>> geometry);
 
   /** @} */
 
@@ -370,8 +360,8 @@ class GeometryWorld {
   // GeometryEngine interface. It does this so that it can support multiple
   // geometry engine implementations simultaneously to allow for picking the
   // implementation best suited for particular queries.
-//  BulletGeometryEngine bullet_engine_;
-//  FclGeometryEngine fcl_engine_;
+  //  BulletGeometryEngine bullet_engine_;
+  //  FclGeometryEngine fcl_engine_;
 
   // Performs the work for confirming the frame values provided in the
   // kinematics set cover the expected set of frames (and no more). Throws an
