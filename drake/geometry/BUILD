@@ -82,7 +82,7 @@ drake_cc_googletest(
         ":geometry_instance",
         ":geometry_world",
         "//drake/common",
-    ]
+    ],
 )
 
 drake_cc_googletest(

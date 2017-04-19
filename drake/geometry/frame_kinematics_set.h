@@ -182,6 +182,9 @@ class FrameKinematicsSet {
   /** Reports the number of frames that have reported values. */
   int get_frame_count() const { return static_cast<int>(frame_ids_.size()); }
 
+  /** Return the frames included in the data set. */
+  const std::vector<FrameId>& get_frame_ids() const { return frame_ids_; }
+
  private:
   // The inferred configuration of what data has been provided per frame. It
   // is reset in clear, and defined by the first report invocation. This

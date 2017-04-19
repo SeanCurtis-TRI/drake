@@ -106,7 +106,9 @@ template <typename T>
 void GeometryWorld<T>::SetFrameKinematics(
     GeometryContext<T>* context,
     const FrameKinematicsSet<T>& frame_kinematics) {
-  // TODO(SeanCurtis-TRI): Do this work.
+  ValidateKinematicsSet(context, frame_kinematics);
+  // TODO(SeanCurtis-TRI): Push data into collision engine.
+  // Step 2. Push the kinematics data into the collision engine(s).
 }
 
 template <typename T>
@@ -114,6 +116,35 @@ vector<unique_ptr<AbstractValue>> GeometryWorld<T>::AllocateAbstractValues() {
   vector<unique_ptr<AbstractValue>> values;
   values.push_back(make_unique<Value<GeometryState<T>>>());
   return values;
+}
+
+template <typename T>
+void GeometryWorld<T>::ValidateKinematicsSet(
+    GeometryContext<T>* context,
+    const FrameKinematicsSet<T>& frame_kinematics) {
+  using std::to_string;
+  auto& state =
+      context->get_state().template get_abstract_state<GeometryState<T>>(0);
+  SourceId source_id = frame_kinematics.get_source_id();
+  auto& frames = state.GetFramesForSource(source_id);
+  const int ref_frame_count = static_cast<int>(frames.size());
+  if (ref_frame_count != frame_kinematics.get_frame_count()) {
+    // TODO(SeanCurtis-TRI): Determine if more specific information is necesary.
+    // e.g., which frames are missing/added.
+    throw std::logic_error(
+        "Disagreement in expected number of frames (" +
+        std::to_string(frames.size()) + ") and the given number of frames (" +
+        std::to_string(frame_kinematics.get_frame_count()) + ").");
+  } else {
+    for (auto id : frame_kinematics.get_frame_ids()) {
+      if (frames.find(id) == frames.end()) {
+        throw std::logic_error(
+            "Frame id provided in kinematics data (" + to_string(id) + ") "
+            "that does not belong to the source (" + to_string(source_id) + ")."
+            " At least one required frame id is also missing.");
+      }
+    }
+  }
 }
 
 // Explicitly instantiates on the most common scalar types.

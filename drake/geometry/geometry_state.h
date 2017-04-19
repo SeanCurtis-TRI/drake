@@ -80,6 +80,9 @@ class GeometryState {
  private:
   // This functionality can only be invoked by GeometryWorld.
 
+  // Returns the set of frames registered to the given source.
+  const FrameIdSet& GetFramesForSource(SourceId source_id) const;
+
   // Removes the indicated source, removing all frames and geometry registered
   // on that source identifier.
   //
