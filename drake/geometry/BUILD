@@ -18,7 +18,6 @@ drake_cc_library(
     ],
     hdrs = [
         "geometry_engine.h",
-        "geometry_instance.h",
         "geometry_state.h",
         "geometry_world.h",
     ],
@@ -26,6 +25,7 @@ drake_cc_library(
         ":frame_kinematics_set",
         ":geometry_context",
         ":geometry_ids",
+        ":geometry_instance",
         "//drake/common",
     ],
 )

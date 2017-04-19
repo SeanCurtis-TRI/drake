@@ -59,7 +59,7 @@ class GeometryWorldTest : public ::testing::Test {
       for (int g = 0; g < kGeometryCount; ++g) {
         geometries_[geometry_position++] =
             world_->RegisterGeometry(context_.get(), s_id, frames_[f],
-                                     make_unique<GeometryInstance>(), pose_);
+                                     make_unique<GeometryInstance<double>>());
       }
     }
     // Confirms that the same source is reachable from all geometries.
@@ -101,7 +101,7 @@ class GeometryWorldTest : public ::testing::Test {
   // The GeometryState instance is actually owned by the context; this is simply
   // a convenience handle.
   GeometryState<double>* geometry_state_;
-  unique_ptr<GeometryInstance> instance_;
+  unique_ptr<GeometryInstance<double>> instance_;
   Isometry3<double> pose_;
 
   // Values for setting up and testing the dummy tree.
@@ -154,7 +154,7 @@ TEST_F(GeometryWorldTest, RegisterGeometryGoodSource) {
   SourceId s_id = world_->RegisterNewSource();
   FrameId f_id = world_->RegisterFrame(context_.get(), s_id);
   GeometryId g_id = world_->RegisterGeometry(context_.get(), s_id, f_id,
-                                             move(instance_), pose_);
+                                             move(instance_));
   EXPECT_EQ(geometry_state_->GetFrameId(g_id), f_id);
   EXPECT_EQ(geometry_state_->GetSourceId(g_id), s_id);
 }
@@ -168,7 +168,7 @@ TEST_F(GeometryWorldTest, RegisterGeometryMissingFrame) {
   FrameId f_id = FrameId::get_new_id();
   try {
     world_->RegisterGeometry(context_.get(), s_id, f_id,
-                             move(instance_), pose_);
+                             move(instance_));
   } catch (const std::runtime_error& err) {
     ExpectErrorMessage(err.what(), "Referenced frame \\d+ for source \\d+\\."
         " But the frame doesn't belong to the source.");
@@ -301,7 +301,7 @@ TEST_F(GeometryWorldDeathTest, RegisterGeometryBadSource) {
   FrameId f_id = FrameId::get_new_id();
   ASSERT_DEATH(
       {world_->RegisterGeometry(context_.get(), s_id, f_id,
-                                move(instance_), pose_);},
+                                move(instance_));},
       "abort: failure at .*geometry_world.cc:.+ in RegisterGeometry.+"
           "assertion 'SourceIsRegistered\\(source_id\\)' failed");
 }

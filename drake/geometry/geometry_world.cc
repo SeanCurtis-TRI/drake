@@ -35,7 +35,7 @@ FrameId GeometryWorld<T>::RegisterFrame(GeometryContext<T>* context,
   DRAKE_DEMAND(SourceIsRegistered(source_id));
   auto& state = context->get_mutable_state()
       ->template get_mutable_abstract_state<GeometryState<T>>(0);
-  FrameId id = state.RequestFrameIdForSource(source_id);
+  FrameId id = state.RegisterFrame(source_id);
   // TODO(SeanCurtis-TRI): Instantiate frame in data and handle eventual
   // payload.
   return id;
@@ -44,32 +44,31 @@ FrameId GeometryWorld<T>::RegisterFrame(GeometryContext<T>* context,
 template <typename T>
 GeometryId GeometryWorld<T>::RegisterGeometry(
     GeometryContext<T>* context, SourceId source_id, FrameId frame_id,
-    unique_ptr<GeometryInstance> geometry, const Isometry3<T>& X_FG) {
+    unique_ptr<GeometryInstance<T>> geometry) {
   DRAKE_DEMAND(SourceIsRegistered(source_id));
   auto& state = context->get_mutable_state()
                     ->template get_mutable_abstract_state<GeometryState<T>>(0);
-  GeometryId id = state.RequestGeometryIdForFrame(source_id, frame_id);
-  // TODO(SeanCurtis-TRI): Do the work!
+  GeometryId id = state.RegisterGeometry(source_id, frame_id,
+                                         move(geometry));
   return id;
 }
 
 template <typename T>
 GeometryId GeometryWorld<T>::RegisterGeometry(
     GeometryContext<T>* context, SourceId source_id, GeometryId geometry_id,
-    unique_ptr<GeometryInstance> geometry, const Isometry3<T>& X_FG) {
+    unique_ptr<GeometryInstance<T>> geometry) {
   DRAKE_DEMAND(SourceIsRegistered(source_id));
   auto& state = context->get_mutable_state()
                     ->template get_mutable_abstract_state<GeometryState<T>>(0);
-  auto frame_id = state.GetFrameId(geometry_id);
-  // TODO(SeanCurtis-TRI): X_FG must be modified.
-  return RegisterGeometry(context, source_id, frame_id, std::move(geometry),
-                          X_FG);
+  GeometryId g_id = state.RegisterGeometryWithParent(source_id, geometry_id,
+                                                     std::move(geometry));
+  return g_id;
 }
 
 template <typename T>
 GeometryId GeometryWorld<T>::RegisterAnchoredGeometry(
     GeometryContext<T>* context, SourceId source_id,
-    unique_ptr<GeometryInstance> geometry, const Isometry3<T>& X_WG) {
+    unique_ptr<GeometryInstance<T>> geometry) {
   DRAKE_DEMAND(SourceIsRegistered(source_id));
   GeometryId id = GeometryId::get_new_id();
   // TODO(SeanCurtis-TRI): Actually do this work.
