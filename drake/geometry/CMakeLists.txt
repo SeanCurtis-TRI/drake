@@ -13,6 +13,7 @@ set(installed_headers
     frame_kinematics_set.h
     geometry_context.h
     geometry_ids.h
+    geometry_index.h
     geometry_instance.h
     geometry_state.h
     geometry_world.h
