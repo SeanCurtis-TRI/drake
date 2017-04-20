@@ -11,24 +11,23 @@ namespace geometry {
  sort), a pose (relative to a parent frame), material information, and an
  opaque collection of metadata.
 
- @tparam T The underlying scalar type. Must be a valid Eigen scalar.
- */
+ @tparam T The underlying scalar type. Must be a valid Eigen scalar. */
 template <typename T>
 class GeometryInstance {
  public:
-  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(GeometryInstance)
+  DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(GeometryInstance)
 
   /** Constructor.
+   @param X_PG   The pose of this geometry (`G`) in its parent's frame (`P`). */
+  GeometryInstance(const Isometry3<T>& X_PG);
 
-   @param X_PG   The pose of this geometry (`G`) in its parent's frame (`P`).
-   */
-  GeometryInstance(const Isometry3<T>& X_PG) : X_FG_(X_PG) {}
+  /** Returns the pose of the instance relative to its parent _frame_. */
+  const Isometry3<T>& get_pose() const { return X_FG_; }
+
+  /** Sets the pose relative to the parent _frame_ `X_PG` for this instance. */
+  void set_pose(const Isometry3<T>& X_PG) { X_FG_ = X_PG; }
 
  private:
-  // TODO(SeanCurtis-TRI): This represents the choice of having instances not
-  // know about arbitrary hierarchies of rigid geometries. Determine if this is
-  // the right choice.
-
   // The pose of the geometry relative to the source frame it ultimately hangs
   // from.
   Isometry3<T> X_FG_;
