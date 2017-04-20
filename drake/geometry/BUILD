@@ -12,19 +12,26 @@ package(default_visibility = ["//visibility:public"])
 
 drake_cc_library(
     name = "geometry_world",
-    srcs = [
-        "geometry_state.cc",
-        "geometry_world.cc",
-    ],
-    hdrs = [
-        "geometry_engine.h",
-        "geometry_state.h",
-        "geometry_world.h",
-    ],
+    srcs = ["geometry_world.cc"],
+    hdrs = ["geometry_world.h"],
     deps = [
         ":frame_kinematics_set",
         ":geometry_context",
         ":geometry_ids",
+        ":geometry_instance",
+        ":geometry_state",
+        "//drake/common",
+    ],
+)
+
+drake_cc_library(
+    name = "geometry_state",
+    srcs = ["geometry_state.cc"],
+    hdrs = ["geometry_state.h"],
+    deps = [
+        ":geometry_engine",
+        ":geometry_ids",
+        ":geometry_index",
         ":geometry_instance",
         "//drake/common",
     ],
@@ -45,6 +52,22 @@ drake_cc_library(
     srcs = ["geometry_context.cc"],
     hdrs = ["geometry_context.h"],
     deps = ["//drake/systems/framework:leaf_context"],
+)
+
+drake_cc_library(
+    name = "geometry_engine",
+    srcs = ["geometry_engine_stub.cc"],
+    hdrs = [
+        "geometry_engine.h",
+        "geometry_engine_stub.h",
+    ],
+    deps = [
+        ":geometry_ids",
+        ":geometry_index",
+        ":geometry_instance",
+        "//drake/common",
+        "//drake/common:copyable_unique_ptr",
+    ],
 )
 
 drake_cc_library(
