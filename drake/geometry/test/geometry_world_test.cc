@@ -45,6 +45,7 @@ class GeometryWorldTest : public ::testing::Test {
         make_unique<AbstractValues>(move(abstract_values)));
     geometry_state_ =
         &context_->get_mutable_abstract_state<GeometryState<double>>(0);
+    instance_ = make_unique<GeometryInstance<double>>(Isometry3<double>());
   }
 
   // This method sets up a dummy tree to facilitate testing, returning the
@@ -53,13 +54,14 @@ class GeometryWorldTest : public ::testing::Test {
     SourceId s_id = world_->RegisterNewSource();
 
     // Creates k frames with n geometries each.
+    Isometry3<double> pose;
     for (int f = 0; f < kFrameCount; ++f) {
       frames_.push_back(world_->RegisterFrame(context_.get(), s_id));
       int geometry_position = f * kGeometryCount;
       for (int g = 0; g < kGeometryCount; ++g) {
         geometries_[geometry_position++] =
             world_->RegisterGeometry(context_.get(), s_id, frames_[f],
-                                     make_unique<GeometryInstance<double>>());
+                                     make_unique<GeometryInstance<double>>(pose));
       }
     }
     // Confirms that the same source is reachable from all geometries.

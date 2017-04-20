@@ -93,6 +93,14 @@ drake_cc_googletest(
 )
 
 drake_cc_googletest(
+    name = "geometry_instance_test",
+    deps = [
+        ":geometry_instance",
+        "//drake/common:copyable_unique_ptr",
+    ],
+)
+
+drake_cc_googletest(
     name = "identifier_test",
     deps = [":identifier"],
 )
