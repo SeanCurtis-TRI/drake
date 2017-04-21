@@ -19,7 +19,7 @@ class GeometryInstance {
 
   /** Constructor.
    @param X_PG   The pose of this geometry (`G`) in its parent's frame (`P`). */
-  GeometryInstance(const Isometry3<T>& X_PG);
+  explicit GeometryInstance(const Isometry3<T>& X_PG);
 
   /** Returns the pose of the instance relative to its parent _frame_. */
   const Isometry3<T>& get_pose() const { return X_FG_; }
@@ -31,7 +31,6 @@ class GeometryInstance {
   // The pose of the geometry relative to the source frame it ultimately hangs
   // from.
   Isometry3<T> X_FG_;
-
 };
 }  // namespace geometry
 }  // namespace drake

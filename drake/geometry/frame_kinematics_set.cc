@@ -1,7 +1,7 @@
 #include "drake/geometry/frame_kinematics_set.h"
 
+#include <string>
 #include <unordered_set>
-#include <sstream>
 
 #include "drake/common/drake_assert.h"
 

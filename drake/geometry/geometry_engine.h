@@ -1,6 +1,8 @@
 #pragma once
 
 #include <memory>
+#include <string>
+#include <vector>
 
 #include "drake/common/eigen_types.h"
 #include "drake/geometry/geometry_ids.h"
@@ -77,7 +79,7 @@ class GeometryEngine {
    @return  An index by which the geometry can be referenced later. */
   // TODO(SeanCurtis-TRI): Include the invocation of the geometry.
   virtual GeometryIndex AddDynamicGeometry(
-      std::unique_ptr<GeometryInstance<T>>& data) = 0;
+      std::unique_ptr<GeometryInstance<T>> data) = 0;
 
   /** Add anchored geometry to the engine. The engine takes ownership of the
    instance. The instance's pose is a fixed pose relative to the _world_ frame
@@ -85,7 +87,7 @@ class GeometryEngine {
    @param geometry    The geometry instance to add to the engine.
    @return  An index by which the geometry can be referenced later. */
   virtual GeometryIndex AddAnchoredGeometry(
-      std::unique_ptr<GeometryInstance<T>>& data) = 0;
+      std::unique_ptr<GeometryInstance<T>> data) = 0;
 
   /** Provides the poses for all of the geometries in the engine. This vector
    should span the full range of active GeometryIndex values provided by the
@@ -95,19 +97,19 @@ class GeometryEngine {
                    world frame `W`. */
   virtual void UpdateWorldPoses(const std::vector<Isometry3<T>>& X_WG) = 0;
 
-   /** @} */
+  //@}
 
   /** @name                    Geometry Queries
    @{ */
   // TODO(SeanCurtis-TRI): Provide the interface that GeometryQuery invokes.
-  /** @} */
+  //@}
  protected:
   /*! NVI implementation for cloning GeometryEngine instances.
    @return A _raw_ pointers to the newly cloned GeometryEngine instance.
    */
   virtual GeometryEngine* DoClone() const = 0;
- private:
 
+ private:
 };
 }  // namespace geometry
 }  // namespace drake
