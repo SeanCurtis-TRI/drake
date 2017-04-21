@@ -107,6 +107,7 @@ drake_cc_library(
 drake_cc_googletest(
     name = "frame_kinematics_set_test",
     deps = [
+        ":expect_error_message",
         ":frame_kinematics_set",
         ":geometry_world",
     ],
