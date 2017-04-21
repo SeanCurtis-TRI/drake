@@ -98,6 +98,12 @@ drake_cc_library(
     deps = ["//drake/common"],
 )
 
+drake_cc_library(
+    name = "expect_error_message",
+    srcs = [],
+    hdrs = ["test/expect_error_message.h"],
+)
+
 drake_cc_googletest(
     name = "frame_kinematics_set_test",
     deps = [
