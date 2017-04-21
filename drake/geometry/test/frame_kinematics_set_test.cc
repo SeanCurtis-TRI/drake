@@ -1,10 +1,10 @@
 #include "drake/geometry/frame_kinematics_set.h"
 
-#include <regex>
 
 #include <gtest/gtest.h>
 
 #include "drake/geometry/geometry_world.h"
+#include "drake/geometry/test/expect_error_message.h"
 
 namespace drake {
 namespace geometry {
@@ -15,21 +15,7 @@ using GeometryWorldD = GeometryWorld<double>;
 using Pose = SpatialPose<double>;
 using Velocity = drake::multibody::SpatialVelocity<double>;
 using Acceleration = SpatialAcceleration<double>;
-using std::regex;
-using std::regex_match;
 using std::vector;
-
-// Helper macro for "expecting" an exception but *also* testing the error
-// message against the provided regular expression.
-#define EXPECT_ERROR_MESSAGE(expression, exception, reg_exp) \
-try { \
-  expression; \
-  GTEST_FAIL(); \
-} catch (const exception& err) { \
-  auto matcher = [](const char* s, const char* re) { \
-    return regex_match(s, regex(re)); }; \
-  EXPECT_PRED2(matcher, err.what(), reg_exp); \
-}
 
 // Core infrastructure for performing tests on the FrameKinematicsSet.
 class FrameKinematicsSetTest : public ::testing::Test {
