@@ -1,33 +1,31 @@
 #include "drake/geometry/frame_kinematics_set.h"
 
-
 #include <gtest/gtest.h>
 
-#include "drake/geometry/geometry_world.h"
 #include "drake/geometry/test/expect_error_message.h"
+#include "drake/geometry/test/geometry_world_stub.h"
 
 namespace drake {
 namespace geometry {
 namespace {
 
 using FKSet = FrameKinematicsSet<double>;
-using GeometryWorldD = GeometryWorld<double>;
 using Pose = SpatialPose<double>;
 using Velocity = drake::multibody::SpatialVelocity<double>;
 using Acceleration = SpatialAcceleration<double>;
 using std::vector;
+using GWorld = GeometryWorld<double>;
 
 // Core infrastructure for performing tests on the FrameKinematicsSet.
 class FrameKinematicsSetTest : public ::testing::Test {
  protected:
   void SetUp() {
-    source_id_ = world_.RegisterNewSource();
+    source_id_ = SourceId::get_new_id();
     for (int i = 0; i < kFrameCount; ++i) {
       frames_.push_back(FrameId::get_new_id());
     }
   }
 
-  GeometryWorldD world_;
   SourceId source_id_;
   vector<FrameId> frames_;
   constexpr static int kFrameCount = 5;
@@ -36,14 +34,14 @@ class FrameKinematicsSetTest : public ::testing::Test {
 // Confirms that the FrameKinematicsSet is created in the correct configuration.
 // No data and with the correct source identifier.
 TEST_F(FrameKinematicsSetTest, Constructor) {
-  FKSet fks = world_.GetFrameKinematicsSet(source_id_);
+  FKSet fks = GWorld::MakeFKS(source_id_);
   EXPECT_EQ(fks.get_source_id(), source_id_);
   EXPECT_EQ(fks.get_frame_count(), 0);
 }
 
 // Confirms that pose(s) can be successfully set.
-TEST_F(FrameKinematicsSetTest, SetPose) {
-  FKSet fks = world_.GetFrameKinematicsSet(source_id_);
+TEST_F(FrameKinematicsSetTest, ReportPose) {
+  FKSet fks = GWorld::MakeFKS(source_id_);
 
   // Add a single pose.
   ASSERT_EQ(fks.get_frame_count(), 0);
@@ -62,8 +60,8 @@ TEST_F(FrameKinematicsSetTest, SetPose) {
 }
 
 // Confirms that pose(s) and velocity(ies) can be set.
-TEST_F(FrameKinematicsSetTest, SetPoseVelocity) {
-  FKSet fks = world_.GetFrameKinematicsSet(source_id_);
+TEST_F(FrameKinematicsSetTest, ReportPoseVelocity) {
+  FKSet fks = GWorld::MakeFKS(source_id_);
 
   // Add a single pose.
   ASSERT_EQ(fks.get_frame_count(), 0);
@@ -84,8 +82,8 @@ TEST_F(FrameKinematicsSetTest, SetPoseVelocity) {
 }
 
 // Confirms that pose(s), velocity(ies), and acceleration(s) can be set.
-TEST_F(FrameKinematicsSetTest, SetAll) {
-  FKSet fks = world_.GetFrameKinematicsSet(source_id_);
+TEST_F(FrameKinematicsSetTest, ReportAll) {
+  FKSet fks = GWorld::MakeFKS(source_id_);
 
   // Add a single pose.
   ASSERT_EQ(fks.get_frame_count(), 0);
@@ -111,7 +109,7 @@ TEST_F(FrameKinematicsSetTest, SetAll) {
 // Confirms that clear removes values and enables new configuration of reported
 // data.
 TEST_F(FrameKinematicsSetTest, Clear) {
-  FKSet fks = world_.GetFrameKinematicsSet(source_id_);
+  FKSet fks = GWorld::MakeFKS(source_id_);
   ASSERT_EQ(fks.get_frame_count(), 0);
   int count = fks.ReportPose(frames_[0], Pose());
   ASSERT_EQ(count, 1);
@@ -138,7 +136,7 @@ TEST_F(FrameKinematicsSetTest, Clear) {
 // Confirms that an exception with meaningful message is provided if the user
 // tries to provide mismatched kinematics data within a single set.
 TEST_F(FrameKinematicsSetTest, MisMatchConfiguration) {
-  FKSet fks = world_.GetFrameKinematicsSet(source_id_);
+  FKSet fks = GWorld::MakeFKS(source_id_);
 
   // Case 1: Initialize to pose (p), then try velocity (p & v) and full
   // (p, v, & a).
@@ -181,7 +179,7 @@ TEST_F(FrameKinematicsSetTest, MisMatchConfiguration) {
 // Confirms the expected exception and messages when inputs don't have matched
 // sizes.
 TEST_F(FrameKinematicsSetTest, MisMatchInputSizes) {
-  FKSet fks = world_.GetFrameKinematicsSet(source_id_);
+  FKSet fks = GWorld::MakeFKS(source_id_);
 
   vector<Pose> poses;
   vector<Velocity> velocities;
@@ -261,7 +259,7 @@ TEST_F(FrameKinematicsSetTest, MisMatchInputSizes) {
 // Confirms that attempting to duplicate a previous frame in ReportPose throws
 // the expected exception.
 TEST_F(FrameKinematicsSetTest, SinglePoseDuplicatesFrame) {
-  FKSet fks = world_.GetFrameKinematicsSet(source_id_);
+  FKSet fks = GWorld::MakeFKS(source_id_);
   int count = fks.ReportPose(frames_[0], Pose());
   EXPECT_EQ(count, 1);
   EXPECT_ERROR_MESSAGE(
@@ -273,7 +271,7 @@ TEST_F(FrameKinematicsSetTest, SinglePoseDuplicatesFrame) {
 // Confirms that attempting to duplicate a previous frame in ReportPoses throws
 // the expected exception.
 TEST_F(FrameKinematicsSetTest, MultiPoseDuplicatesFrame) {
-  FKSet fks = world_.GetFrameKinematicsSet(source_id_);
+  FKSet fks = GWorld::MakeFKS(source_id_);
   int count = fks.ReportPose(frames_[0], Pose());
   EXPECT_EQ(count, 1);
   vector<Pose> poses;
@@ -289,7 +287,7 @@ TEST_F(FrameKinematicsSetTest, MultiPoseDuplicatesFrame) {
 // Confirms that attempting to duplicate a previous frame in ReportPoseVelocity
 // throws the expected exception.
 TEST_F(FrameKinematicsSetTest, SingleVelocityDuplicatesFrame) {
-  FKSet fks = world_.GetFrameKinematicsSet(source_id_);
+  FKSet fks = GWorld::MakeFKS(source_id_);
   int count = fks.ReportPoseVelocity(frames_[0], Pose(), Velocity());
   EXPECT_EQ(count, 1);
   EXPECT_ERROR_MESSAGE(
@@ -301,7 +299,7 @@ TEST_F(FrameKinematicsSetTest, SingleVelocityDuplicatesFrame) {
 // Confirms that attempting to duplicate a previous frame in
 // ReportPosesVelocities throws the expected exception.
 TEST_F(FrameKinematicsSetTest, MultiVelocityDuplicatesFrame) {
-  FKSet fks = world_.GetFrameKinematicsSet(source_id_);
+  FKSet fks = GWorld::MakeFKS(source_id_);
   int count = fks.ReportPoseVelocity(frames_[0], Pose(), Velocity());
   EXPECT_EQ(count, 1);
   vector<Pose> poses;
@@ -319,7 +317,7 @@ TEST_F(FrameKinematicsSetTest, MultiVelocityDuplicatesFrame) {
 // Confirms that attempting to duplicate a previous frame in ReportPoseVelocity
 // throws the expected exception.
 TEST_F(FrameKinematicsSetTest, SingleFullDuplicatesFrame) {
-  FKSet fks = world_.GetFrameKinematicsSet(source_id_);
+  FKSet fks = GWorld::MakeFKS(source_id_);
   int count = fks.ReportFullKinematics(frames_[0], Pose(), Velocity(),
                                        Acceleration());
   EXPECT_EQ(count, 1);
@@ -333,7 +331,7 @@ TEST_F(FrameKinematicsSetTest, SingleFullDuplicatesFrame) {
 // Confirms that attempting to duplicate a previous frame in
 // ReportPosesVelocities throws the expected exception.
 TEST_F(FrameKinematicsSetTest, MultiFullDuplicatesFrame) {
-  FKSet fks = world_.GetFrameKinematicsSet(source_id_);
+  FKSet fks = GWorld::MakeFKS(source_id_);
   int count = fks.ReportFullKinematics(frames_[0], Pose(), Velocity(),
                                        Acceleration());
   EXPECT_EQ(count, 1);
@@ -352,11 +350,6 @@ TEST_F(FrameKinematicsSetTest, MultiFullDuplicatesFrame) {
 }
 #endif
 
-// Things to test:
-//  Duplicate frame (Debug only)
-//    Duplicate in multi-set
-//    Duplicate single to previous set
-//    Duplicate in set to previous set.
 }  // namespace
 }  // namespace geometry
 }  // namespace drake
