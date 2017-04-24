@@ -13,3 +13,15 @@ try { \
     return std::regex_match(s, std::regex(re)); }; \
   EXPECT_PRED2(matcher, err.what(), reg_exp); \
 }
+
+// Helper macro for "asserting" an exception but *also* testing the error
+// message against the provided regular expression.
+#define ASSERT_ERROR_MESSAGE(expression, exception, reg_exp) \
+try { \
+  expression; \
+  GTEST_FATAL_FAILURE_("\t" #expression " failed to throw " #exception); \
+} catch (const exception& err) { \
+  auto matcher = [](const char* s, const char* re) { \
+    return std::regex_match(s, std::regex(re)); }; \
+  ASSERT_PRED2(matcher, err.what(), reg_exp); \
+}
