@@ -10,24 +10,10 @@
 #include "drake/geometry/frame_kinematics_set.h"
 #include "drake/geometry/geometry_instance.h"
 #include "drake/geometry/test/expect_error_message.h"
+#include "drake/geometry/test/geometry_world_stub.h"
 
 namespace drake {
 namespace geometry {
-
-// This serves as a _mock_ GeometryWorld. GeometryWorld serves as a factory of
-// the FrameKinematicsSet class. It is the _only_ class that can generate them.
-// The GeometryState class is responsible for validating the state of a
-// FrameKinematicsSet. To test that function, I need access to an instance of
-// the FrameKinematicsSet. This mock allows me to create such an instance
-// in a very lightweight manner by exploiting a declared friend relationship.
-template <typename T>
-class GeometryWorld {
- public:
-  static FrameKinematicsSet<T> MakeFKS(SourceId s_id) {
-    return FrameKinematicsSet<T>(s_id);
-  }
-};
-
 namespace  {
 
 using GState = GeometryState<double>;

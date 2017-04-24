@@ -29,48 +29,6 @@ class GeometryWorldTest : public ::testing::Test {
         make_unique<AbstractValues>(move(abstract_values)));
     geometry_state_ =
         &context_->get_mutable_abstract_state<GeometryState<double>>(0);
-    instance_ = make_unique<GeometryInstance<double>>(Isometry3<double>());
-  }
-
-  // This method sets up a dummy tree to facilitate testing, returning the
-  // identifier of the source that owns the assets.
-  SourceId SetUpDummyTree() {
-    SourceId s_id = world_->RegisterNewSource(context_.get());
-
-    // Creates k frames with n geometries each.
-    Isometry3<double> pose;
-    for (int f = 0; f < kFrameCount; ++f) {
-      frames_.push_back(world_->RegisterFrame(context_.get(), s_id));
-      int geometry_position = f * kGeometryCount;
-      for (int g = 0; g < kGeometryCount; ++g) {
-        geometries_[geometry_position++] = world_->RegisterGeometry(
-            context_.get(), s_id, frames_[f],
-            make_unique<GeometryInstance<double>>(pose));
-      }
-    }
-    // Confirms that the same source is reachable from all geometries.
-    for (int i = 0; i < kFrameCount * kGeometryCount; ++i) {
-      EXPECT_EQ(geometry_state_->GetSourceId(geometries_[i]), s_id);
-    }
-    return s_id;
-  }
-
-  // This method confirms that the stored dummy identifiers don't map to any
-  // active source identifier.
-  void AssertDummyTreeCleared() {
-    // confirm frames have been closed
-    for (int f = 0; f < kFrameCount; ++f) {
-      EXPECT_ERROR_MESSAGE(geometry_state_->GetSourceId(frames_[f]),
-                           std::logic_error,
-                           "Referenced frame \\d+ has not been registered.");
-    }
-    // confirm geometries have been closed
-    for (int g = 0; g < kFrameCount * kGeometryCount; ++g) {
-      EXPECT_ERROR_MESSAGE(geometry_state_->GetSourceId(geometries_[g]),
-                           std::logic_error,
-                           "Referenced geometry \\d+ does not belong to a known"
-                           " frame.");
-    }
   }
 
   // Members owned by the test class.
@@ -79,16 +37,6 @@ class GeometryWorldTest : public ::testing::Test {
   // The GeometryState instance is actually owned by the context; this is simply
   // a convenience handle.
   GeometryState<double>* geometry_state_;
-  unique_ptr<GeometryInstance<double>> instance_;
-  Isometry3<double> pose_;
-
-  // Values for setting up and testing the dummy tree.
-  constexpr static int kFrameCount = 2;
-  constexpr static int kGeometryCount = 3;
-  // The frame ids created in the dummy tree instantiation.
-  std::vector<FrameId> frames_;
-  // The geometry ids created in the dummy tree instantiation.
-  GeometryId geometries_[kFrameCount * kGeometryCount];
 };
 
 // Confirm that the state is extracted from the context without any copying.

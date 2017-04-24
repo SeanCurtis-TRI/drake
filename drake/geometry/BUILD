@@ -105,12 +105,18 @@ drake_cc_library(
     hdrs = ["test/expect_error_message.h"],
 )
 
+drake_cc_library(
+    name = "geometry_world_stub",
+    srcs = [],
+    hdrs = ["test/geometry_world_stub.h"],
+)
+
 drake_cc_googletest(
     name = "frame_kinematics_set_test",
     deps = [
         ":expect_error_message",
         ":frame_kinematics_set",
-        ":geometry_world",
+        ":geometry_world_stub",
     ],
 )
 
@@ -127,6 +133,7 @@ drake_cc_googletest(
     deps = [
         ":expect_error_message",
         ":geometry_state",
+        ":geometry_world_stub",
         "//drake/common:eigen_matrix_compare",
     ],
 )
