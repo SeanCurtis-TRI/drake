@@ -29,6 +29,7 @@ drake_cc_library(
     srcs = ["geometry_state.cc"],
     hdrs = ["geometry_state.h"],
     deps = [
+        ":frame_kinematics_set",
         ":geometry_engine",
         ":geometry_ids",
         ":geometry_index",
@@ -114,19 +115,29 @@ drake_cc_googletest(
 )
 
 drake_cc_googletest(
-    name = "geometry_world_test",
-    deps = [
-        ":geometry_instance",
-        ":geometry_world",
-        "//drake/common",
-    ],
-)
-
-drake_cc_googletest(
     name = "geometry_instance_test",
     deps = [
         ":geometry_instance",
         "//drake/common:copyable_unique_ptr",
+    ],
+)
+
+drake_cc_googletest(
+    name = "geometry_state_test",
+    deps = [
+        ":expect_error_message",
+        ":geometry_state",
+        "//drake/common:eigen_matrix_compare",
+    ],
+)
+
+drake_cc_googletest(
+    name = "geometry_world_test",
+    deps = [
+        ":expect_error_message",
+        ":geometry_instance",
+        ":geometry_world",
+        "//drake/common",
     ],
 )
 
