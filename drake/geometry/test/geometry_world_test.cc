@@ -63,6 +63,31 @@ TEST_F(GeometryWorldTest, CreateFrameKinematicsSetFromBadSource) {
 #endif
 }
 
+// Confirms the registration of the source with a user-specified name, a default
+// name, and requesting the name for an invalid id.
+TEST_F(GeometryWorldTest, TestSourceNames) {
+  using std::to_string;
+
+  // Case: user-specified source name.
+  std::string name = "my_source";
+  SourceId named_id = world_->RegisterNewSource(context_.get(), name);
+  EXPECT_EQ(world_->get_source_name(named_id), name);
+
+  // Case: default name.
+  SourceId anon_id = world_->RegisterNewSource(context_.get());
+  EXPECT_EQ(world_->get_source_name(anon_id), "Source_" + to_string(anon_id));
+
+  // Case: duplicate name.
+  EXPECT_ERROR_MESSAGE(world_->RegisterNewSource(context_.get(), name),
+  std::logic_error,
+  "Registering new source with duplicate name: .+\\.");
+
+  // Case: query with invalid source id.
+  EXPECT_ERROR_MESSAGE(world_->get_source_name(SourceId::get_new_id()),
+                       std::logic_error,
+                       "Querying source name for an invalid source id: \\d+.");
+}
+
 }  // namespace
 }  // namespace geometry
 }  // namespace drake

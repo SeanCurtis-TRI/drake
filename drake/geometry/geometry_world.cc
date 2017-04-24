@@ -18,12 +18,21 @@ using std::unique_ptr;
 using std::vector;
 
 template <typename T>
-SourceId GeometryWorld<T>::RegisterNewSource(GeometryContext<T>* context) {
+SourceId GeometryWorld<T>::RegisterNewSource(GeometryContext<T>* context,
+                                             const std::string& name) {
+  using std::to_string;
   SourceId id = SourceId::get_new_id();
-  sources_.insert(id);
   auto& state = context->get_mutable_state()
       ->template get_mutable_abstract_state<GeometryState<T>>(0);
   state.RegisterNewSource(id);
+  std::string source_name = name == "" ? "Source_" + to_string(id) : name;
+  for (auto pair : sources_) {
+    if (pair.second == source_name) {
+      throw std::logic_error(
+          "Registering new source with duplicate name: " + source_name + ".");
+    }
+  }
+  sources_[id] = source_name;
   return id;
 }
 
