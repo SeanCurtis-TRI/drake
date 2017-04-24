@@ -59,6 +59,7 @@ template <typename T>
 class FrameKinematicsSet {
  public:
   DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(FrameKinematicsSet)
+
   /** Clears all of the kinematics data in preparation for setting data for
    _all_ of the set's frames. */
   void Clear();
@@ -90,8 +91,9 @@ class FrameKinematicsSet {
        velocity or acceleration values, or
        3. there are not an equal number of frame ids as pose values.
    */
+
   int ReportPoses(const std::vector<FrameId>& frame_ids,
-                     const std::vector<SpatialPose<T>>& X_WF);
+                  const std::vector<SpatialPose<T>>& X_WF);
 
   /** Reports the pose and velocity values for the indicated frame, `F`.
    @param frame_id    The identifier for the target frame `F`.
