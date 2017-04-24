@@ -7,9 +7,13 @@
 
 #include "drake/geometry/frame_kinematics_set.h"
 #include "drake/geometry/geometry_instance.h"
+#include "drake/geometry/geometry_engine_stub.h"
 
 namespace drake {
 namespace geometry {
+
+using std::make_unique;
+using std::move;
 
 //-----------------------------------------------------------------------------
 
@@ -70,6 +74,11 @@ std::string get_missing_id_message<GeometryId>(const GeometryId& key) {
 
 //-----------------------------------------------------------------------------
 
+// TODO(SeanCurtis-TRI): Replace stub engine with a real engine.
+template <typename T>
+GeometryState<T>::GeometryState()
+    : geometry_engine_(make_unique<GeometryEngineStub<T>>()) {}
+
 template <typename T>
 int GeometryState<T>::GetNumFrames() const {
   int count = 0;
@@ -78,6 +87,7 @@ int GeometryState<T>::GetNumFrames() const {
   }
   return count;
 }
+
 template <typename T>
 Isometry3<T> GeometryState<T>::GetPoseInFrame(GeometryId geometry_id) const {
   using std::to_string;
@@ -191,6 +201,10 @@ GeometryId GeometryState<T>::RegisterGeometry(
     geometry_set.insert(id);
     geometry_frame_map_[id] = frame_id;
     geometry_poses_[id] = geometry->get_pose();
+    // Pass the geometry to the engine.
+    GeometryIndex index =
+        geometry_engine_->AddDynamicGeometry(move(geometry));
+    engine_map_[id] = index;
     return id;
   }
   throw std::logic_error("Referenced frame " + to_string(frame_id) +
@@ -341,6 +355,9 @@ void GeometryState<T>::RemoveGeometryUnchecked(
     }
   }
   geometry_poses_.erase(geometry_id);
+  // TODO(SeanCurtis-TRI): Remove the geometry from the geometry engine. This
+  // may lead to geometry id -> geometry index remapping.
+  engine_map_.erase(geometry_id);
 }
 
 // Explicitly instantiates on the most common scalar types.
