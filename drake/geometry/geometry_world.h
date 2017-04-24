@@ -1,7 +1,7 @@
 #pragma once
 
 #include <memory>
-#include <unordered_set>
+#include <unordered_map>
 #include <vector>
 
 #include "drake/common/drake_copyable.h"
@@ -157,11 +157,31 @@ class GeometryWorld {
      - register anchored geometry.
    @{ */
 
-  /**
-   Registers a new geometry source to GeometryWorld, receiving the unique
+  // TODO(SeanCurtis-TRI): Discuss the implications of the name -- where does it
+  // appear?
+  /** Registers a new geometry source to GeometryWorld, receiving the unique
    identifier for this new source.
-   @param context       A mutable geometry context. */
-  SourceId RegisterNewSource(GeometryContext<T>* context);
+   @param context       A mutable geometry context.
+   @param name          The optional name of the source. If none is provided
+                        it will be named Source## where the number is the
+                        value of the returned SourceId.
+   @throws std::logic_error if the name duplicates a previously registered
+                            source name. */
+  SourceId RegisterNewSource(GeometryContext<T>* context,
+                             const std::string& name="");
+
+  /** Reports the source name for the given source id.
+   @param id  The identifier of the source.
+   @return The name of the source.
+   @throws std::logic_error if the id does _not_ map to an active source. */
+  const std::string& get_source_name(SourceId id) {
+    using std::to_string;
+    auto itr = sources_.find(id);
+    if (itr != sources_.end()) return itr->second;
+    throw std::logic_error(
+        "Querying source name for an invalid source id: " + to_string(id) +
+            ".");
+  }
 
   /** Reports if the identifier references a registered source. */
   bool SourceIsRegistered(SourceId id) const;
@@ -362,8 +382,8 @@ class GeometryWorld {
   // exception if not.
   void AssertValidSource(SourceId source_id) const;
 
-  // The set of all registered sources.
-  std::unordered_set<SourceId> sources_;
+  // The set of all registered sources and their recorded names.
+  std::unordered_map<SourceId, std::string> sources_;
 };
 }  // namespace geometry
 }  // namespace drake
