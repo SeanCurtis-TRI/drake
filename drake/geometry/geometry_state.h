@@ -8,6 +8,7 @@
 #include "drake/common/drake_copyable.h"
 #include "drake/common/drake_optional.h"
 #include "drake/common/eigen_types.h"
+#include "drake/geometry/geometry_engine.h"
 #include "drake/geometry/geometry_ids.h"
 #include "drake/geometry/geometry_index.h"
 
@@ -67,7 +68,8 @@ class GeometryState {
  public:
   DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(GeometryState)
 
-  GeometryState() = default;
+  /** Default constructor. */
+  GeometryState();
 
   /** @name        State introspection.
 
@@ -307,8 +309,15 @@ class GeometryState {
   // Map from a geometry id to the geometries that have been hung from it.
   GeometryGeometryMap linked_geometry_;
 
+  // Mapping from globally unique geometry id to engine index (a dynamically
+  // variable value).
+  GeometryMap engine_map_;
+
   // Map from geometry id to the _pose_ of the geometry it references.
   GeometryPoseMap<T> geometry_poses_;
+
+  // The underlying geometry engine.
+  copyable_unique_ptr<GeometryEngine<T>> geometry_engine_;
 };
 }  // namespace geometry
 }  // namespace drake
