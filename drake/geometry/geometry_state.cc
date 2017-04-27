@@ -1,17 +1,22 @@
 #include "drake/geometry/geometry_state.h"
 
+#include <algorithm>
+#include <functional>
 #include <memory>
-#include <queue>
 #include <string>
 #include <utility>
 
 #include "drake/geometry/frame_kinematics_set.h"
-#include "drake/geometry/geometry_instance.h"
 #include "drake/geometry/geometry_engine_stub.h"
+#include "drake/geometry/geometry_frame.h"
+#include "drake/geometry/geometry_instance.h"
 
 namespace drake {
 namespace geometry {
 
+using internal::InternalFrame;
+using internal::InternalGeometry;
+using std::make_pair;
 using std::make_unique;
 using std::move;
 
@@ -21,10 +26,22 @@ using std::move;
 // We want to search for a key and throw an exception (with a meaningful
 // message) if not found.
 
+// Helper method for consistently determining the presence of a key in a
+// container and throwing a consistent exception type if absent.
+// Searches for a key value in a "findable" object. To be findable, the source
+// must have find(const Key&) and end() methods that return types that can
+// be equality compared, such that if they are equal, the key is *not* present
+// in the source. The exception message is produced by the given functor,
+// make_message().
+template <class Key, class Findable>
+void FindOrThrow(const Key& key, const Findable& source,
+                 std::function<std::string()> make_message) {
+  if (source.find(key) == source.end()) throw std::logic_error(make_message());
+}
 // Definition of error message for a missing key lookup.
 template <class Key>
 std::string get_missing_id_message(const Key& key) {
-  // TODO(SeanCurtis-TRI): Use pretty print to get the key name.
+  // TODO(SeanCurtis-TRI): Use NiceTypeName to get the key name.
   return "Error in map look up of unexpected key type";
 }
 
@@ -77,33 +94,21 @@ std::string get_missing_id_message<GeometryId>(const GeometryId& key) {
 // TODO(SeanCurtis-TRI): Replace stub engine with a real engine.
 template <typename T>
 GeometryState<T>::GeometryState()
-    : geometry_engine_(make_unique<GeometryEngineStub<T>>()) {}
-
-template <typename T>
-int GeometryState<T>::GetNumFrames() const {
-  int count = 0;
-  for (auto pair : source_frame_map_) {
-    count += static_cast<int>(pair.second.size());
-  }
-  return count;
-}
+    : kWorldFrame(FrameId::get_new_id()),
+      geometry_engine_(make_unique<GeometryEngineStub<T>>()) {}
 
 template <typename T>
 Isometry3<T> GeometryState<T>::GetPoseInFrame(GeometryId geometry_id) const {
-  using std::to_string;
-  auto itr = geometry_poses_.find(geometry_id);
-  if (itr != geometry_poses_.end()) {
-    return itr->second;
-  }
-  throw std::logic_error("Requesting a geometry pose with an invalid geometry "
-                             "identifier: " + to_string(geometry_id) + ".");
+  auto& geometry = GetValueOrThrow(geometry_id, &geometries_);
+  return geometry_poses_[geometry.get_engine_index()];
 }
 
 template <typename T>
 Isometry3<T> GeometryState<T>::GetPoseInParent(GeometryId geometry_id) const {
   Isometry3<T> X_FG = GetPoseInFrame(geometry_id);
   if (optional<GeometryId> parent_id = FindParentGeometry(geometry_id)) {
-    const Isometry3<double>& X_FP = geometry_poses_.at(*parent_id);
+    GeometryIndex parent_index = geometries_.at(*parent_id).get_engine_index();
+    const Isometry3<double>& X_FP = geometry_poses_[parent_index];
     return X_FP.inverse() * X_FG;
   } else {
     return X_FG;
@@ -112,15 +117,13 @@ Isometry3<T> GeometryState<T>::GetPoseInParent(GeometryId geometry_id) const {
 
 template <typename T>
 bool GeometryState<T>::source_is_active(SourceId source_id) const {
-  return source_frame_map_.find(source_id) != source_frame_map_.end();
+  return source_frame_id_map_.find(source_id) != source_frame_id_map_.end();
 }
 
 template <typename T>
 void GeometryState<T>::RegisterNewSource(SourceId source_id) {
-  if (source_frame_map_.find(source_id) == source_frame_map_.end()) {
-    // Indicate it is "active" by adding it to the source-frame map with an an
-    // empty frame set.
-    source_frame_map_[source_id];
+  if (source_frame_id_map_.find(source_id) == source_frame_id_map_.end()) {
+    source_frame_id_map_[source_id];
   } else {
     using std::to_string;
     throw std::logic_error("Trying to register a new source in the geometry "
@@ -131,11 +134,11 @@ void GeometryState<T>::RegisterNewSource(SourceId source_id) {
 
 template <typename T>
 void GeometryState<T>::ClearSource(SourceId source_id) {
-  FrameIdSet& frames = GetMutableValueOrThrow(source_id, &source_frame_map_);
+  FrameIdSet& frames = GetMutableValueOrThrow(source_id, &source_frame_id_map_);
   for (auto frame_id : frames) {
-    RemoveFrameUnchecked(source_id, frame_id);
+    RemoveFrameUnchecked(frame_id, RemoveFrameOrigin::SOURCE);
   }
-  source_frame_map_[source_id].clear();
+  source_frame_id_map_[source_id].clear();
 }
 
 template <typename T>
@@ -146,8 +149,7 @@ void GeometryState<T>::RemoveFrame(SourceId source_id, FrameId frame_id) {
                            " from source " + to_string(source_id) +
                            ". But the frame doesn't belong to that source.");
   }
-  RemoveFrameUnchecked(source_id, frame_id);
-  source_frame_map_[source_id].erase(frame_id);
+  RemoveFrameUnchecked(frame_id, RemoveFrameOrigin::FRAME);
 }
 
 template <typename T>
@@ -160,24 +162,39 @@ void GeometryState<T>::RemoveGeometry(SourceId source_id,
         "source " + to_string(source_id) + ". But the geometry doesn't belong"
         " to that source.");
   }
-  FrameId frame_id = GetFrameId(geometry_id);
-  std::unordered_set<GeometryId> removed_geometries;
-  RemoveGeometryUnchecked(frame_id, geometry_id, &removed_geometries);
-  for (auto id : removed_geometries) {
-    frame_geometry_map_[frame_id].erase(id);
-  }
+  RemoveGeometryUnchecked(geometry_id, RemoveGeometryOrigin::GEOMETRY);
 }
 
 // NOTE: Given that the new_id_() methods are all int64_t, we're not worrying
 // about overflow.
 
 template <typename T>
-FrameId GeometryState<T>::RegisterFrame(SourceId source_id) {
-  FrameIdSet& set = GetMutableValueOrThrow(source_id, &source_frame_map_);
+FrameId GeometryState<T>::RegisterFrame(SourceId source_id,
+                                        const GeometryFrame<T>& frame) {
+  return RegisterFrame(source_id, kWorldFrame, frame);
+}
+
+template <typename T>
+FrameId GeometryState<T>::RegisterFrame(SourceId source_id, FrameId parent_id,
+                                        const GeometryFrame<T>& frame) {
+  using std::to_string;
   FrameId frame_id = FrameId::get_new_id();
-  set.insert(frame_id);
-  frame_source_map_[frame_id] = source_id;
-  frame_geometry_map_[frame_id];  // Initialize an empty set.
+
+  // The new hierarchical frames.
+  FrameIdSet& f_set = GetMutableValueOrThrow(source_id, &source_frame_id_map_);
+  if (parent_id != kWorldFrame) {
+    FindOrThrow(parent_id, f_set, [parent_id, source_id]() {
+      return "Indicated parent id " + to_string(parent_id) + " does not belong "
+          "to the indicated source id " + to_string(source_id) + ".";
+    });
+    frames_[parent_id].add_child(frame_id);
+  }
+  PoseIndex pose_index(frame_poses_.size());
+  frame_poses_.emplace_back(frame.pose);
+  f_set.insert(frame_id);
+  frames_.emplace(frame_id,
+                  InternalFrame(source_id, frame_id, frame.name,
+                                frame.frame_group, pose_index, parent_id));
   return frame_id;
 }
 
@@ -185,31 +202,7 @@ template <typename T>
 GeometryId GeometryState<T>::RegisterGeometry(
     SourceId source_id, FrameId frame_id,
     std::unique_ptr<GeometryInstance<T>> geometry) {
-  using std::to_string;
-  if (geometry == nullptr) {
-    throw std::logic_error(
-        "Registering null geometry to frame " + to_string(frame_id) +
-        ", on source " + to_string(source_id) + ".");
-  }
-  FrameIdSet& set = GetMutableValueOrThrow(source_id, &source_frame_map_);
-  FrameIdSet::iterator itr = set.find(frame_id);
-  if (itr != set.end()) {
-    GeometryId id = GeometryId::get_new_id();
-    // Configure the topology.
-    GeometryIdSet& geometry_set = GetMutableValueOrThrow(frame_id,
-                                                         &frame_geometry_map_);
-    geometry_set.insert(id);
-    geometry_frame_map_[id] = frame_id;
-    geometry_poses_[id] = geometry->get_pose();
-    // Pass the geometry to the engine.
-    GeometryIndex index =
-        geometry_engine_->AddDynamicGeometry(move(geometry));
-    engine_map_[id] = index;
-    return id;
-  }
-  throw std::logic_error("Referenced frame " + to_string(frame_id) +
-                         " for source " + to_string(source_id) +
-                         ". But the frame doesn't belong to the source.");
+  return RegisterGeometryHelper(source_id, frame_id, move(geometry));
 }
 
 template <typename T>
@@ -231,14 +224,17 @@ GeometryId GeometryState<T>::RegisterGeometryWithParent(
   }
 
   // Failure condition 1.
-  FrameId frame_id = GetFrameId(geometry_id);
+  InternalGeometry& parent_geometry =
+      GetMutableValueOrThrow(geometry_id, &geometries_);
+  FrameId frame_id = parent_geometry.get_frame_id();
   // Transform pose relative to geometry, to pose relative to frame.
-  Isometry3<T> X_FG = geometry_poses_[geometry_id] * geometry->get_pose();
+  Isometry3<T> X_FG = geometry_poses_[parent_geometry.get_engine_index()] *
+      geometry->get_pose();
   geometry->set_pose(X_FG);
   // Failure condition 2.
-  GeometryId new_id = RegisterGeometry(source_id, frame_id, move(geometry));
-  linked_geometry_[geometry_id].insert(new_id);
-  geometry_poses_[new_id] = X_FG;
+  GeometryId new_id = RegisterGeometryHelper(source_id, frame_id,
+                                             move(geometry), geometry_id);
+  parent_geometry.add_child(new_id);
   return new_id;
 }
 
@@ -251,7 +247,8 @@ GeometryId GeometryState<T>::RegisterAnchoredGeometry(
 
 template <typename T>
 SourceId GeometryState<T>::GetSourceId(FrameId frame_id) const {
-  return GetValueOrThrow(frame_id, &frame_source_map_);
+  auto& frame = GetValueOrThrow(frame_id, &frames_);
+  return frame.get_source_id();
 }
 
 template <typename T>
@@ -262,13 +259,14 @@ SourceId GeometryState<T>::GetSourceId(GeometryId geometry_id) const {
 
 template <typename T>
 FrameId GeometryState<T>::GetFrameId(GeometryId geometry_id) const {
-  return GetValueOrThrow(geometry_id, &geometry_frame_map_);
+  auto& geometry = GetValueOrThrow(geometry_id, &geometries_);
+  return geometry.get_frame_id();
 }
 
 template <typename T>
 const FrameIdSet& GeometryState<T>::GetFramesForSource(
     SourceId source_id) const {
-  return GetValueOrThrow(source_id, &source_frame_map_);
+  return GetValueOrThrow(source_id, &source_frame_id_map_);
 }
 
 template <typename T>
@@ -287,13 +285,11 @@ void GeometryState<T>::ValidateKinematicsSet(
         std::to_string(frame_kinematics.get_frame_count()) + ").");
   } else {
     for (auto id : frame_kinematics.get_frame_ids()) {
-      if (frames.find(id) == frames.end()) {
-        throw std::logic_error(
-            "Frame id provided in kinematics data (" + to_string(id) +
-            ") does not belong to the source (" +
-            to_string(source_id) +
-            "). At least one required frame id is also missing.");
-      }
+      FindOrThrow(id, frames, [id, source_id]() {
+        return "Frame id provided in kinematics data (" + to_string(id) + ") "
+            "does not belong to the source (" + to_string(source_id) +
+            "). At least one required frame id is also missing.";
+      });
     }
   }
 }
@@ -301,63 +297,124 @@ void GeometryState<T>::ValidateKinematicsSet(
 template <typename T>
 optional<GeometryId> GeometryState<T>::FindParentGeometry(
     GeometryId geometry_id) const {
-  // TODO(SeanCurtis-TRI): Determine if it's worth saving enough topology info
-  // in order to reconstruct the original pose relative to the registered
-  // parent efficiently. Currently, I only have parent-to-child relationships.
-  // I would also need child-to-parent lookups. Without the upward links, I
-  // have to do a painful search.
-  FrameId frame_id = GetFrameId(geometry_id);
-  auto geometries = GetValueOrThrow(frame_id, &frame_geometry_map_);
-  std::queue<GeometryId> next;
-  std::unordered_set<GeometryId> visited;
-  for (GeometryId g_id : geometries) {
-    if (g_id == geometry_id) continue;
-    auto itr = linked_geometry_.find(g_id);
-    if (itr != linked_geometry_.end()) {
-      // This node has children.
-      auto children = itr->second;
-      if (children.find(geometry_id) != children.end()) {
-        return g_id;
-      }
-    }
-  }
-  return {};
+  auto& geometry = GetValueOrThrow(geometry_id, &geometries_);
+  return geometry.get_parent();
 }
 
 template <typename T>
-void GeometryState<T>::RemoveFrameUnchecked(SourceId source_id,
-                                            FrameId frame_id) {
-  GeometryIdSet& geometries = GetMutableValueOrThrow(frame_id,
-                                                     &frame_geometry_map_);
+GeometryId GeometryState<T>::RegisterGeometryHelper(
+    SourceId source_id, FrameId frame_id,
+    std::unique_ptr<GeometryInstance<T>> geometry,
+    optional<GeometryId> parent) {
+  using std::to_string;
+  if (geometry == nullptr) {
+    throw std::logic_error(
+        "Registering null geometry to frame " + to_string(frame_id) +
+            ", on source " + to_string(source_id) + ".");
+  }
+  FrameIdSet& set = GetMutableValueOrThrow(source_id, &source_frame_id_map_);
+
+  FindOrThrow(frame_id, set, [frame_id, source_id]() {
+    return "Referenced frame " + to_string(frame_id) + " for source " +
+        to_string(source_id) + ". But the frame doesn't belong to the source.";
+  });
+
+  GeometryId geometry_id = GeometryId::get_new_id();
+
+  // Pass the geometry to the engine.
+  // TODO(SeanCurtis-TRI): This will simplify when I'm not passing the *whole*
+  // geometry instance to the engine; I won't need to cache the pose.
+  Isometry3<T> pose = geometry->get_pose();
+  GeometryIndex engine_index =
+      geometry_engine_->AddDynamicGeometry(move(geometry));
+
+  // Configure topology.
+  frames_[frame_id].add_child(geometry_id);
+  geometries_.emplace(geometry_id, InternalGeometry(frame_id, geometry_id,
+                                                    "no_name", engine_index,
+                                                    parent));
+  // TODO(SeanCurtis-TRI): I expect my rigid poses are growing at the same
+  // rate as in my engine. This seems fragile.
+  DRAKE_ASSERT(static_cast<int>(geometry_poses_.size()) == engine_index);
+  geometry_poses_.emplace_back(pose);
+  return geometry_id;
+}
+
+template <typename T>
+void GeometryState<T>::RemoveFrameUnchecked(FrameId frame_id,
+                                            RemoveFrameOrigin caller) {
+  auto& frame = GetMutableValueOrThrow(frame_id, &frames_);
+
+  if (caller != RemoveFrameOrigin::SOURCE) {
+    // Recursively delete the child frames.
+    for (auto child_id : *frame.get_mutable_child_frames()) {
+      RemoveFrameUnchecked(child_id, RemoveFrameOrigin::RECURSE);
+    }
+
+    // Remove the frames from the source.
+    auto& frame_set = GetMutableValueOrThrow(frame.get_source_id(),
+                                             &source_frame_id_map_);
+    frame_set.erase(frame_id);
+  }
+  // Now delete the geometry on this.
   std::unordered_set<GeometryId> removed_geometries;
-  for (auto geometry_id : geometries) {
-    RemoveGeometryUnchecked(frame_id, geometry_id, &geometries);
+  for (auto child_id : *frame.get_mutable_child_geometries()) {
+    RemoveGeometryUnchecked(child_id, RemoveGeometryOrigin::FRAME);
   }
-  // NOTE: Not using removed_geometries, because we're throwing out the whole
-  // set.
-  frame_source_map_.erase(frame_id);
-  frame_geometry_map_.erase(frame_id);
+
+  // TODO(SeanCurtis-TRI): Remove the pose should, ideally, coalesce the
+  // memory. This is an approximation of that act.
+  frame_poses_[frame.get_pose_index()].setIdentity();
+
+  if (caller == RemoveFrameOrigin::FRAME) {
+    // Only the root needs to explicitly remove itself from a possible parent
+    // frame.
+    FrameId parent_frame_id = frame.get_parent_frame_id();
+    if (parent_frame_id != kWorldFrame) {
+      auto& parent_frame = GetMutableValueOrThrow(parent_frame_id, &frames_);
+      parent_frame.remove_child(frame_id);
+    }
+  }
+
+  // Remove from the frames.
+  frames_.erase(frame_id);
 }
 
 template <typename T>
-void GeometryState<T>::RemoveGeometryUnchecked(
-    FrameId frame_id, GeometryId geometry_id,
-    std::unordered_set<GeometryId>* children) {
-  children->insert(geometry_id);
-  geometry_frame_map_.erase(geometry_id);
-  {
-    auto child_itr = linked_geometry_.find(geometry_id);
-    if (child_itr != linked_geometry_.end()) {
-      for (auto child_id : child_itr->second) {
-        RemoveGeometryUnchecked(frame_id, child_id, children);
-      }
-      linked_geometry_.erase(child_itr);
+void GeometryState<T>::RemoveGeometryUnchecked(GeometryId geometry_id,
+                                               RemoveGeometryOrigin caller) {
+  auto& geometry = GetValueOrThrow(geometry_id, &geometries_);
+
+  if (caller != RemoveGeometryOrigin::FRAME) {
+    // Clear children
+    for (auto child_id : geometry.get_child_geometries()) {
+      RemoveGeometryUnchecked(child_id, RemoveGeometryOrigin::RECURSE);
+    }
+
+    // Remove the geometry from its frame's list of geometries.
+    auto& frame = GetMutableValueOrThrow(geometry.get_frame_id(), &frames_);
+    frame.remove_child(geometry_id);
+  }
+
+  // TODO(SeanCurtis-TRI): Remove the geometry from the geometry engine. This
+  // may lead to geometry id -> geometry index remapping. This is a place
+  // holder.
+  GeometryIndex engine_index = geometry.get_engine_index();
+  geometry_poses_[engine_index].setIdentity();
+  geometry_engine_->RemoveGeometry(engine_index);
+
+  if (caller == RemoveGeometryOrigin::GEOMETRY) {
+    // Only the root needs to explicitly remove itself from a possible parent
+    // geometry.
+    if (auto parent_id = geometry.get_parent()) {
+      auto& parent_geometry =
+          GetMutableValueOrThrow(*parent_id, &geometries_);
+      parent_geometry.remove_child(geometry_id);
     }
   }
-  geometry_poses_.erase(geometry_id);
-  // TODO(SeanCurtis-TRI): Remove the geometry from the geometry engine. This
-  // may lead to geometry id -> geometry index remapping.
-  engine_map_.erase(geometry_id);
+
+  // Remove from the geometries.
+  geometries_.erase(geometry_id);
 }
 
 // Explicitly instantiates on the most common scalar types.

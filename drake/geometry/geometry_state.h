@@ -3,6 +3,7 @@
 #include <memory>
 #include <unordered_map>
 #include <unordered_set>
+#include <vector>
 
 #include "drake/common/copyable_unique_ptr.h"
 #include "drake/common/drake_copyable.h"
@@ -11,44 +12,34 @@
 #include "drake/geometry/geometry_engine.h"
 #include "drake/geometry/geometry_ids.h"
 #include "drake/geometry/geometry_index.h"
+#include "drake/geometry/internal_frame.h"
+#include "drake/geometry/internal_geometry.h"
 
 namespace drake {
 namespace geometry {
 
 // forward declarations
 template <typename T> class FrameKinematicsSet;
+template <typename T> struct GeometryFrame;
 
 /** @name Structures for maintaining the entity relationships
  @{ */
-/** A collection of unique frame ids. */
+
+/** Map from a frame identifier to the corresponding frame instance. */
+using FrameIdFrameMap = std::unordered_map<FrameId, internal::InternalFrame>;
+
+/** Collection of unique frame ids. */
 using FrameIdSet = std::unordered_set<FrameId>;
 
-/** A map between a source identifier and the frame identifiers it owns. */
-using SourceFrameMap = std::unordered_map<SourceId, FrameIdSet>;
+/** Map from a source identifier to the frame identifiers it owns. */
+using SourceFrameIdMap = std::unordered_map<SourceId, FrameIdSet>;
 
-/** A map from a frame id to it's assigned source id. */
-using FrameSourceMap = std::unordered_map<FrameId, SourceId>;
+/** Map from a geometry identifier to the corresponding geometry instance. */
+using GeometryIdGeometryMap =
+    std::unordered_map<GeometryId, internal::InternalGeometry>;
 
-/** A collection of unique frame ids. */
+/** Collection of unique frame ids. */
 using GeometryIdSet = std::unordered_set<GeometryId>;
-
-/** A map between a frame identifier and the frame identifiers it owns. */
-using FrameGeometryMap = std::unordered_map<FrameId, GeometryIdSet>;
-
-/** A map between a geometry identifier and a set of related geometry ids. The
- "relationship" depends on the usage. */
-using GeometryGeometryMap = std::unordered_map<GeometryId, GeometryIdSet>;
-
-/** A map from a geometry id to it's assigned frame id. */
-using GeometryFrameMap = std::unordered_map<GeometryId, FrameId>;
-
-/** A map from a geometry id to index in the engine. */
-using GeometryMap = std::unordered_map<GeometryId, GeometryIndex>;
-
-/** A map from a geometry id to X_FG, the pose of the geometry relative to its
- driving frame. */
-template <typename T>
-using GeometryPoseMap = std::unordered_map<GeometryId, Isometry3<T>>;
 
 //@}
 
@@ -79,15 +70,15 @@ class GeometryState {
   /** Reports the number of active sources -- whether they have frames or not.
    */
   int get_num_sources() const {
-    return static_cast<int>(source_frame_map_.size());
+    return static_cast<int>(source_frame_id_map_.size());
   }
 
   /** Reports the total number of frames -- across all sources. */
-  int GetNumFrames() const;
+  int get_num_frames() const { return static_cast<int>(frames_.size()); }
 
   /** Reports the total number of geometries. */
   int get_num_geometries() const {
-    return static_cast<int>(geometry_poses_.size());
+    return static_cast<int>(geometries_.size());
   }
 
   /** Reports true if the given `source_id` references an active source. */
@@ -196,10 +187,24 @@ class GeometryState {
   /** Registers a new frame for the given source, the id of the new frame is
    returned.
    @param source_id    The id of the source for which this frame is allocated.
+   @param frame        The frame to register.
    @returns  A newly allocated frame id.
    @throws std::logic_error  If the `source_id` does _not_ map to an active
                              source. */
-  FrameId RegisterFrame(SourceId source_id);
+  FrameId RegisterFrame(SourceId source_id, const GeometryFrame<T>& frame);
+
+  /** Registers a new frame for the given source as a child of a previously
+   registered frame. The id of the new frame is returned.
+   @param source_id    The id of the source for which this frame is allocated.
+   @param parent_id    The id of the parent frame.
+   @param frame        The frame to register.
+   @returns  A newly allocated frame id.
+   @throws std::logic_error  1. If the `source_id` does _not_ map to an active
+                             source, or
+                             2. If the `parent_id` does _not_ map to a known
+                             frame or does not belong to the source. */
+  FrameId RegisterFrame(SourceId source_id, FrameId parent_id,
+                        const GeometryFrame<T>& frame);
 
   /** Registers a GeometryInstance with the state. The state takes ownership of
    the geometry and associates it with the given frame and source. Returns the
@@ -278,45 +283,111 @@ class GeometryState {
   optional<GeometryId> FindParentGeometry(GeometryId geometry_id) const;
 
  private:
-  // Removes the frame without doing any ownership tests. It does _not_ remove
-  // the frame from the source_frame_map_; it assumes that the caller will do
-  // so. This prevents invalidating iterators into that set.
-  void RemoveFrameUnchecked(SourceId source_id, FrameId frame_id);
+  // Does the work of registering geometry. Attaches the given geometry to the
+  // identified frame (which must belong to the identified source). The geometry
+  // can have an optional parent.
+  // Throws an exception as documented in RegisterGeometry().
+  GeometryId RegisterGeometryHelper(
+      SourceId source_id, FrameId frame_id,
+      std::unique_ptr<GeometryInstance<T>> geometry,
+      optional<GeometryId> parent = {});
 
-  // Removes the geometry without doing any ownership test. It does _not_ remove
-  // the geometry from the frame_geometry_map_; it assumes that the caller will
-  // do so. This prevents invalidating iterators into that set. The output
-  // set accumulates all of the geometries that have been removed recursively
-  // so that the caller knows which geometries to remove from
-  // frame_geometry_map_.
-  void RemoveGeometryUnchecked(FrameId frame_id, GeometryId geometry_id,
-                               std::unordered_set<GeometryId>* children);
+  // The origin from where an invocation of RemoveFrameUnchecked was called.
+  // The origin changes the work that is required.
+  enum class RemoveFrameOrigin {
+    SOURCE,     // Invoked by ClearSource().
+    FRAME,      // Invoked by RemoveFrame().
+    RECURSE     // Invoked by recursive call in RemoveGeometryUnchecked.
+  };
 
-  // This functionality can only be invoked by GeometryWorld.
-  // The active geometry sources and the frames that have been registered
+  // Performs the work necessary to remove the identified frame from
+  // GeometryWorld. The amount of work depends on the context from which this
+  // method is invoked:
+  //
+  //  - ClearSource(): ClearSource() is deleting *all* frames and geometries.
+  //    It explicitly iterates through the frames (regardless of hierarchy).
+  //    Thus, recursion is unnecessary, removal from parent references is
+  //    likewise unnecessary (and actually wrong).
+  //  - RemoveFrame(): The full removal is necessary; recursively remove child
+  //    frames (and child geometries), removing references to this id from
+  //    the source and its parent frame (if not the world).
+  //   - RemoveFrameUnchecked(): This is the recursive call; it's parent
+  //    is already slated for removal, so parent references can be left alone,
+  //    but recursion is necessary.
+  void RemoveFrameUnchecked(FrameId frame_id, RemoveFrameOrigin caller);
+
+  // The origin from where an invocation of RemoveGeometryUnchecked was called.
+  // The origin changes the work that is required.
+  enum class RemoveGeometryOrigin {
+    FRAME,      // Invoked by RemoveFrame().
+    GEOMETRY,   // Invoked by RemoveGeometry().
+    RECURSE     // Invoked by recursive call in RemoveGeometryUnchecked.
+  };
+
+  // Performs the work necessary to remove the identified geometry from
+  // GeometryWorld. The amount of work depends on the context from which this
+  // method is invoked:
+  //
+  //  - RemoveFrame(): RemoveFrame() is deleting *all* geometry attached to the
+  //    frame. It explicitly iterates through those geometries. Thus,
+  //    recursion is unnecessary, removal from parent references is likewise
+  //    unnecessary (and actually wrong).
+  //   - RemoveGeometry(): The full removal is necessary; recursively remove
+  //    children and remove this geometry from the child lists of its parent
+  //    frame and, if exists, parent geometry.
+  //   - RemoveGeometryUnchecked(): This is the recursive call; it's parent
+  //    is already slated for removal, so parent references can be left alone.
+  void RemoveGeometryUnchecked(GeometryId geometry_id,
+                               RemoveGeometryOrigin caller);
+
+  // TODO(SeanCurtis-TRI): Several design issues on this:
+  //  1. It should *ideally* be const.
+  //  2. Can I guarantee that it's always 0?
+  // The frame identifier for the world frame.
+  FrameId kWorldFrame;
+
+  // ---------------------------------------------------------------------
+  // Maps representing the registered state of sources, frames and geometries,
+  // and their relationships. This data should only change at major discrete
+  // events where frames/geometries are introduced and removed. They do *not*
+  // depend on time-dependent input values (e.g., System::InputPort).
+
+  // The active geometry sources and the frame ids that have been registered
   // on them.
-  SourceFrameMap source_frame_map_;
+  SourceFrameIdMap source_frame_id_map_;
 
-  // The map between frames and the sources on which they were registered.
-  FrameSourceMap frame_source_map_;
+  // The frame data, keyed on unique frame identifier.
+  FrameIdFrameMap frames_;
 
-  // Map from frame ids to the geometry that has been hung on it.
-  FrameGeometryMap frame_geometry_map_;
+  // The geometry data, keyed on unique geometry identifiers.
+  GeometryIdGeometryMap geometries_;
 
-  // Map from geometry ids to the frame it has been hung on.
-  GeometryFrameMap geometry_frame_map_;
+  // The pose of each geometry relative to the frame to which it belongs. Each
+  // geometry has an "engine index". That geometry's pose is stored in this
+  // vector at that engine index. Because the geometries are rigidly fixed to
+  // frames, these values are a property of the topology and _not_ the time-
+  // dependent frame kinematics.
+  std::vector<Isometry3<T>> geometry_poses_;
 
-  // Map from a geometry id to the geometries that have been hung from it.
-  GeometryGeometryMap linked_geometry_;
+  // ---------------------------------------------------------------------
+  // These values depend on time-dependent input values (e.g., current frame
+  // poses.
 
-  // Mapping from globally unique geometry id to engine index (a dynamically
-  // variable value).
-  GeometryMap engine_map_;
+  // TODO(SeanCurtis-TRI): This is currently conceptual. Ultimately, this needs
+  //  to appear in both the context (as an input) and the cache (as an output).
+  //  the discrete callback should allow me to swap a successful cache update
+  //  to the context for the next step.
+  // Map from the frame id to the *current* pose of the frame it identifies, F,
+  // relative to its parent frame, P: X_PF, where X_PF is measured and expressed
+  std::vector<Isometry3<T>> frame_poses_;
 
-  // Map from geometry id to the _pose_ of the geometry it references.
-  GeometryPoseMap<T> geometry_poses_;
-
-  // The underlying geometry engine.
+  // The underlying geometry engine. The topology of the engine does *not*
+  // change with respect to time. But its values do. This straddles the two
+  // worlds, maintaining its own persistent topological state and derived
+  // time-dependent state. This *could* be constructed from scratch at each
+  // evaluation based on the previous data, but its internal data structures
+  // rely on temporal coherency to speed up the calculations. Thus we persist
+  // and copy it.
   copyable_unique_ptr<GeometryEngine<T>> geometry_engine_;
 };
 }  // namespace geometry
