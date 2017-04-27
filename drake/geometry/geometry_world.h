@@ -1,12 +1,14 @@
 #pragma once
 
 #include <memory>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
 #include "drake/common/drake_copyable.h"
 #include "drake/common/eigen_types.h"
 #include "drake/geometry/frame_kinematics_set.h"
+#include "drake/geometry/geometry_frame.h"
 #include "drake/geometry/geometry_ids.h"
 #include "drake/systems/framework/context.h"
 #include "drake/systems/framework/value.h"
@@ -15,9 +17,9 @@ namespace drake {
 namespace geometry {
 
 // Forward declarations.
-template <typename T> class GeometryInstance;
 template <typename T> class FrameKinematicsSet;
 template <typename T> class GeometryContext;
+template <typename T> class GeometryInstance;
 template <typename T> class GeometryState;
 
 // TODO(SeanCurtis-TRI): Review this documentation to confirm that it's
@@ -168,7 +170,7 @@ class GeometryWorld {
    @throws std::logic_error if the name duplicates a previously registered
                             source name. */
   SourceId RegisterNewSource(GeometryContext<T>* context,
-                             const std::string& name="");
+                             const std::string& name = "");
 
   /** Reports the source name for the given source id.
    @param id  The identifier of the source.
@@ -193,9 +195,11 @@ class GeometryWorld {
    @param context       A mutable context.
    @param source_id     The identifier for the geometry source registering the
                         frame.
+   @param frame         The definition of the frame to add.
    @throws std::logic_error  If the `source_id` does _not_ map to an active
                              source. */
-  FrameId RegisterFrame(GeometryContext<T>* context, SourceId source_id);
+  FrameId RegisterFrame(GeometryContext<T>* context, SourceId source_id,
+                        const GeometryFrame<T>& frame);
 
   /**
    Declares a `geometry` instance as "hanging" from the specified frame at the

@@ -8,6 +8,7 @@
 #include "drake/common/eigen_matrix_compare.h"
 #include "drake/common/eigen_types.h"
 #include "drake/geometry/frame_kinematics_set.h"
+#include "drake/geometry/geometry_frame.h"
 #include "drake/geometry/geometry_instance.h"
 #include "drake/geometry/test/expect_error_message.h"
 #include "drake/geometry/test/geometry_world_stub.h"
@@ -24,6 +25,8 @@ using std::unique_ptr;
 class GeometryStateTest : public ::testing::Test {
  protected:
   void SetUp() {
+    frame_ = make_unique<GeometryFrame<double>>("ref_frame",
+                                                Isometry3<double>::Identity());
     instance_pose_.translation() << 10, 20, 30;
     instance_ = make_unique<GeometryInstance<double>>(instance_pose_);
   }
@@ -38,13 +41,17 @@ class GeometryStateTest : public ::testing::Test {
   // This method sets up a dummy tree to facilitate testing. It creates a single
   // source with a fixed number of frames and geometries per frame.
   SourceId SetUpSingleSourceTree() {
+    using std::to_string;
+
     SourceId s_id = NewSource();
 
     // Creates k frames with n geometries each.
     Isometry3<double> pose;
     pose = Isometry3<double>::Identity();
     for (int f = 0; f < kFrameCount; ++f) {
-      frames_.push_back(geometry_state_.RegisterFrame(s_id));
+      GeometryFrame<double> frame("dummy" + to_string(f),
+                                  Isometry3<double>::Identity());
+      frames_.push_back(geometry_state_.RegisterFrame(s_id, frame));
       int geometry_position = f * kGeometryCount;
       for (int g = 0; g < kGeometryCount; ++g) {
         // The gᵗʰ geometry has position [ g+1 0 0 ]ᵀ.
@@ -86,6 +93,7 @@ class GeometryStateTest : public ::testing::Test {
   }
 
   // Members owned by the test class.
+  unique_ptr<GeometryFrame<double>> frame_;
   unique_ptr<GeometryInstance<double>> instance_;
   Isometry3<double> instance_pose_{Isometry3<double>::Identity()};
   GeometryState<double> geometry_state_;
@@ -104,7 +112,7 @@ class GeometryStateTest : public ::testing::Test {
 // Confirms that a new GeometryState has no data.
 TEST_F(GeometryStateTest, Constructor) {
   EXPECT_EQ(geometry_state_.get_num_sources(), 0);
-  EXPECT_EQ(geometry_state_.GetNumFrames(), 0);
+  EXPECT_EQ(geometry_state_.get_num_frames(), 0);
   EXPECT_EQ(geometry_state_.get_num_geometries(), 0);
 }
 
@@ -115,7 +123,7 @@ TEST_F(GeometryStateTest, GeometryStatistics) {
   SourceId dummy_source = SetUpSingleSourceTree();
   EXPECT_TRUE(geometry_state_.source_is_active(dummy_source));
   EXPECT_EQ(geometry_state_.get_num_sources(), 1);
-  EXPECT_EQ(geometry_state_.GetNumFrames(), single_tree_frame_count());
+  EXPECT_EQ(geometry_state_.get_num_frames(), single_tree_frame_count());
   EXPECT_EQ(geometry_state_.get_num_geometries(), single_tree_geometry_count());
   SourceId false_id = SourceId::get_new_id();
   EXPECT_FALSE(geometry_state_.source_is_active(false_id));
@@ -125,7 +133,7 @@ TEST_F(GeometryStateTest, GeometryStatistics) {
 // with meaningful message.
 TEST_F(GeometryStateTest, AddFrameToInvalidSource) {
   SourceId s_id = SourceId::get_new_id();  // This is not an active source.
-  ASSERT_ERROR_MESSAGE(geometry_state_.RegisterFrame(s_id),
+  ASSERT_ERROR_MESSAGE(geometry_state_.RegisterFrame(s_id, *frame_.get()),
                        std::logic_error,
                        "Referenced geometry source \\d+ is not active.");
 }
@@ -134,7 +142,7 @@ TEST_F(GeometryStateTest, AddFrameToInvalidSource) {
 // and appears in the source's frames.
 TEST_F(GeometryStateTest, AddFirstFrameToValidSource) {
   SourceId s_id = NewSource();
-  FrameId fid = geometry_state_.RegisterFrame(s_id);
+  FrameId fid = geometry_state_.RegisterFrame(s_id, *frame_.get());
   EXPECT_EQ(geometry_state_.GetSourceId(fid), s_id);
   const auto &frame_set = geometry_state_.GetFramesForSource(s_id);
   EXPECT_NE(frame_set.find(fid), frame_set.end());
@@ -145,7 +153,7 @@ TEST_F(GeometryStateTest, AddFirstFrameToValidSource) {
 // correctly appended.
 TEST_F(GeometryStateTest, AddFrameToSourceWithFrames) {
   SourceId s_id = SetUpSingleSourceTree();
-  FrameId fid = geometry_state_.RegisterFrame(s_id);
+  FrameId fid = geometry_state_.RegisterFrame(s_id, *frame_.get());
   EXPECT_EQ(geometry_state_.GetSourceId(fid), s_id);
   const auto &frame_set = geometry_state_.GetFramesForSource(s_id);
   EXPECT_NE(frame_set.find(fid), frame_set.end());
@@ -158,7 +166,7 @@ TEST_F(GeometryStateTest, AddFrameToNewSourceWithFrames) {
   SourceId s_id = SetUpSingleSourceTree();
   SourceId new_s_id = SourceId::get_new_id();
   geometry_state_.RegisterNewSource(new_s_id);
-  FrameId fid = geometry_state_.RegisterFrame(new_s_id);
+  FrameId fid = geometry_state_.RegisterFrame(new_s_id, *frame_.get());
   // Confirm addition.
   EXPECT_EQ(geometry_state_.GetSourceId(fid), new_s_id);
   {
@@ -174,19 +182,55 @@ TEST_F(GeometryStateTest, AddFrameToNewSourceWithFrames) {
   }
 }
 
+// Tests the functionality of adding a frame to another frame.
+TEST_F(GeometryStateTest, AddFrameOnFrame) {
+  SourceId s_id = SetUpSingleSourceTree();
+  FrameId fid = geometry_state_.RegisterFrame(s_id, frames_[0], *frame_.get());
+  EXPECT_EQ(geometry_state_.get_num_frames(), kFrameCount + 1);
+  EXPECT_EQ(geometry_state_.GetSourceId(fid), s_id);
+  // TODO(SeanCurtis-TRI): Add test for confirming parenthood is defined
+  // correctly.
+}
+
 // Tests the valid removal of an existing frame (and its attached geometry).
 TEST_F(GeometryStateTest, RemoveFrame) {
   SourceId s_id = SetUpSingleSourceTree();
-  EXPECT_EQ(geometry_state_.GetNumFrames(), kFrameCount);
+  EXPECT_EQ(geometry_state_.get_num_frames(), kFrameCount);
   EXPECT_EQ(geometry_state_.get_num_geometries(), kFrameCount * kGeometryCount);
   geometry_state_.RemoveFrame(s_id, frames_[0]);
-  EXPECT_EQ(geometry_state_.GetNumFrames(), kFrameCount - 1);
+  EXPECT_EQ(geometry_state_.get_num_frames(), kFrameCount - 1);
   EXPECT_EQ(geometry_state_.get_num_geometries(),
             (kFrameCount -1)* kGeometryCount);
   EXPECT_ERROR_MESSAGE(geometry_state_.GetSourceId(frames_[0]),
                        std::logic_error,
-                       "Referenced frame \\d+ has not been registered.")
+                       "Referenced frame \\d+ has not been registered.");
 }
+
+// Tests the removal of a frame that has other frames hanging on it.
+TEST_F(GeometryStateTest, RemoveFrameTree) {
+  SourceId s_id = SetUpSingleSourceTree();
+  FrameId fid = geometry_state_.RegisterFrame(s_id, frames_[0], *frame_.get());
+  EXPECT_EQ(geometry_state_.get_num_frames(), kFrameCount + 1);
+  geometry_state_.RemoveFrame(s_id, frames_[0]);
+  EXPECT_EQ(geometry_state_.get_num_frames(), kFrameCount - 1);
+  EXPECT_ERROR_MESSAGE(geometry_state_.GetSourceId(fid),
+                       std::logic_error,
+                       "Referenced frame \\d+ has not been registered.");
+}
+
+// Tests the removal of a frame whose parent is *not* the world frame.
+TEST_F(GeometryStateTest, RemoveFrameLeaf) {
+  SourceId s_id = SetUpSingleSourceTree();
+  FrameId fid = geometry_state_.RegisterFrame(s_id, frames_[0], *frame_.get());
+  EXPECT_EQ(geometry_state_.get_num_frames(), kFrameCount + 1);
+  geometry_state_.RemoveFrame(s_id, fid);
+  EXPECT_EQ(geometry_state_.get_num_frames(), kFrameCount);
+  EXPECT_ERROR_MESSAGE(geometry_state_.GetSourceId(fid),
+                       std::logic_error,
+                       "Referenced frame \\d+ has not been registered.");
+  // TODO(SeanCurtis-TRI): Confirm that fid is no longer a child of frames_[0].
+}
+
 
 // Tests the response to invalid invocations of RemoveFrame.
 TEST_F(GeometryStateTest, RemoveFrameInvalid) {
@@ -207,8 +251,8 @@ TEST_F(GeometryStateTest, RemoveFrameInvalid) {
   // Case: Valid source and frame, but frame does _not_ belong to source.
   SourceId s_id2 = SourceId::get_new_id();
   geometry_state_.RegisterNewSource(s_id2);
-  FrameId frame_id = geometry_state_.RegisterFrame(s_id2);
-  EXPECT_EQ(geometry_state_.GetNumFrames(), kFrameCount + 1);
+  FrameId frame_id = geometry_state_.RegisterFrame(s_id2, *frame_.get());
+  EXPECT_EQ(geometry_state_.get_num_frames(), kFrameCount + 1);
   EXPECT_ERROR_MESSAGE(
       geometry_state_.RemoveFrame(s_id, frame_id),
       std::logic_error,
@@ -221,7 +265,7 @@ TEST_F(GeometryStateTest, RemoveFrameInvalid) {
 // GeometryState::GetFrameId(GeometryId) and, therefore, implicitly tests them.
 TEST_F(GeometryStateTest, RegisterGeometryGoodSource) {
   SourceId s_id = NewSource();
-  FrameId f_id = geometry_state_.RegisterFrame(s_id);
+  FrameId f_id = geometry_state_.RegisterFrame(s_id, *frame_.get());
   GeometryId g_id = geometry_state_.RegisterGeometry(s_id, f_id,
                                                      move(instance_));
   EXPECT_EQ(geometry_state_.GetFrameId(g_id), f_id);
@@ -257,7 +301,7 @@ TEST_F(GeometryStateTest, RegisterGeometryMissingFrame) {
 // Tests error resulting from passing a null GeometryInstance.
 TEST_F(GeometryStateTest, RegisterNullGeometry) {
   SourceId s_id = NewSource();
-  FrameId f_id = geometry_state_.RegisterFrame(s_id);
+  FrameId f_id = geometry_state_.RegisterFrame(s_id, *frame_.get());
   unique_ptr<GeometryInstance<double>> null_geometry;
   EXPECT_ERROR_MESSAGE(geometry_state_.RegisterGeometry(s_id, f_id,
                                                      move(null_geometry)),
@@ -282,7 +326,7 @@ TEST_F(GeometryStateTest, RegisterGeometryonValidGeometry) {
       geometry_state_.RegisterGeometryWithParent(s_id,
                                                  geometries_[parent_index],
                                                  move(instance));
-  // This relies on the gᵗʰ geometry has position [ g+1 0 0 ]ᵀ.
+  // This relies on the gᵗʰ geometry having position [ g+1 0 0 ]ᵀ.
   expected_pose.translation() << (parent_index + 1) + x, y, z;
   EXPECT_EQ(geometry_state_.GetFrameId(geometries_[parent_index]),
             geometry_state_.GetFrameId(g_id));
@@ -407,8 +451,8 @@ TEST_F(GeometryStateTest, RemoveGeometryInvalid) {
   // Case: Valid geometry and source, but geometry belongs to different source.
   SourceId s_id2 = SourceId::get_new_id();
   geometry_state_.RegisterNewSource(s_id2);
-  FrameId frame_id = geometry_state_.RegisterFrame(s_id2);
-  EXPECT_EQ(geometry_state_.GetNumFrames(), kFrameCount + 1);
+  FrameId frame_id = geometry_state_.RegisterFrame(s_id2, *frame_.get());
+  EXPECT_EQ(geometry_state_.get_num_frames(), kFrameCount + 1);
   GeometryId g_id = geometry_state_.RegisterGeometry(
       s_id2, frame_id,
       make_unique<GeometryInstance<double>>(Isometry3<double>::Identity()));
@@ -450,11 +494,11 @@ TEST_F(GeometryStateTest, GetPoseForBadGeometryId) {
   EXPECT_ERROR_MESSAGE(
       geometry_state_.GetPoseInFrame(GeometryId::get_new_id()),
       std::logic_error,
-      "Requesting a geometry pose with an invalid geometry identifier.*");
+      "Referenced geometry \\d+ does not belong to a known frame.");
   EXPECT_ERROR_MESSAGE(
       geometry_state_.GetPoseInParent(GeometryId::get_new_id()),
       std::logic_error,
-      "Requesting a geometry pose with an invalid geometry identifier.*");
+      "Referenced geometry \\d+ does not belong to a known frame.");
 }
 
 // This confirms the failure state of calling GeometryState::GetSourceId with a

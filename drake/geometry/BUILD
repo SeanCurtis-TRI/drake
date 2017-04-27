@@ -17,6 +17,7 @@ drake_cc_library(
     deps = [
         ":frame_kinematics_set",
         ":geometry_context",
+        ":geometry_frame",
         ":geometry_ids",
         ":geometry_instance",
         ":geometry_state",
@@ -31,9 +32,12 @@ drake_cc_library(
     deps = [
         ":frame_kinematics_set",
         ":geometry_engine",
+        ":geometry_frame",
         ":geometry_ids",
         ":geometry_index",
         ":geometry_instance",
+        ":internal_frame",
+        ":internal_geometry",
         "//drake/common",
     ],
 )
@@ -68,6 +72,35 @@ drake_cc_library(
         ":geometry_instance",
         "//drake/common",
         "//drake/common:copyable_unique_ptr",
+    ],
+)
+
+drake_cc_library(
+    name = "geometry_frame",
+    srcs = [],
+    hdrs = ["geometry_frame.h"],
+    deps = ["//drake/common"],
+)
+
+drake_cc_library(
+    name = "internal_frame",
+    srcs = [],
+    hdrs = ["internal_frame.h"],
+    deps = [
+        ":geometry_ids",
+        ":geometry_index",
+        "//drake/common",
+    ],
+)
+
+drake_cc_library(
+    name = "internal_geometry",
+    srcs = [],
+    hdrs = ["internal_geometry.h"],
+    deps = [
+        ":geometry_ids",
+        ":geometry_index",
+        "//drake/common",
     ],
 )
 

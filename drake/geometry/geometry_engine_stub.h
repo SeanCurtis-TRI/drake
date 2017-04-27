@@ -27,6 +27,8 @@ class GeometryEngineStub : public GeometryEngine<T> {
   GeometryIndex AddAnchoredGeometry(
       std::unique_ptr<GeometryInstance<T>> geometry) override;
 
+  void RemoveGeometry(GeometryIndex index) override;
+
   void UpdateWorldPoses(const std::vector<Isometry3<T>>& X_WP) override;
 
  protected:

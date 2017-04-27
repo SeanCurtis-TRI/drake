@@ -1,9 +1,11 @@
 #include "drake/geometry/geometry_world.h"
 
+#include <string>
 #include <utility>
 #include <vector>
 
 #include "drake/geometry/geometry_context.h"
+#include "drake/geometry/geometry_frame.h"
 #include "drake/geometry/geometry_instance.h"
 #include "drake/geometry/geometry_state.h"
 
@@ -43,9 +45,10 @@ bool GeometryWorld<T>::SourceIsRegistered(SourceId id) const {
 
 template <typename T>
 FrameId GeometryWorld<T>::RegisterFrame(GeometryContext<T>* context,
-                                        SourceId source_id) {
+                                        SourceId source_id,
+                                        const GeometryFrame<T>& frame) {
   auto state = get_mutable_state(context);
-  FrameId id = state->RegisterFrame(source_id);
+  FrameId id = state->RegisterFrame(source_id, frame);
   // TODO(SeanCurtis-TRI): Instantiate frame in data and handle eventual
   // payload.
   return id;
