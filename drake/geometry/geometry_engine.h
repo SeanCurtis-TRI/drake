@@ -89,6 +89,9 @@ class GeometryEngine {
   virtual GeometryIndex AddAnchoredGeometry(
       std::unique_ptr<GeometryInstance<T>> data) = 0;
 
+  /** Removes the geometry associated with the given `index` from the engine. */
+  virtual void RemoveGeometry(GeometryIndex index) = 0;
+
   /** Provides the poses for all of the geometries in the engine. This vector
    should span the full range of active GeometryIndex values provided by the
    engine. The iᵗʰ entry contains the pose for the frame whose GeometryIndex

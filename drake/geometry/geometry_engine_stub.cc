@@ -29,6 +29,13 @@ GeometryIndex GeometryEngineStub<T>::AddAnchoredGeometry(
 }
 
 template <typename T>
+void GeometryEngineStub<T>::RemoveGeometry(GeometryIndex index) {
+  // TODO(SeanCurtis-TRI): This should probably have a mechanism for remapping
+  // indices to maintain compact representation.
+  geometries_[index].reset();
+}
+
+template <typename T>
 void GeometryEngineStub<T>::UpdateWorldPoses(const vector<Isometry3<T>>& X_WP) {
 }
 
