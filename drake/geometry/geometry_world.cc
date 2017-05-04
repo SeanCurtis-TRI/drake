@@ -99,9 +99,7 @@ void GeometryWorld<T>::SetFrameKinematics(
     GeometryContext<T>* context,
     const FrameKinematicsSet<T>& frame_kinematics) {
   auto state = get_state(*context);
-  state.ValidateKinematicsSet(frame_kinematics);
-  // TODO(SeanCurtis-TRI): Push data into collision engine.
-  // Step 2. Push the kinematics data into the collision engine(s).
+  state.SetFrameKinematics(frame_kinematics);
 }
 
 template <typename T>
