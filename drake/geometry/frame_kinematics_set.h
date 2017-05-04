@@ -5,6 +5,7 @@
 #include "drake/common/drake_copyable.h"
 #include "drake/geometry/geometry_ids.h"
 #include "drake/multibody/multibody_tree/math/spatial_velocity.h"
+#include "drake/systems/rendering/pose_vector.h"
 
 namespace drake {
 namespace geometry {
@@ -12,7 +13,7 @@ namespace geometry {
 // NOTE: These classes don't exist yet in the multibody namespace yet. These are
 // dummy placeholders to simply allow the declarations below to be "valid".
 template <typename T>
-class SpatialPose {};
+using SpatialPose = drake::systems::rendering::PoseVector<T>;
 
 template <typename T>
 class SpatialAcceleration {};
@@ -186,6 +187,15 @@ class FrameKinematicsSet {
 
   /** Return the frames included in the data set. */
   const std::vector<FrameId>& get_frame_ids() const { return frame_ids_; }
+
+  const std::vector<SpatialPose<T>>& get_poses() const { return poses_; }
+  const std::vector<drake::multibody::SpatialVelocity<T>> get_velocities()
+      const {
+    return velocities_;
+  }
+  const std::vector<SpatialAcceleration<T>>& get_accelerations() const {
+    return accelerations_;
+  }
 
  private:
   // The inferred configuration of what data has been provided per frame. It
