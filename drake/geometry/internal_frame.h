@@ -62,6 +62,8 @@ class InternalFrame {
   const std::string &get_name() const { return name_; }
   int get_frame_group() const { return frame_group_; }
   PoseIndex get_pose_index() const { return pose_index_; }
+  /** Returns true if this frame is the child of the identified frame. */
+  bool has_parent(FrameId parent) const { return parent_id_ == parent; }
   FrameId get_parent_frame_id() const { return parent_id_; }
   const std::unordered_set<FrameId>& get_child_frames() const {
     return child_frames_;

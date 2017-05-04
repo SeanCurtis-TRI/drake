@@ -262,6 +262,16 @@ class GeometryState {
 
   //@}
 
+  /** Computes updated geometry kinematics values based on the frames in the
+   given frame kinematics set.
+   @param frame_kinematics  The frame kinematics values for a single source.
+   @throws std::logic_error 1. Frames registered on the source are not given
+                               kinematics values, or
+                            2. frames _not_ registered on the source _are_
+                               included in the set. */
+  void SetFrameKinematics(const FrameKinematicsSet<T>& frame_kinematics);
+
+  // TODO(SeanCurtis-TRI): Make this method private?
   /** Performs the work for confirming the frame values provided in the
    kinematics set cover the expected set of frames (and no more).
    @param frame_kinematics      The input frame kinematics data.
@@ -340,6 +350,12 @@ class GeometryState {
   void RemoveGeometryUnchecked(GeometryId geometry_id,
                                RemoveGeometryOrigin caller);
 
+
+  // Recursively updates the world pose for the geometry which belong to *this*
+  // frame and all descendant frames.
+  void UpdateKinematics(const internal::InternalFrame& frame,
+                        const Isometry3<T>& X_WF);
+
   // TODO(SeanCurtis-TRI): Several design issues on this:
   //  1. It should *ideally* be const.
   //  2. Can I guarantee that it's always 0?
@@ -367,7 +383,13 @@ class GeometryState {
   // vector at that engine index. Because the geometries are rigidly fixed to
   // frames, these values are a property of the topology and _not_ the time-
   // dependent frame kinematics.
-  std::vector<Isometry3<T>> geometry_poses_;
+  std::vector<Isometry3<T>> X_FG_;
+
+  // The pose of each geometry relative to the *world* frame. The invariant
+  // X_FG_.size() == X_WG_.size() should always be true. This vector contains
+  // the values from the last update invocation and is the write target of the
+  // next invocation to update.
+  std::vector<Isometry3<T>> X_WG_;
 
   // ---------------------------------------------------------------------
   // These values depend on time-dependent input values (e.g., current frame
@@ -379,7 +401,7 @@ class GeometryState {
   //  to the context for the next step.
   // Map from the frame id to the *current* pose of the frame it identifies, F,
   // relative to its parent frame, P: X_PF, where X_PF is measured and expressed
-  std::vector<Isometry3<T>> frame_poses_;
+  std::vector<Isometry3<T>> X_PF_;
 
   // The underlying geometry engine. The topology of the engine does *not*
   // change with respect to time. But its values do. This straddles the two

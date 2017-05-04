@@ -100,7 +100,7 @@ GeometryState<T>::GeometryState()
 template <typename T>
 Isometry3<T> GeometryState<T>::GetPoseInFrame(GeometryId geometry_id) const {
   auto& geometry = GetValueOrThrow(geometry_id, &geometries_);
-  return geometry_poses_[geometry.get_engine_index()];
+  return X_FG_[geometry.get_engine_index()];
 }
 
 template <typename T>
@@ -108,7 +108,7 @@ Isometry3<T> GeometryState<T>::GetPoseInParent(GeometryId geometry_id) const {
   Isometry3<T> X_FG = GetPoseInFrame(geometry_id);
   if (optional<GeometryId> parent_id = FindParentGeometry(geometry_id)) {
     GeometryIndex parent_index = geometries_.at(*parent_id).get_engine_index();
-    const Isometry3<double>& X_FP = geometry_poses_[parent_index];
+    const Isometry3<double>& X_FP = X_FG_[parent_index];
     return X_FP.inverse() * X_FG;
   } else {
     return X_FG;
@@ -189,8 +189,8 @@ FrameId GeometryState<T>::RegisterFrame(SourceId source_id, FrameId parent_id,
     });
     frames_[parent_id].add_child(frame_id);
   }
-  PoseIndex pose_index(frame_poses_.size());
-  frame_poses_.emplace_back(frame.pose);
+  PoseIndex pose_index(X_PF_.size());
+  X_PF_.emplace_back(frame.pose);
   f_set.insert(frame_id);
   frames_.emplace(frame_id,
                   InternalFrame(source_id, frame_id, frame.name,
@@ -228,7 +228,7 @@ GeometryId GeometryState<T>::RegisterGeometryWithParent(
       GetMutableValueOrThrow(geometry_id, &geometries_);
   FrameId frame_id = parent_geometry.get_frame_id();
   // Transform pose relative to geometry, to pose relative to frame.
-  Isometry3<T> X_FG = geometry_poses_[parent_geometry.get_engine_index()] *
+  Isometry3<T> X_FG = X_FG_[parent_geometry.get_engine_index()] *
       geometry->get_pose();
   geometry->set_pose(X_FG);
   // Failure condition 2.
@@ -267,6 +267,33 @@ template <typename T>
 const FrameIdSet& GeometryState<T>::GetFramesForSource(
     SourceId source_id) const {
   return GetValueOrThrow(source_id, &source_frame_id_map_);
+}
+
+template <typename T>
+void GeometryState<T>::SetFrameKinematics(
+    const FrameKinematicsSet<T>& frame_kinematics) {
+  ValidateKinematicsSet(frame_kinematics);
+
+  // Step 1: Copy kinematics data from set to local members.
+  const auto& set_frame_ids = frame_kinematics.get_frame_ids();
+  const auto& poses = frame_kinematics.get_poses();
+  for (int i = 0; i < frame_kinematics.get_frame_count(); ++i) {
+    FrameId frame_id = set_frame_ids[i];
+    auto& frame = frames_[frame_id];
+    X_PF_[frame.get_pose_index()] = poses[i].get_isometry();
+    // TODO(SeanCurtis-TRI): Make use of velocity and accelerations.
+  }
+  // Step 2: Hierarchically evaluate X_WG for all geometries.
+  const auto& src_frame_ids = GetValueOrThrow(frame_kinematics.get_source_id(),
+  &source_frame_id_map_);
+  for (auto frame_id : src_frame_ids) {
+    auto& frame = frames_[frame_id];
+    if (frame.has_parent(kWorldFrame)) {
+      // Only invoke this on frames that are child of the world; all other
+      // frames will be evaluated recursively.
+      UpdateKinematics(frame, X_PF_[frame.get_pose_index()]);
+    }
+  }
 }
 
 template <typename T>
@@ -335,8 +362,8 @@ GeometryId GeometryState<T>::RegisterGeometryHelper(
                                                     parent));
   // TODO(SeanCurtis-TRI): I expect my rigid poses are growing at the same
   // rate as in my engine. This seems fragile.
-  DRAKE_ASSERT(static_cast<int>(geometry_poses_.size()) == engine_index);
-  geometry_poses_.emplace_back(pose);
+  DRAKE_ASSERT(static_cast<int>(X_FG_.size()) == engine_index);
+  X_FG_.emplace_back(pose);
   return geometry_id;
 }
 
@@ -364,7 +391,7 @@ void GeometryState<T>::RemoveFrameUnchecked(FrameId frame_id,
 
   // TODO(SeanCurtis-TRI): Remove the pose should, ideally, coalesce the
   // memory. This is an approximation of that act.
-  frame_poses_[frame.get_pose_index()].setIdentity();
+  X_PF_[frame.get_pose_index()].setIdentity();
 
   if (caller == RemoveFrameOrigin::FRAME) {
     // Only the root needs to explicitly remove itself from a possible parent
@@ -400,7 +427,7 @@ void GeometryState<T>::RemoveGeometryUnchecked(GeometryId geometry_id,
   // may lead to geometry id -> geometry index remapping. This is a place
   // holder.
   GeometryIndex engine_index = geometry.get_engine_index();
-  geometry_poses_[engine_index].setIdentity();
+  X_FG_[engine_index].setIdentity();
   geometry_engine_->RemoveGeometry(engine_index);
 
   if (caller == RemoveGeometryOrigin::GEOMETRY) {
@@ -415,6 +442,25 @@ void GeometryState<T>::RemoveGeometryUnchecked(GeometryId geometry_id,
 
   // Remove from the geometries.
   geometries_.erase(geometry_id);
+}
+
+template <typename T>
+void GeometryState<T>::UpdateKinematics(const internal::InternalFrame& frame,
+                                        const Isometry3<T>& X_WF) {
+  // Update the geometry which belong to *this* frame.
+  for (auto child_id : frame.get_child_geometries()) {
+    auto& child_geometry = geometries_[child_id];
+    auto child_index = child_geometry.get_engine_index();
+    X_WG_[child_index] = X_WF * X_FG_[child_index];
+  }
+
+  // Update each child frame.
+  for (auto child_id : frame.get_child_frames()) {
+    auto& child_frame = frames_[child_id];
+    // Transform from child frame to world.
+    Isometry3<T> X_WC = X_WF * X_PF_[child_frame.get_pose_index()];
+    UpdateKinematics(child_frame, X_WC);
+  }
 }
 
 // Explicitly instantiates on the most common scalar types.

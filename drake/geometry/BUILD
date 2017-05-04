@@ -49,6 +49,7 @@ drake_cc_library(
     deps = [
         ":geometry_ids",
         "//drake/multibody/multibody_tree/math:spatial_velocity",
+        "//drake/systems/rendering:pose_vector",
     ],
 )
 
