@@ -48,8 +48,8 @@ drake_cc_library(
     hdrs = ["frame_kinematics_set.h"],
     deps = [
         ":geometry_ids",
+        ":spatial_pose",
         "//drake/multibody/multibody_tree/math:spatial_velocity",
-        "//drake/systems/rendering:pose_vector",
     ],
 )
 
@@ -145,6 +145,13 @@ drake_cc_library(
     hdrs = ["test/geometry_world_stub.h"],
 )
 
+drake_cc_library(
+    name = "spatial_pose",
+    srcs = [],
+    hdrs = ["spatial_pose.h"],
+    deps = ["//drake/common"],
+)
+
 drake_cc_googletest(
     name = "frame_kinematics_set_test",
     deps = [
@@ -185,6 +192,14 @@ drake_cc_googletest(
 drake_cc_googletest(
     name = "identifier_test",
     deps = [":identifier"],
+)
+
+drake_cc_googletest(
+    name = "spatial_pose_test",
+    deps = [
+        ":spatial_pose",
+        "//drake/common:eigen_matrix_compare",
+    ],
 )
 
 cpplint()

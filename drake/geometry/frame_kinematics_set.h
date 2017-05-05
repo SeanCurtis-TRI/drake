@@ -5,15 +5,13 @@
 #include "drake/common/drake_copyable.h"
 #include "drake/geometry/geometry_ids.h"
 #include "drake/multibody/multibody_tree/math/spatial_velocity.h"
-#include "drake/systems/rendering/pose_vector.h"
+#include "drake/geometry/spatial_pose.h"
 
 namespace drake {
 namespace geometry {
 
 // NOTE: These classes don't exist yet in the multibody namespace yet. These are
 // dummy placeholders to simply allow the declarations below to be "valid".
-template <typename T>
-using SpatialPose = drake::systems::rendering::PoseVector<T>;
 
 template <typename T>
 class SpatialAcceleration {};
