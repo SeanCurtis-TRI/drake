@@ -39,28 +39,67 @@ class GeometryStateTest : public ::testing::Test {
   }
 
   // This method sets up a dummy tree to facilitate testing. It creates a single
-  // source with a fixed number of frames and geometries per frame.
+  // source with a fixed configuration of frames with a pre-determined number of
+  // geometries per frame.
+  //
+  //  Creates the following tree:
+  //                                        s_id
+  //                                        /  \
+  //                                       f0   f1
+  //                                      / |    |________
+  //                                    g0  g1   |   |   |
+  //                                             f2  g2  g3
+  //                                            / \
+  //                                           g4 g5
+  //
+  // Frame configuration
+  //  f0 is @ <1, 2, 3>, with a 90-degree rotation around x.
+  //  f1 is @ <10, 20, 30>, with a 90-degree rotation around y.
+  //  f2 is @ <-10, -20, -30>, with a -90-degree rotation around y
+  // Geometry configuration
+  //  gi is at position <i + 1, 0, 0>, with a rotation of iπ/2 radians around
+  //    the x-axis.
+  // The relationship between f1 and f2 is such that for g2 & g3, the pose
+  // relative to the parent frame f2 is the same as to the world, e.g.,
+  // X_PG = X_WG.
   SourceId SetUpSingleSourceTree() {
     using std::to_string;
 
     SourceId s_id = NewSource();
 
-    // Creates k frames with n geometries each.
+    // Create f0.
     Isometry3<double> pose;
-    pose = Isometry3<double>::Identity();
-    for (int f = 0; f < kFrameCount; ++f) {
-      GeometryFrame<double> frame("dummy" + to_string(f),
-                                  Isometry3<double>::Identity());
-      frames_.push_back(geometry_state_.RegisterFrame(s_id, frame));
-      int geometry_position = f * kGeometryCount;
-      for (int g = 0; g < kGeometryCount; ++g) {
-        // The gᵗʰ geometry has position [ g+1 0 0 ]ᵀ.
-        pose.translation() << g + 1, 0, 0;
-        geometries_[geometry_position++] = geometry_state_.RegisterGeometry(
-            s_id, frames_[f],
-            make_unique<GeometryInstance<double>>(pose));
+    pose.translation() << 1, 2, 3;
+    pose.linear() << 1, 0, 0, 0, 0, 1, 0, -1, 0;  // 90° around x-axis.
+    frames_.push_back(geometry_state_.RegisterFrame(
+        s_id, GeometryFrame<double>("f0", pose)));
+
+    // Create f1.
+    pose.translation() << 10, 20, 30;
+    pose.linear() << 0, 0, -1, 0, 1, 0, 1, 0, 0;  // 90° around y-axis.
+    frames_.push_back(geometry_state_.RegisterFrame(
+        s_id, GeometryFrame<double>("f1", pose)));
+
+    // Create f2.
+    pose.translation() << -10, -20, -30;
+    pose.linear() << 0, 0, 1, 0, 1, 0, -1, 0, 0;  // -90° around y-axis.
+    frames_.push_back(geometry_state_.RegisterFrame(
+        s_id, frames_[1], GeometryFrame<double>("f2", pose)));
+
+    // Add geometries to each frame.
+    int g_count = 0;
+    const Vector3<double> x_axis(1, 0, 0);
+    for (auto frame_id : frames_) {
+      for (int i = 0; i < kGeometryCount; ++i) {
+        pose.translation() << g_count + 1, 0, 0;
+        pose.linear() =
+            AngleAxis<double>(g_count * M_PI / 2.0, x_axis).matrix();
+        geometries_[g_count] = geometry_state_.RegisterGeometry(
+            s_id, frame_id, make_unique<GeometryInstance<double>>(pose));
+        ++g_count;
       }
     }
+
     // Confirms that the same source is reachable from all geometries.
     for (int i = 0; i < kFrameCount * kGeometryCount; ++i) {
       EXPECT_EQ(geometry_state_.GetSourceId(geometries_[i]), s_id);
@@ -100,8 +139,8 @@ class GeometryStateTest : public ::testing::Test {
 
   // Values for setting up and testing the dummy tree.
   enum Counts {
-    kFrameCount = 2,
-    kGeometryCount = 3
+    kFrameCount = 3,
+    kGeometryCount = 2    // Geometries *per frame*.
   };
   // The frame ids created in the dummy tree instantiation.
   std::vector<FrameId> frames_;
