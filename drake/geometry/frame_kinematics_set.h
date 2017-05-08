@@ -183,17 +183,25 @@ class FrameKinematicsSet {
   /** Reports the number of frames that have reported values. */
   int get_frame_count() const { return static_cast<int>(frame_ids_.size()); }
 
+  // TODO(SeanCurtis-TRI): This would be an *expensive* way to get each of the
+  // frame's kinematics data. Consider improving the look up/bundling kinematics
+  // data, etc.
+  /** Returns the pose for the identified frame. Throws std::logic_error if
+   the identified frame is not in the set. */
+  const SpatialPose<T>& GetPose(FrameId frame_id) const;
+
+  // TODO(SeanCurtis-TRI): Determine if this is a good interface.
   /** Return the frames included in the data set. */
   const std::vector<FrameId>& get_frame_ids() const { return frame_ids_; }
-
-  const std::vector<SpatialPose<T>>& get_poses() const { return poses_; }
-  const std::vector<drake::multibody::SpatialVelocity<T>> get_velocities()
-      const {
-    return velocities_;
-  }
-  const std::vector<SpatialAcceleration<T>>& get_accelerations() const {
-    return accelerations_;
-  }
+//
+//  const std::vector<SpatialPose<T>>& get_poses() const { return poses_; }
+//  const std::vector<drake::multibody::SpatialVelocity<T>> get_velocities()
+//      const {
+//    return velocities_;
+//  }
+//  const std::vector<SpatialAcceleration<T>>& get_accelerations() const {
+//    return accelerations_;
+//  }
 
  private:
   // The inferred configuration of what data has been provided per frame. It

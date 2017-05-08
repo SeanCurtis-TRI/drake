@@ -57,13 +57,17 @@ class InternalGeometry {
   const std::string& get_name() const { return name_; }
   GeometryIndex get_engine_index() const { return engine_index_; }
   optional<GeometryId> get_parent() const { return parent_id_; }
+  bool has_parent(GeometryId geom_id) const {
+    return parent_id_ && *parent_id_ == geom_id;
+  }
+  bool has_frame(FrameId frame_id) const { return frame_id == frame_id_; }
   const std::unordered_set<GeometryId>& get_child_geometries() const {
     return child_geometries_;
   }
   std::unordered_set<GeometryId>* get_mutable_child_geometries() {
     return &child_geometries_;
   }
-  bool is_child(GeometryId geometry_id) const {
+  bool has_child(GeometryId geometry_id) const {
     return child_geometries_.find(geometry_id) != child_geometries_.end();
   }
   void add_child(GeometryId geometry_id) {

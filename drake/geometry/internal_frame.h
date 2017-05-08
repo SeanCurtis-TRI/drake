@@ -77,7 +77,7 @@ class InternalFrame {
   std::unordered_set<GeometryId>* get_mutable_child_geometries() {
     return &child_geometries_;
   }
-  bool is_child(FrameId frame_id) const {
+  bool has_child(FrameId frame_id) const {
     return child_frames_.find(frame_id) != child_frames_.end();
   }
   void add_child(FrameId frame_id) {
@@ -86,7 +86,7 @@ class InternalFrame {
   void remove_child(FrameId frame_id) {
     child_frames_.erase(frame_id);
   }
-  bool is_child(GeometryId geometry_id) const {
+  bool has_child(GeometryId geometry_id) const {
     return child_geometries_.find(geometry_id) != child_geometries_.end();
   }
   void add_child(GeometryId geometry_id) {
@@ -124,7 +124,9 @@ class InternalFrame {
   // The identifiers for the frames who have this frame as parent.
   std::unordered_set<FrameId> child_frames_;
 
-  // The identifiers for the geometry hung on this frame.
+  // The identifiers for the geometry hung on this frame. This includes
+  // geometries hung directly on the frame, and geometries hung on geometries
+  // hung on this frame. It does *not* include geometries hung on child frames.
   std::unordered_set<GeometryId> child_geometries_;
 };
 
