@@ -106,6 +106,19 @@ TEST_F(FrameKinematicsSetTest, ReportAll) {
   EXPECT_EQ(count, static_cast<int>(frames_.size()));
 }
 
+// Confirms the behavior for requesting the pose for a specific frame id.
+TEST_F(FrameKinematicsSetTest, QueryPose) {
+  FKSet fks = GWorld::MakeFKS(source_id_);
+  fks.ReportFullKinematics(frames_[0], Pose(), Velocity(), Acceleration());
+
+  EXPECT_NO_THROW(fks.GetPose(frames_[0]));
+  EXPECT_ERROR_MESSAGE(
+      fks.GetPose(FrameId::get_new_id()),
+      std::logic_error,
+      "Requesting pose for frame id that is not contained in the kinematics "
+      "set: \\d+.");
+}
+
 // Confirms that clear removes values and enables new configuration of reported
 // data.
 TEST_F(FrameKinematicsSetTest, Clear) {

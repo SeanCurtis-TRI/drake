@@ -73,9 +73,8 @@ GTEST_TEST(SpatialPose, IsometryFromPose) {
   auto derived_iso = pose.get_isometry();
   // Note: Because the Isometry is "AffineCompact", the bottom row is
   // effectively garbage; ignore the bad row in comparison.
-  EXPECT_TRUE(CompareMatrices(derived_iso.matrix().template block<3,4>(0, 0),
-                              expected.matrix().template block<3,4>(0, 0)));
-
+  EXPECT_TRUE(CompareMatrices(derived_iso.matrix().template block<3, 4>(0, 0),
+                              expected.matrix().template block<3, 4>(0, 0)));
 }
 
 }  // namespace

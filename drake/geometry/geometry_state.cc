@@ -139,6 +139,7 @@ void GeometryState<T>::ClearSource(SourceId source_id) {
     RemoveFrameUnchecked(frame_id, RemoveFrameOrigin::SOURCE);
   }
   source_frame_id_map_[source_id].clear();
+  source_root_frame_map_[source_id].clear();
 }
 
 template <typename T>
@@ -180,7 +181,6 @@ FrameId GeometryState<T>::RegisterFrame(SourceId source_id, FrameId parent_id,
   using std::to_string;
   FrameId frame_id = FrameId::get_new_id();
 
-  // The new hierarchical frames.
   FrameIdSet& f_set = GetMutableValueOrThrow(source_id, &source_frame_id_map_);
   if (parent_id != kWorldFrame) {
     FindOrThrow(parent_id, f_set, [parent_id, source_id]() {
@@ -188,6 +188,9 @@ FrameId GeometryState<T>::RegisterFrame(SourceId source_id, FrameId parent_id,
           "to the indicated source id " + to_string(source_id) + ".";
     });
     frames_[parent_id].add_child(frame_id);
+  } else {
+    // The parent is the world frame; register it as a root frame.
+    source_root_frame_map_[source_id].insert(frame_id);
   }
   PoseIndex pose_index(X_PF_.size());
   X_PF_.emplace_back(frame.pose);
@@ -273,26 +276,10 @@ template <typename T>
 void GeometryState<T>::SetFrameKinematics(
     const FrameKinematicsSet<T>& frame_kinematics) {
   ValidateKinematicsSet(frame_kinematics);
-
-  // Step 1: Copy kinematics data from set to local members.
-  const auto& set_frame_ids = frame_kinematics.get_frame_ids();
-  const auto& poses = frame_kinematics.get_poses();
-  for (int i = 0; i < frame_kinematics.get_frame_count(); ++i) {
-    FrameId frame_id = set_frame_ids[i];
-    auto& frame = frames_[frame_id];
-    X_PF_[frame.get_pose_index()] = poses[i].get_isometry();
-    // TODO(SeanCurtis-TRI): Make use of velocity and accelerations.
-  }
-  // Step 2: Hierarchically evaluate X_WG for all geometries.
-  const auto& src_frame_ids = GetValueOrThrow(frame_kinematics.get_source_id(),
-  &source_frame_id_map_);
-  for (auto frame_id : src_frame_ids) {
-    auto& frame = frames_[frame_id];
-    if (frame.has_parent(kWorldFrame)) {
-      // Only invoke this on frames that are child of the world; all other
-      // frames will be evaluated recursively.
-      UpdateKinematics(frame, X_PF_[frame.get_pose_index()]);
-    }
+  const Isometry3<T> world_pose = Isometry3<T>::Identity();
+  for (auto frame_id :
+       source_root_frame_map_[frame_kinematics.get_source_id()]) {
+    UpdateKinematics(frames_[frame_id], world_pose, frame_kinematics);
   }
 }
 
@@ -350,7 +337,8 @@ GeometryId GeometryState<T>::RegisterGeometryHelper(
 
   // Pass the geometry to the engine.
   // TODO(SeanCurtis-TRI): This will simplify when I'm not passing the *whole*
-  // geometry instance to the engine; I won't need to cache the pose.
+  // geometry instance to the engine; I won't need the local variable holding
+  // the pose; it will never be moved into the geometry_engine.
   Isometry3<T> pose = geometry->get_pose();
   GeometryIndex engine_index =
       geometry_engine_->AddDynamicGeometry(move(geometry));
@@ -363,6 +351,7 @@ GeometryId GeometryState<T>::RegisterGeometryHelper(
   // TODO(SeanCurtis-TRI): I expect my rigid poses are growing at the same
   // rate as in my engine. This seems fragile.
   DRAKE_ASSERT(static_cast<int>(X_FG_.size()) == engine_index);
+  X_WG_.push_back(Isometry3<T>::Identity());
   X_FG_.emplace_back(pose);
   return geometry_id;
 }
@@ -379,9 +368,13 @@ void GeometryState<T>::RemoveFrameUnchecked(FrameId frame_id,
     }
 
     // Remove the frames from the source.
-    auto& frame_set = GetMutableValueOrThrow(frame.get_source_id(),
-                                             &source_frame_id_map_);
+    SourceId source_id = frame.get_source_id();
+    auto& frame_set = GetMutableValueOrThrow(source_id, &source_frame_id_map_);
     frame_set.erase(frame_id);
+    // This assumes that source_id in source_frame_id_map_ implies the existence
+    // of an id set in source_root_frame_map_. It further relies on the
+    // behavior that erasing a non-member of the set does nothing.
+    source_root_frame_map_[source_id].erase(frame_id);
   }
   // Now delete the geometry on this.
   std::unordered_set<GeometryId> removed_geometries;
@@ -390,7 +383,7 @@ void GeometryState<T>::RemoveFrameUnchecked(FrameId frame_id,
   }
 
   // TODO(SeanCurtis-TRI): Remove the pose should, ideally, coalesce the
-  // memory. This is an approximation of that act.
+  // memory. This is place holder for that act.
   X_PF_[frame.get_pose_index()].setIdentity();
 
   if (caller == RemoveFrameOrigin::FRAME) {
@@ -445,8 +438,15 @@ void GeometryState<T>::RemoveGeometryUnchecked(GeometryId geometry_id,
 }
 
 template <typename T>
-void GeometryState<T>::UpdateKinematics(const internal::InternalFrame& frame,
-                                        const Isometry3<T>& X_WF) {
+void GeometryState<T>::UpdateKinematics(
+    const internal::InternalFrame& frame, const Isometry3<T>& X_WP,
+    const FrameKinematicsSet<T>& frame_kinematics) {
+  const auto frame_id = frame.get_id();
+  const auto& pose = frame_kinematics.GetPose(frame_id);
+  Isometry3<T> X_PF = pose.get_isometry();
+  X_PF_[frame.get_pose_index()] = X_PF;  // Also cache this transform.
+  Isometry3<T> X_WF = X_WP * X_PF;
+
   // Update the geometry which belong to *this* frame.
   for (auto child_id : frame.get_child_geometries()) {
     auto& child_geometry = geometries_[child_id];
@@ -457,9 +457,7 @@ void GeometryState<T>::UpdateKinematics(const internal::InternalFrame& frame,
   // Update each child frame.
   for (auto child_id : frame.get_child_frames()) {
     auto& child_frame = frames_[child_id];
-    // Transform from child frame to world.
-    Isometry3<T> X_WC = X_WF * X_PF_[child_frame.get_pose_index()];
-    UpdateKinematics(child_frame, X_WC);
+    UpdateKinematics(child_frame, X_WF, frame_kinematics);
   }
 }
 
