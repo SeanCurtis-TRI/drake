@@ -293,6 +293,10 @@ class GeometryState {
   optional<GeometryId> FindParentGeometry(GeometryId geometry_id) const;
 
  private:
+  // Friend declaration so that the internals of the state can be confirmed in
+  // unit tests.
+  template <class U> friend class GeometryStateTester;
+
   // Does the work of registering geometry. Attaches the given geometry to the
   // identified frame (which must belong to the identified source). The geometry
   // can have an optional parent.
@@ -351,10 +355,12 @@ class GeometryState {
                                RemoveGeometryOrigin caller);
 
 
-  // Recursively updates the world pose for the geometry which belong to *this*
-  // frame and all descendant frames.
+  // Recursively updates the frame and geometry pose information for the tree
+  // rooted at the given frame, whose parents pose in the world frame is given
+  // as `X_WP`.
   void UpdateKinematics(const internal::InternalFrame& frame,
-                        const Isometry3<T>& X_WF);
+                        const Isometry3<T>& X_WP,
+                        const FrameKinematicsSet<T>& frame_kinematics);
 
   // TODO(SeanCurtis-TRI): Several design issues on this:
   //  1. It should *ideally* be const.
@@ -371,6 +377,11 @@ class GeometryState {
   // The active geometry sources and the frame ids that have been registered
   // on them.
   SourceFrameIdMap source_frame_id_map_;
+
+  // The active geometry sources and the frame ids that have the world frame as
+  // the parent frame. For a completely flat hierarchy, this contains the same
+  // values as the corresponding entry in source_frame_id_map_.
+  SourceFrameIdMap source_root_frame_map_;
 
   // The frame data, keyed on unique frame identifier.
   FrameIdFrameMap frames_;

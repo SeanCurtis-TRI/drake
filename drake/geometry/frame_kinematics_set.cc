@@ -124,6 +124,19 @@ int FrameKinematicsSet<T>::ReportFullKinematics(
 }
 
 template <typename T>
+const SpatialPose<T>& FrameKinematicsSet<T>::GetPose(FrameId frame_id) const {
+  using std::to_string;
+  // TODO(SeanCurtis-TRI): This needs to be *faster*. This is called *every*
+  // time the context changes *per body*.
+  for (int i = 0; i < get_frame_count(); ++i) {
+    if (frame_ids_[i] == frame_id) return poses_[i];
+  }
+  throw std::logic_error(
+      "Requesting pose for frame id that is not contained in the kinematics "
+      "set: " + to_string(frame_id) + ".");
+}
+
+template <typename T>
 void FrameKinematicsSet<T>::ThrowIfFound(FrameId id) const {
   for (auto old_id : frame_ids_) {
     if (old_id == id) {
