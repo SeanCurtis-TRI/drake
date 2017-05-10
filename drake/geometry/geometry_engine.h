@@ -7,6 +7,7 @@
 #include "drake/common/eigen_types.h"
 #include "drake/geometry/geometry_ids.h"
 #include "drake/geometry/geometry_index.h"
+#include "drake/geometry/shapes.h"
 
 namespace drake {
 namespace geometry {
@@ -60,7 +61,7 @@ class GeometryEngine {
   /** Reports the _minimum_ vector size required for a successful invocation of
    UpdateWorldPoses(). A vector of this size is guaranteed to span all of the
    active geometry indices. */
-  int get_update_input_size() const;
+  virtual int get_update_input_size() const = 0;
 
   // TODO(SeanCurtis-TRI): I suspect GeometryInstance should *not* be passed.
   //  1. GeometryWorld is going to handle the computation of world pose. (So the
@@ -78,8 +79,7 @@ class GeometryEngine {
    @param geometry    The geometry instance to add to the engine.
    @return  An index by which the geometry can be referenced later. */
   // TODO(SeanCurtis-TRI): Include the invocation of the geometry.
-  virtual GeometryIndex AddDynamicGeometry(
-      std::unique_ptr<GeometryInstance<T>> data) = 0;
+  virtual GeometryIndex AddDynamicGeometry(std::unique_ptr<Shape> shape) = 0;
 
   /** Add anchored geometry to the engine. The engine takes ownership of the
    instance. The instance's pose is a fixed pose relative to the _world_ frame

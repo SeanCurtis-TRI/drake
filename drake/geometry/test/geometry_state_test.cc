@@ -10,6 +10,7 @@
 #include "drake/geometry/frame_kinematics_set.h"
 #include "drake/geometry/geometry_frame.h"
 #include "drake/geometry/geometry_instance.h"
+#include "drake/geometry/shapes.h"
 #include "drake/geometry/test/expect_error_message.h"
 #include "drake/geometry/test/geometry_world_stub.h"
 
@@ -74,7 +75,8 @@ class GeometryStateTest : public ::testing::Test {
     frame_ = make_unique<GeometryFrame<double>>("ref_frame",
                                                 Isometry3<double>::Identity());
     instance_pose_.translation() << 10, 20, 30;
-    instance_ = make_unique<GeometryInstance<double>>(instance_pose_);
+    instance_ = make_unique<GeometryInstance<double>>(
+        instance_pose_, unique_ptr<Shape>(new Sphere(1.0)));
     gs_tester_.set_state(&geometry_state_);
   }
 
@@ -148,7 +150,9 @@ class GeometryStateTest : public ::testing::Test {
         pose.linear() =
             AngleAxis<double>(g_count * M_PI / 2.0, x_axis).matrix();
         geometries_[g_count] = geometry_state_.RegisterGeometry(
-            source_id_, frame_id, make_unique<GeometryInstance<double>>(pose));
+            source_id_, frame_id,
+            make_unique<GeometryInstance<double>>(
+                pose, std::unique_ptr<Shape>(new Sphere(1))));
         X_FG_.push_back(pose);
         ++g_count;
       }
@@ -550,7 +554,8 @@ TEST_F(GeometryStateTest, RegisterGeometryonValidGeometry) {
   const int parent_index = 0;
   const GeometryId parent_id = geometries_[parent_index];
   const FrameId frame_id = geometry_state_.GetFrameId(parent_id);
-  auto instance = make_unique<GeometryInstance<double>>(pose);
+  auto instance = make_unique<GeometryInstance<double>>(
+      pose, unique_ptr<Shape>(new Sphere(1)));
   GeometryId g_id =
       geometry_state_.RegisterGeometryWithParent(s_id,
                                                  parent_id,
@@ -580,7 +585,8 @@ TEST_F(GeometryStateTest, RegisterGeometryonValidGeometry) {
 TEST_F(GeometryStateTest, RegisterGeometryonInvalidGeometry) {
   SourceId s_id = SetUpSingleSourceTree();
   Isometry3<double> pose = Isometry3<double>::Identity();
-  auto instance = make_unique<GeometryInstance<double>>(pose);
+  auto instance = make_unique<GeometryInstance<double>>(
+      pose, unique_ptr<Shape>(new Sphere(1)));
   GeometryId junk_id = GeometryId::get_new_id();
   EXPECT_ERROR_MESSAGE(
       geometry_state_.RegisterGeometryWithParent(s_id, junk_id, move(instance)),
@@ -629,7 +635,9 @@ TEST_F(GeometryStateTest, RemoveGeometryRecursiveParent) {
   // Hang geometry from the first geometry.
   GeometryId g_id = geometry_state_.RegisterGeometryWithParent(
       s_id, root_id,
-      make_unique<GeometryInstance<double>>(Isometry3<double>::Identity()));
+      make_unique<GeometryInstance<double>>(
+          Isometry3<double>::Identity(),
+          unique_ptr<Shape>(new Sphere(1))));
   EXPECT_EQ(geometry_state_.get_num_geometries(),
             kFrameCount * kGeometryCount + 1);
   EXPECT_EQ(geometry_state_.GetFrameId(g_id), f_id);
@@ -659,7 +667,8 @@ TEST_F(GeometryStateTest, RemoveGeometryRecursiveChild) {
   // Hang geometry from the first geometry.
   GeometryId g_id = geometry_state_.RegisterGeometryWithParent(
       s_id, parent_id,
-      make_unique<GeometryInstance<double>>(Isometry3<double>::Identity()));
+      make_unique<GeometryInstance<double>>(Isometry3<double>::Identity(),
+                                            unique_ptr<Shape>(new Sphere(1))));
   EXPECT_EQ(geometry_state_.get_num_geometries(),
             kFrameCount * kGeometryCount + 1);
   EXPECT_EQ(geometry_state_.GetFrameId(g_id), frame_id);
@@ -699,7 +708,8 @@ TEST_F(GeometryStateTest, RemoveGeometryInvalid) {
   EXPECT_EQ(geometry_state_.get_num_frames(), kFrameCount + 1);
   GeometryId g_id = geometry_state_.RegisterGeometry(
       s_id2, frame_id,
-      make_unique<GeometryInstance<double>>(Isometry3<double>::Identity()));
+      make_unique<GeometryInstance<double>>(Isometry3<double>::Identity(),
+                                            unique_ptr<Shape>(new Sphere(1))));
   EXPECT_EQ(geometry_state_.get_num_geometries(),
             kFrameCount * kGeometryCount + 1);
   EXPECT_ERROR_MESSAGE(
@@ -712,7 +722,8 @@ TEST_F(GeometryStateTest, RemoveGeometryInvalid) {
 // Tests the registration of anchored geometry.
 TEST_F(GeometryStateTest, RegisterAnchoredGeometry) {
   Isometry3<double> pose = Isometry3<double>::Identity();
-  auto instance = make_unique<GeometryInstance<double>>(pose);
+  auto instance = make_unique<GeometryInstance<double>>(
+      pose, unique_ptr<Shape>(new Sphere(1)));
   EXPECT_ERROR_MESSAGE(
       geometry_state_.RegisterAnchoredGeometry(SourceId::get_new_id(),
                                                move(instance)),
@@ -797,7 +808,7 @@ TEST_F(GeometryStateTest, GetParentGeometry) {
 
   // Case: Query geometry registered to another geometry.
   auto instance = make_unique<GeometryInstance<double>>(
-      Isometry3<double>::Identity());
+      Isometry3<double>::Identity(), unique_ptr<Shape>(new Sphere(1)));
   GeometryId g_id = geometry_state_.RegisterGeometryWithParent(s_id,
                                                                geometries_[0],
                                                                move(instance));
