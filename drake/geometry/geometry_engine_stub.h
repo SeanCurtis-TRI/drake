@@ -10,6 +10,11 @@
 namespace drake {
 namespace geometry {
 
+/** A stub geometry engine that operates only on spheres. This will be my short-
+ term solution for getting the GeometryWorld _infrastructure_ up and running
+ independent of the underlying engine details.
+
+ @tparam T The underlying scalar type. Must be a valid Eigen scalar. */
 template <typename T>
 class GeometryEngineStub : public GeometryEngine<T> {
  public:
@@ -17,12 +22,11 @@ class GeometryEngineStub : public GeometryEngine<T> {
 
   GeometryEngineStub();
 
-  int get_update_input_size() const {
+  int get_update_input_size() const override {
     return static_cast<int>(geometries_.size());
   }
 
-  GeometryIndex AddDynamicGeometry(
-      std::unique_ptr<GeometryInstance<T>> geometry) override;
+  GeometryIndex AddDynamicGeometry(std::unique_ptr<Shape> shape) override;
 
   GeometryIndex AddAnchoredGeometry(
       std::unique_ptr<GeometryInstance<T>> geometry) override;
@@ -39,7 +43,7 @@ class GeometryEngineStub : public GeometryEngine<T> {
     return new GeometryEngineStub(*this);
   }
   /** The geometries owned by this geometry engine. */
-  std::vector<copyable_unique_ptr<GeometryInstance<T>>> geometries_;
+  std::vector<copyable_unique_ptr<Shape>> geometries_;
 };
 }  // namespace geometry
 }  // namespace drake
