@@ -336,15 +336,17 @@ GeometryId GeometryState<T>::RegisterGeometryHelper(
   GeometryId geometry_id = GeometryId::get_new_id();
 
   // Pass the geometry to the engine.
-  // TODO(SeanCurtis-TRI): This will simplify when I'm not passing the *whole*
-  // geometry instance to the engine; I won't need the local variable holding
-  // the pose; it will never be moved into the geometry_engine.
-  Isometry3<T> pose = geometry->get_pose();
+
+  // TODO(SeanCurtis-TRI): I need to map from geometry index to geometry id.
+  // Either the geometry engine needs to know the id so that it can simply
+  // communicate that back, or I need a map in the state that allows me to get
+  // id from index.
   GeometryIndex engine_index =
-      geometry_engine_->AddDynamicGeometry(move(geometry));
+      geometry_engine_->AddDynamicGeometry(geometry->release_shape());
 
   // Configure topology.
   frames_[frame_id].add_child(geometry_id);
+  // TODO(SeanCurtis-TRI): Get name from geometry instance (when available).
   geometries_.emplace(geometry_id, InternalGeometry(frame_id, geometry_id,
                                                     "no_name", engine_index,
                                                     parent));
@@ -352,7 +354,7 @@ GeometryId GeometryState<T>::RegisterGeometryHelper(
   // rate as in my engine. This seems fragile.
   DRAKE_ASSERT(static_cast<int>(X_FG_.size()) == engine_index);
   X_WG_.push_back(Isometry3<T>::Identity());
-  X_FG_.emplace_back(pose);
+  X_FG_.emplace_back(geometry->get_pose());
   return geometry_id;
 }
 

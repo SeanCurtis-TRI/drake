@@ -123,7 +123,11 @@ drake_cc_library(
     name = "geometry_instance",
     srcs = ["geometry_instance.cc"],
     hdrs = ["geometry_instance.h"],
-    deps = ["//drake/common"],
+    deps = [
+        ":shapes",
+        "//drake/common",
+        "//drake/common:copyable_unique_ptr",
+    ],
 )
 
 drake_cc_library(
@@ -143,6 +147,15 @@ drake_cc_library(
     name = "geometry_world_stub",
     srcs = [],
     hdrs = ["test/geometry_world_stub.h"],
+)
+
+drake_cc_library(
+    name = "shapes",
+    srcs = [],
+    hdrs = ["shapes.h"],
+    deps = [
+        "//drake/common",
+    ],
 )
 
 drake_cc_library(
@@ -175,6 +188,7 @@ drake_cc_googletest(
         ":expect_error_message",
         ":geometry_state",
         ":geometry_world_stub",
+        ":shapes",
         "//drake/common:eigen_matrix_compare",
     ],
 )

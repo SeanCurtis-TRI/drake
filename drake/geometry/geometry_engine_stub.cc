@@ -1,26 +1,25 @@
 #include "drake/geometry/geometry_engine_stub.h"
 
+#include <memory>
 #include <utility>
 
 namespace drake {
 namespace geometry {
 
+using std::move;
 using std::unique_ptr;
 using std::vector;
 
 template <typename T>
 GeometryEngineStub<T>::GeometryEngineStub() : GeometryEngine<T>() {}
 
-
-
 template <typename T>
-GeometryIndex GeometryEngineStub<T>::AddDynamicGeometry(
-    unique_ptr<GeometryInstance<T>> geometry) {
+GeometryIndex GeometryEngineStub<T>::AddDynamicGeometry(unique_ptr<Shape> shape) {
+  DRAKE_DEMAND(shape->get_type() == Shape::SPHERE);
   GeometryIndex index(geometries_.size());
-  geometries_.emplace_back(std::move(geometry));
+  geometries_.emplace_back(move(shape));
   return index;
 }
-
 
 template <typename T>
 GeometryIndex GeometryEngineStub<T>::AddAnchoredGeometry(
