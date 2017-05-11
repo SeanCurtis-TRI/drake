@@ -22,6 +22,8 @@ class GeometryEngineStub : public GeometryEngine<T> {
 
   GeometryEngineStub();
 
+  // Geometry management methods
+
   int get_update_input_size() const override {
     return static_cast<int>(geometries_.size());
   }
@@ -35,15 +37,37 @@ class GeometryEngineStub : public GeometryEngine<T> {
 
   void UpdateWorldPoses(const std::vector<Isometry3<T>>& X_WP) override;
 
+  // Proximity query methods
+  bool ComputePairwiseClosestPoints(
+      std::vector<internal::NearestPair<T>>* near_points) const override;
+  bool ComputePairwiseClosestPoints(
+      const std::vector<GeometryIndex>& ids_to_check,
+      std::vector<internal::NearestPair<T>>* near_points) const override;
+  bool ComputePairwiseClosestPoints(
+      const std::vector<internal::GeometryIndexPair>& pairs,
+      std::vector<internal::NearestPair<T>>* near_points) const override;
+
+  bool FindClosestGeometry(
+      const Eigen::Matrix3Xd& points,
+      std::vector<internal::PointProximity<T>>* near_bodies) const override;
  protected:
-  /** NVI implementation for cloning GeometryEngine instances.
-   @return A _raw_ pointers to the newly cloned GeometryEngine instance.
-   */
+  // NVI implementation for cloning GeometryEngine instances.
+  // @return A _raw_ pointers to the newly cloned GeometryEngine instance.
   GeometryEngineStub* DoClone() const override {
     return new GeometryEngineStub(*this);
   }
-  /** The geometries owned by this geometry engine. */
+ private:
+
+  // The underlying method for executing
+  template <class PairSet>
+  bool ComputePairwiseClosestPointsHelper(const PairSet& pair_set,
+                                    std::vector<internal::NearestPair<T>>* near_points) const;
+
+  // The geometries owned by this geometry engine.
   std::vector<copyable_unique_ptr<Shape>> geometries_;
+  // The world poses for the geometries. It should be an invariant that
+  // geometries_.size() == X_WG_.size().
+  std::vector<Isometry3<T>> X_WG_;
 };
 }  // namespace geometry
 }  // namespace drake
