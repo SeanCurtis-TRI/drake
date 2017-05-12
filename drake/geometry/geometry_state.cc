@@ -231,8 +231,8 @@ GeometryId GeometryState<T>::RegisterGeometryWithParent(
       GetMutableValueOrThrow(geometry_id, &geometries_);
   FrameId frame_id = parent_geometry.get_frame_id();
   // Transform pose relative to geometry, to pose relative to frame.
-  Isometry3<T> X_FG = X_FG_[parent_geometry.get_engine_index()] *
-      geometry->get_pose();
+  Isometry3<T> X_FG =
+      X_FG_[parent_geometry.get_engine_index()] * geometry->get_pose();
   geometry->set_pose(X_FG);
   // Failure condition 2.
   GeometryId new_id = RegisterGeometryHelper(source_id, frame_id,

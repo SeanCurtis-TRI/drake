@@ -31,19 +31,20 @@ class GeometryStateTester {
     return state_->kWorldFrame;
   }
 
-  const SourceFrameIdMap& get_source_frame_id_map() {
+  const std::unordered_map<SourceId, FrameIdSet>& get_source_frame_id_map() {
     return state_->source_frame_id_map_;
   }
 
-  const SourceFrameIdMap& get_source_root_frame_map() {
+  const std::unordered_map<SourceId, FrameIdSet>& get_source_root_frame_map() {
     return state_->source_root_frame_map_;
   }
 
-  const FrameIdFrameMap& get_frames() {
+  const std::unordered_map<FrameId, internal::InternalFrame>& get_frames() {
     return state_->frames_;
   }
 
-  const GeometryIdGeometryMap& get_geometries() {
+  const std::unordered_map<GeometryId, internal::InternalGeometry>&
+  get_geometries() {
     return state_->geometries_;
   }
 
