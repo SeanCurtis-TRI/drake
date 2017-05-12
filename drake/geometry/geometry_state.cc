@@ -353,8 +353,10 @@ GeometryId GeometryState<T>::RegisterGeometryHelper(
   // TODO(SeanCurtis-TRI): I expect my rigid poses are growing at the same
   // rate as in my engine. This seems fragile.
   DRAKE_ASSERT(static_cast<int>(X_FG_.size()) == engine_index);
+  DRAKE_ASSERT(static_cast<int>(geometry_index_id_map_.size()) == engine_index);
   X_WG_.push_back(Isometry3<T>::Identity());
   X_FG_.emplace_back(geometry->get_pose());
+  geometry_index_id_map_.push_back(geometry_id);
   return geometry_id;
 }
 
@@ -418,12 +420,16 @@ void GeometryState<T>::RemoveGeometryUnchecked(GeometryId geometry_id,
     frame.remove_child(geometry_id);
   }
 
-  // TODO(SeanCurtis-TRI): Remove the geometry from the geometry engine. This
-  // may lead to geometry id -> geometry index remapping. This is a place
-  // holder.
   GeometryIndex engine_index = geometry.get_engine_index();
   X_FG_[engine_index].setIdentity();
-  geometry_engine_->RemoveGeometry(engine_index);
+  auto moved_index = geometry_engine_->RemoveGeometry(engine_index);
+  if (moved_index) {
+    // The geometry engine moved a geometry into the removed `engine_index`.
+    // Update the state's knowledge of this.
+    GeometryId moved_id = geometry_index_id_map_[*moved_index];
+    geometries_[moved_id].set_engine_index(engine_index);
+    geometry_index_id_map_[engine_index] = moved_id;
+  }
 
   if (caller == RemoveGeometryOrigin::GEOMETRY) {
     // Only the root needs to explicitly remove itself from a possible parent

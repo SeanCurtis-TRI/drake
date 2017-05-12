@@ -56,6 +56,7 @@ class InternalGeometry {
   GeometryId get_id() const { return id_; }
   const std::string& get_name() const { return name_; }
   GeometryIndex get_engine_index() const { return engine_index_; }
+  void set_engine_index(GeometryIndex index) { engine_index_ = index; }
   optional<GeometryId> get_parent() const { return parent_id_; }
   bool has_parent(GeometryId geom_id) const {
     return parent_id_ && *parent_id_ == geom_id;

@@ -47,6 +47,10 @@ class GeometryStateTester {
     return state_->geometries_;
   }
 
+  const std::vector<GeometryId>& get_geometry_index_id_map() {
+    return state_->geometry_index_id_map_;
+  }
+
   const std::vector<Isometry3<T>>& get_geometry_frame_poses() {
     return state_->X_FG_;
   }
@@ -142,6 +146,7 @@ class GeometryStateTest : public ::testing::Test {
     X_PF_.push_back(pose);
 
     // Add geometries to each frame.
+    geometries_.resize(kFrameCount * kGeometryCount);
     int g_count = 0;
     const Vector3<double> x_axis(1, 0, 0);
     for (auto frame_id : frames_) {
@@ -226,7 +231,7 @@ class GeometryStateTest : public ::testing::Test {
   // The frame ids created in the dummy tree instantiation.
   std::vector<FrameId> frames_;
   // The geometry ids created in the dummy tree instantiation.
-  GeometryId geometries_[kFrameCount * kGeometryCount];
+  std::vector<GeometryId> geometries_;
   // THe id of the single-source tree.
   SourceId source_id_;
 
@@ -334,6 +339,9 @@ TEST_F(GeometryStateTest, ValidateSingleSourceTree) {
       EXPECT_TRUE(
           CompareMatrices(geo_in_frame[geometry.get_engine_index()].matrix(),
                           X_FG_[i].matrix()));
+      EXPECT_EQ(
+          gs_tester_.get_geometry_index_id_map()[geometry.get_engine_index()],
+          geometry.get_id());
     };
     for (int i = 0; i < kFrameCount * kGeometryCount; ++i) {
       test_geometry(i);
@@ -621,6 +629,13 @@ TEST_F(GeometryStateTest, RemoveGeometry) {
   EXPECT_FALSE(gs_tester_.get_frames().at(f_id).has_child(g_id));
   EXPECT_EQ(gs_tester_.get_geometries().find(g_id),
             gs_tester_.get_geometries().end());
+  // Based on the logic of the geometry engine stub, the last geometry id should
+  // now be the first.
+  GeometryId last_geometry_id = geometries_[geometries_.size() - 1];
+  const auto& last_geometry =
+      gs_tester_.get_geometries().at(last_geometry_id);
+  EXPECT_EQ(last_geometry.get_engine_index(), 0);
+  EXPECT_EQ(gs_tester_.get_geometry_index_id_map()[0], last_geometry_id);
 }
 
 // Tests the RemoveGeometry functionality in which the geometry removed has
@@ -641,6 +656,8 @@ TEST_F(GeometryStateTest, RemoveGeometryRecursiveParent) {
   EXPECT_EQ(geometry_state_.get_num_geometries(),
             kFrameCount * kGeometryCount + 1);
   EXPECT_EQ(geometry_state_.GetFrameId(g_id), f_id);
+  EXPECT_EQ(gs_tester_.get_geometries().at(g_id).get_engine_index(),
+            geometries_.size());
 
   geometry_state_.RemoveGeometry(s_id, root_id);
   EXPECT_EQ(geometry_state_.get_num_geometries(),
@@ -653,6 +670,13 @@ TEST_F(GeometryStateTest, RemoveGeometryRecursiveParent) {
             gs_tester_.get_geometries().end());
   EXPECT_EQ(gs_tester_.get_geometries().find(g_id),
             gs_tester_.get_geometries().end());
+  // Based on the logic of the geometry engine stub, the last geometry id should
+  // now be the first. The deleted child geometry was already last.
+  GeometryId last_geometry_id = geometries_[geometries_.size() - 1];
+  const auto& last_geometry =
+      gs_tester_.get_geometries().at(last_geometry_id);
+  EXPECT_EQ(last_geometry.get_engine_index(), 0);
+  EXPECT_EQ(gs_tester_.get_geometry_index_id_map()[0], last_geometry_id);
 }
 
 // Tests the RemoveGeometry functionality in which the geometry is a child of
@@ -681,6 +705,13 @@ TEST_F(GeometryStateTest, RemoveGeometryRecursiveChild) {
   EXPECT_FALSE(gs_tester_.get_frames().at(frame_id).has_child(g_id));
   EXPECT_TRUE(gs_tester_.get_frames().at(frame_id).has_child(parent_id));
   EXPECT_FALSE(gs_tester_.get_geometries().at(parent_id).has_child(g_id));
+
+  // The geometry we deleted is the *last*; the engine indices of all other
+  // geometries should be unchanged.
+  for (size_t i = 0; i < geometries_.size(); ++i) {
+    EXPECT_EQ(gs_tester_.get_geometry_index_id_map().at(i),
+              geometries_[i]);
+  }
 }
 
 // Tests the response to invalid misuse of RemoveGeometry.
