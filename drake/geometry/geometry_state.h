@@ -25,21 +25,8 @@ template <typename T> struct GeometryFrame;
 /** @name Structures for maintaining the entity relationships
  @{ */
 
-/** Map from a frame identifier to the corresponding frame instance. */
-using FrameIdFrameMap = std::unordered_map<FrameId, internal::InternalFrame>;
-
 /** Collection of unique frame ids. */
 using FrameIdSet = std::unordered_set<FrameId>;
-
-/** Map from a source identifier to the frame identifiers it owns. */
-using SourceFrameIdMap = std::unordered_map<SourceId, FrameIdSet>;
-
-/** Map from a geometry identifier to the corresponding geometry instance. */
-using GeometryIdGeometryMap =
-    std::unordered_map<GeometryId, internal::InternalGeometry>;
-
-/** Collection of unique frame ids. */
-using GeometryIdSet = std::unordered_set<GeometryId>;
 
 //@}
 
@@ -376,18 +363,18 @@ class GeometryState {
 
   // The active geometry sources and the frame ids that have been registered
   // on them.
-  SourceFrameIdMap source_frame_id_map_;
+  std::unordered_map<SourceId, FrameIdSet> source_frame_id_map_;
 
   // The active geometry sources and the frame ids that have the world frame as
   // the parent frame. For a completely flat hierarchy, this contains the same
   // values as the corresponding entry in source_frame_id_map_.
-  SourceFrameIdMap source_root_frame_map_;
+  std::unordered_map<SourceId, FrameIdSet> source_root_frame_map_;
 
   // The frame data, keyed on unique frame identifier.
-  FrameIdFrameMap frames_;
+  std::unordered_map<FrameId, internal::InternalFrame> frames_;
 
   // The geometry data, keyed on unique geometry identifiers.
-  GeometryIdGeometryMap geometries_;
+  std::unordered_map<GeometryId, internal::InternalGeometry> geometries_;
 
   // This *implicitly* maps each extant geometry engine index to its
   // corresponding unique geometry identifier. It assumes that the index in the
