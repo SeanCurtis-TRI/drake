@@ -33,10 +33,15 @@ GeometryIndex GeometryEngineStub<T>::AddAnchoredGeometry(
 }
 
 template <typename T>
-void GeometryEngineStub<T>::RemoveGeometry(GeometryIndex index) {
-  // TODO(SeanCurtis-TRI): This should probably have a mechanism for remapping
-  // indices to maintain compact representation.
-  geometries_[index].reset();
+optional<GeometryIndex> GeometryEngineStub<T>::RemoveGeometry(GeometryIndex index) {
+  using std::swap;
+  GeometryIndex last(static_cast<int>(geometries_.size()) - 1);
+  if (last != index) {
+    swap(geometries_[index], geometries_[last]);
+  }
+  geometries_.pop_back();
+  if (last != index) return last;
+  else return {};
 }
 
 template <typename T>
