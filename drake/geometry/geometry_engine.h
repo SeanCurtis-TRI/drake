@@ -36,13 +36,10 @@ struct NearestPair {
   GeometryIndex index_A;
   /** The engine index of the second geometry in the pair. */
   GeometryIndex index_B;
-
   /** The point on A nearest B, in A's frame. */
   Vector3<T> p_A_A;
-
   /** The point on B nearest A, in B's frame. */
   Vector3<T> p_B_B;
-
   /** The distance between p_A_A and p_B_B (measured in a common frame). */
   T distance{};
 };
