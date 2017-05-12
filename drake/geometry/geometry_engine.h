@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 
+#include "drake/common/drake_optional.h"
 #include "drake/common/eigen_types.h"
 #include "drake/geometry/geometry_ids.h"
 #include "drake/geometry/geometry_index.h"
@@ -120,8 +121,12 @@ class GeometryEngine {
   virtual GeometryIndex AddAnchoredGeometry(
       std::unique_ptr<GeometryInstance<T>> data) = 0;
 
-  /** Removes the geometry associated with the given `index` from the engine. */
-  virtual void RemoveGeometry(GeometryIndex index) = 0;
+  /** Removes the geometry associated with the given `index` from the engine.
+   To maintain a compact representation, the engine can move one other geometry
+   into the just-vacated `index` site. If it does so, the return value will
+   contain a GeometryIndex. If it chooses not to (or if it isn't possible --
+   there are no remaining geometries -- it will contain nothing. */
+  virtual optional<GeometryIndex> RemoveGeometry(GeometryIndex index) = 0;
 
   /** Provides the poses for all of the geometries in the engine. This vector
    should span the full range of active GeometryIndex values provided by the

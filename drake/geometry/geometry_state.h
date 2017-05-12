@@ -389,6 +389,13 @@ class GeometryState {
   // The geometry data, keyed on unique geometry identifiers.
   GeometryIdGeometryMap geometries_;
 
+  // This *implicitly* maps each extant geometry engine index to its
+  // corresponding unique geometry identifier. It assumes that the index in the
+  // vector *is* the index in the engine.
+  // It should be an invariant that:
+  // geometries_[geometry_index_id_map_[i]].get_engine_index() == i is true.
+  std::vector<GeometryId> geometry_index_id_map_;
+
   // The pose of each geometry relative to the frame to which it belongs. Each
   // geometry has an "engine index". That geometry's pose is stored in this
   // vector at that engine index. Because the geometries are rigidly fixed to
