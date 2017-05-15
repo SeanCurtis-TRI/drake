@@ -197,7 +197,7 @@ drake_cc_googletest(
     name = "geometry_engine_stub_test",
     deps = [
         ":geometry_engine",
-        "//drake/common:eigen_matrix_compare",
+        ":query_test_utility",
     ],
 )
 
@@ -239,6 +239,18 @@ drake_cc_googletest(
     name = "spatial_pose_test",
     deps = [
         ":spatial_pose",
+        "//drake/common:eigen_matrix_compare",
+    ],
+)
+
+drake_cc_library(
+    name = "query_test_utility",
+    testonly = 1,
+    srcs = ["test/query_test_utility.cc"],
+    hdrs = ["test/query_test_utility.h"],
+    deps = [
+        "@gtest//:main",
+        ":geometry_engine",
         "//drake/common:eigen_matrix_compare",
     ],
 )
