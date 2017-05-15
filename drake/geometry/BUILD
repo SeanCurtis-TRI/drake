@@ -86,6 +86,19 @@ drake_cc_library(
 )
 
 drake_cc_library(
+    name = "geometry_query",
+    srcs = ["geometry_query.cc"],
+    hdrs = ["geometry_query.h"],
+    deps = [
+        ":geometry_engine",
+        ":geometry_ids",
+        ":geometry_query_results",
+        ":internal_geometry",
+        "//drake/common",
+    ],
+)
+
+drake_cc_library(
     name = "geometry_query_inputs",
     srcs = [],
     hdrs = ["geometry_query_inputs.h"],
@@ -164,8 +177,13 @@ drake_cc_library(
 
 drake_cc_library(
     name = "geometry_world_stub",
+    testonly = 1,
     srcs = [],
     hdrs = ["test/geometry_world_stub.h"],
+    deps = [
+        ":frame_kinematics_set",
+        ":geometry_query",
+    ],
 )
 
 drake_cc_library(
@@ -206,6 +224,16 @@ drake_cc_googletest(
     deps = [
         ":geometry_instance",
         "//drake/common:copyable_unique_ptr",
+    ],
+)
+
+drake_cc_googletest(
+    name = "geometry_query_test",
+    deps = [
+        ":geometry_query",
+        ":geometry_world_stub",
+        ":internal_geometry",
+        ":query_test_utility",
     ],
 )
 

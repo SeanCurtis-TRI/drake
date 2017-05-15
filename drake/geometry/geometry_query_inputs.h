@@ -6,12 +6,6 @@
 namespace drake {
 namespace geometry {
 
-/** Definition of a pair of geometries -- referenced by identifier. */
-struct GeometryIdPair {
-  GeometryId id1;
-  GeometryId id2;
-};
-
 // These structs are for internal use only and are *not* part of the public
 // API.
 namespace internal {
