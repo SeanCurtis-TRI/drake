@@ -39,17 +39,21 @@ class GeometryEngineStub : public GeometryEngine<T> {
 
   // Proximity query methods
   bool ComputePairwiseClosestPoints(
-      std::vector<internal::NearestPair<T>>* near_points) const override;
+      const std::vector<GeometryId>& ids,
+      std::vector<NearestPair<T>>* near_points) const override;
   bool ComputePairwiseClosestPoints(
+      const std::vector<GeometryId>& ids,
       const std::vector<GeometryIndex>& ids_to_check,
-      std::vector<internal::NearestPair<T>>* near_points) const override;
+      std::vector<NearestPair<T>>* near_points) const override;
   bool ComputePairwiseClosestPoints(
+      const std::vector<GeometryId>& ids,
       const std::vector<internal::GeometryIndexPair>& pairs,
-      std::vector<internal::NearestPair<T>>* near_points) const override;
+      std::vector<NearestPair<T>>* near_points) const override;
 
   bool FindClosestGeometry(
+      const std::vector<GeometryId>& ids,
       const Eigen::Matrix3Xd& points,
-      std::vector<internal::PointProximity<T>>* near_bodies) const override;
+      std::vector<PointProximity<T>>* near_bodies) const override;
  protected:
   // NVI implementation for cloning GeometryEngine instances.
   // @return A _raw_ pointers to the newly cloned GeometryEngine instance.
@@ -60,8 +64,10 @@ class GeometryEngineStub : public GeometryEngine<T> {
 
   // The underlying method for executing
   template <class PairSet>
-  bool ComputePairwiseClosestPointsHelper(const PairSet& pair_set,
-                                    std::vector<internal::NearestPair<T>>* near_points) const;
+  bool ComputePairwiseClosestPointsHelper(
+      const std::vector<GeometryId>& ids,
+      const PairSet& pair_set,
+      std::vector<NearestPair<T>>* near_points) const;
 
   // The geometries owned by this geometry engine.
   std::vector<copyable_unique_ptr<Shape>> geometries_;
