@@ -11,7 +11,7 @@ namespace drake {
 namespace geometry {
 
 // NOTE: These classes don't exist yet in the multibody namespace yet. These are
-// dummy placeholders to simply allow the declarations below to be "valid".
+// dummy place-holders to simply allow the declarations below to be "valid".
 
 template <typename T>
 class SpatialAcceleration {};
@@ -96,7 +96,7 @@ class FrameKinematicsSet {
 
   /** Reports the pose and velocity values for the indicated frame, `F`.
    @param frame_id    The identifier for the target frame `F`.
-   @param X_WF        The pose fo the frame `F` in the world frame `W`.
+   @param X_WF        The pose of the frame `F` in the world frame `W`.
    @param V_WF        The velocity of frame `F` measured and expressed in `W`.
    @returns  The total number of frames defined in the set (after adding this
              frame.
@@ -134,7 +134,7 @@ class FrameKinematicsSet {
   /** Reports the pose, velocity, and acceleration values for the indicated
    frame, `F`.
    @param frame_id    The identifier for the target frame `F`.
-   @param X_WF        The pose fo the frame `F` in the world frame `W`.
+   @param X_WF        The pose of the frame `F` in the world frame `W`.
    @param V_WF        The velocity of frame `F` measured and expressed in `W`.
    @param A_WF        The acceleration of frame `F` measured and expressed in
                       `W`.
