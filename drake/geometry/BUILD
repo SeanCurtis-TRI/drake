@@ -72,6 +72,7 @@ drake_cc_library(
         ":geometry_index",
         ":geometry_instance",
         ":geometry_query_inputs",
+        ":geometry_query_results",
         "//drake/common",
         "//drake/common:copyable_unique_ptr",
     ],
@@ -92,6 +93,13 @@ drake_cc_library(
         ":geometry_ids",
         ":geometry_index",
     ],
+)
+
+drake_cc_library(
+    name = "geometry_query_results",
+    srcs = [],
+    hdrs = ["geometry_query_results.h"],
+    deps = ["//drake/common"],
 )
 
 drake_cc_library(

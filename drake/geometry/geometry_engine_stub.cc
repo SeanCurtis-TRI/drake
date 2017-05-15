@@ -156,8 +156,9 @@ class ExplicitPairSet {
 template <typename T>
 template <class PairSet>
 bool GeometryEngineStub<T>::ComputePairwiseClosestPointsHelper(
+    const std::vector<GeometryId>& ids,
     const PairSet& pair_set,
-    std::vector<internal::NearestPair<T>>* near_points) const {
+    std::vector<NearestPair<T>>* near_points) const {
   size_t input = near_points->size();
   near_points->resize(near_points->size() + pair_set.size());
   for (const auto& pair : pair_set) {
@@ -183,8 +184,9 @@ bool GeometryEngineStub<T>::ComputePairwiseClosestPointsHelper(
     auto r_ACa_A = X_WG_[pair.index1].linear().transpose() * r_ACa_W;
     auto r_BCb_W = rhat_CaCb_W * -radius_B;
     auto r_BCb_B = X_WG_[pair.index2].linear().transpose() * r_BCb_W;
-    (*near_points)[input] = internal::NearestPair<T>(
-        pair.index1, pair.index2, r_ACa_A, r_BCb_B, dist - radius_A - radius_B);
+    (*near_points)[input] = NearestPair<T>(
+        ids.at(pair.index1), ids.at(pair.index2), r_ACa_A, r_BCb_B,
+        dist - radius_A - radius_B);
 
     ++input;
   }
@@ -195,57 +197,75 @@ bool GeometryEngineStub<T>::ComputePairwiseClosestPointsHelper(
 
 template <typename T>
 bool GeometryEngineStub<T>::ComputePairwiseClosestPoints(
-    std::vector<internal::NearestPair<T>>* near_points) const {
+    const std::vector<GeometryId>& ids,
+    std::vector<NearestPair<T>>* near_points) const {
   return ComputePairwiseClosestPointsHelper(
-      RangedPairSet(get_update_input_size()), near_points);
+      ids, RangedPairSet(get_update_input_size()), near_points);
 }
 
 template <typename T>
 bool GeometryEngineStub<T>::ComputePairwiseClosestPoints(
+    const std::vector<GeometryId>& ids,
     const std::vector<GeometryIndex>& ids_to_check,
-    std::vector<internal::NearestPair<T>>* near_points) const {
-  return ComputePairwiseClosestPointsHelper(ExplicitPairSet(ids_to_check),
-                                            near_points);
+    std::vector<NearestPair<T>>* near_points) const {
+  return ComputePairwiseClosestPointsHelper(
+      ids, ExplicitPairSet(ids_to_check), near_points);
 }
 
 template <typename T>
 bool GeometryEngineStub<T>::ComputePairwiseClosestPoints(
+    const std::vector<GeometryId>& ids,
     const std::vector<internal::GeometryIndexPair>& pairs,
-    std::vector<internal::NearestPair<T>>* near_points) const {
-  return ComputePairwiseClosestPointsHelper(pairs, near_points);
+    std::vector<NearestPair<T>>* near_points) const {
+  return ComputePairwiseClosestPointsHelper(ids, pairs, near_points);
 }
 
 template <typename T>
 bool GeometryEngineStub<T>::FindClosestGeometry(
+    const std::vector<GeometryId>& ids,
     const Eigen::Matrix3Xd& points,
-    std::vector<internal::PointProximity<T>>* near_bodies) const {
-  std::vector<internal::PointProximity<T>>& data = *near_bodies;
+    std::vector<PointProximity<T>>* near_bodies) const {
+  std::vector<PointProximity<T>>& data = *near_bodies;
+  std::vector<GeometryIndex> near_geometry(points.cols());
   using std::abs;
   DRAKE_ASSERT(near_bodies->size() == 0);
   near_bodies->resize(points.cols());
+  // Implementation note:
+  //  This uses a two pass approach. In the first pass, we do the *minimum*
+  //  amount of work to find the closest geometry. In the second pass we do the
+  //  full work to compute all of the return values.
   for (int i = 0; i < points.cols(); ++i) {
+    // TODO(SeanCurtis-TRI): Does this work for autodiff?
+    data[i].distance = std::numeric_limits<double>::infinity();
     for (int g = 0; g < get_update_input_size(); ++g) {
       const Sphere& sphere = static_cast<const Sphere&>(*geometries_[g].get());
       const auto& p_WA = X_WG_[g].translation();
-      auto r_AQ = points.block<3, 1>(0, i) - p_WA;
-      T distance = r_AQ.norm() - sphere.get_radius();
+      Vector3<T> r_AQ = points.block<3, 1>(0, i) - p_WA;
+      double radius_sqd = sphere.get_radius() * sphere.get_radius();
+      T distance = r_AQ.squaredNorm() - radius_sqd;
       if (abs(distance) < abs(data[i].distance)) {
-        data[i].index_A = g;
-        data[i].distance = distance;
-        data[i].rhat_CaQ_W = r_AQ;  // defer division until its needed.
+        near_geometry[i] = g;
+        data[i].distance = distance;  // defer square root until it's needed.
+        data[i].rhat_CaQ_W = r_AQ;  // defer division until it's needed.
       }
     }
   }
-  // Nearest bodies have been identified, now collect up the data.
+  // Nearest bodies have been identified, now do the calculations for the
+  // reported data.
   for (int i = 0; i < points.cols(); ++i) {
-    // We know this is the displacement vector and distance we want; normalize.
-    if (abs(data[i].distance) < Eigen::NumTraits<T>::dummy_precision()) {
-      // TODO(SeanCurtis-TRI): What would be the appropriate response here?
-    }
+    data[i].id_A = ids[near_geometry[i]];
     const Sphere& sphere = static_cast<const Sphere&>(*geometries_[i].get());
-    data[i].rhat_CaQ_W /= data[i].distance;
-    const auto& p_WA = X_WG_[i].translation();
-    auto offset = data[i].rhat_CaQ_W * sphere.get_radius();
+    const auto& p_WA = X_WG_[near_geometry[i]].translation();
+    const double radius_sqd = sphere.get_radius() * sphere.get_radius();
+    data[i].distance = sqrt(data[i].distance - radius_sqd) - sphere.get_radius();
+
+    Vector3<T> offset = Vector3<T>::Zero();
+    if (abs(data[i].distance) > Eigen::NumTraits<T>::dummy_precision()) {
+      *data[i].rhat_CaQ_W /= data[i].distance;
+      offset = *data[i].rhat_CaQ_W * sphere.get_radius();
+    } else {
+      data[i].rhat_CaQ_W = {};
+    }
     data[i].p_WCa = p_WA + offset;
     data[i].p_ACa = X_WG_[i].linear().transpose() * offset;
   }
