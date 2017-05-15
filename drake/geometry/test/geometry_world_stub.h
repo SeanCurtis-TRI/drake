@@ -1,22 +1,27 @@
 #pragma once
 
 #include "drake/geometry/frame_kinematics_set.h"
+#include "drake/geometry/geometry_query.h"
 
 namespace drake {
 namespace geometry {
 /** @cond */
 
 // This serves as a _mock_ GeometryWorld. GeometryWorld serves as a factory of
-// the FrameKinematicsSet class. It is the _only_ class that can generate them.
-// The GeometryState class is responsible for validating the state of a
-// FrameKinematicsSet. To test that function, I need access to an instance of
-// the FrameKinematicsSet. This mock allows me to create such an instance
-// in a very lightweight manner by exploiting a declared friend relationship.
+// various geometry-namespaced classes which should *only* be created by
+// GeometryWorld. It is the _only_ class that can generate them.
 template <typename T>
 class GeometryWorld {
  public:
   static FrameKinematicsSet<T> MakeFKS(SourceId s_id) {
     return FrameKinematicsSet<T>(s_id);
+  }
+
+  static GeometryQuery<T> MakeQuery(
+      const GeometryEngine<T>& engine, const std::vector<GeometryId>& ids,
+      const std::unordered_map<GeometryId, internal::InternalGeometry>&
+      geometries) {
+    return GeometryQuery<T>(engine, ids, geometries);
   }
 };
 
