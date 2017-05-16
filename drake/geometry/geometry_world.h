@@ -21,6 +21,7 @@ template <typename T> class FrameKinematicsSet;
 template <typename T> class GeometryContext;
 template <typename T> class GeometryInstance;
 template <typename T> class GeometryState;
+template <typename T> class GeometryQuery;
 
 // TODO(SeanCurtis-TRI): Review this documentation to confirm that it's
 // consistent with what I ended up implementing.
@@ -308,11 +309,10 @@ class GeometryWorld {
                       GeometryId geometry_id);
   /** @} */
 
-  /** @name Evaluation methods
+  /** @name Run-time query methods
 
-   These are the methods through which values for registered frames are provided
-   to GeometryWorld.
-
+   These methods define the interface for updating the state of geometry world
+   and performing queries on that state.
    @{ */
 
   /**
@@ -349,6 +349,20 @@ class GeometryWorld {
   void SetFrameKinematics(GeometryContext<T>* context,
                           const FrameKinematicsSet<T>& frame_kinematics);
 
+  /** Provides a query object on the world.
+   It is considered best practice to _not_ acquire a query instance until after
+   the state of %GeometryWorld has been _fully_ updated (via calls to
+   SetFrameKinematics). The instance should _not_ be persisted. Acquire it,
+   perform queries on it, and then discard it. The query results depend on the
+   provided context; performing queries on a query derived from one context will
+   have undefined results when that context is no longer relevant.
+   @param context           A mutable context; used for updating cache.
+   @return  An query instance through which relationships between geometries
+   in %GeometryWorld can be queried.
+   @sa GeometryQuery
+   */
+  GeometryQuery<T> GetQuery(const GeometryContext<T>& context) const;
+
   /** @} */
 
   /** @name       System-compatible methods
@@ -377,7 +391,7 @@ class GeometryWorld {
    facilitate testing.
    @param context   The context containing the state.
    @return A const reference to the GeometryState instance. */
-  const GeometryState<T>& get_state(const GeometryContext<T>& context);
+  const GeometryState<T>& get_state(const GeometryContext<T>& context) const;
 
   /** @} */
 

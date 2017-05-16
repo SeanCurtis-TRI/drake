@@ -5,10 +5,23 @@
 #include <gtest/gtest.h>
 
 #include "drake/geometry/test/query_test_utility.h"
-#include "drake/geometry/test/geometry_world_stub.h"
 
 namespace drake {
 namespace geometry {
+
+// This is a mock version of the GeometryState class that allows me to
+// instantiate GeometryQuery instances with minimal overhead.
+template <typename T>
+class GeometryState {
+ public:
+  static GeometryQuery<T> MakeQuery(
+      const GeometryEngine<T>& engine,
+      const std::vector<GeometryId>& ids,
+      const std::unordered_map<GeometryId, internal::InternalGeometry>& geometries) {
+    return GeometryQuery<T>(engine, ids, geometries);
+  }
+};
+
 namespace {
 
 using std::vector;
@@ -21,7 +34,7 @@ class GeometryQueryTest : public test::GeometryQueryTest {
   GeometryQuery<double> SetUpAxisSpheres() {
     test::GeometryQueryTest::SetUpAxisSpheres();
 
-    return GeometryWorld<double>::MakeQuery(engine_, sphere_ids_, geometries_);
+    return GeometryState<double>::MakeQuery(engine_, sphere_ids_, geometries_);
   }
 };
 

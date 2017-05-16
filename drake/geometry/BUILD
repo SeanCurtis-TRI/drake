@@ -231,7 +231,6 @@ drake_cc_googletest(
     name = "geometry_query_test",
     deps = [
         ":geometry_query",
-        ":geometry_world_stub",
         ":internal_geometry",
         ":query_test_utility",
     ],

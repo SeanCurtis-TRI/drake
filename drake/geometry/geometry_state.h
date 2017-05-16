@@ -12,6 +12,7 @@
 #include "drake/geometry/geometry_engine.h"
 #include "drake/geometry/geometry_ids.h"
 #include "drake/geometry/geometry_index.h"
+#include "drake/geometry/geometry_query.h"
 #include "drake/geometry/internal_frame.h"
 #include "drake/geometry/internal_geometry.h"
 
@@ -257,6 +258,12 @@ class GeometryState {
                             2. frames _not_ registered on the source _are_
                                included in the set. */
   void SetFrameKinematics(const FrameKinematicsSet<T>& frame_kinematics);
+
+  /** Returns a query object on this state. */
+  GeometryQuery<T> GetQuery() const {
+    return GeometryQuery<T>(*geometry_engine_, geometry_index_id_map_,
+                            geometries_);
+  }
 
   // TODO(SeanCurtis-TRI): Make this method private?
   /** Performs the work for confirming the frame values provided in the

@@ -103,6 +103,12 @@ void GeometryWorld<T>::SetFrameKinematics(
 }
 
 template <typename T>
+GeometryQuery<T> GeometryWorld<T>::GetQuery(const GeometryContext<T>& context) const {
+  auto state = get_state(context);
+  return state.GetQuery();
+}
+
+template <typename T>
 vector<unique_ptr<AbstractValue>> GeometryWorld<T>::AllocateAbstractValues() {
   vector<unique_ptr<AbstractValue>> values;
   values.push_back(make_unique<Value<GeometryState<T>>>());
@@ -118,7 +124,7 @@ GeometryState<T>* GeometryWorld<T>::get_mutable_state(
 
 template <typename T>
 const GeometryState<T>& GeometryWorld<T>::get_state(
-    const GeometryContext<T>& context) {
+    const GeometryContext<T>& context) const {
   return context.get_state().template get_abstract_state<GeometryState<T>>(0);
 }
 

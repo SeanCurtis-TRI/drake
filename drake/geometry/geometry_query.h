@@ -11,7 +11,7 @@ namespace drake {
 namespace geometry {
 
 // Forward declarations
-template <typename T> class GeometryWorld;
+template <typename T> class GeometryState;
 template <typename T> class GeometryEngine;
 
 /** An ordered pair of geometries -- given by identifier. */
@@ -41,6 +41,12 @@ struct FramePair {
  template <typename T>
 class GeometryQuery {
  public:
+  // The query can only be copied from another -- the const references preclude
+  // any other behavior.
+  GeometryQuery(const GeometryQuery&) = default;
+  GeometryQuery& operator=(const GeometryQuery&) = delete;
+  GeometryQuery(GeometryQuery&&) = default;
+  GeometryQuery& operator=(GeometryQuery&&) = delete;
   // TODO(SeanCurtis-TRI): Determine how to limit the scope of these queries.
   //    e.g., limit it to just those elements belonging to a single input,
   //      limit it to a subset of elements in a single input,
@@ -232,7 +238,7 @@ class GeometryQuery {
   //
 #endif
  private:
-  friend class GeometryWorld<T>;
+  friend class GeometryState<T>;
 
   // This can only be created by a GeometryWorld instance.
   GeometryQuery(

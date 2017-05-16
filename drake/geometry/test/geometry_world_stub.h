@@ -16,13 +16,6 @@ class GeometryWorld {
   static FrameKinematicsSet<T> MakeFKS(SourceId s_id) {
     return FrameKinematicsSet<T>(s_id);
   }
-
-  static GeometryQuery<T> MakeQuery(
-      const GeometryEngine<T>& engine, const std::vector<GeometryId>& ids,
-      const std::unordered_map<GeometryId, internal::InternalGeometry>&
-      geometries) {
-    return GeometryQuery<T>(engine, ids, geometries);
-  }
 };
 
 /** @endcode */
