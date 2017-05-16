@@ -21,19 +21,8 @@ class GeometryQueryTest : public test::GeometryQueryTest {
   GeometryQuery<double> SetUpAxisSpheres() {
     test::GeometryQueryTest::SetUpAxisSpheres();
 
-    // TODO(SeanCurtis-TRI): For later tests, move this geometries map into the
-    // base class and define meaningful frames.
-    FrameId frame_id = FrameId::get_new_id();
-    for (size_t i = 0; i < sphere_ids_.size(); ++i) {
-      GeometryId g_id = sphere_ids_[i];
-      GeometryIndex g_index = axis_indices_[i];
-      geometries_[g_id] = internal::InternalGeometry(
-          frame_id, g_id, "name", g_index);
-    }
     return GeometryWorld<double>::MakeQuery(engine_, sphere_ids_, geometries_);
   }
-
-  std::unordered_map<GeometryId, internal::InternalGeometry> geometries_;
 };
 
 // Tests that the query correctly maps geometry ids into geometry indexes to get
@@ -48,7 +37,7 @@ TEST_F(GeometryQueryTest, ComputePairwiseClosestPoints_SelectIndices) {
   vector<test::IdPair> computed_pairs = {{sphere_ids_[0], sphere_ids_[2]},
                                          {sphere_ids_[0], sphere_ids_[3]},
                                          {sphere_ids_[2], sphere_ids_[3]}};
-  ExpectCorrectProximity(pairs, computed_pairs);
+  ExpectNearestPairs(pairs, computed_pairs);
 }
 
 // Tests the interface where only explicitly enumerated pairs are included.
@@ -61,7 +50,7 @@ TEST_F(GeometryQueryTest, ComputePairwiseClosestPoints_SelectPairs) {
   EXPECT_TRUE(query.ComputePairwiseClosestPoints(query_pairs, &results));
   vector<test::IdPair> computed_pairs = {{sphere_ids_[0], sphere_ids_[1]},
                                          {sphere_ids_[2], sphere_ids_[3]}};
-  ExpectCorrectProximity(results, computed_pairs);
+  ExpectNearestPairs(results, computed_pairs);
 }
 
 }  // namespace
