@@ -9,6 +9,7 @@
 #include "drake/common/eigen_types.h"
 #include "drake/geometry/geometry_engine_stub.h"
 #include "drake/geometry/geometry_ids.h"
+#include "drake/geometry/internal_geometry.h"
 #include "drake/geometry/shapes.h"
 
 namespace drake {
@@ -48,27 +49,27 @@ class GeometryQueryTest : public ::testing::Test {
 
   // A collection of operations to assert correctness of results. Confirms that
   // the nearest pair data is consistent when considering the first *n* spheres.
-  void ExpectCorrectProximity(
-      const std::vector<NearestPair<double>>& results,
-      const std::vector<IdPair>& pairs);
+  void ExpectNearestPairs(
+      const std::vector<NearestPair<double>> &results,
+      const std::vector<IdPair> &pairs);
 
+  // Set up variables
   GeometryEngineStub<double> engine_;
   // Geometry indices for the axis-sphere configuration.
   static const double kRadius;
   static const int kSphereCount;
   // The indices of the spheres added to the engine.
-  std::vector<GeometryIndex> axis_indices_;
+  std::vector<GeometryIndex> sphere_indices_;
   // The ith entry contains the id that corresponds to the ith geometry in
-  // axis_indices_;
+  // sphere_indices_;
   std::vector<GeometryId> sphere_ids_;
-  // The position of the near point on sphere i, for the pair (i, j), using
-  // GetKeyFromIndices to map (i, j) into the key. The point on j, nearest i,
-  // is just the negative value.
-  std::unordered_map<IdPair, std::pair<Vector3<double>, Vector3<double>>,
-                     IdPair>
-      near_points_;
-  // The expected distance between the given pair of identified geometry.
-  std::unordered_map<IdPair, double, IdPair> distances_;
+  // Simulate the GeometryState::geometries_: a mapping from geometry id to its
+  // internal data structure (allows for grabbing metadata and engine ids).
+  std::unordered_map<GeometryId, internal::InternalGeometry> geometries_;
+
+  // The expected results. A mapping from an IdPair to the nearest pair values
+  // that should be generated.
+  std::unordered_map<IdPair, NearestPair<double>, IdPair> expected_nearest_;
 };
 
 }  // namespace test

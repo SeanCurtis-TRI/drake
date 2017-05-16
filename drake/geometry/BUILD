@@ -279,6 +279,7 @@ drake_cc_library(
     deps = [
         "@gtest//:main",
         ":geometry_engine",
+        ":internal_geometry",
         "//drake/common:eigen_matrix_compare",
     ],
 )

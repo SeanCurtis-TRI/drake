@@ -32,36 +32,36 @@ TEST_F(GeometryEngineStubTest, ComputePairwiseClosestPoints_All) {
                                    {sphere_ids_[1], sphere_ids_[2]},
                                    {sphere_ids_[1], sphere_ids_[3]},
                                    {sphere_ids_[2], sphere_ids_[3]}};
-  ExpectCorrectProximity(results, computed_pairs);
+  ExpectNearestPairs(results, computed_pairs);
 }
 
 // Tests the interface where the indices included are explicitly provided.
 TEST_F(GeometryEngineStubTest, ComputePairwiseClosestPoints_SelectIndices) {
   SetUpAxisSpheres();
-  vector<GeometryIndex> query_indices = {axis_indices_[0],
-                                         axis_indices_[2],
-                                         axis_indices_[3]};
+  vector<GeometryIndex> query_indices = {sphere_indices_[0],
+                                         sphere_indices_[2],
+                                         sphere_indices_[3]};
   std::vector<NearestPair<double>> pairs;
   EXPECT_TRUE(engine_.ComputePairwiseClosestPoints(
       sphere_ids_, query_indices, &pairs));
   vector<test::IdPair> computed_pairs = {{sphere_ids_[0], sphere_ids_[2]},
                                    {sphere_ids_[0], sphere_ids_[3]},
                                    {sphere_ids_[2], sphere_ids_[3]}};
-  ExpectCorrectProximity(pairs, computed_pairs);
+  ExpectNearestPairs(pairs, computed_pairs);
 }
 
 // Tests the interface where only explicitly enumerated pairs are included.
 TEST_F(GeometryEngineStubTest, ComputePairwiseClosestPoints_SelectPairs) {
   SetUpAxisSpheres();
   vector<internal::GeometryIndexPair> query_pairs;
-  query_pairs.emplace_back(axis_indices_[0], axis_indices_[1]);
-  query_pairs.emplace_back(axis_indices_[2], axis_indices_[3]);
+  query_pairs.emplace_back(sphere_indices_[0], sphere_indices_[1]);
+  query_pairs.emplace_back(sphere_indices_[2], sphere_indices_[3]);
   std::vector<NearestPair<double>> results;
   EXPECT_TRUE(engine_.ComputePairwiseClosestPoints(
       sphere_ids_, query_pairs, &results));
   vector<test::IdPair> computed_pairs = {{sphere_ids_[0], sphere_ids_[1]},
                                    {sphere_ids_[2], sphere_ids_[3]}};
-  ExpectCorrectProximity(results, computed_pairs);
+  ExpectNearestPairs(results, computed_pairs);
 }
 
 // Tests the query determining the closest geometry
