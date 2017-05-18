@@ -28,7 +28,6 @@ class Shape {
   Type get_type() const { return type_; }
 
  protected:
-
   virtual Shape* DoClone() const = 0;
 
   // TODO(SeanCurtis-TRI): THe geometry engine is going to need access to type.
