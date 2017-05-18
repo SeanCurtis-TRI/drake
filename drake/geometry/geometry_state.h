@@ -12,7 +12,6 @@
 #include "drake/geometry/geometry_engine.h"
 #include "drake/geometry/geometry_ids.h"
 #include "drake/geometry/geometry_index.h"
-#include "drake/geometry/geometry_query.h"
 #include "drake/geometry/internal_frame.h"
 #include "drake/geometry/internal_geometry.h"
 
@@ -71,6 +70,12 @@ class GeometryState {
 
   /** Reports true if the given `source_id` references an active source. */
   bool source_is_active(SourceId source_id) const;
+
+  /** Reports the source name for the given source id.
+   @param id  The identifier of the source.
+   @return The name of the source.
+   @throws std::logic_error if the id does _not_ map to an active source. */
+  const std::string& get_source_name(SourceId id) const;
 
   /** Reports the pose, relative to the registered _frame_, for the geometry
    the given identifier refers to.
@@ -135,10 +140,12 @@ class GeometryState {
    the state, modifying values in the state, etc.
    @{ */
 
-  /** Adds and activates a new geometry source to the state.
-   @throws std::logic_error  If `source_id` maps to a pre-existing, active
-                             source. */
-  void RegisterNewSource(SourceId source_id);
+  /** Registers a new, named source into the state.
+   @param source_id     The id of the source to add.
+   @param name          The name of the source to add.
+   @trhows std::logic_error is thrown if the name or source_id are _not_
+   unique. */
+  void RegisterNewSource(SourceId source_id, const std::string& name);
 
   /** Removes  all frames and geometry registered from the identified source.
    The source remains active and further frames and geometry can be registered
@@ -259,12 +266,6 @@ class GeometryState {
                                included in the set. */
   void SetFrameKinematics(const FrameKinematicsSet<T>& frame_kinematics);
 
-  /** Returns a query object on this state. */
-  GeometryQuery<T> GetQuery() const {
-    return GeometryQuery<T>(*geometry_engine_, geometry_index_id_map_,
-                            geometries_);
-  }
-
   // TODO(SeanCurtis-TRI): Make this method private?
   /** Performs the work for confirming the frame values provided in the
    kinematics set cover the expected set of frames (and no more).
@@ -376,6 +377,11 @@ class GeometryState {
   // the parent frame. For a completely flat hierarchy, this contains the same
   // values as the corresponding entry in source_frame_id_map_.
   std::unordered_map<SourceId, FrameIdSet> source_root_frame_map_;
+
+  // The active geometry source names. Each name is unique and the keys in this
+  // map should be identical to those in source_frame_id_map_ and
+  // source_root_frame_map_.
+  std::unordered_map<SourceId, std::string> source_names_;
 
   // The frame data, keyed on unique frame identifier.
   std::unordered_map<FrameId, internal::InternalFrame> frames_;

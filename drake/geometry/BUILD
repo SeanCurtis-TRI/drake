@@ -176,17 +176,6 @@ drake_cc_library(
 )
 
 drake_cc_library(
-    name = "geometry_world_stub",
-    testonly = 1,
-    srcs = [],
-    hdrs = ["test/geometry_world_stub.h"],
-    deps = [
-        ":frame_kinematics_set",
-        ":geometry_query",
-    ],
-)
-
-drake_cc_library(
     name = "shapes",
     srcs = [],
     hdrs = ["shapes.h"],
@@ -207,7 +196,6 @@ drake_cc_googletest(
     deps = [
         ":expect_error_message",
         ":frame_kinematics_set",
-        ":geometry_world_stub",
     ],
 )
 
@@ -241,7 +229,7 @@ drake_cc_googletest(
     deps = [
         ":expect_error_message",
         ":geometry_state",
-        ":geometry_world_stub",
+        ":geometry_world",
         ":shapes",
         "//drake/common:eigen_matrix_compare",
     ],
