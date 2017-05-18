@@ -288,6 +288,9 @@ class GeometryState {
   optional<GeometryId> FindParentGeometry(GeometryId geometry_id) const;
 
  private:
+  // Allow GeometryWorld unique access to the state members to perform queries.
+  friend class GeometryWorld<T>;
+
   // Friend declaration so that the internals of the state can be confirmed in
   // unit tests.
   template <class U> friend class GeometryStateTester;
