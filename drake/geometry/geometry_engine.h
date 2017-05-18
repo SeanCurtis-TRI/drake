@@ -175,6 +175,46 @@ class GeometryEngine {
       const std::vector<GeometryId>& ids,
       const Eigen::Matrix3Xd& points,
       std::vector<PointProximity<T>>* near_bodies) const = 0;
+#if 0
+  // NOTE: This maps to Model::collidingPoints().
+  /** Determines which of the given list of `points` are no farther than
+   `distance` meters from _any_ collision geometry.
+
+   In other words, the index `i` is included in the returned vector of indices
+   iff a sphere of radius `distance`, located at `input_points[i]` collides with
+   any collision element in the model.
+
+   @param[in]   points        An ordered list of `N` points represented
+                              column-wise by a `3 x N` Matrix.
+   @param[in]   distance      The maximum distance from a point that is allowed.
+   @param[out]  results       A vector of indices into `points`. Each index
+                              indicates that the corresponding point is within
+                              closer than `distance` meters away from some
+                              geometry. The vector will _not_ be cleared and
+                              the indexes will be added to the current values.
+   @returns True if the operation was successful. */
+  bool FindGeometryProximalPoints(const Matrix3X<T>& points, double distance,
+                                  std::vector<size_t>* results) const;
+
+  /** Given a vector of `points` in the world coordinate frame, reports if _any_
+   of those `points` lie within a specified `distance` of any collision geometry
+   in the model.
+
+   In other words, this method tests if any of the spheres of radius
+   `distance` located at `input_points[i]` collides with any part of
+   the model. This method returns as soon as any of these spheres collides
+   with the model. Points are not checked against one another but only against
+   the existing model.
+
+   @param[in]   points    The list of points to check for collisions against the
+                          model.
+   @param[in]   distance  The radius of a control sphere around each point used
+                          to check for collisions with the model.
+  @return True if any point is closer than `distance` units to collision
+          geometry. */
+  bool IsAnyGeometryNear(const Matrix3X<T>& points,
+                         double distance) const;
+#endif
   //@}
  protected:
   /*! NVI implementation for cloning GeometryEngine instances.
