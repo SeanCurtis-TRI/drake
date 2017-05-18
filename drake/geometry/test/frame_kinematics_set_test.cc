@@ -3,10 +3,22 @@
 #include <gtest/gtest.h>
 
 #include "drake/geometry/test/expect_error_message.h"
-#include "drake/geometry/test/geometry_world_stub.h"
 
 namespace drake {
 namespace geometry {
+
+// This serves as a _mock_ GeometryWorld. FrameKinematicsSet has a private ctor.
+// By design, only GeometryWorld can instantiate them from a GeometryState.
+// This allows me to test functionality on the FrameKinematicsSet without any of
+// the supporting data structures.
+template <typename T>
+class GeometryWorld {
+ public:
+  static FrameKinematicsSet<T> MakeFKS(SourceId s_id) {
+    return FrameKinematicsSet<T>(s_id);
+  }
+};
+
 namespace {
 
 using FKSet = FrameKinematicsSet<double>;
