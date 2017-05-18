@@ -54,14 +54,15 @@ class GeometryEngineStub : public GeometryEngine<T> {
       const std::vector<GeometryId>& ids,
       const Eigen::Matrix3Xd& points,
       std::vector<PointProximity<T>>* near_bodies) const override;
+
  protected:
   // NVI implementation for cloning GeometryEngine instances.
   // @return A _raw_ pointers to the newly cloned GeometryEngine instance.
   GeometryEngineStub* DoClone() const override {
     return new GeometryEngineStub(*this);
   }
- private:
 
+ private:
   // The underlying method for executing
   template <class PairSet>
   bool ComputePairwiseClosestPointsHelper(

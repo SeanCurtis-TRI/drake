@@ -1,5 +1,6 @@
 #include "drake/geometry/geometry_engine_stub.h"
 
+#include <limits>
 #include <memory>
 #include <utility>
 
@@ -17,7 +18,8 @@ template <typename T>
 GeometryEngineStub<T>::GeometryEngineStub() : GeometryEngine<T>() {}
 
 template <typename T>
-GeometryIndex GeometryEngineStub<T>::AddDynamicGeometry(unique_ptr<Shape> shape) {
+GeometryIndex GeometryEngineStub<T>::AddDynamicGeometry(
+    unique_ptr<Shape> shape) {
   DRAKE_DEMAND(shape->get_type() == Shape::SPHERE);
   GeometryIndex index(geometries_.size());
   geometries_.emplace_back(move(shape));
@@ -33,15 +35,19 @@ GeometryIndex GeometryEngineStub<T>::AddAnchoredGeometry(
 }
 
 template <typename T>
-optional<GeometryIndex> GeometryEngineStub<T>::RemoveGeometry(GeometryIndex index) {
+optional<GeometryIndex> GeometryEngineStub<T>::RemoveGeometry(
+    GeometryIndex index) {
   using std::swap;
   GeometryIndex last(static_cast<int>(geometries_.size()) - 1);
   if (last != index) {
     swap(geometries_[index], geometries_[last]);
   }
   geometries_.pop_back();
-  if (last != index) return last;
-  else return {};
+  if (last != index) {
+    return last;
+  } else {
+    return {};
+  }
 }
 
 template <typename T>
@@ -84,7 +90,7 @@ class pair_iterator {
   }
 
  protected:
-  pair_iterator(int curr_val) : i_(curr_val), j_(curr_val + 1) {}
+  explicit pair_iterator(int curr_val) : i_(curr_val), j_(curr_val + 1) {}
   int i_{0};   // The index of the first index in the pair.
   int j_{0};   // The index of the second index in the pair.
 };
@@ -110,7 +116,7 @@ class RangedPairSet {
   };
 
   // Constructor -- given set size N, uses the indices {0, ..., N-1}.
-  RangedPairSet(int set_size) : N_(set_size) {}
+  explicit RangedPairSet(int set_size) : N_(set_size) {}
   iterator begin() const { return iterator(0, N_); }
   iterator end() const { return iterator(N_ - 1, N_); }
   size_t size() const { return (N_ * (N_ - 1)) / 2; }
@@ -139,7 +145,8 @@ class ExplicitPairSet {
     const std::vector<GeometryIndex>& values_;
   };
 
-  ExplicitPairSet(const std::vector<GeometryIndex>& values) : values_(values) {}
+  explicit ExplicitPairSet(const std::vector<GeometryIndex>& values)
+      : values_(values) {}
   iterator begin() const { return iterator(0, values_); }
   iterator end() const {
     return iterator(static_cast<int>(values_.size()) - 1, values_);
@@ -191,7 +198,7 @@ bool GeometryEngineStub<T>::ComputePairwiseClosestPointsHelper(
     ++input;
   }
   return true;
-};
+}
 
 // Proximity Queries --------------------------------------------------------
 
@@ -257,7 +264,8 @@ bool GeometryEngineStub<T>::FindClosestGeometry(
     const Sphere& sphere = static_cast<const Sphere&>(*geometries_[i].get());
     const auto& p_WA = X_WG_[near_geometry[i]].translation();
     const double radius_sqd = sphere.get_radius() * sphere.get_radius();
-    data[i].distance = sqrt(data[i].distance - radius_sqd) - sphere.get_radius();
+    data[i].distance =
+        sqrt(data[i].distance - radius_sqd) - sphere.get_radius();
 
     Vector3<T> offset = Vector3<T>::Zero();
     if (abs(data[i].distance) > Eigen::NumTraits<T>::dummy_precision()) {
