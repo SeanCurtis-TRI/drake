@@ -9,11 +9,32 @@
 #include "drake/common/eigen_types.h"
 #include "drake/geometry/geometry_engine_stub.h"
 #include "drake/geometry/geometry_ids.h"
+#include "drake/geometry/geometry_state.h"
 #include "drake/geometry/internal_geometry.h"
 #include "drake/geometry/shapes.h"
 
 namespace drake {
 namespace geometry {
+
+// Mock class to get access to the internal components of GeometryState.
+template <typename T>
+class GeometryStateTester {
+ public:
+  GeometryStateTester() : state_(nullptr) {}
+  void set_state(GeometryState<T>* state) { state_ = state; }
+
+  GeometryEngine<T>* get_engine() {
+    return state_->geometry_engine_.get_mutable();
+  }
+
+  const std::vector<GeometryId>& get_index_to_id_map() {
+    return state_->geometry_index_id_map_;
+  }
+
+ private:
+  GeometryState<T>* state_;
+};
+
 namespace test {
 
 // Convenience struct for associating data with pairs of indices. It can serve
@@ -37,6 +58,10 @@ struct IdPair {
 
 class GeometryQueryTest : public ::testing::Test {
  protected:
+  void SetUp() override {
+    state_tester_.set_state(&state_);
+  }
+
   // Utility methods to create a sphere of the given radius.
   static std::unique_ptr <Shape> make_sphere(double radius) {
     return std::unique_ptr<Shape>(new Sphere(radius));
@@ -53,19 +78,15 @@ class GeometryQueryTest : public ::testing::Test {
       const std::vector<NearestPair<double>> &results,
       const std::vector<IdPair> &pairs);
 
-  // Set up variables
-  GeometryEngineStub<double> engine_;
+  // Source id for the frames/geometries.
+  SourceId source_id_;
+  // The state of the geometry world.
+  GeometryState<double> state_;
+  // The class that provides access to the GeometryState internals.
+  GeometryStateTester<double> state_tester_;
   // Geometry indices for the axis-sphere configuration.
   static const double kRadius;
   static const int kSphereCount;
-  // The indices of the spheres added to the engine.
-  std::vector<GeometryIndex> sphere_indices_;
-  // The ith entry contains the id that corresponds to the ith geometry in
-  // sphere_indices_;
-  std::vector<GeometryId> sphere_ids_;
-  // Simulate the GeometryState::geometries_: a mapping from geometry id to its
-  // internal data structure (allows for grabbing metadata and engine ids).
-  std::unordered_map<GeometryId, internal::InternalGeometry> geometries_;
 
   // The expected results. A mapping from an IdPair to the nearest pair values
   // that should be generated.

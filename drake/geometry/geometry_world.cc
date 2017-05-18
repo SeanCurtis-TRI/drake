@@ -5,8 +5,9 @@
 #include <vector>
 
 #include "drake/geometry/geometry_context.h"
-#include "drake/geometry/geometry_frame.h"
 #include "drake/geometry/geometry_instance.h"
+#include "drake/geometry/geometry_query_inputs.h"
+#include "drake/geometry/geometry_query_results.h"
 #include "drake/geometry/geometry_state.h"
 
 namespace drake {
@@ -89,6 +90,53 @@ void GeometryWorld<T>::SetFrameKinematics(
 template <typename T>
 unique_ptr<GeometryState<T>> GeometryWorld<T>::CreateState() {
   return make_unique<GeometryState<T>>();
+}
+
+template <typename T>
+bool GeometryWorld<T>::ComputePairwiseClosestPoints(
+    const GeometryState<T>& state,
+    std::vector<NearestPair<T>>* near_points) const {
+  return state.geometry_engine_->ComputePairwiseClosestPoints(
+      state.geometry_index_id_map_, near_points);
+}
+
+template <typename T>
+bool GeometryWorld<T>::ComputePairwiseClosestPoints(
+    const GeometryState<T>& state,
+    const std::vector<GeometryId>& ids_to_check,
+    std::vector<NearestPair<T>>* near_points) const {
+  std::vector<GeometryIndex> indices;
+  indices.reserve(ids_to_check.size());
+  for (const auto id : ids_to_check) {
+    indices.push_back(state.geometries_.at(id).get_engine_index());
+  }
+  return state.geometry_engine_->ComputePairwiseClosestPoints(
+      state.geometry_index_id_map_, indices, near_points);
+}
+
+template <typename T>
+bool GeometryWorld<T>::ComputePairwiseClosestPoints(
+    const GeometryState<T>& state,
+    const std::vector<GeometryPair> &pairs,
+    std::vector<NearestPair<T>> *near_points) const {
+  std::vector<internal::GeometryIndexPair> index_pairs;
+  index_pairs.reserve(pairs.size());
+  for (const auto& pair : pairs) {
+    index_pairs.emplace_back(
+        state.geometries_.at(pair.geometry_a).get_engine_index(),
+        state.geometries_.at(pair.geometry_b).get_engine_index());
+  }
+  return state.geometry_engine_->ComputePairwiseClosestPoints(
+      state.geometry_index_id_map_, index_pairs, near_points);
+}
+
+template <typename T>
+bool GeometryWorld<T>::FindClosestGeometry(
+    const GeometryState<T>& state,
+    const Eigen::Matrix3Xd& points,
+    std::vector<PointProximity<T>>* near_bodies) const {
+  return state.geometry_engine_->FindClosestGeometry(
+      state.geometry_index_id_map_, points, near_bodies);
 }
 
 template <typename T>

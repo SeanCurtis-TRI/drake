@@ -6,15 +6,19 @@
 namespace drake {
 namespace geometry {
 
-// These structs are for internal use only and are *not* part of the public
-// API.
-namespace internal {
-struct GeometryIndexPair {
-  GeometryIndexPair(GeometryIndex i1, GeometryIndex i2) : index1(i1), index2(i2) {}
-  GeometryIndex index1;
-  GeometryIndex index2;
+/** An ordered pair of geometries -- given by identifier. */
+struct GeometryPair {
+  GeometryPair(GeometryId idA, GeometryId idB)
+      : geometry_a(idA), geometry_b(idB) {}
+  GeometryId geometry_a;
+  GeometryId geometry_b;
 };
-}  // namespace internal
+
+/** An ordered pair of frames -- given by identifier. */
+struct FramePair {
+  FrameId frame_a;
+  FrameId frame_b;
+};
 
 }  // namespace geometry
 }  // namespace drake
