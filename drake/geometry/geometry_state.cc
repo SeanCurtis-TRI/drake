@@ -121,15 +121,30 @@ bool GeometryState<T>::source_is_active(SourceId source_id) const {
 }
 
 template <typename T>
-void GeometryState<T>::RegisterNewSource(SourceId source_id) {
-  if (source_frame_id_map_.find(source_id) == source_frame_id_map_.end()) {
-    source_frame_id_map_[source_id];
-  } else {
-    using std::to_string;
-    throw std::logic_error("Trying to register a new source in the geometry "
-                           "state with the id of a previously existing state: "
-                           + to_string(source_id) + ".");
+const std::string& GeometryState<T>::get_source_name(SourceId id) const {
+  using std::to_string;
+  auto itr = source_names_.find(id);
+  if (itr != source_names_.end()) return itr->second;
+  throw std::logic_error(
+      "Querying source name for an invalid source id: " + to_string(id) +
+          ".");
+}
+
+template <typename T>
+void GeometryState<T>::RegisterNewSource(SourceId source_id,
+                                         const std::string& name) {
+  // GeometryWorld should always provide a unique id, confirm in debug.
+  DRAKE_ASSERT(source_names_.find(source_id) == source_names_.end());
+  // The user can provide bad names, _always_ test.
+  for (const auto&pair : source_names_) {
+    if (pair.second == name) {
+      throw std::logic_error(
+          "Registering new source with duplicate name: " + name + ".");
+    }
   }
+  source_frame_id_map_[source_id];
+  source_root_frame_map_[source_id];
+  source_names_[source_id] = name;
 }
 
 template <typename T>

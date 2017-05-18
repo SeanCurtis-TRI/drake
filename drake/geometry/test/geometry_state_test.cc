@@ -10,9 +10,9 @@
 #include "drake/geometry/frame_kinematics_set.h"
 #include "drake/geometry/geometry_frame.h"
 #include "drake/geometry/geometry_instance.h"
+#include "drake/geometry/geometry_world.h"
 #include "drake/geometry/shapes.h"
 #include "drake/geometry/test/expect_error_message.h"
-#include "drake/geometry/test/geometry_world_stub.h"
 
 namespace drake {
 namespace geometry {
@@ -86,9 +86,9 @@ class GeometryStateTest : public ::testing::Test {
   }
 
   // Utility method for adding a source to the state.
-  SourceId NewSource() {
+  SourceId NewSource(const std::string& name = "") {
     SourceId s_id = SourceId::get_new_id();
-    geometry_state_.RegisterNewSource(s_id);
+    geometry_state_.RegisterNewSource(s_id, name == "" ? source_name : name);
     return s_id;
   }
 
@@ -242,6 +242,8 @@ class GeometryStateTest : public ::testing::Test {
   std::vector<Isometry3<double>> X_PF_;
   // The poses of the geometries in the parent frame.
   std::vector<Isometry3<double>> X_FG_;
+  // The default source name.
+  const std::string source_name{"default_source"};
 };
 
 // Confirms that a new GeometryState has no data.
@@ -249,6 +251,32 @@ TEST_F(GeometryStateTest, Constructor) {
   EXPECT_EQ(geometry_state_.get_num_sources(), 0);
   EXPECT_EQ(geometry_state_.get_num_frames(), 0);
   EXPECT_EQ(geometry_state_.get_num_geometries(), 0);
+}
+
+// Confirms the registration of the source with a user-specified name, a default
+// name, and requesting the name for an invalid id. This also folds in looking
+// up source name for invalid id -- because this already implicitly tests
+// successful look up.
+TEST_F(GeometryStateTest, SourceRegistrationWithNames) {
+  using std::to_string;
+
+  // Case: Successful registration of unique source id and name.
+  SourceId s_id = SourceId::get_new_id();
+  std::string name = "Unique_" + to_string(s_id);
+  EXPECT_NO_THROW(geometry_state_.RegisterNewSource(s_id, name));
+  EXPECT_TRUE(geometry_state_.source_is_active(s_id));
+  EXPECT_EQ(geometry_state_.get_source_name(s_id), name);
+
+  // Case: Unique id with duplicate name.
+  EXPECT_ERROR_MESSAGE(
+      geometry_state_.RegisterNewSource(SourceId::get_new_id(), name),
+      std::logic_error,
+      "Registering new source with duplicate name: Unique_\\d+.");
+
+  // Case: query with invalid source id.
+  EXPECT_ERROR_MESSAGE(geometry_state_.get_source_name(SourceId::get_new_id()),
+                       std::logic_error,
+                       "Querying source name for an invalid source id: \\d+.");
 }
 
 // Tests the geometry statistics values. It uses the single-source tree to
@@ -393,7 +421,7 @@ TEST_F(GeometryStateTest, AddFrameToSourceWithFrames) {
 TEST_F(GeometryStateTest, AddFrameToNewSourceWithFrames) {
   SourceId s_id = SetUpSingleSourceTree();
   SourceId new_s_id = SourceId::get_new_id();
-  geometry_state_.RegisterNewSource(new_s_id);
+  geometry_state_.RegisterNewSource(new_s_id, "new_source");
   FrameId fid = geometry_state_.RegisterFrame(new_s_id, *frame_.get());
   // Confirm addition.
   EXPECT_EQ(geometry_state_.GetSourceId(fid), new_s_id);
@@ -485,7 +513,7 @@ TEST_F(GeometryStateTest, RemoveFrameInvalid) {
 
   // Case: Valid source and frame, but frame does _not_ belong to source.
   SourceId s_id2 = SourceId::get_new_id();
-  geometry_state_.RegisterNewSource(s_id2);
+  geometry_state_.RegisterNewSource(s_id2, "new_source");
   FrameId frame_id = geometry_state_.RegisterFrame(s_id2, *frame_.get());
   EXPECT_EQ(geometry_state_.get_num_frames(), kFrameCount + 1);
   EXPECT_ERROR_MESSAGE(
@@ -735,7 +763,7 @@ TEST_F(GeometryStateTest, RemoveGeometryInvalid) {
 
   // Case: Valid geometry and source, but geometry belongs to different source.
   SourceId s_id2 = SourceId::get_new_id();
-  geometry_state_.RegisterNewSource(s_id2);
+  geometry_state_.RegisterNewSource(s_id2, "new_source");
   FrameId frame_id = geometry_state_.RegisterFrame(s_id2, *frame_);
   EXPECT_EQ(geometry_state_.get_num_frames(), kFrameCount + 1);
   GeometryId g_id = geometry_state_.RegisterGeometry(
@@ -852,7 +880,9 @@ TEST_F(GeometryStateTest, GetParentGeometry) {
 // Tests the validation of frame kinematics data provided.
 TEST_F(GeometryStateTest, ValidateKinematicsData) {
   SourceId s_id = SetUpSingleSourceTree();
-  FrameKinematicsSet<double> fks = GeometryWorld<double>::MakeFKS(s_id);
+  GeometryWorld<double> g_world;
+  FrameKinematicsSet<double> fks = g_world.GetFrameKinematicsSet(
+      geometry_state_, s_id);
   // Create one pose per frame.
   std::vector<SpatialPose<double>> poses;
   for (size_t i = 0; i < frames_.size(); ++i) {
@@ -901,7 +931,9 @@ TEST_F(GeometryStateTest, ValidateKinematicsData) {
 // of constructs.
 TEST_F(GeometryStateTest, SetKinematicsData) {
   SourceId s_id = SetUpSingleSourceTree();
-  FrameKinematicsSet<double> fks = GeometryWorld<double>::MakeFKS(s_id);
+  GeometryWorld<double> g_world;
+  FrameKinematicsSet<double> fks = g_world.GetFrameKinematicsSet(
+      geometry_state_, s_id);
 
   // Create a vector of poses (initially set to the identity pose).
   SpatialPose<double> identity(Quaternion<double>(1, 0, 0, 0),
