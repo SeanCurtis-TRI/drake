@@ -197,10 +197,25 @@ class GeometryWorld {
    @param source_id     The identifier for the geometry source registering the
                         frame.
    @param frame         The definition of the frame to add.
+   @returns  A newly allocated frame id.
    @throws std::logic_error  If the `source_id` does _not_ map to an active
                              source. */
   FrameId RegisterFrame(GeometryState<T>* state, SourceId source_id,
                         const GeometryFrame<T>& frame);
+
+  /** Registers a new frame for the given source as a child of a previously
+      registered frame. The id of the new frame is returned.
+   @param state        A mutable geometry state for this geometry world.
+   @param source_id    The id of the source for which this frame is allocated.
+   @param parent_id    The id of the parent frame.
+   @param frame        The frame to register.
+   @returns  A newly allocated frame id.
+   @throws std::logic_error  1. If the `source_id` does _not_ map to an active
+                             source, or
+                             2. If the `parent_id` does _not_ map to a known
+                             frame or does not belong to the source. */
+  FrameId RegisterFrame(GeometryState<T>* state, SourceId source_id,
+                        FrameId parent_id, const GeometryFrame<T>& frame);
 
   /**
    Declares a `geometry` instance as "hanging" from the specified frame at the
@@ -270,9 +285,6 @@ class GeometryWorld {
   /**
    Clears all the registered frames and geometries from this source, but leaves
    the source active for future registration of frames and geometries.
-
-   The system aborts if the `source_id` is not an active source.
-
    @param state       A mutable geometry state for this geometry world.
    @param source_id   The identifier of the source to be deactivated and
                       removed.
@@ -284,13 +296,12 @@ class GeometryWorld {
    Removes the given frame from the the indicated source's frames. All
    registered geometries connected to this frame will also be removed from the
    world.
-
-   The system aborts if the `source_id` is not an active source, or if the
-   `frame_id` does not belong to the given source.
-
    @param state       A mutable geometry state for this geometry world.
    @param source_id   The identifier for the owner geometry source.
-   @param frame_id    The identifier of the frame to remove. */
+   @param frame_id    The identifier of the frame to remove.
+   @throws std::logic_error If:
+                            1. The `source_id` is not an active source, or
+                            2. the `frame_id` doesn't belong to the source. */
   void RemoveFrame(GeometryState<T>* state, SourceId source_id,
                    FrameId frame_id);
 
@@ -298,13 +309,13 @@ class GeometryWorld {
    Removes the given geometry from the the indicated source's geometries. All
    registered geometries connected to this geometry will also be removed from
    the world.
-
-   The system aborts if the `source_id` is not an active source, or if the
-   `frame_id` does not belong to the given source.
-
    @param state       A mutable geometry state for this geometry world.
    @param source_id   The identifier for the owner geometry source.
-   @param geometry_id The identifier of the geometry to remove. */
+   @param geometry_id The identifier of the geometry to remove.
+   @throws std::logic_error If:
+                            1. The `source_id` is not an active source, or
+                            2. the `geometry_id` doesn't belong to the source.
+   */
   void RemoveGeometry(GeometryState<T>* state, SourceId source_id,
                       GeometryId geometry_id);
   /** @} */
