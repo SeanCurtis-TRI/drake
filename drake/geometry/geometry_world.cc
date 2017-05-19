@@ -40,8 +40,14 @@ template <typename T>
 FrameId GeometryWorld<T>::RegisterFrame(GeometryState<T>* state,
                                         SourceId source_id,
                                         const GeometryFrame<T>& frame) {
-  FrameId id = state->RegisterFrame(source_id, frame);
-  return id;
+  return state->RegisterFrame(source_id, frame);
+}
+
+template <typename T>
+FrameId GeometryWorld<T>::RegisterFrame(GeometryState<T>* state,
+                                        SourceId source_id, FrameId parent_id,
+                                        const GeometryFrame<T>& frame) {
+  return state->RegisterFrame(source_id, parent_id, frame);
 }
 
 template <typename T>
@@ -70,6 +76,18 @@ template <typename T>
 void GeometryWorld<T>::ClearSource(GeometryState<T>* state,
                                    SourceId source_id) {
   state->ClearSource(source_id);
+}
+
+template <typename T>
+void GeometryWorld<T>::RemoveFrame(GeometryState<T>* state, SourceId source_id,
+                                   FrameId frame_id) {
+  state->RemoveFrame(source_id, frame_id);
+}
+
+template <typename T>
+void GeometryWorld<T>::RemoveGeometry(GeometryState<T>* state, SourceId source_id,
+                                      GeometryId geometry_id) {
+  state->RemoveGeometry(source_id, geometry_id);
 }
 
 template <typename T>
