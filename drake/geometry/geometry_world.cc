@@ -85,14 +85,15 @@ void GeometryWorld<T>::RemoveFrame(GeometryState<T>* state, SourceId source_id,
 }
 
 template <typename T>
-void GeometryWorld<T>::RemoveGeometry(GeometryState<T>* state, SourceId source_id,
+void GeometryWorld<T>::RemoveGeometry(GeometryState<T>* state,
+                                      SourceId source_id,
                                       GeometryId geometry_id) {
   state->RemoveGeometry(source_id, geometry_id);
 }
 
 template <typename T>
 FrameKinematicsSet<T> GeometryWorld<T>::GetFrameKinematicsSet(
-    const GeometryState<T>& state, SourceId source_id) {
+    const GeometryState<T>& state, SourceId source_id) const {
   DRAKE_ASSERT_VOID(AssertValidSource(state, source_id));
   FrameKinematicsSet<T> set(source_id);
   return set;
@@ -155,6 +156,14 @@ bool GeometryWorld<T>::FindClosestGeometry(
     std::vector<PointProximity<T>>* near_bodies) const {
   return state.geometry_engine_->FindClosestGeometry(
       state.geometry_index_id_map_, points, near_bodies);
+}
+
+template <typename T>
+bool GeometryWorld<T>::ComputeContact(const GeometryState<T>& state,
+                    std::vector<Contact<T>>* contacts) const {
+  return state.geometry_engine_->ComputeContact(
+      state.geometry_index_id_map_, state.anchored_geometry_index_id_map_,
+      contacts);
 }
 
 template <typename T>
