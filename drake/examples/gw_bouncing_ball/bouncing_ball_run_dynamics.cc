@@ -16,6 +16,7 @@ namespace {
 
 using geometry::GeometrySystem;
 using geometry::SourceId;
+using systems::InputPortDescriptor;
 
 int do_main() {
   systems::DiagramBuilder<double> builder;
@@ -23,14 +24,14 @@ int do_main() {
   auto geometry_system = builder.AddSystem<GeometrySystem<double>>();
   geometry_system->set_name("geometry_system");
 
-  const auto& in_port = geometry_system->AddSourceInput("ball");
-  SourceId ball_source_id = geometry_system->get_port_source_id(in_port);
+  const InputPortDescriptor<double>& gw_input_port =
+      geometry_system->AddSourceInput("ball");
+  SourceId ball_source_id = geometry_system->get_port_source_id(gw_input_port);
 
   auto bouncing_ball = builder.AddSystem<BouncingBallPlant>(ball_source_id,
                                                             geometry_system);
   bouncing_ball->set_name("BouncingBall");
-  builder.Connect(bouncing_ball->get_geometry_output_port(),
-                  in_port);
+  builder.Connect(bouncing_ball->get_geometry_output_port(), gw_input_port);
 
   // Log the state.
   auto x_logger = builder.AddSystem<systems::SignalLogger<double>>(
@@ -48,7 +49,7 @@ int do_main() {
   bouncing_ball->set_z(pendulum_context, 0.3);
   bouncing_ball->set_zdot(pendulum_context, 0.);
 
-  simulator.get_mutable_integrator()->set_maximum_step_size(0.01);
+  simulator.get_mutable_integrator()->set_maximum_step_size(0.002);
   simulator.Initialize();
   simulator.StepTo(3);
 

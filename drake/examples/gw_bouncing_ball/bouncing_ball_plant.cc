@@ -27,31 +27,39 @@ using geometry::Sphere;
 using systems::Value;
 using std::make_unique;
 
+#include <iostream>
+#define PRINT_VAR(x) std::cout <<  #x ": " << x << std::endl;
+
 template <typename T>
 BouncingBallPlant<T>::BouncingBallPlant(SourceId source_id,
                                         GeometrySystem<T>* geometry_system)
     : source_id_(source_id), geometry_system_(geometry_system) {
-  geometry_port_ = this->DeclareAbstractOutputPort(Value<FrameKinematicsSet<T>>(
-      geometry_system->MakeDefaultFrameKinematicsSet(source_id))).get_index();
-  state_port_ = this->DeclareVectorOutputPort(BouncingBallVector<T>()).get_index();
+  geometry_port_ = this->DeclareAbstractOutputPort(
+      Value<FrameKinematicsSet<T>>(
+          geometry_system->MakeDefaultFrameKinematicsSet(source_id))).
+      get_index();
+  state_port_ =
+      this->DeclareVectorOutputPort(BouncingBallVector<T>()).get_index();
   this->DeclareContinuousState(
       BouncingBallVector<T>(),
       1 /* num_q */, 1 /* num_v */, 0 /* num_z */);
   static_assert(BouncingBallVectorIndices::kNumCoordinates == 1 + 1, "");
 
   // Add geometry to geometry system
-  Vector3<T> normal(0, 0, 1);
-  Vector3<T> point(0, 0, 0);
+  Vector3<T> normal_G(0, 0, 1);
+  Vector3<T> point_G(0, 0, 0);
   geometry_system->RegisterAnchoredGeometry(
       source_id,
-      make_unique<GeometryInstance<T>>(Isometry3<double>::Identity(),
-  make_unique<HalfSpace>(normal, point)));
+      make_unique<GeometryInstance<T>>(
+          Isometry3<double>::Identity(), /* X_WG: pose of the GeometryInstance in its parent frame, in this case the world.*/
+          make_unique<HalfSpace>(normal_G, point_G)));
+
   ball_frame_id_ = geometry_system->RegisterFrame(
-      source_id, GeometryFrame<T>("ball_frame", Isometry3<T>::Identity()));
+      source_id, GeometryFrame<T>("ball_frame", Isometry3<T>::Identity() /*X_PF = X_WF*/));
   ball_id_ = geometry_system->RegisterGeometry(
       source_id, ball_frame_id_,
-      make_unique<GeometryInstance<T>>(Isometry3<double>::Identity(),
-                                       make_unique<Sphere>(0.1)));
+      make_unique<GeometryInstance<T>>(Isometry3<double>::Identity(), /*X_FG*/
+                                       make_unique<Sphere>(diameter_ / 2.0)));
 }
 
 template <typename T>
@@ -72,7 +80,10 @@ BouncingBallPlant<T>::get_geometry_output_port() const {
 template <typename T>
 void BouncingBallPlant<T>::DoCalcOutput(const systems::Context<T>& context,
                                     systems::SystemOutput<T>* output) const {
-  get_mutable_output(output)->set_value(get_state(context).get_value());
+  // 1) Output for the plant's state.
+  get_mutable_state_output(output)->set_value(get_state(context).get_value());
+
+  // 2) Output for GeometrySystem's input.
   FrameKinematicsSet<T> fks =
       geometry_system_->GetFrameKinematicsSet(context, source_id_);
   const BouncingBallVector<T>& state = get_state(context);
@@ -97,21 +108,24 @@ void BouncingBallPlant<T>::DoCalcTimeDerivatives(
   geometry_system_->ComputeContact(context, &contacts);
   T fC = 0; // the contact force
   if (contacts.size() > 0) {
-    std::cout << "t = " << context.get_time() << ", z = " << state.z() << ", has " << contacts.size() << " contacts";
+    std::cout << "t = " << context.get_time() << ", z = " << state.z() << ", has " << contacts.size() << " contacts\n";
     if (contacts.size() != 1) throw std::logic_error(
           "Bouncing ball should always have at most one contact.");
 
     const T& x = contacts[0].depth;  // Penetration depth, > 0 at penetration.
     const T& xdot = -state.zdot();  // Penetration rate, > 0 during penetration.
 
-    fC = k_ * x * (1.0 - d_ * xdot);
+    PRINT_VAR(contacts[0].depth);
+    PRINT_VAR(state.zdot());
+
+    fC = k_ * x * (1.0 + d_ * xdot);
     std::cout << ", fC: " << fC << "\n";
 
   }
   derivative_vector->set_z(state.zdot());
   const T fN = max(0.0, fC);
 
-  derivative_vector->set_zdot((- m_ * g_ + fN));
+  derivative_vector->set_zdot((- m_ * g_ + fN) / m_);
 }
 
 // BouncingBallPlant has no constructor arguments, so there's no work to do
