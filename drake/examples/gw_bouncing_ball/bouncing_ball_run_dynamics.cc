@@ -2,6 +2,7 @@
 
 #include "drake/common/call_matlab.h"
 #include "drake/examples/gw_bouncing_ball/bouncing_ball_plant.h"
+#include "drake/geometry/geometry_system.h"
 #include "drake/systems/analysis/simulator.h"
 #include "drake/systems/framework/diagram.h"
 #include "drake/systems/framework/diagram_builder.h"
@@ -13,16 +14,29 @@ namespace examples {
 namespace bouncing_ball {
 namespace {
 
+using geometry::GeometrySystem;
+using geometry::SourceId;
+
 int do_main() {
   systems::DiagramBuilder<double> builder;
-  auto bouncing_ball = builder.AddSystem<BouncingBallPlant>();
+
+  auto geometry_system = builder.AddSystem<GeometrySystem<double>>();
+  geometry_system->set_name("geometry_system");
+
+  const auto& in_port = geometry_system->AddSourceInput("ball");
+  SourceId ball_source_id = geometry_system->get_port_source_id(in_port);
+
+  auto bouncing_ball = builder.AddSystem<BouncingBallPlant>(ball_source_id,
+                                                            geometry_system);
   bouncing_ball->set_name("BouncingBall");
+  builder.Connect(bouncing_ball->get_geometry_output_port(),
+                  in_port);
 
   // Log the state.
   auto x_logger = builder.AddSystem<systems::SignalLogger<double>>(
       BouncingBallVectorIndices::kNumCoordinates);
   x_logger->set_name("x_logger");
-  builder.Connect(bouncing_ball->get_output_port(),
+  builder.Connect(bouncing_ball->get_state_output_port(),
                   x_logger->get_input_port(0));
 
   auto diagram = builder.Build();
