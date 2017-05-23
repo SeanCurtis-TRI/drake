@@ -25,13 +25,16 @@ drake_cc_library(
 
 drake_cc_binary(
     name = "bouncing_ball_run_dynamics",
+    testonly = 1,
     srcs = ["bouncing_ball_run_dynamics.cc"],
     add_test_rule = 1,
     deps = [
         ":bouncing_ball_plant",
+        "//drake/common:call_matlab",
         "//drake/systems/analysis:simulator",
         "//drake/systems/framework:diagram",
         "//drake/systems/primitives:constant_vector_source",
+        "//drake/systems/primitives:signal_logger",
     ],
 )
 
