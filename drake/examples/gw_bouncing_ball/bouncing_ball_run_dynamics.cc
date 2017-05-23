@@ -34,8 +34,9 @@ int do_main() {
   bouncing_ball->set_z(pendulum_context, 0.3);
   bouncing_ball->set_zdot(pendulum_context, 0.);
 
+  simulator.get_mutable_integrator()->set_maximum_step_size(0.01);
   simulator.Initialize();
-  simulator.StepTo(10);
+  simulator.StepTo(3);
 
 //  const int nsteps = x_logger->sample_times().rows();
 //  MatrixX<double> all_data(nsteps, 2);
@@ -44,14 +45,28 @@ int do_main() {
 //  file << all_data;
 //  file.close();
 
-  // Plot the results (launch lcm_call_matlab_client to see the plots).
   using common::CallMatlab;
+#if 0
+  // Plot the results (launch lcm_call_matlab_client to see the plots).
   CallMatlab("figure", 1);
   CallMatlab("plot",
              x_logger->sample_times(), x_logger->data().row(0),
              x_logger->sample_times(), x_logger->data().row(1));
   CallMatlab("legend", "z", "zdot");
   CallMatlab("axis", "tight");
+#endif
+
+  std::stringstream cmd;
+  cmd << "time = [" << x_logger->sample_times() << "];";
+  CallMatlab("eval", cmd.str());
+
+  cmd.str("");
+  cmd << "z = [" << x_logger->data().row(0).transpose() << "];";
+  CallMatlab("eval", cmd.str());
+
+  cmd.str("");
+  cmd << "zdot = [" << x_logger->data().row(1).transpose() << "];";
+  CallMatlab("eval", cmd.str());
 
   return 0;
 }
