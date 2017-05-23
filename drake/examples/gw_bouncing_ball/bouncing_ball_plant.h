@@ -59,8 +59,8 @@ class BouncingBallPlant : public systems::LeafSystem<T> {
 
  protected:
   // System<T> override.
-  BouncingBallPlant<AutoDiffXd>* DoToAutoDiffXd() const override;
-  BouncingBallPlant<symbolic::Expression>* DoToSymbolic() const override;
+//  BouncingBallPlant<AutoDiffXd>* DoToAutoDiffXd() const override;
+//  BouncingBallPlant<symbolic::Expression>* DoToSymbolic() const override;
 
  private:
   void DoCalcOutput(const MyContext& context, MyOutput* output) const override;
