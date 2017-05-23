@@ -82,7 +82,7 @@ class BouncingBallPlant : public systems::LeafSystem<T> {
     return dynamic_cast<BouncingBallVector<T>*>(cstate->get_mutable_vector());
   }
 
-  BouncingBallVector<T>* get_mutable_output(MyOutput* output) const {
+  BouncingBallVector<T>* get_mutable_state_output(MyOutput *output) const {
     return dynamic_cast<BouncingBallVector<T>*>(
         output->GetMutableVectorData(state_port_));
   }
@@ -103,7 +103,7 @@ class BouncingBallPlant : public systems::LeafSystem<T> {
   int geometry_port_;
   int state_port_;
 
-  const double diameter_{0.05};  // Ball diameter, just for visualization.
+  const double diameter_{0.1};  // Ball diameter, just for visualization.
   const double m_{0.1};   // kg
   const double g_{9.81};  // m/s^2
   // Stiffness constant [N/m]. Estimated so that under its onw weight the ball
