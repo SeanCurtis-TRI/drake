@@ -267,6 +267,10 @@ class GeometryState {
                                included in the set. */
   void SetFrameKinematics(const FrameKinematicsSet<T>& frame_kinematics);
 
+  /** Informs the state that all kinematics data has been set (via calls to
+   SetFrameKinematics()). Allows the state to update internal bookkeeping. */
+  void SignalUpdateComplete() { geometry_engine_->UpdateWorldPoses(X_WG_); }
+
   // TODO(SeanCurtis-TRI): Make this method private?
   /** Performs the work for confirming the frame values provided in the
    kinematics set cover the expected set of frames (and no more).
