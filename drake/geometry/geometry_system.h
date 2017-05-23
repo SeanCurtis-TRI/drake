@@ -115,6 +115,16 @@ class GeometrySystem : public systems::LeafSystem<T> {
                            source name or if a context has been allocated. */
   SourceId RegisterNewSource(const std::string& name = "");
 
+  /** Returns a default FrameKinematicsSet for the given source id. Use to
+   initialize output ports on source systems. This is necessary because the
+   FrameKinematicsSet has no default constructor. So, the output port must be
+   instantiated with a concrete example.
+   @param  source_id   The id of a registered source.
+   @returns  An empty FrameKinematicsSet tied to the source id.
+   @throws std::logic_error  If the `source_id` does _not_Map to an active
+                             source or if a context has been allocated. */
+  FrameKinematicsSet<T> MakeDefaultFrameKinematicsSet(SourceId source_id);
+
   /** Initialization registration of a new frame on this channel, receiving the
    unique id for the new frame.
    @param source_id     The identifier for the geometry source registering the
