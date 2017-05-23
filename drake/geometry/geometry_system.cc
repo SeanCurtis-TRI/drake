@@ -80,6 +80,13 @@ SourceId GeometrySystem<T>::RegisterNewSource(const std::string& name) {
 }
 
 template <typename T>
+FrameKinematicsSet<T> GeometrySystem<T>::MakeDefaultFrameKinematicsSet(
+    SourceId source_id) {
+  ThrowIfContextAllocated();
+  return geometry_world_.GetFrameKinematicsSet(*initial_state_, source_id);
+}
+
+template <typename T>
 FrameId GeometrySystem<T>::RegisterFrame(SourceId source_id,
                                          const GeometryFrame<T>& frame) {
   ThrowIfContextAllocated();
