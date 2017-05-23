@@ -106,15 +106,6 @@ class GeometrySystem : public systems::LeafSystem<T> {
    allocated a context will result in an exception. */
   //@{
 
-  /** Registers a new geometry source to GeometryWorld, receiving the unique
-  identifier for this new source.
-  @param name          The optional name of the source. If none is provided
-                       it will be named Source## where the number is the
-                       value of the returned SourceId.
-  @throws std::logic_error if the name duplicates a previously registered
-                           source name or if a context has been allocated. */
-  SourceId RegisterNewSource(const std::string& name = "");
-
   /** Returns a default FrameKinematicsSet for the given source id. Use to
    initialize output ports on source systems. This is necessary because the
    FrameKinematicsSet has no default constructor. So, the output port must be
@@ -145,7 +136,8 @@ class GeometrySystem : public systems::LeafSystem<T> {
                              source, or
                              2. the context does not belong to a sibling system.
    */
-  FrameId RegisterFrame(systems::Context<T>* context, SourceId source_id,
+  FrameId RegisterFrame(systems::Context<T>* sibling_context,
+                        SourceId source_id,
                         const GeometryFrame<T>& frame);
 
   /** Initialization registration of a new frame for the given source as a child
@@ -176,7 +168,8 @@ class GeometrySystem : public systems::LeafSystem<T> {
                              frame or does not belong to the source, or
                              3. the context does not belong to a sibling system.
    */
-  FrameId RegisterFrame(systems::Context<T>* context, SourceId source_id,
+  FrameId RegisterFrame(systems::Context<T>* sibling_context,
+                        SourceId source_id,
                         FrameId parent_id, const GeometryFrame<T>& frame);
 
   /** Initialization registration of  a `geometry` instance as "hanging" from
@@ -212,7 +205,8 @@ class GeometrySystem : public systems::LeafSystem<T> {
                              3. the `geometry` is equal to `nullptr`, or
                              4. the context does not belong to a sibling system.
    */
-  GeometryId RegisterGeometry(systems::Context<T>* context, SourceId source_id,
+  GeometryId RegisterGeometry(systems::Context<T>* sibling_context,
+                              SourceId source_id,
                               FrameId frame_id,
                               std::unique_ptr<GeometryInstance<T>> geometry);
 
@@ -261,7 +255,8 @@ class GeometrySystem : public systems::LeafSystem<T> {
                             3. the `geometry` is equal to `nullptr`, or
                             4. the context does not belong to a sibling system.
    */
-  GeometryId RegisterGeometry(systems::Context<T>* context, SourceId source_id,
+  GeometryId RegisterGeometry(systems::Context<T>* sibling_context,
+                              SourceId source_id,
                               GeometryId geometry_id,
                               std::unique_ptr<GeometryInstance<T>> geometry);
 
@@ -290,7 +285,7 @@ class GeometrySystem : public systems::LeafSystem<T> {
                              2. the context does not belong to a sibling system.
    */
   GeometryId RegisterAnchoredGeometry(
-      systems::Context<T>* context,
+      systems::Context<T>* sibling_context,
       SourceId source_id,
       std::unique_ptr<GeometryInstance<T>> geometry);
 
@@ -314,7 +309,7 @@ class GeometrySystem : public systems::LeafSystem<T> {
                              source, or
                              2. the context does not belong to a sibling system.
    */
-  void ClearSource(systems::Context<T>* context, SourceId source_id);
+  void ClearSource(systems::Context<T>* sibling_context, SourceId source_id);
 
   /** Initialization removal of the given frame from the the indicated source's
    frames. All registered geometries connected to this frame will also be
@@ -339,7 +334,7 @@ class GeometrySystem : public systems::LeafSystem<T> {
                             2. the `frame_id` doesn't belong to the source, or
                             3. the context does not belong to a sibling system.
    */
-  void RemoveFrame(systems::Context<T>* context, SourceId source_id,
+  void RemoveFrame(systems::Context<T>* sibling_context, SourceId source_id,
                    FrameId frame_id);
 
   /** Initialization removal of the given geometry from the the indicated
@@ -367,7 +362,7 @@ class GeometrySystem : public systems::LeafSystem<T> {
                             or
                             3. the context does not belong to a sibling system.
    */
-  void RemoveGeometry(systems::Context<T>* context, SourceId source_id,
+  void RemoveGeometry(systems::Context<T>* sibling_context, SourceId source_id,
                       GeometryId geometry_id);
   //@}
 
@@ -389,31 +384,31 @@ class GeometrySystem : public systems::LeafSystem<T> {
   /** Report the name for the given source id.
    @param   context   The context of a sibling system to `this` %GeometrySystem.
    See GeometryWorld::get_source_name() for details. */
-  const std::string& get_source_name(const systems::Context<T>& context,
+  const std::string& get_source_name(const systems::Context<T>& sibling_context,
                                      SourceId id) const;
 
   /** Reports if the given source id is registered.
    @param   context   The context of a sibling system to `this` %GeometrySystem.
    See GeometryWorld::SourceIsRegistered() for details. */
-  bool SourceIsRegistered(const systems::Context<T>& context,
+  bool SourceIsRegistered(const systems::Context<T>& sibling_context,
                           SourceId id) const;
 
   /** Creates a frame kinematics set for the given source id.
    @param   context   The context of a sibling system to `this` %GeometrySystem.
    See GeometryWorld::GetFrameKinematicsSet() for details. */
   FrameKinematicsSet<T> GetFrameKinematicsSet(
-      const systems::Context<T>& context, SourceId source_id) const;
+      const systems::Context<T>& sibling_context, SourceId source_id) const;
 
   /** Reports the frame to which this geometry is registered.
    @param   context   The context of a sibling system to `this` %GeometrySystem.
    See GeometryWorld::GetFrameId() for details. */
-  FrameId GetFrameId(const systems::Context<T>& context,
+  FrameId GetFrameId(const systems::Context<T>& sibling_context,
                      GeometryId geometry_id) const;
 
   /** Determines contacts across all geometries in GeometryWorld.
    @param   context   The context of a sibling system to `this` %GeometrySystem.
    See GeometryWorld::ComputeContact() for details. */
-  bool ComputeContact(const systems::Context<T>& context,
+  bool ComputeContact(const systems::Context<T>& sibling_context,
                       std::vector<Contact<T>>* contacts) const;
 
   // TODO(SeanCurtis-TRI): Flesh this out with the full set of queries.
@@ -439,7 +434,7 @@ class GeometrySystem : public systems::LeafSystem<T> {
   // Given a const sibling context, extracts a const instance of the geometry
   // state.
   const GeometryState<T>& ExtractStateViaSiblingContext(
-      const systems::Context<T>& context) const;
+      const systems::Context<T>& sibling_context) const;
 
   // Given a mutable *sibling* context, extracts a mutable GeometryContext for
   // this system from the parent diagram context. Throws an exception if such a
@@ -450,7 +445,7 @@ class GeometrySystem : public systems::LeafSystem<T> {
   // the parent diagram context. Throws an exception if such a context cannot be
   // found.
   const GeometryContext<T>& get_context(
-      const systems::Context<T>& context) const;
+      const systems::Context<T>& sibling_context) const;
 
   // Extracts a mutable geometry state from the given GeometryContext.
   // Ultimately, this should be a private utility method, but it is made public
