@@ -6,6 +6,8 @@
 #include "drake/examples/gw_bouncing_ball/gen/bouncing_ball_vector.h"
 #include "drake/systems/framework/basic_vector.h"
 #include "drake/systems/framework/leaf_system.h"
+#include "drake/geometry/geometry_ids.h"
+#include "drake/geometry/geometry_system.h"
 
 namespace drake {
 namespace examples {
@@ -22,7 +24,8 @@ namespace bouncing_ball {
 template <typename T>
 class BouncingBallPlant : public systems::LeafSystem<T> {
  public:
-  BouncingBallPlant();
+  BouncingBallPlant(geometry::SourceId source_id,
+                    geometry::GeometrySystem<T>* geometry_system);
   ~BouncingBallPlant() override;
 
   using MyContext = systems::Context<T>;
@@ -30,7 +33,8 @@ class BouncingBallPlant : public systems::LeafSystem<T> {
   using MyOutput = systems::SystemOutput<T>;
 
   /// Returns the port to output state.
-  const systems::OutputPortDescriptor<T>& get_output_port() const;
+  const systems::OutputPortDescriptor<T>& get_state_output_port() const;
+  const systems::OutputPortDescriptor<T>& get_geometry_output_port() const;
 
   void set_z(MyContext* context, const T& z) const {
     get_mutable_state(context)->set_z(z);
@@ -78,9 +82,9 @@ class BouncingBallPlant : public systems::LeafSystem<T> {
     return dynamic_cast<BouncingBallVector<T>*>(cstate->get_mutable_vector());
   }
 
-  static BouncingBallVector<T>* get_mutable_output(MyOutput* output) {
+  BouncingBallVector<T>* get_mutable_output(MyOutput* output) const {
     return dynamic_cast<BouncingBallVector<T>*>(
-        output->GetMutableVectorData(0));
+        output->GetMutableVectorData(state_port_));
   }
 
   static const BouncingBallVector<T>& get_state(const MyContext& context) {
@@ -90,6 +94,14 @@ class BouncingBallPlant : public systems::LeafSystem<T> {
   static BouncingBallVector<T>* get_mutable_state(MyContext* context) {
     return get_mutable_state(context->get_mutable_continuous_state());
   }
+
+  geometry::SourceId source_id_;
+  const geometry::GeometrySystem<T>* geometry_system_;
+  geometry::FrameId ball_frame_id_;
+  geometry::GeometryId ball_id_;
+
+  int geometry_port_;
+  int state_port_;
 
   const double diameter_{0.05};  // Ball diameter, just for visualization.
   const double m_{0.1};   // kg
