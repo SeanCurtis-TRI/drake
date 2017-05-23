@@ -113,6 +113,20 @@ drake_cc_library(
 )
 
 drake_cc_library(
+    name = "geometry_system",
+    srcs = ["geometry_system.cc"],
+    hdrs = ["geometry_system.h"],
+    deps = [
+        ":geometry_context",
+        ":geometry_instance",
+        ":geometry_state",
+        ":geometry_world",
+        "//drake/common",
+        "//drake/systems/framework",
+    ],
+)
+
+drake_cc_library(
     name = "geometry_world",
     srcs = ["geometry_world.cc"],
     hdrs = ["geometry_world.h"],
@@ -228,6 +242,13 @@ drake_cc_googletest(
         ":geometry_world",
         ":shapes",
         "//drake/common:eigen_matrix_compare",
+    ],
+)
+
+drake_cc_googletest(
+    name = "geometry_system_test",
+    deps = [
+        ":geometry_system",
     ],
 )
 

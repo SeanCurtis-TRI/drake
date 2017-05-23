@@ -10,6 +10,7 @@
 #include "drake/geometry/frame_kinematics_set.h"
 #include "drake/geometry/geometry_frame.h"
 #include "drake/geometry/geometry_ids.h"
+#include "drake/geometry/geometry_query_results.h"
 
 namespace drake {
 namespace geometry {
@@ -335,7 +336,7 @@ class GeometryWorld {
    @param state         The geometry state for this geometry world.
    @param source_id     The identifier of the evaluating geometry source. */
   FrameKinematicsSet<T> GetFrameKinematicsSet(const GeometryState<T>& state,
-                                              SourceId source_id);
+                                              SourceId source_id) const;
 
   /**
    Sets the kinematics _values_ from the given value set. GeometryWorld consumes
@@ -494,7 +495,7 @@ class GeometryWorld {
    characteristics of that collision.  */
 
   //@{
-
+#endif
   // NOTE: This maps to Model::ComputeMaximumDepthCollisionPoints().
   /** Computes the contact across all elements in the world. Only reports
    results for elements in *contact*; if two elements are separated, there will
@@ -509,8 +510,9 @@ class GeometryWorld {
 
    @param[out]  contacts    All contacts will be aggregated in this structure.
    @returns True if the operation was successful. */
-  bool ComputeContact(std::vector<Contact<T>>* contacts) const;
-
+  bool ComputeContact(const GeometryState<T>& state,
+                      std::vector<Contact<T>>* contacts) const;
+#if 0
   //@}
 
   //----------------------------------------------------------------------------
