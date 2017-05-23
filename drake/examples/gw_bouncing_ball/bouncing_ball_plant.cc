@@ -55,20 +55,20 @@ void BouncingBallPlant<T>::DoCalcTimeDerivatives(
 
 // BouncingBallPlant has no constructor arguments, so there's no work to do
 // here.
-template <typename T>
-BouncingBallPlant<AutoDiffXd>* BouncingBallPlant<T>::DoToAutoDiffXd() const {
-  return new BouncingBallPlant<AutoDiffXd>();
-}
-
-template <typename T>
-BouncingBallPlant<symbolic::Expression>*
-BouncingBallPlant<T>::DoToSymbolic() const {
-  return new BouncingBallPlant<symbolic::Expression>();
-}
+//template <typename T>
+//BouncingBallPlant<AutoDiffXd>* BouncingBallPlant<T>::DoToAutoDiffXd() const {
+//  return new BouncingBallPlant<AutoDiffXd>();
+//}
+//
+//template <typename T>
+//BouncingBallPlant<symbolic::Expression>*
+//BouncingBallPlant<T>::DoToSymbolic() const {
+//  return new BouncingBallPlant<symbolic::Expression>();
+//}
 
 template class BouncingBallPlant<double>;
-template class BouncingBallPlant<AutoDiffXd>;
-template class BouncingBallPlant<symbolic::Expression>;
+//template class BouncingBallPlant<AutoDiffXd>;
+//template class BouncingBallPlant<symbolic::Expression>;
 
 }  // namespace bouncing_ball
 }  // namespace examples
