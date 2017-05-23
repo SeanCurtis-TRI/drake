@@ -20,7 +20,9 @@ GeometryEngineStub<T>::GeometryEngineStub() : GeometryEngine<T>() {}
 template <typename T>
 GeometryIndex GeometryEngineStub<T>::AddDynamicGeometry(
     unique_ptr<Shape> shape) {
-  DRAKE_DEMAND(shape->get_type() == Shape::SPHERE);
+  if (shape->get_type() != Shape::SPHERE)
+    throw std::logic_error(
+        "Stub engine only allows spheres as dynamic geometry");
   GeometryIndex index(geometries_.size());
   geometries_.emplace_back(move(shape));
   X_WG_.emplace_back();
@@ -29,9 +31,11 @@ GeometryIndex GeometryEngineStub<T>::AddDynamicGeometry(
 }
 
 template <typename T>
-GeometryIndex GeometryEngineStub<T>::AddAnchoredGeometry(
-    std::unique_ptr<GeometryInstance<T>> geometry) {
-  throw std::runtime_error("Not implemented yet.");
+AnchoredGeometryIndex GeometryEngineStub<T>::AddAnchoredGeometry(
+    std::unique_ptr<Shape> shape) {
+  AnchoredGeometryIndex index(anchored_geometries_.size());
+  anchored_geometries_.emplace_back(move(shape));
+  return index;
 }
 
 template <typename T>
@@ -279,6 +283,105 @@ bool GeometryEngineStub<T>::FindClosestGeometry(
   }
   return true;
 }
+
+template <typename T>
+bool GeometryEngineStub<T>::ComputeContact(
+    const std::vector<GeometryId>& dynamic_map,
+    const std::vector<GeometryId>& anchored_map,
+    std::vector<Contact<T>>* contacts) const {
+  // A simple O(N²) algorithm.
+  for (int i = 0; i < get_update_input_size(); ++i) {
+    const Sphere& sphere_A = static_cast<const Sphere&>(*geometries_[i]);
+    // dynamic-anchored collisions.
+    for (int a = 0; a < static_cast<int>(anchored_geometries_.size()); ++a) {
+      optional<Contact<T>> contact;
+      switch (anchored_geometries_[a]->get_type()) {
+        case Shape::SPHERE:
+          {
+            DRAKE_DEMAND(false && "This isn't implemented yet");
+            const Sphere& sphere_B =
+                static_cast<const Sphere&>(*anchored_geometries_[a]);
+            // TODO(SeanCurtis-TRI): I need to get anchored poses.
+            contact = CollideSpheres(sphere_A, X_WG_[i].translation(),
+                                     sphere_B, X_WG_[a].translation());
+          }
+          break;
+        case Shape::HALF_SPACE:
+          {
+            const HalfSpace& half_space =
+                static_cast<const HalfSpace&>(*anchored_geometries_[a]);
+            contact = CollideHalfSpace(sphere_A, X_WG_[i].translation(),
+                                     half_space);
+          }
+          break;
+        case Shape::UNKNOWN:
+          throw std::logic_error("Anchored geometry has unknown type");
+      }
+      if (contact) {
+        (*contact).id_A = dynamic_map[i];
+        (*contact).id_B = anchored_map[a];
+        contacts->push_back(*contact);
+      }
+    }
+    // dynamic-dynamic collisions.
+    for (int j = i + 1; j < get_update_input_size(); ++j) {
+      const Sphere& sphere_B =
+          static_cast<const Sphere&>(*geometries_[j]);
+      auto contact = CollideSpheres(sphere_A, X_WG_[i].translation(),
+                                    sphere_B, X_WG_[j].translation());
+      if (contact) {
+        (*contact).id_A = dynamic_map[i];
+        (*contact).id_B = dynamic_map[j];
+        contacts->push_back(*contact);
+      }
+    }
+  }
+  return true;
+}
+
+template <typename T>
+optional<Contact<T>> GeometryEngineStub<T>::CollideSpheres(
+    const Sphere& sphere_A, const Vector3<T>& p_WA, const Sphere& sphere_B,
+    const Vector3<T>& p_WB) const {
+  auto r_AB = p_WB - p_WA;
+  T dist_sqd = r_AB.squaredNorm();
+  const double separating_dist = sphere_A.get_radius() + sphere_B.get_radius();
+  const double separating_dist_sqd = separating_dist * separating_dist;
+  if (dist_sqd < separating_dist_sqd) {
+    // Distance between *centers*!
+    T distance = sqrt(dist_sqd);
+    if (distance > Eigen::NumTraits<T>::dummy_precision()) {
+      Contact<T> contact;
+      contact.depth = separating_dist - distance;
+      contact.nhat_AcBc_W = r_AB / distance;
+      contact.p_WCa = p_WA + contact.nhat_AcBc_W * sphere_A.get_radius();
+      contact.p_WCb = p_WB - contact.nhat_AcBc_W * sphere_B.get_radius();
+      return contact;
+    }
+  }
+  return {};
+}
+
+template <typename T>
+optional<Contact<T>> GeometryEngineStub<T>::CollideHalfSpace(
+    const Sphere& sphere, const Vector3<T>& p_WA,
+    const HalfSpace& plane) const {
+  using std::abs;
+  double signed_dist = plane.get_signed_distance(p_WA) - sphere.get_radius();
+  if (signed_dist < 0) {
+    Contact<T> contact;
+    contact.depth = -signed_dist;
+    // Contact direction is *opposite* the plane normal, because the sphere is
+    // always A.
+    contact.nhat_AcBc_W = -plane.get_normal();
+    contact.p_WCa = p_WA + contact.nhat_AcBc_W * sphere.get_radius();
+    contact.p_WCb =
+        p_WA - plane.get_normal() * (sphere.get_radius() + signed_dist);
+    return contact;
+  }
+  return {};
+}
+
 
 // Explicitly instantiates on the most common scalar types.
 template class GeometryEngineStub<double>;

@@ -64,7 +64,7 @@ class GeometryEngine {
   /** Add movable geometry to the engine. The engine takes ownership of the
    instance. The instances transform is a fixed pose relative to an unknown
    parent frame (which will be determined later.
-   @param geometry    The geometry instance to add to the engine.
+   @param shape    The geometry to add to the engine.
    @return  An index by which the geometry can be referenced later. */
   // TODO(SeanCurtis-TRI): Include the invocation of the geometry.
   virtual GeometryIndex AddDynamicGeometry(std::unique_ptr<Shape> shape) = 0;
@@ -72,10 +72,12 @@ class GeometryEngine {
   /** Add anchored geometry to the engine. The engine takes ownership of the
    instance. The instance's pose is a fixed pose relative to the _world_ frame
    `W`.
-   @param geometry    The geometry instance to add to the engine.
+   @param shape    The geometry to add to the engine as anchored geometry.
    @return  An index by which the geometry can be referenced later. */
-  virtual GeometryIndex AddAnchoredGeometry(
-      std::unique_ptr<GeometryInstance<T>> data) = 0;
+  // TODO(SeanCurtis-TRI): There be a transform here; shapes that are *not*
+  // inherently defined in the world frame need to be transformed?
+  virtual AnchoredGeometryIndex AddAnchoredGeometry(
+      std::unique_ptr<Shape> shape) = 0;
 
   /** Removes the geometry associated with the given `index` from the engine.
    To maintain a compact representation, the engine can move one other geometry
@@ -216,13 +218,93 @@ class GeometryEngine {
                          double distance) const;
 #endif
   //@}
+
+  //----------------------------------------------------------------------------
+  /** @name                Collision Queries
+
+   These queries detect _collisions_ between geometry. Two geometries collide
+   if they overlap each other and are not explicitly excluded through
+   @ref collision_filter_concepts "collision filtering". These algorithms find
+   those colliding cases, characterize them, and report the essential
+   characteristics of that collision.  */
+
+  //@{
+
+  // NOTE: This maps to Model::ComputeMaximumDepthCollisionPoints().
+  /** Computes the contact across all elements in the world. Only reports
+   results for elements in *contact*; if two elements are separated, there will
+   be no result for that pair.
+
+   This method is affected by collision filtering; element pairs that have
+   been filtered will not produce contacts, even if their collision geometry is
+   penetrating.
+
+   @internal The collision filtering hasn't been implemented yet.
+
+   The output vector will *not* be cleared. Contact information will merely be
+   added to the vector.
+
+   @param[in]   dynamic_map   A map from geometry _index_ to the corresponding
+                              global geometry identifier for dynamic geometries.
+   @param[in]   anchored_map  A map from geometry _index_ to the corresponding
+                              global geometry identifier for anchored geometries.
+   @param[out]  contacts      All contacts will be aggregated in this structure.
+   @returns True if the operation was successful. */
+  virtual bool ComputeContact(
+      const std::vector<GeometryId>& dynamic_map,
+      const std::vector<GeometryId>& anchored_map,
+      std::vector<Contact<T>>* contacts) const = 0;
+
+  //@}
+#if 0
+  //----------------------------------------------------------------------------
+  /** @name                  Ray-casting Queries
+
+   These queries perform ray-cast queries. Ray-cast queries report what, if
+   anything, lies in a particular direction from a query point.
+   */
+
+  //@{
+
+  // NOTE: This maps to Model::collisionRaycast().
+  /** Cast one or more rays against the scene geometry.
+
+   @param[in]  origin           A `3 x N` matrix where each column specifies the
+                                position of a ray's origin in the world frame.
+                                If `origin` is `3 x 1`, the same origin is used
+                                for all rays.
+   @param[in]  ray_endpoint     A `3 x N` matrix where each column specifies a
+                                point *away* from the corresponding origin
+                                through which the ray passes.
+   @param[out] distances        A `N`-length vector of distance values. The
+                                `iᵗʰ` value is the distance along the `iᵗʰ` ray.
+                                The value is negative if the ray didn't hit any
+                                surface.
+   @param[out] normals          A `3 x N` matrix of values, where the `iᵗʰ`
+                                column is the normal of the surface where the
+                                `iᵗʰ` ray intersected. Values are undefined if
+                                the `iᵗʰ` distance is negative.
+   @returns True if the operation was successful.
+   */
+  bool CastRays(const Matrix3X<T>& origin,
+                const Matrix3X<T>& ray_endpoint,
+                Eigen::VectorXd* distances, Matrix3X<T>* normals) const;
+
+  //@}
+#endif
+  // TODO(SeanCurtis-TRI): The list of Model functions not yet explicitly
+  //  accounted for:
+  //      potentialCollisionPoints -- really frigging weird; could include
+  //        multiple penetrating points, but also non penetrating points.
+  //        a) This is not called outside of tests.
+  //        b) This seems to be a *very* bullet-specific method.
+  //
+
  protected:
   /*! NVI implementation for cloning GeometryEngine instances.
    @return A _raw_ pointers to the newly cloned GeometryEngine instance.
    */
   virtual GeometryEngine* DoClone() const = 0;
-
- private:
 };
 }  // namespace geometry
 }  // namespace drake
