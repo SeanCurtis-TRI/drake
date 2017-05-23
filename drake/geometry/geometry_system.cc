@@ -58,7 +58,7 @@ SourceId GeometrySystem<T>::get_port_source_id(
 
 template <typename T>
 SourceId GeometrySystem<T>::get_port_source_id(int port_index) const {
-  if (port_index < 0 &&
+  if (port_index >= 0 &&
       port_index < static_cast<int>(input_source_ids_.size())) {
     return input_source_ids_[port_index];
   }
