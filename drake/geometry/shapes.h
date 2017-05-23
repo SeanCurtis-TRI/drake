@@ -83,7 +83,7 @@ class HalfSpace final : public Shape {
   const Vector3<double> get_normal() const { return normal_; }
 
  protected:
-  virtual Shape* DoClone() const override {
+  Shape* DoClone() const override {
     return new HalfSpace(*this);
   }
 
