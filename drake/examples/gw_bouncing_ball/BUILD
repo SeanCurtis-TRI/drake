@@ -19,6 +19,8 @@ drake_cc_library(
     hdrs = ["bouncing_ball_plant.h"],
     deps = [
         ":bouncing_ball_vector",
+        "//drake/geometry:geometry_ids",
+        "//drake/geometry:geometry_system",
         "//drake/systems/framework",
     ],
 )
