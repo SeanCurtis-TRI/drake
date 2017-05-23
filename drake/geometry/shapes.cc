@@ -8,7 +8,7 @@ namespace geometry {
 // -------------          HalfSpace
 
 HalfSpace::HalfSpace(const Vector3<double>& normal,
-                     const Vector3<double>& point) : Shape(HALF_SPACE){
+                     const Vector3<double>& point) : Shape(HALF_SPACE) {
   normal_ = normal.normalized();
   d_ = -normal_.dot(point);
 }

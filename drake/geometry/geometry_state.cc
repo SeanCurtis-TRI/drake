@@ -275,8 +275,10 @@ GeometryId GeometryState<T>::RegisterAnchoredGeometry(
   // Pass the geometry to the engine.
   // TODO(SeanCurtis-TRI): I should be capturing the returned index so I can
   // remove the geometry later.
-  auto engine_index = geometry_engine_->AddAnchoredGeometry(geometry->release_shape());
-  DRAKE_ASSERT(static_cast<int>(anchored_geometry_index_id_map_.size()) == engine_index);
+  auto engine_index =
+      geometry_engine_->AddAnchoredGeometry(geometry->release_shape());
+  DRAKE_ASSERT(static_cast<int>(anchored_geometry_index_id_map_.size()) ==
+               engine_index);
   anchored_geometry_index_id_map_.push_back(geometry_id);
   return geometry_id;
 }
