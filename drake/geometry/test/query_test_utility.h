@@ -82,6 +82,8 @@ class GeometryQueryTest : public ::testing::Test {
   SourceId source_id_;
   // The state of the geometry world.
   GeometryState<double> state_;
+  // The poses of the axis spheres.
+  std::vector<Isometry3<double>> poses_;
   // The class that provides access to the GeometryState internals.
   GeometryStateTester<double> state_tester_;
   // Geometry indices for the axis-sphere configuration.

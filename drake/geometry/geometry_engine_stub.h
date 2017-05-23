@@ -4,8 +4,11 @@
 #include <vector>
 
 #include "drake/common/copyable_unique_ptr.h"
+#include "drake/common/eigen_types.h"
 #include "drake/geometry/geometry_engine.h"
 #include "drake/geometry/geometry_instance.h"
+#include "drake/geometry/geometry_query_results.h"
+#include "drake/geometry/shapes.h"
 
 namespace drake {
 namespace geometry {
@@ -30,8 +33,8 @@ class GeometryEngineStub : public GeometryEngine<T> {
 
   GeometryIndex AddDynamicGeometry(std::unique_ptr<Shape> shape) override;
 
-  GeometryIndex AddAnchoredGeometry(
-      std::unique_ptr<GeometryInstance<T>> geometry) override;
+  AnchoredGeometryIndex AddAnchoredGeometry(
+      std::unique_ptr<Shape> shape) override;
 
   optional<GeometryIndex> RemoveGeometry(GeometryIndex index) override;
 
@@ -55,6 +58,11 @@ class GeometryEngineStub : public GeometryEngine<T> {
       const Eigen::Matrix3Xd& points,
       std::vector<PointProximity<T>>* near_bodies) const override;
 
+  bool ComputeContact(
+      const std::vector<GeometryId>& dynamic_map,
+      const std::vector<GeometryId>& anchored_map,
+      std::vector<Contact<T>>* contacts) const override;
+
  protected:
   // NVI implementation for cloning GeometryEngine instances.
   // @return A _raw_ pointers to the newly cloned GeometryEngine instance.
@@ -63,6 +71,15 @@ class GeometryEngineStub : public GeometryEngine<T> {
   }
 
  private:
+  // Helper method to compute the contact between two spheres.
+  optional<Contact<T>> CollideSpheres(const Sphere& sphere_A,
+                                      const Vector3<T>& p_WA,
+                                      const Sphere& sphere_B,
+                                      const Vector3<T>& p_WB) const;
+  optional<Contact<T>> CollideHalfSpace(const Sphere& sphere,
+                                        const Vector3<T>& p_WA,
+                                        const HalfSpace& plane) const;
+
   // The underlying method for executing
   template <class PairSet>
   bool ComputePairwiseClosestPointsHelper(
@@ -72,6 +89,8 @@ class GeometryEngineStub : public GeometryEngine<T> {
 
   // The geometries owned by this geometry engine.
   std::vector<copyable_unique_ptr<Shape>> geometries_;
+  // The anchored geometries.
+  std::vector<copyable_unique_ptr<Shape>> anchored_geometries_;
   // The world poses for the geometries. It should be an invariant that
   // geometries_.size() == X_WG_.size().
   std::vector<Isometry3<T>> X_WG_;

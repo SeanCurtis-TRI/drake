@@ -160,7 +160,7 @@ drake_cc_library(
 
 drake_cc_library(
     name = "shapes",
-    srcs = [],
+    srcs = ["shapes.cc"],
     hdrs = ["shapes.h"],
     deps = [
         "//drake/common",

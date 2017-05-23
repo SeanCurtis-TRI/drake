@@ -17,14 +17,21 @@ namespace geometry {
  @tparam T The underlying scalar type. Must be a valid Eigen scalar. */
 template <typename T>
 struct Contact {
-  /** The point of contact in the world frame. */
-  Vector3<T> point_W;
-
-  /** The contact normal in the world frame. */
-  Vector3<T> normal_W;
-
-  /** The penetration distance. */
-  T distance{};
+  /** The id of the first geometry in the contact. */
+  GeometryId id_A;
+  /** The id of the second geometry in the contact. */
+  GeometryId id_B;
+  /** The point on A that most deeply penetrates B, measured and exprssed in
+   the world frame. */
+  Vector3<T> p_WCa;
+  /** The point on A that most deeply penetrates B, measured and exprssed in
+   the world frame. */
+  Vector3<T> p_WCb;
+  /** The contact normal, pointing from geometry A to geometry B, measured and
+   expressed in the world frame. */
+  Vector3<T> nhat_AcBc_W;
+  /** The penetration depth. */
+  T depth{};
 };
 
 /** The data for reporting the distance between two geometries, A and B.
