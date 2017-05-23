@@ -40,21 +40,20 @@ void GeometryQueryTest::SetUpAxisSpheres() {
   // respectively. The first sphere is rotated 90 degrees around the x-axis.
   Isometry3<double> pose;
   pose.linear() = Matrix3<double>::Identity();
-  vector<Isometry3<double>> poses;
   pose.translation() << 0, 0, 0;
   pose.linear() << 1, 0, 0,
       0, 0, -1,
       0, 1, 0;
-  poses.push_back(pose);
+  poses_.push_back(pose);
   pose.linear() = Matrix3<double>::Identity();
   pose.translation() << 1, 0, 0;
-  poses.push_back(pose);
+  poses_.push_back(pose);
   pose.translation() << 0, 1, 0;
-  poses.push_back(pose);
+  poses_.push_back(pose);
   pose.translation() << 0, 0, 1;
-  poses.push_back(pose);
+  poses_.push_back(pose);
   // bypass frame kinematics sets by setting the values directly.
-  state_tester_.get_engine()->UpdateWorldPoses(poses);
+  state_tester_.get_engine()->UpdateWorldPoses(poses_);
 
   const std::vector<GeometryId>& sphere_ids =
       state_tester_.get_index_to_id_map();

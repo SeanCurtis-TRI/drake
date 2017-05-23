@@ -382,6 +382,12 @@ class GeometryState {
   // values as the corresponding entry in source_frame_id_map_.
   std::unordered_map<SourceId, FrameIdSet> source_root_frame_map_;
 
+  // The active geometry sources and the _anchored_ geometries that have been
+  // registered on them. These don't fit in the frame hierarchy because they do
+  // not belong to dynamic frames.
+  std::unordered_map<SourceId, std::unordered_set<GeometryId>>
+      source_anchored_geometry_map_;
+
   // The active geometry source names. Each name is unique and the keys in this
   // map should be identical to those in source_frame_id_map_ and
   // source_root_frame_map_.
@@ -399,6 +405,13 @@ class GeometryState {
   // It should be an invariant that:
   // geometries_[geometry_index_id_map_[i]].get_engine_index() == i is true.
   std::vector<GeometryId> geometry_index_id_map_;
+
+  // This *implicitly* maps each extant anchored geometry engine index to its
+  // corresponding unique geometry identifier. It assumes that the index in the
+  // vector *is* the index in the engine.
+  // It should be an invariant that:
+  // geometries_[geometry_index_id_map_[i]].get_engine_index() == i is true.
+  std::vector<GeometryId> anchored_geometry_index_id_map_;
 
   // The pose of each geometry relative to the frame to which it belongs. Each
   // geometry has an "engine index". That geometry's pose is stored in this

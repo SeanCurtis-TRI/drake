@@ -144,6 +144,7 @@ void GeometryState<T>::RegisterNewSource(SourceId source_id,
   }
   source_frame_id_map_[source_id];
   source_root_frame_map_[source_id];
+  source_anchored_geometry_map_[source_id];
   source_names_[source_id] = name;
 }
 
@@ -260,7 +261,24 @@ template <typename T>
 GeometryId GeometryState<T>::RegisterAnchoredGeometry(
     SourceId source_id,
     std::unique_ptr<GeometryInstance<T>> geometry) {
-  throw std::runtime_error("Not implemented yet!");
+  using std::to_string;
+  if (geometry == nullptr) {
+    throw std::logic_error(
+        "Registering null anchored geometry on source "
+        + to_string(source_id) + ".");
+  }
+  auto& set = GetMutableValueOrThrow(source_id, &source_anchored_geometry_map_);
+
+  GeometryId geometry_id = GeometryId::get_new_id();
+  set.emplace(geometry_id);
+
+  // Pass the geometry to the engine.
+  // TODO(SeanCurtis-TRI): I should be capturing the returned index so I can
+  // remove the geometry later.
+  auto engine_index = geometry_engine_->AddAnchoredGeometry(geometry->release_shape());
+  DRAKE_ASSERT(static_cast<int>(anchored_geometry_index_id_map_.size()) == engine_index);
+  anchored_geometry_index_id_map_.push_back(geometry_id);
+  return geometry_id;
 }
 
 template <typename T>
