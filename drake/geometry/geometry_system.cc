@@ -244,12 +244,21 @@ FrameId GeometrySystem<T>::GetFrameId(const systems::Context<T> &context,
 template <typename T>
 bool GeometrySystem<T>::ComputeContact(const systems::Context<T> &context,
                                        vector<Contact<T>> *contacts) const {
+  const GeometryState<T>& state = UpdateFromInputs(context);
+  return geometry_world_.ComputeContact(state, contacts);
+}
+
+template <typename T>
+const GeometryState<T>& GeometrySystem<T>::UpdateFromInputs(
+    const Context<T>& sibling_context) const {
+  // TODO(SeanCurtis-TRI): This needs to exploit a cache to avoid doing this
+  // work redundantly.
   // This is the horrible, hacky terrible thing where I'm implicitly treating
   // my own context's const state to be mutable so I can make sure the geometry
   // world state is up to date (relative to its inputs).
   // This needs to be done in a better way that will do this only *once*
   // regardless of how many queries are performed.
-  const GeometryContext<T>& g_context = get_context(context);
+  const GeometryContext<T>& g_context = get_context(sibling_context);
   const GeometryState<T>& state = get_state(g_context);
   GeometryState<T>& mutable_state = const_cast<GeometryState<T>&>(state);
   for (int i = 0; i < this->get_num_input_ports(); ++i) {
@@ -258,8 +267,8 @@ bool GeometrySystem<T>::ComputeContact(const systems::Context<T> &context,
             ->template GetValue<FrameKinematicsSet<T>>());
   }
   mutable_state.SignalUpdateComplete();
-  // This is the read-only state.
-  return geometry_world_.ComputeContact(state, contacts);
+  return state;
+
 }
 
 template <typename T>
