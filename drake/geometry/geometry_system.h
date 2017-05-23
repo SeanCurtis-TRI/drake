@@ -421,6 +421,12 @@ class GeometrySystem : public systems::LeafSystem<T> {
   //@}
 
  private:
+  // Updates the state of geometry world from the inputs. It is *declared* const
+  // so it can be invoked in the const query methods.  But it has mutable
+  // behavior. Part of a horrible hack.
+  const GeometryState<T>& UpdateFromInputs(
+      const systems::Context<T>& sibling_context) const;
+
   // Override of construction to account for
   //    - instantiating a GeometryContext instance (as opposed to LeafContext),
   //    - modifying the state to prevent additional sources being added. */
