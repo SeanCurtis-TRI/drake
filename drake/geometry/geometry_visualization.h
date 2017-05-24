@@ -16,7 +16,6 @@ template <typename T> class GeometrySystem;
  @param system      The system whose geometry will be sent in an LCM message.
  @throws std::logic_error if the system has already had its context allocated.
  */
-template <typename T>
 void DispatchLoadMessage(const GeometrySystem<double>& system);
 
 }  // namespace geometry
