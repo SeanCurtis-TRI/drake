@@ -419,6 +419,9 @@ class GeometrySystem : public systems::LeafSystem<T> {
   //@}
 
  private:
+  // Allow the load dispatch to peek into GeometrySystem.
+  friend void DispatchLoadMessage(const GeometrySystem<T>&);
+
   // Updates the state of geometry world from the inputs. It is *declared* const
   // so it can be invoked in the const query methods.  But it has mutable
   // behavior. Part of a horrible hack.

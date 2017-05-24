@@ -61,6 +61,17 @@ void GeometryEngineStub<T>::UpdateWorldPoses(const vector<Isometry3<T>>& X_WG) {
   X_WG_.insert(X_WG_.begin(), X_WG.begin(), X_WG.end());
 }
 
+template <typename T>
+const Shape& GeometryEngineStub<T>::get_shape(GeometryIndex index) const {
+  return *geometries_[index].get();
+}
+
+template <typename T>
+const Shape& GeometryEngineStub<T>::get_anchored_shape(
+    AnchoredGeometryIndex index) const {
+  return *anchored_geometries_[index].get();
+}
+
 // Helpers for queries ------------------------------------------------------
 
 // Base class for iterators that have to create the O(N²) combinations of

@@ -128,6 +128,19 @@ drake_cc_library(
 )
 
 drake_cc_library(
+    name = "geometry_visualization",
+    srcs = ["geometry_visualization.cc"],
+    hdrs = ["geometry_visualization.h"],
+    deps = [
+        ":geometry_state",
+        ":geometry_system",
+        "//drake/lcm",
+        "//drake/lcmtypes:viewer",
+        "//drake/math:geometric_transform",
+    ],
+)
+
+drake_cc_library(
     name = "geometry_world",
     srcs = ["geometry_world.cc"],
     hdrs = ["geometry_world.h"],
@@ -250,6 +263,7 @@ drake_cc_googletest(
     name = "geometry_system_test",
     deps = [
         ":geometry_system",
+        ":geometry_visualization",
     ],
 )
 

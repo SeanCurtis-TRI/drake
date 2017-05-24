@@ -98,6 +98,12 @@ class GeometryEngine {
   //    a vector and the caller sets values there directly.
   virtual void UpdateWorldPoses(const std::vector<Isometry3<T>>& X_WG) = 0;
 
+  /** Returns a const reference to the ith shape. */
+  virtual const Shape& get_shape(GeometryIndex index) const = 0;
+
+  /** Returns a const reference to the ith anchored shape. */
+  virtual const Shape& get_anchored_shape(AnchoredGeometryIndex index) const = 0;
+
   //@}
 
   /** @name                   Proximity Queries
