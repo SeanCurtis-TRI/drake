@@ -3,11 +3,17 @@
 #include "drake/common/call_matlab.h"
 #include "drake/examples/gw_bouncing_ball/bouncing_ball_plant.h"
 #include "drake/geometry/geometry_system.h"
+#include "drake/geometry/geometry_visualization.h"
+#include "drake/lcm/drake_lcm.h"
+#include "drake/lcmt_viewer_draw.hpp"
 #include "drake/systems/analysis/simulator.h"
 #include "drake/systems/framework/diagram.h"
 #include "drake/systems/framework/diagram_builder.h"
+#include "drake/systems/lcm/lcm_publisher_system.h"
+#include "drake/systems/lcm/serializer.h"
 #include "drake/systems/primitives/constant_vector_source.h"
 #include "drake/systems/primitives/signal_logger.h"
+#include "drake/systems/rendering/pose_bundle_to_draw_message.h"
 
 namespace drake {
 namespace examples {
@@ -16,7 +22,11 @@ namespace {
 
 using geometry::GeometrySystem;
 using geometry::SourceId;
+using lcm::DrakeLcm;
 using systems::InputPortDescriptor;
+using systems::rendering::PoseBundleToDrawMessage;
+using systems::lcm::LcmPublisherSystem;
+using systems::lcm::Serializer;
 
 int do_main() {
   systems::DiagramBuilder<double> builder;
@@ -29,8 +39,21 @@ int do_main() {
   auto bouncing_ball = builder.AddSystem<BouncingBallPlant>(ball_source_id,
                                                             geometry_system);
   bouncing_ball->set_name("BouncingBall");
+
+  DrakeLcm lcm;
+  PoseBundleToDrawMessage* converter =
+      builder.template AddSystem<PoseBundleToDrawMessage>();
+  LcmPublisherSystem* publisher =
+      builder.template AddSystem<LcmPublisherSystem>(
+          "DRAKE_VIEWER_DRAW",
+  std::make_unique<Serializer<drake::lcmt_viewer_draw>>(), &lcm);
+  publisher->set_publish_period(1/60.0);
+
+
   builder.Connect(bouncing_ball->get_geometry_output_port(),
                   geometry_system->get_port_for_source_id(ball_source_id));
+  builder.Connect(*geometry_system, *converter);
+  builder.Connect(*converter, *publisher);
 
   // Log the state.
   auto x_logger = builder.AddSystem<systems::SignalLogger<double>>(
@@ -39,6 +62,9 @@ int do_main() {
   builder.Connect(bouncing_ball->get_state_output_port(),
                   x_logger->get_input_port(0));
 
+  // Last thing before building the diagram; dispatch the message to load
+  // geometry.
+  geometry::DispatchLoadMessage(*geometry_system);
   auto diagram = builder.Build();
 
   systems::Simulator<double> simulator(*diagram);
@@ -49,8 +75,9 @@ int do_main() {
   bouncing_ball->set_zdot(pendulum_context, 0.);
 
   simulator.get_mutable_integrator()->set_maximum_step_size(0.002);
+  simulator.set_target_realtime_rate(1.f);
   simulator.Initialize();
-  simulator.StepTo(3);
+  simulator.StepTo(13);
 
 //  const int nsteps = x_logger->sample_times().rows();
 //  MatrixX<double> all_data(nsteps, 2);
