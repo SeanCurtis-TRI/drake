@@ -40,6 +40,10 @@ class GeometryEngineStub : public GeometryEngine<T> {
 
   void UpdateWorldPoses(const std::vector<Isometry3<T>>& X_WP) override;
 
+  const Shape& get_shape(GeometryIndex index) const override;
+
+  const Shape& get_anchored_shape(AnchoredGeometryIndex index) const override;
+
   // Proximity query methods
   bool ComputePairwiseClosestPoints(
       const std::vector<GeometryId>& ids,

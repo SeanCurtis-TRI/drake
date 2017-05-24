@@ -280,6 +280,7 @@ GeometryId GeometryState<T>::RegisterAnchoredGeometry(
   DRAKE_ASSERT(static_cast<int>(anchored_geometry_index_id_map_.size()) ==
                engine_index);
   anchored_geometry_index_id_map_.push_back(geometry_id);
+  anchored_geometries_[geometry_id] = engine_index;
   return geometry_id;
 }
 
