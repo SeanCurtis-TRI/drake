@@ -73,6 +73,10 @@ class GeometrySystem : public systems::LeafSystem<T> {
   void DoCalcOutput(const systems::Context<T>& context,
                     systems::SystemOutput<T>* output) const override;
 
+  /// Allocates a PoseBundle of length equal to the concatenation of all inputs.
+  std::unique_ptr<systems::AbstractValue> AllocateOutputAbstract(
+      const systems::OutputPortDescriptor<T>& descriptor) const override;
+
   /** @name             Topology Manipulation
    Topology manipulation consists of changing the data contained in
    GeometryWorld. This includes registering a new geometry source, adding or
