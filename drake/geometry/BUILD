@@ -123,6 +123,7 @@ drake_cc_library(
         ":geometry_world",
         "//drake/common",
         "//drake/systems/framework",
+        "//drake/systems/rendering:pose_bundle",
     ],
 )
 

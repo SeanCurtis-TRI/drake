@@ -153,6 +153,12 @@ class GeometryWorld {
   /** Default constructor. */
   GeometryWorld() = default;
 
+  /** Reports the number of moving frames in %GeometryWorld. */
+  int get_num_frames(const GeometryState<T>& state) const;
+
+  /** Reports the number of dynamic geometries. */
+  int get_num_moving_geometries(const GeometryState<T>& state) const;
+
   /** @name Registration methods
 
    The registration methods are how system entities inform GeometryWorld of
