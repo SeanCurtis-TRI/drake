@@ -89,7 +89,10 @@ template <typename T>
   std::unique_ptr<AbstractValue> GeometrySystem<T>::AllocateOutputAbstract(
   const OutputPortDescriptor<T>&) const {
   using std::to_string;
-  ThrowIfContextAllocated();
+  // NOTE: Using initial_state_ *feels* a bit fragile. This takes place *after*
+  // the context has been allocated. Tests against an allocated context
+  // guarantee that no change can be made to the model geometry state to which
+  // this variable points and now. It is carved in stone. So, it will be safe.
   auto value = AbstractValue::Make(PoseBundle<T>(
       geometry_world_.get_num_moving_geometries(*initial_state_)));
   // This is the work that should be done whenever the pose bundle is resize;
@@ -322,7 +325,7 @@ const GeometryState<T>& GeometrySystem<T>::UpdateFromInputs(
 template <typename T>
 std::unique_ptr<Context<T>> GeometrySystem<T>::MakeContext() const {
   // Disallow further geometry source additions.
-  if (initial_state_ != nullptr) initial_state_ = nullptr;
+  context_allocated_ = true;
   return std::unique_ptr<Context<T>>(new GeometryContext<T>());
 }
 
@@ -382,7 +385,7 @@ const GeometryState<T>& GeometrySystem<T>::get_state(
 
 template <typename T>
 void GeometrySystem<T>::ThrowIfContextAllocated() const {
-  if (initial_state_ == nullptr)
+  if (context_allocated_)
     throw std::logic_error("Operation invalid; a context has already been "
                            "allocated.");
 }
