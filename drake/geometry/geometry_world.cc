@@ -21,6 +21,17 @@ using std::unique_ptr;
 using std::vector;
 
 template <typename T>
+int GeometryWorld<T>::get_num_frames(const GeometryState<T>& state) const {
+  return state.get_num_frames();
+}
+
+template <typename T>
+int GeometryWorld<T>::get_num_moving_geometries(
+    const GeometryState<T>& state) const {
+  return state.get_num_geometries();
+}
+
+template <typename T>
 SourceId GeometryWorld<T>::RegisterNewSource(GeometryState<T>* state,
                                              const std::string& name) {
   using std::to_string;

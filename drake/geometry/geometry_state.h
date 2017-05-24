@@ -69,6 +69,74 @@ class GeometryState {
     return static_cast<int>(geometries_.size());
   }
 
+  /** Iterator through the keys of an unordered map. */
+  template <typename K, typename V>
+  class MapKeyIterator {
+   public:
+    class iterator {
+      friend class MapKeyIterator;
+     public:
+      const K& operator*() const { return itr_->first; }
+      const iterator& operator++() { ++itr_; return *this; }
+      bool operator!=(const iterator& other) { return itr_ != other.itr_; }
+
+     protected:
+      explicit iterator(typename std::unordered_map<K, V>::const_iterator itr)
+          : itr_(itr) {}
+
+     private:
+      typename std::unordered_map<K, V>::const_iterator itr_;
+    };
+
+    explicit MapKeyIterator(std::unordered_map<K, V> map) : map_(map) {}
+    iterator begin() const { return iterator(map_.begin()); }
+    iterator end() const { return iterator(map_.end()); }
+
+   private:
+    std::unordered_map<K, V> map_;
+  };
+
+  /** Provides a range iterator for all of the source ids in the world. The
+   order is not generally guaranteed; but it will be consistent as long as there
+   are no changes to the topology. This is intended to be used as:
+   @code
+   for (SourceId id : state.get_source_ids()) {
+    ...
+   }
+   @endcode  */
+  MapKeyIterator<SourceId, FrameIdSet> get_source_ids() const {
+    return MapKeyIterator<SourceId, FrameIdSet> (source_frame_id_map_);
+  }
+
+  /** Provides a range iterator for all of the geometry ids in the world. The
+   order is not generally guaranteed; but it will be consistent as long as there
+   are no changes to the topology. This is intended to be used as:
+   @code
+   for (GeometryId id : state.get_geometry_ids()) {
+    ...
+   }
+   @endcode  */
+  MapKeyIterator<GeometryId, internal::InternalGeometry>
+  get_geometry_ids() const {
+    return MapKeyIterator<GeometryId, internal::InternalGeometry>(geometries_);
+  }
+
+  /** Reports the frame group for the given frame.
+   @internal This is equivalent to the old "model instance id". */
+  int get_frame_group(FrameId frame_id) const {
+    return frames_.at(frame_id).get_frame_group();
+  }
+
+  /** Reports the name of the frame. */
+  const std::string& get_frame_name(FrameId frame_id) const {
+    return frames_.at(frame_id).get_name();
+  }
+
+  /** Reports the pose of the geometry with the given id. */
+  const Isometry3<T>& get_pose_in_world(GeometryId geometry_id) const {
+    return X_WG_[geometries_.at(geometry_id).get_engine_index()];
+  }
+
   /** Reports true if the given `source_id` references an active source. */
   bool source_is_active(SourceId source_id) const;
 

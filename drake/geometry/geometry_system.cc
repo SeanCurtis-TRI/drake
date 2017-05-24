@@ -8,6 +8,7 @@
 #include "drake/geometry/geometry_state.h"
 #include "drake/systems/framework/context.h"
 #include "drake/systems/framework/diagram_context.h"
+#include "drake/systems/rendering/pose_bundle.h"
 
 namespace drake {
 namespace geometry {
@@ -16,7 +17,9 @@ using systems::AbstractValue;
 using systems::Context;
 using systems::InputPortDescriptor;
 using systems::LeafSystem;
+using systems::OutputPortDescriptor;
 using systems::SystemOutput;
+using systems::rendering::PoseBundle;
 using std::vector;
 
 template <typename T>
@@ -27,6 +30,9 @@ GeometrySystem<T>::GeometrySystem() : LeafSystem<T>() {
   auto state_value = AbstractValue::Make<GeometryState<T>>(*state.get());
   initial_state_ = &state_value->template GetMutableValue<GeometryState<T>>();
   this->DeclareAbstractState(std::move(state_value));
+
+  // Place holder for the pose bundle output abstract port.
+  this->DeclareAbstractOutputPort();
 }
 
 template <typename T>
@@ -64,7 +70,46 @@ GeometrySystem<T>::get_port_for_source_id(SourceId id) const {
 template <typename T>
 void GeometrySystem<T>::DoCalcOutput(const Context<T>& context,
                   SystemOutput<T>* output) const {
-  // Calculate the the lcm data (names and pose data)
+  // This should *always* be invoked with a GeometryContext.
+  const GeometryState<T>& state =
+      get_state(static_cast<const GeometryContext<T>&>(context));
+  PoseBundle<T>& bundle =
+      output->GetMutableData(0)->template GetMutableValue<PoseBundle<T>>();
+  int i = 0;
+  // This would be more efficient if I simply iterated through engine order.
+  //  To achieve that, I'd need one more map from
+  for (GeometryId g_id : state.get_geometry_ids()) {
+    bundle.set_pose(i, state.get_pose_in_world(g_id));
+    // TODO(SeanCurtis-TRI): Handle velocity.
+    ++i;
+  }
+}
+
+template <typename T>
+  std::unique_ptr<AbstractValue> GeometrySystem<T>::AllocateOutputAbstract(
+  const OutputPortDescriptor<T>&) const {
+  using std::to_string;
+  ThrowIfContextAllocated();
+  auto value = AbstractValue::Make(PoseBundle<T>(
+      geometry_world_.get_num_moving_geometries(*initial_state_)));
+  // This is the work that should be done whenever the pose bundle is resize;
+  //  the configuration
+  auto& bundle = value->template GetMutableValue<PoseBundle<T>>();
+  int i = 0;
+  for (GeometryId g_id : initial_state_->get_geometry_ids()) {
+    FrameId f_id = initial_state_->GetFrameId(g_id);
+    int frame_group = initial_state_->get_frame_group(f_id);
+    bundle.set_model_instance_id(i, frame_group);
+
+    SourceId s_id = initial_state_->GetSourceId(f_id);
+    const std::string& src_name = initial_state_->get_source_name(s_id);
+    const std::string& frm_name = initial_state_->get_frame_name(f_id);
+    // TODO(SeanCurtis-TRI): Consider replacing geometry id with geometry name.
+    std::string name = src_name + "::" + frm_name + "::" + to_string(g_id);
+    bundle.set_name(i, name);
+    ++i;
+  }
+  return value;
 }
 
 template <typename T>
@@ -121,6 +166,7 @@ template <typename T>
 GeometryId GeometrySystem<T>::RegisterGeometry(
     Context<T>* sibling_context, SourceId source_id, FrameId frame_id,
     std::unique_ptr<GeometryInstance<T>> geometry) {
+  // TODO(SeanCurtis-TRI): Resize the output pose bundle.
   GeometryState<T>* state =
       ExtractMutableStateViaSiblingContext(sibling_context);
   return geometry_world_.RegisterGeometry(state, source_id, frame_id,
@@ -140,6 +186,7 @@ template <typename T>
 GeometryId GeometrySystem<T>::RegisterGeometry(
     Context<T>* sibling_context, SourceId source_id, GeometryId geometry_id,
     std::unique_ptr<GeometryInstance<T>> geometry) {
+  // TODO(SeanCurtis-TRI): Resize the output pose bundle.
   GeometryState<T>* state =
       ExtractMutableStateViaSiblingContext(sibling_context);
   return geometry_world_.RegisterGeometry(state, source_id,
@@ -159,6 +206,7 @@ template <typename T>
 GeometryId GeometrySystem<T>::RegisterAnchoredGeometry(
     Context<T>* sibling_context, SourceId source_id,
     std::unique_ptr<GeometryInstance<T>> geometry) {
+  // TODO(SeanCurtis-TRI): Resize the output pose bundle.
   GeometryState<T>* state =
       ExtractMutableStateViaSiblingContext(sibling_context);
   return geometry_world_.RegisterAnchoredGeometry(state, source_id,
@@ -174,6 +222,7 @@ void GeometrySystem<T>::ClearSource(SourceId source_id) {
 template <typename T>
 void GeometrySystem<T>::ClearSource(Context<T>* sibling_context,
                                     SourceId source_id) {
+  // TODO(SeanCurtis-TRI): Resize the output pose bundle.
   GeometryState<T>* state =
       ExtractMutableStateViaSiblingContext(sibling_context);
   geometry_world_.ClearSource(state, source_id);
@@ -188,6 +237,7 @@ void GeometrySystem<T>::RemoveFrame(SourceId source_id, FrameId frame_id) {
 template <typename T>
 void GeometrySystem<T>::RemoveFrame(Context<T>* sibling_context,
                                     SourceId source_id, FrameId frame_id) {
+  // TODO(SeanCurtis-TRI): Resize the output pose bundle.
   GeometryState<T>* state =
       ExtractMutableStateViaSiblingContext(sibling_context);
   geometry_world_.RemoveFrame(state, source_id, frame_id);
@@ -204,6 +254,7 @@ template <typename T>
 void GeometrySystem<T>::RemoveGeometry(Context<T>* sibling_context,
                                        SourceId source_id,
                                        GeometryId geometry_id) {
+  // TODO(SeanCurtis-TRI): Resize the output pose bundle.
   GeometryState<T>* state =
       ExtractMutableStateViaSiblingContext(sibling_context);
   geometry_world_.RemoveGeometry(state, source_id, geometry_id);
