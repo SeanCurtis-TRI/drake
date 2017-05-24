@@ -78,8 +78,8 @@ void GeometrySystem<T>::DoCalcOutput(const Context<T>& context,
   int i = 0;
   // This would be more efficient if I simply iterated through engine order.
   //  To achieve that, I'd need one more map from
-  for (GeometryId g_id : state.get_geometry_ids()) {
-    bundle.set_pose(i, state.get_pose_in_world(g_id));
+  for (FrameId f_id : initial_state_->get_frame_ids()) {
+    bundle.set_pose(i, state.get_pose_in_parent(f_id));
     // TODO(SeanCurtis-TRI): Handle velocity.
     ++i;
   }
@@ -96,8 +96,7 @@ template <typename T>
   //  the configuration
   auto& bundle = value->template GetMutableValue<PoseBundle<T>>();
   int i = 0;
-  for (GeometryId g_id : initial_state_->get_geometry_ids()) {
-    FrameId f_id = initial_state_->GetFrameId(g_id);
+  for (FrameId f_id : initial_state_->get_frame_ids()) {
     int frame_group = initial_state_->get_frame_group(f_id);
     bundle.set_model_instance_id(i, frame_group);
 
@@ -105,7 +104,7 @@ template <typename T>
     const std::string& src_name = initial_state_->get_source_name(s_id);
     const std::string& frm_name = initial_state_->get_frame_name(f_id);
     // TODO(SeanCurtis-TRI): Consider replacing geometry id with geometry name.
-    std::string name = src_name + "::" + frm_name + "::" + to_string(g_id);
+    std::string name = src_name + "::" + frm_name;
     bundle.set_name(i, name);
     ++i;
   }

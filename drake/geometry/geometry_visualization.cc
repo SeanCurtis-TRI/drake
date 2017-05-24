@@ -138,7 +138,10 @@ void DispatchLoadMessage(const GeometryState<double>& state) {
   for (const auto& pair : state.frames_) {
     const internal::InternalFrame& frame = pair.second;
     // TODO: This frame has to have the same name as when loaded.
-    message.link[link_index].name = frame.get_name();
+    SourceId s_id = state.GetSourceId(frame.get_id());
+    const std::string& src_name = state.get_source_name(s_id);
+    // This name should be well correlated with the GeometrySystem output.
+    message.link[link_index].name = src_name + "::" + frame.get_name();
     message.link[link_index].robot_num = frame.get_frame_group();
     const int geom_count = static_cast<int>(frame.get_child_geometries().size());
     message.link[link_index].num_geom = geom_count;
