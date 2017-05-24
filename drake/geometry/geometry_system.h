@@ -73,7 +73,7 @@ class GeometrySystem : public systems::LeafSystem<T> {
   void DoCalcOutput(const systems::Context<T>& context,
                     systems::SystemOutput<T>* output) const override;
 
-  /// Allocates a PoseBundle of length equal to the concatenation of all inputs.
+  /** Allocates a PoseBundle of length equal to the number of dynamic frames. */
   std::unique_ptr<systems::AbstractValue> AllocateOutputAbstract(
       const systems::OutputPortDescriptor<T>& descriptor) const override;
 
@@ -476,7 +476,8 @@ class GeometrySystem : public systems::LeafSystem<T> {
   // property that source ids can only be added prior to context allocation.
   // This is mutable so that it can be cleared in the const method
   // AllocateContext().
-  mutable GeometryState<T>* initial_state_;
+  GeometryState<T>* initial_state_;
+  mutable bool context_allocated_{false};
 
   // A mapping from added source identifier to the port index associated with
   // that id.
