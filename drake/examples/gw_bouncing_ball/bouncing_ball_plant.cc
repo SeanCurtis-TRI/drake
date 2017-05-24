@@ -108,19 +108,16 @@ void BouncingBallPlant<T>::DoCalcTimeDerivatives(
   geometry_system_->ComputeContact(context, &contacts);
   T fC = 0; // the contact force
   if (contacts.size() > 0) {
-    std::cout << "t = " << context.get_time() << ", z = " << state.z() << ", has " << contacts.size() << " contacts\n";
     if (contacts.size() != 1) throw std::logic_error(
           "Bouncing ball should always have at most one contact.");
 
     const T& x = contacts[0].depth;  // Penetration depth, > 0 at penetration.
     const T& xdot = -state.zdot();  // Penetration rate, > 0 during penetration.
 
-    PRINT_VAR(contacts[0].depth);
-    PRINT_VAR(state.zdot());
+//    PRINT_VAR(contacts[0].depth);
+//    PRINT_VAR(state.zdot());
 
     fC = k_ * x * (1.0 + d_ * xdot);
-    std::cout << ", fC: " << fC << "\n";
-
   }
   derivative_vector->set_z(state.zdot());
   const T fN = max(0.0, fC);

@@ -33,10 +33,14 @@ drake_cc_binary(
     deps = [
         ":bouncing_ball_plant",
         "//drake/common:call_matlab",
+        "//drake/geometry:geometry_system",
+        "//drake/geometry:geometry_visualization",
         "//drake/systems/analysis:simulator",
         "//drake/systems/framework:diagram",
+        "//drake/systems/lcm",
         "//drake/systems/primitives:constant_vector_source",
         "//drake/systems/primitives:signal_logger",
+        "//drake/systems/rendering:pose_bundle_to_draw_message",
     ],
 )
 
