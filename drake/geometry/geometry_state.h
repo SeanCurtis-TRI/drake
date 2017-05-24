@@ -121,6 +121,19 @@ class GeometryState {
     return MapKeyIterator<GeometryId, internal::InternalGeometry>(geometries_);
   }
 
+  /** Provides a range iterator for all of the frame ids in the world. The
+   order is not generally guaranteed; but it will be consistent as long as there
+   are no changes to the topology. This is intended to be used as:
+   @code
+   for (FrameId id : state.get_frame_ids()) {
+    ...
+   }
+   @endcode  */
+  MapKeyIterator<FrameId, internal::InternalFrame>
+  get_frame_ids() const {
+    return MapKeyIterator<FrameId, internal::InternalFrame>(frames_);
+  }
+
   /** Reports the frame group for the given frame.
    @internal This is equivalent to the old "model instance id". */
   int get_frame_group(FrameId frame_id) const {
@@ -135,6 +148,11 @@ class GeometryState {
   /** Reports the pose of the geometry with the given id. */
   const Isometry3<T>& get_pose_in_world(GeometryId geometry_id) const {
     return X_WG_[geometries_.at(geometry_id).get_engine_index()];
+  }
+
+  /** Reports the pose of the frame with the given id. */
+  const Isometry3<T>& get_pose_in_parent(FrameId frame_id) const {
+    return X_PF_[frames_.at(frame_id).get_pose_index()];
   }
 
   /** Reports true if the given `source_id` references an active source. */
