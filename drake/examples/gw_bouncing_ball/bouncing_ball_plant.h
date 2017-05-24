@@ -25,7 +25,8 @@ template <typename T>
 class BouncingBallPlant : public systems::LeafSystem<T> {
  public:
   BouncingBallPlant(geometry::SourceId source_id,
-                    geometry::GeometrySystem<T>* geometry_system);
+                    geometry::GeometrySystem<T>* geometry_system,
+                    const Vector2<T>& init_position);
   ~BouncingBallPlant() override;
 
   using MyContext = systems::Context<T>;
@@ -97,6 +98,7 @@ class BouncingBallPlant : public systems::LeafSystem<T> {
 
   geometry::SourceId source_id_;
   const geometry::GeometrySystem<T>* geometry_system_;
+  const Vector2<T> init_position_;
   geometry::FrameId ball_frame_id_;
   geometry::GeometryId ball_id_;
 

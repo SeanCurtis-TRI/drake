@@ -32,8 +32,10 @@ using std::make_unique;
 
 template <typename T>
 BouncingBallPlant<T>::BouncingBallPlant(SourceId source_id,
-                                        GeometrySystem<T>* geometry_system)
-    : source_id_(source_id), geometry_system_(geometry_system) {
+                                        GeometrySystem<T>* geometry_system,
+                                        const Vector2<T>& init_position)
+    : source_id_(source_id), geometry_system_(geometry_system),
+      init_position_(init_position) {
   geometry_port_ = this->DeclareAbstractOutputPort(
       Value<FrameKinematicsSet<T>>(
           geometry_system->MakeDefaultFrameKinematicsSet(source_id))).
@@ -80,7 +82,9 @@ void BouncingBallPlant<T>::DoCalcOutput(const systems::Context<T>& context,
   const BouncingBallVector<T>& state = get_state(context);
   fks.ReportPose(ball_frame_id_,
                  SpatialPose<T>(Quaternion<T>::Identity(),
-                                Vector3<T>(0, 0, state.z())));
+                                Vector3<T>(init_position_(0),
+                                           init_position_(1),
+                                           state.z())));
   output->GetMutableData(geometry_port_)
       ->template GetMutableValue<FrameKinematicsSet<T>>() = fks;
 }
@@ -99,16 +103,19 @@ void BouncingBallPlant<T>::DoCalcTimeDerivatives(
   geometry_system_->ComputeContact(context, &contacts);
   T fC = 0; // the contact force
   if (contacts.size() > 0) {
-    if (contacts.size() != 1) throw std::logic_error(
-          "Bouncing ball should always have at most one contact.");
-
-    const T& x = contacts[0].depth;  // Penetration depth, > 0 at penetration.
-    const T& xdot = -state.zdot();  // Penetration rate, > 0 during penetration.
+    for (const auto& contact : contacts) {
+      if (contact.id_A == ball_id_ || contact.id_B == ball_id_) {
+        const T
+            &x = contacts[0].depth;  // Penetration depth, > 0 at penetration.
+        const T
+            &xdot = -state.zdot();  // Penetration rate, > 0 during penetration.
 
 //    PRINT_VAR(contacts[0].depth);
 //    PRINT_VAR(state.zdot());
 
-    fC = k_ * x * (1.0 + d_ * xdot);
+        fC = k_ * x * (1.0 + d_ * xdot);
+      }
+    }
   }
   derivative_vector->set_z(state.zdot());
   const T fN = max(0.0, fC);
