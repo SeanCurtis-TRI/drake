@@ -80,7 +80,10 @@ class HalfSpace final : public Shape {
   }
 
   /** Reports the half-space's outward-pointing normal. */
-  const Vector3<double> get_normal() const { return normal_; }
+  const Vector3<double>& get_normal() const { return normal_; }
+
+  /** Returns a point on the plane. */
+  const Vector3<double>& get_point_on_plane() const { return point_; }
 
  protected:
   Shape* DoClone() const override {
@@ -88,6 +91,7 @@ class HalfSpace final : public Shape {
   }
 
  private:
+  Vector3<double> point_;
   // Defines the implicit equation of the plane: P(x) = dot(N, x) + d
   Vector3<double> normal_;
   double d_;
