@@ -39,15 +39,9 @@ template <typename T>
 GeometrySystem<T>::~GeometrySystem() {}
 
 template <typename T>
-SourceId GeometrySystem<T>::AddSourceInput(const std::string& name) {
-  if (initial_state_ != nullptr) {
-    DRAKE_ASSERT(static_cast<int>(input_source_ids_.size()) ==
-                 this->get_num_input_ports());
-    SourceId source_id =
-        geometry_world_.RegisterNewSource(initial_state_, name);
-    const auto& input_port = this->DeclareAbstractInputPort();
-    input_source_ids_[source_id] = input_port.get_index();
-    return source_id;
+SourceId GeometrySystem<T>::RegisterSource(const std::string &name) {
+  if (!context_allocated_) {
+   return geometry_world_.RegisterNewSource(initial_state_, name);
   } else {
     throw std::logic_error(
         "A context has been created for this system. Adding "
@@ -57,14 +51,28 @@ SourceId GeometrySystem<T>::AddSourceInput(const std::string& name) {
 
 template <typename T>
 const systems::InputPortDescriptor<T>&
-GeometrySystem<T>::get_port_for_source_id(SourceId id) const {
+GeometrySystem<T>::get_port_for_source_id(SourceId id) {
+  using std::to_string;
   auto itr = input_source_ids_.find(id);
   if (itr != input_source_ids_.end()) {
     return this->get_input_port(itr->second);
+  } else {
+    if (!context_allocated_) {
+      if (initial_state_->source_is_active(id)) {
+        DRAKE_ASSERT(static_cast<int>(input_source_ids_.size()) ==
+            this->get_num_input_ports());
+        const auto& input_port = this->DeclareAbstractInputPort();
+        input_source_ids_[id] = input_port.get_index();
+        return input_port;
+      } else {
+        throw std::logic_error("Can't create input port for unknown source id: " +
+                               to_string(id) + ".");
+      }
+    } else {
+      throw std::logic_error(
+          "Can't create new input ports after context has been allocated.");
+    }
   }
-  using std::to_string;
-  throw std::logic_error("No input port associated with the source id: " +
-                         to_string(id) + ".");
 }
 
 template <typename T>

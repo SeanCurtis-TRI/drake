@@ -51,21 +51,24 @@ class GeometrySystem : public systems::LeafSystem<T> {
   GeometrySystem();
   ~GeometrySystem() override;
 
-  /** Adds an input port to accept frame kinematics data from an upstream
-   geometry source (see GeometryWorld for definition of "geometry source"). The
-   caller must save the returned SourceId; it is the token by which all other
-   operations on the geometry are conducted (see GeometryWorld for details).
-   The SourceId will also be used to access the corresponding input port (see
-   get_port_for_source_id()).
-   @throws  std::logic_error if a context has been allocated for this system. */
-  SourceId AddSourceInput(const std::string& name = "");
+  /** Registers a new source to the geometry system (see GeometryWorld for the
+   discussion of "geometry source"). The caller must save the returned SourceId;
+   it is the token by which all other operations on the geometry world are
+   conducted.
 
-  /** Given a valid source identifier, returns the input port associated with
+   This source id can be used to register arbitrary _anchored_ geometry. But if
+   dynamic geometry is registered (via RegisterGeometry/RegisterFrame), then
+   the context-dependent pose values must be provided on an input port.
+   See get_port_for_source_id().
+   @throws  std::logic_error if a context has been allocated for this system. */
+  SourceId RegisterSource(const std::string &name = "");
+
+  /** Given a valid source identifier, returns an input port associated with
    that id.
-   @throws  std::logic_error if the source_id is _not_ associated with an
-   input port. */
+   @throws  std::logic_error if the source_id is _not_ recognized, or if the
+   context has already been allocated.. */
   const systems::InputPortDescriptor<T>& get_port_for_source_id(
-      SourceId id) const;
+      SourceId id);
 
   /** Updates the state of all geometry in its geometry world by pulling pose
    information from input ports, providing an updated GeometryQuery on the
