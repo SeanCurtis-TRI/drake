@@ -1,9 +1,13 @@
 #include <memory>
 
+#include <utility>
+
 #include "drake/common/call_matlab.h"
 #include "drake/examples/gw_bouncing_ball/bouncing_ball_plant.h"
+#include "drake/geometry/geometry_instance.h"
 #include "drake/geometry/geometry_system.h"
 #include "drake/geometry/geometry_visualization.h"
+#include "drake/geometry/shapes.h"
 #include "drake/lcm/drake_lcm.h"
 #include "drake/lcmt_viewer_draw.hpp"
 #include "drake/systems/analysis/simulator.h"
@@ -20,13 +24,16 @@ namespace examples {
 namespace bouncing_ball {
 namespace {
 
+using geometry::GeometryInstance;
 using geometry::GeometrySystem;
+using geometry::HalfSpace;
 using geometry::SourceId;
 using lcm::DrakeLcm;
 using systems::InputPortDescriptor;
 using systems::rendering::PoseBundleToDrawMessage;
 using systems::lcm::LcmPublisherSystem;
 using systems::lcm::Serializer;
+using std::make_unique;
 
 int do_main() {
   systems::DiagramBuilder<double> builder;
@@ -35,10 +42,20 @@ int do_main() {
   geometry_system->set_name("geometry_system");
 
   SourceId ball_source_id = geometry_system->AddSourceInput("ball");
-
   auto bouncing_ball = builder.AddSystem<BouncingBallPlant>(ball_source_id,
                                                             geometry_system);
   bouncing_ball->set_name("BouncingBall");
+
+  SourceId global_source = geometry_system->AddSourceInput("anchored");
+
+  // Add geometry to geometry system
+  Vector3<double> normal_G(0, 0, 1);
+  Vector3<double> point_G(0, 0, 0);
+  geometry_system->RegisterAnchoredGeometry(
+      global_source,
+      make_unique<GeometryInstance<double>>(
+          Isometry3<double>::Identity(), /* X_WG: pose of the GeometryInstance in its parent frame, in this case the world.*/
+              make_unique<HalfSpace>(normal_G, point_G)));
 
   DrakeLcm lcm;
   PoseBundleToDrawMessage* converter =
