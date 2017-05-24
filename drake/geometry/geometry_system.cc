@@ -33,16 +33,15 @@ template <typename T>
 GeometrySystem<T>::~GeometrySystem() {}
 
 template <typename T>
-const InputPortDescriptor<T>& GeometrySystem<T>::AddSourceInput(
-    const std::string& name) {
+SourceId GeometrySystem<T>::AddSourceInput(const std::string& name) {
   if (initial_state_ != nullptr) {
     DRAKE_ASSERT(static_cast<int>(input_source_ids_.size()) ==
                  this->get_num_input_ports());
     SourceId source_id =
         geometry_world_.RegisterNewSource(initial_state_, name);
     const auto& input_port = this->DeclareAbstractInputPort();
-    input_source_ids_.push_back(source_id);
-    return input_port;
+    input_source_ids_[source_id] = input_port.get_index();
+    return source_id;
   } else {
     throw std::logic_error(
         "A context has been created for this system. Adding "
@@ -51,20 +50,15 @@ const InputPortDescriptor<T>& GeometrySystem<T>::AddSourceInput(
 }
 
 template <typename T>
-SourceId GeometrySystem<T>::get_port_source_id(
-    const InputPortDescriptor<T>& port_descriptor) const {
-  return get_port_source_id(port_descriptor.get_index());
-}
-
-template <typename T>
-SourceId GeometrySystem<T>::get_port_source_id(int port_index) const {
-  if (port_index >= 0 &&
-      port_index < static_cast<int>(input_source_ids_.size())) {
-    return input_source_ids_[port_index];
+const systems::InputPortDescriptor<T>&
+GeometrySystem<T>::get_port_for_source_id(SourceId id) const {
+  auto itr = input_source_ids_.find(id);
+  if (itr != input_source_ids_.end()) {
+    return this->get_input_port(itr->second);
   }
-  throw std::logic_error("Requesting source id for an input port with an "
-                         "invalid index: " + std::to_string(port_index)
-                         + ".");
+  using std::to_string;
+  throw std::logic_error("No input port associated with the source id: " +
+                         to_string(id) + ".");
 }
 
 template <typename T>
