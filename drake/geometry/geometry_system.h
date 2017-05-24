@@ -52,21 +52,20 @@ class GeometrySystem : public systems::LeafSystem<T> {
   ~GeometrySystem() override;
 
   /** Adds an input port to accept frame kinematics data from an upstream
-   geometry source (see GeometryWorld for definition of "geometry source").
+   geometry source (see GeometryWorld for definition of "geometry source"). The
+   caller must save the returned SourceId; it is the token by which all other
+   operations on the geometry are conducted (see GeometryWorld for details).
+   The SourceId will also be used to access the corresponding input port (see
+   get_port_for_source_id()).
    @throws  std::logic_error if a context has been allocated for this system. */
-  const systems::InputPortDescriptor<T>& AddSourceInput(
-      const std::string& name = "");
+  SourceId AddSourceInput(const std::string& name = "");
 
-  /** Reports the source id associated with the previously requested source
-   input port. If the `port_descriptor` does not match a previously added source
-   input, an exception is thrown. */
-  SourceId get_port_source_id(
-      const systems::InputPortDescriptor<T>& port_descriptor) const;
-
-  /** Reports the source id associated with the previously requested source
-   input port index. If the `port_index` does not match a previously added
-   source input, an exception is thrown. */
-  SourceId get_port_source_id(int port_index) const;
+  /** Given a valid source identifier, returns the input port associated with
+   that id.
+   @throws  std::logic_error if the source_id is _not_ associated with an
+   input port. */
+  const systems::InputPortDescriptor<T>& get_port_for_source_id(
+      SourceId id) const;
 
   /** Updates the state of all geometry in its geometry world by pulling pose
    information from input ports, providing an updated GeometryQuery on the
@@ -472,10 +471,9 @@ class GeometrySystem : public systems::LeafSystem<T> {
   // AllocateContext().
   mutable GeometryState<T>* initial_state_;
 
-  // A mapping from added source input ports and the source ids assigned to
-  // them. It relies on the fact that the index of an input port will match the
-  // position in input_source_ids_;
-  std::vector<SourceId> input_source_ids_;
+  // A mapping from added source identifier to the port index associated with
+  // that id.
+  std::unordered_map<SourceId, int> input_source_ids_;
 };
 
 }  // namespace geometry
