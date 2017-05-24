@@ -45,15 +45,6 @@ BouncingBallPlant<T>::BouncingBallPlant(SourceId source_id,
       1 /* num_q */, 1 /* num_v */, 0 /* num_z */);
   static_assert(BouncingBallVectorIndices::kNumCoordinates == 1 + 1, "");
 
-  // Add geometry to geometry system
-  Vector3<T> normal_G(0, 0, 1);
-  Vector3<T> point_G(0, 0, 0);
-  geometry_system->RegisterAnchoredGeometry(
-      source_id,
-      make_unique<GeometryInstance<T>>(
-          Isometry3<double>::Identity(), /* X_WG: pose of the GeometryInstance in its parent frame, in this case the world.*/
-          make_unique<HalfSpace>(normal_G, point_G)));
-
   ball_frame_id_ = geometry_system->RegisterFrame(
       source_id, GeometryFrame<T>("ball_frame", Isometry3<T>::Identity() /*X_PF = X_WF*/));
   ball_id_ = geometry_system->RegisterGeometry(
