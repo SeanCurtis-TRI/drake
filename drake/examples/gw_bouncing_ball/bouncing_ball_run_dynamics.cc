@@ -24,14 +24,13 @@ int do_main() {
   auto geometry_system = builder.AddSystem<GeometrySystem<double>>();
   geometry_system->set_name("geometry_system");
 
-  const InputPortDescriptor<double>& gw_input_port =
-      geometry_system->AddSourceInput("ball");
-  SourceId ball_source_id = geometry_system->get_port_source_id(gw_input_port);
+  SourceId ball_source_id = geometry_system->AddSourceInput("ball");
 
   auto bouncing_ball = builder.AddSystem<BouncingBallPlant>(ball_source_id,
                                                             geometry_system);
   bouncing_ball->set_name("BouncingBall");
-  builder.Connect(bouncing_ball->get_geometry_output_port(), gw_input_port);
+  builder.Connect(bouncing_ball->get_geometry_output_port(),
+                  geometry_system->get_port_for_source_id(ball_source_id));
 
   // Log the state.
   auto x_logger = builder.AddSystem<systems::SignalLogger<double>>(
