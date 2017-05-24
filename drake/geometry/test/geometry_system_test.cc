@@ -32,8 +32,8 @@ std::unique_ptr<Shape> make_plane(const Vector3<double>& n, const Vector3<double
 // and the input ports are ordered in the declaration order.
 GTEST_TEST(GeometrySystemTest, TestInputPorts) {
   GSystem system;
-  SourceId src1 = system.AddSourceInput("name1");
-  SourceId src2 = system.AddSourceInput("name2");
+  SourceId src1 = system.RegisterSource("name1");
+  SourceId src2 = system.RegisterSource("name2");
   EXPECT_NO_THROW(system.get_port_for_source_id(src1));
   EXPECT_EQ(system.get_port_for_source_id(src1).get_index(), 0);
   EXPECT_EQ(system.get_port_for_source_id(src2).get_index(), 1);
@@ -45,7 +45,7 @@ GTEST_TEST(MickeyMouse, LoadTest) {
   GSystem system;
 
   // Single frame with a single sphere
-  SourceId s_id = system.AddSourceInput("first_source");
+  SourceId s_id = system.RegisterSource("first_source");
   const double kRadius = 0.25;
   FrameId f_id = system.RegisterFrame(
       s_id, GeometryFrame<double>("some_frame",
@@ -79,7 +79,7 @@ GTEST_TEST(GeometrySystemTest, Construct) {
   // using this to exercise code.
   using std::to_string;
   GSystem system;
-  SourceId s_id = system.AddSourceInput("first_source");
+  SourceId s_id = system.RegisterSource("first_source");
   std::unordered_set<FrameId> frames;
   std::unordered_set<GeometryId> geometries;
   const double kRadius = 0.25;
