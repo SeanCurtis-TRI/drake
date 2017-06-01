@@ -1,4 +1,4 @@
-#include "drake/examples/gw_bouncing_ball/gen/bouncing_ball_vector.h"
+#include "drake/examples/geometry_world/gen/bouncing_ball_vector.h"
 
 // GENERATED FILE DO NOT EDIT
 // See drake/tools/lcm_vector_gen.py.
