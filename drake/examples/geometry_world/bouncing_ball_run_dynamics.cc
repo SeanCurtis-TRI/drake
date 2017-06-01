@@ -3,7 +3,7 @@
 #include <utility>
 
 #include "drake/common/call_matlab.h"
-#include "drake/examples/gw_bouncing_ball/bouncing_ball_plant.h"
+#include "drake/examples/geometry_world/bouncing_ball_plant.h"
 #include "drake/geometry/geometry_instance.h"
 #include "drake/geometry/geometry_system.h"
 #include "drake/geometry/geometry_visualization.h"

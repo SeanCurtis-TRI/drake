@@ -3,7 +3,7 @@
 #include <memory>
 
 #include "drake/common/symbolic_formula.h"
-#include "drake/examples/gw_bouncing_ball/gen/bouncing_ball_vector.h"
+#include "drake/examples/geometry_world/gen/bouncing_ball_vector.h"
 #include "drake/systems/framework/basic_vector.h"
 #include "drake/systems/framework/leaf_system.h"
 #include "drake/geometry/geometry_ids.h"
