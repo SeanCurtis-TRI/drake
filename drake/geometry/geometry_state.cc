@@ -6,6 +6,7 @@
 #include <string>
 #include <utility>
 
+#include "drake/common/unused.h"
 #include "drake/geometry/frame_kinematics_set.h"
 #include "drake/geometry/geometry_engine_stub.h"
 #include "drake/geometry/geometry_frame.h"
@@ -85,7 +86,7 @@ std::string get_missing_id_message<FrameId>(const FrameId& key) {
 template <>
 std::string get_missing_id_message<GeometryId>(const GeometryId& key) {
   std::stringstream ss;
-  ss << "Referenced geometry " << key << " does not belong to a known frame.";
+  ss << "Referenced geometry " << key << " has not been registered.";
   return ss.str();
 }
 
@@ -161,7 +162,7 @@ void GeometryState<T>::ClearSource(SourceId source_id) {
 template <typename T>
 void GeometryState<T>::RemoveFrame(SourceId source_id, FrameId frame_id) {
   using std::to_string;
-  if (GetSourceId(frame_id) != source_id) {
+  if (!BelongsToSource(frame_id, source_id)) {
     throw std::logic_error("Trying to remove frame " + to_string(frame_id) +
                            " from source " + to_string(source_id) +
                            ". But the frame doesn't belong to that source.");
@@ -173,7 +174,7 @@ template <typename T>
 void GeometryState<T>::RemoveGeometry(SourceId source_id,
                                       GeometryId geometry_id) {
   using std::to_string;
-  if (GetSourceId(geometry_id) != source_id) {
+  if (!BelongsToSource(geometry_id, source_id)) {
     throw std::logic_error(
         "Trying to remove geometry " + to_string(geometry_id) + " from "
         "source " + to_string(source_id) + ". But the geometry doesn't belong"
@@ -285,15 +286,29 @@ GeometryId GeometryState<T>::RegisterAnchoredGeometry(
 }
 
 template <typename T>
-SourceId GeometryState<T>::GetSourceId(FrameId frame_id) const {
-  auto& frame = GetValueOrThrow(frame_id, &frames_);
-  return frame.get_source_id();
+bool GeometryState<T>::BelongsToSource(FrameId frame_id,
+                                       SourceId source_id) const {
+  // Confirm that the source_id is valid.
+  const auto& frames = GetValueOrThrow(source_id, &source_frame_id_map_);
+  unused(frames);
+  // If valid, test the frame.
+  return get_source_id(frame_id) == source_id;
 }
 
 template <typename T>
-SourceId GeometryState<T>::GetSourceId(GeometryId geometry_id) const {
-  FrameId frame_id = GetFrameId(geometry_id);
-  return GetSourceId(frame_id);
+bool GeometryState<T>::BelongsToSource(GeometryId geometry_id,
+                                       SourceId source_id) const {
+  // Geometry could be anchored. This also implicitly tests that source_id is
+  // valid and throws an exception if not.
+  auto& anchored_geometries = GetValueOrThrow(source_id,
+                                              &source_anchored_geometry_map_);
+  if (anchored_geometries.find(geometry_id) != anchored_geometries.end()) {
+    return true;
+  }
+  // If not anchored, geometry must be dynamic. If this fails, the geometry_id
+  // is not valid and an exception is thrown.
+  const auto& geometry = GetValueOrThrow(geometry_id, &geometries_);
+  return BelongsToSource(geometry.get_frame_id(), source_id);
 }
 
 template <typename T>
@@ -349,6 +364,12 @@ optional<GeometryId> GeometryState<T>::FindParentGeometry(
     GeometryId geometry_id) const {
   auto& geometry = GetValueOrThrow(geometry_id, &geometries_);
   return geometry.get_parent();
+}
+
+template <typename T>
+SourceId GeometryState<T>::get_source_id(FrameId frame_id) const {
+  auto& frame = GetValueOrThrow(frame_id, &frames_);
+  return frame.get_source_id();
 }
 
 template <typename T>

@@ -178,16 +178,17 @@ class GeometryStateTest : public ::testing::Test {
   void AssertSingleTreeCleared() {
     // confirm frames have been closed
     for (int f = 0; f < kFrameCount; ++f) {
-      EXPECT_ERROR_MESSAGE(geometry_state_.GetSourceId(frames_[f]),
+      EXPECT_ERROR_MESSAGE(geometry_state_.BelongsToSource(frames_[f],
+                                                           source_id_),
                            std::logic_error,
                            "Referenced frame \\d+ has not been registered.");
     }
     // confirm geometries have been closed
     for (int g = 0; g < kFrameCount * kGeometryCount; ++g) {
-      EXPECT_ERROR_MESSAGE(geometry_state_.GetSourceId(geometries_[g]),
+      EXPECT_ERROR_MESSAGE(geometry_state_.BelongsToSource(geometries_[g],
+                                                           source_id_),
                            std::logic_error,
-                           "Referenced geometry \\d+ does not belong to a known"
-                           " frame.");
+                           "Referenced geometry \\d+ has not been registered.");
     }
     EXPECT_EQ(gs_tester_.get_source_frame_id_map().at(source_id_).size(), 0);
     EXPECT_EQ(gs_tester_.get_source_frame_id_map().size(), 1);
@@ -392,7 +393,7 @@ TEST_F(GeometryStateTest, AddFrameToInvalidSource) {
 TEST_F(GeometryStateTest, AddFirstFrameToValidSource) {
   SourceId s_id = NewSource();
   FrameId fid = geometry_state_.RegisterFrame(s_id, *frame_.get());
-  EXPECT_EQ(geometry_state_.GetSourceId(fid), s_id);
+  EXPECT_TRUE(geometry_state_.BelongsToSource(fid, s_id));
   const auto &frame_set = geometry_state_.GetFramesForSource(s_id);
   EXPECT_NE(frame_set.find(fid), frame_set.end());
   EXPECT_EQ(frame_set.size(), 1);
@@ -406,7 +407,7 @@ TEST_F(GeometryStateTest, AddFirstFrameToValidSource) {
 TEST_F(GeometryStateTest, AddFrameToSourceWithFrames) {
   SourceId s_id = SetUpSingleSourceTree();
   FrameId fid = geometry_state_.RegisterFrame(s_id, *frame_);
-  EXPECT_EQ(geometry_state_.GetSourceId(fid), s_id);
+  EXPECT_TRUE(geometry_state_.BelongsToSource(fid, s_id));
   const auto &frame_set = geometry_state_.GetFramesForSource(s_id);
   EXPECT_NE(frame_set.find(fid), frame_set.end());
   EXPECT_EQ(frame_set.size(), kFrameCount + 1);
@@ -424,7 +425,7 @@ TEST_F(GeometryStateTest, AddFrameToNewSourceWithFrames) {
   geometry_state_.RegisterNewSource(new_s_id, "new_source");
   FrameId fid = geometry_state_.RegisterFrame(new_s_id, *frame_.get());
   // Confirm addition.
-  EXPECT_EQ(geometry_state_.GetSourceId(fid), new_s_id);
+  EXPECT_TRUE(geometry_state_.BelongsToSource(fid, new_s_id));
   {
     const auto &frame_set = geometry_state_.GetFramesForSource(new_s_id);
     EXPECT_NE(frame_set.find(fid), frame_set.end());
@@ -443,7 +444,7 @@ TEST_F(GeometryStateTest, AddFrameOnFrame) {
   SourceId s_id = SetUpSingleSourceTree();
   FrameId fid = geometry_state_.RegisterFrame(s_id, frames_[0], *frame_);
   EXPECT_EQ(geometry_state_.get_num_frames(), kFrameCount + 1);
-  EXPECT_EQ(geometry_state_.GetSourceId(fid), s_id);
+  EXPECT_TRUE(geometry_state_.BelongsToSource(fid, s_id));
 
   // Test parent-child relationship wiring.
   //  Difference between total and root frames. I now have *two* non-root
@@ -508,8 +509,7 @@ TEST_F(GeometryStateTest, RemoveFrameInvalid) {
   EXPECT_ERROR_MESSAGE(
       geometry_state_.RemoveFrame(SourceId::get_new_id(), frames_[0]),
       std::logic_error,
-      "Trying to remove frame \\d+ from source \\d+.+the frame doesn't "
-      "belong.+");
+      "Referenced geometry source \\d+ is not active.");
 
   // Case: Valid source and frame, but frame does _not_ belong to source.
   SourceId s_id2 = SourceId::get_new_id();
@@ -524,7 +524,7 @@ TEST_F(GeometryStateTest, RemoveFrameInvalid) {
 }
 
 // Tests registration of geometry on valid source and frame. This relies on the
-// correctness of GeometryState::GetSourceId(GeometryId) and
+// correctness of GeometryState::BelongsToSource(GeometryId, SourceId) and
 // GeometryState::GetFrameId(GeometryId) and, therefore, implicitly tests them.
 TEST_F(GeometryStateTest, RegisterGeometryGoodSource) {
   SourceId s_id = NewSource();
@@ -532,7 +532,7 @@ TEST_F(GeometryStateTest, RegisterGeometryGoodSource) {
   GeometryId g_id = geometry_state_.RegisterGeometry(s_id, f_id,
                                                      move(instance_));
   EXPECT_EQ(geometry_state_.GetFrameId(g_id), f_id);
-  EXPECT_EQ(geometry_state_.GetSourceId(g_id), s_id);
+  EXPECT_TRUE(geometry_state_.BelongsToSource(g_id, s_id));
   Isometry3<double> X_FG = geometry_state_.GetPoseInFrame(g_id);
   CompareMatrices(X_FG.matrix(), instance_pose_.matrix());
 
@@ -543,7 +543,7 @@ TEST_F(GeometryStateTest, RegisterGeometryGoodSource) {
 }
 
 // Tests registration of geometry on valid source and frame. This relies on the
-// correctness of GeometryState::GetSourceId(GeometryId) and
+// correctness of GeometryState::BelongsToSource(GeometryId, SourceId) and
 // GeometryState::GetFrameId(GeometryId) and, therefore, implicitly tests them.
 TEST_F(GeometryStateTest, RegisterGeometryMissingSource) {
   SourceId s_id = SourceId::get_new_id();
@@ -628,7 +628,7 @@ TEST_F(GeometryStateTest, RegisterGeometryonInvalidGeometry) {
   EXPECT_ERROR_MESSAGE(
       geometry_state_.RegisterGeometryWithParent(s_id, junk_id, move(instance)),
       std::logic_error,
-      "Referenced geometry \\d+ does not belong to a known frame.");
+      "Referenced geometry \\d+ has not been registered.");
 }
 
 // Tests the response to passing a null pointer as a GeometryInstance.
@@ -752,14 +752,13 @@ TEST_F(GeometryStateTest, RemoveGeometryInvalid) {
       geometry_state_.RemoveGeometry(SourceId::get_new_id(),
                                      geometries_[0]),
       std::logic_error,
-      "Trying to remove geometry \\d+ from source \\d+.+geometry doesn't "
-      "belong.+");
+      "Referenced geometry source \\d+ is not active.");
 
   // Case: Invalid geometry id, valid source id.
   EXPECT_ERROR_MESSAGE(
       geometry_state_.RemoveGeometry(s_id, GeometryId::get_new_id()),
       std::logic_error,
-      "Referenced geometry \\d+ does not belong to a known frame.");
+      "Referenced geometry \\d+ has not been registered.");
 
   // Case: Valid geometry and source, but geometry belongs to different source.
   SourceId s_id2 = SourceId::get_new_id();
@@ -781,14 +780,24 @@ TEST_F(GeometryStateTest, RemoveGeometryInvalid) {
 
 // Tests the registration of anchored geometry.
 TEST_F(GeometryStateTest, RegisterAnchoredGeometry) {
+  SourceId s_id = NewSource("new source");
+  Isometry3<double> pose = Isometry3<double>::Identity();
+  auto instance = make_unique<GeometryInstance<double>>(
+      pose, unique_ptr<Shape>(new Sphere(1)));
+  auto g_id = geometry_state_.RegisterAnchoredGeometry(s_id, move(instance));
+  EXPECT_TRUE(geometry_state_.BelongsToSource(g_id, s_id));
+}
+
+// Tests the attempt to register anchored geometry on an invalid source.
+TEST_F(GeometryStateTest, RegisterAnchoredGeometryInvalidSource) {
   Isometry3<double> pose = Isometry3<double>::Identity();
   auto instance = make_unique<GeometryInstance<double>>(
       pose, unique_ptr<Shape>(new Sphere(1)));
   EXPECT_ERROR_MESSAGE(
       geometry_state_.RegisterAnchoredGeometry(SourceId::get_new_id(),
                                                move(instance)),
-      std::runtime_error,
-      "Not implemented yet!");
+      std::logic_error,
+      "Referenced geometry source \\d+ is not active.");
 }
 
 // Tests the response of attempting to register a null pointer GeometryInstance
@@ -798,8 +807,8 @@ TEST_F(GeometryStateTest, RegisterAnchoredNullGeometry) {
   EXPECT_ERROR_MESSAGE(
       geometry_state_.RegisterAnchoredGeometry(SourceId::get_new_id(),
                                                move(instance)),
-      std::runtime_error,
-      "Not implemented yet!");
+      std::logic_error,
+      "Registering null anchored geometry on source \\d+.");
 }
 
 // Confirms the behavior for requesting geometry poses with a bad geometry
@@ -809,23 +818,80 @@ TEST_F(GeometryStateTest, GetPoseForBadGeometryId) {
   EXPECT_ERROR_MESSAGE(
       geometry_state_.GetPoseInFrame(GeometryId::get_new_id()),
       std::logic_error,
-      "Referenced geometry \\d+ does not belong to a known frame.");
+      "Referenced geometry \\d+ has not been registered.");
   EXPECT_ERROR_MESSAGE(
       geometry_state_.GetPoseInParent(GeometryId::get_new_id()),
       std::logic_error,
-      "Referenced geometry \\d+ does not belong to a known frame.");
+      "Referenced geometry \\d+ has not been registered.");
 }
 
-// This confirms the failure state of calling GeometryState::GetSourceId with a
-// bad frame/geometry identifier.
-TEST_F(GeometryStateTest, GetSourceIdFromBadId) {
-  EXPECT_ERROR_MESSAGE(geometry_state_.GetSourceId(FrameId::get_new_id()),
+// This tests the source ownership functionality - a function which reports if
+// a geometry or frame belongs to the specified source - in the case where the
+// source id is invalid. Whether or not the frame/geometry ids are valid, the
+// bad source should dominate.
+TEST_F(GeometryStateTest, SourceOwnershipInvalidSource) {
+  SourceId source_id = SourceId::get_new_id();
+  // Invalid frame/geometry ids.
+  EXPECT_ERROR_MESSAGE(geometry_state_.BelongsToSource(FrameId::get_new_id(),
+                                                       source_id),
+                       std::logic_error,
+                       "Referenced geometry source \\d+ is not active.");
+  EXPECT_ERROR_MESSAGE(geometry_state_.BelongsToSource(GeometryId::get_new_id(),
+                                                       source_id),
+                       std::logic_error,
+                       "Referenced geometry source \\d+ is not active.");
+  SetUpSingleSourceTree();
+  GeometryId anchored_id = geometry_state_.RegisterAnchoredGeometry(
+      source_id_,
+      make_unique<GeometryInstance<double>>(
+          Isometry3<double>::Identity(),
+          std::unique_ptr<Shape>(new Sphere(1))));
+  // Valid frame/geometry ids.
+  EXPECT_ERROR_MESSAGE(geometry_state_.BelongsToSource(frames_[0],
+                                                       source_id),
+                       std::logic_error,
+                       "Referenced geometry source \\d+ is not active.");
+  EXPECT_ERROR_MESSAGE(geometry_state_.BelongsToSource(geometries_[0],
+                                                       source_id),
+                       std::logic_error,
+                       "Referenced geometry source \\d+ is not active.");
+  EXPECT_ERROR_MESSAGE(geometry_state_.BelongsToSource(anchored_id,
+                                                       source_id),
+                       std::logic_error,
+                       "Referenced geometry source \\d+ is not active.");
+}
+
+// This tests the source ownership functionality for frames - a function which
+// reports if a frame belongs to the specified source.
+TEST_F(GeometryStateTest, SourceOwnershipFrameId) {
+  SourceId s_id = SetUpSingleSourceTree();
+  // Test for invalid frame.
+  EXPECT_ERROR_MESSAGE(geometry_state_.BelongsToSource(FrameId::get_new_id(),
+                                                       s_id),
                        std::logic_error,
                        "Referenced frame \\d+ has not been registered.");
-  EXPECT_ERROR_MESSAGE(geometry_state_.GetSourceId(GeometryId::get_new_id()),
+  // Test for valid frame.
+  EXPECT_TRUE(geometry_state_.BelongsToSource(frames_[0], s_id));
+}
+
+// This tests the source ownership functionality for geometry - a function which
+// reports if a geometry belongs to the specified source. It examines dynamic
+// and anchored geometry.
+TEST_F(GeometryStateTest, SourceOwnershipGeometryId) {
+  SourceId s_id = SetUpSingleSourceTree();
+  GeometryId anchored_id = geometry_state_.RegisterAnchoredGeometry(
+      s_id,
+      make_unique<GeometryInstance<double>>(
+          Isometry3<double>::Identity(),
+          std::unique_ptr<Shape>(new Sphere(1))));
+  // Test for invalid geometry.
+  EXPECT_ERROR_MESSAGE(geometry_state_.BelongsToSource(GeometryId::get_new_id(),
+                                                       s_id),
                        std::logic_error,
-                       "Referenced geometry \\d+ does not belong to a known "
-                       "frame.");
+                       "Referenced geometry \\d+ has not been registered.");
+  // Test for valid geometry.
+  EXPECT_TRUE(geometry_state_.BelongsToSource(geometries_[0], s_id));
+  EXPECT_TRUE(geometry_state_.BelongsToSource(anchored_id, s_id));
 }
 
 // This confirms the failure state of calling GeometryState::GetFrameId with a
@@ -833,8 +899,7 @@ TEST_F(GeometryStateTest, GetSourceIdFromBadId) {
 TEST_F(GeometryStateTest, GetFrameIdFromBadId) {
   EXPECT_ERROR_MESSAGE(geometry_state_.GetFrameId(GeometryId::get_new_id()),
                        std::logic_error,
-                       "Referenced geometry \\d+ does not belong to a known "
-                       "frame.");
+                       "Referenced geometry \\d+ has not been registered.");
 }
 
 // This tests that clearing a source eliminates all of its geometry and frames,
@@ -859,7 +924,7 @@ TEST_F(GeometryStateTest, GetParentGeometry) {
   EXPECT_ERROR_MESSAGE(
       geometry_state_.FindParentGeometry(GeometryId::get_new_id()),
       std::logic_error,
-      "Referenced geometry \\d+ does not belong to a known frame.");
+      "Referenced geometry \\d+ has not been registered.");
 
   // Case: Query geometry id directly registered to the frame. The optional must
   // be false.
