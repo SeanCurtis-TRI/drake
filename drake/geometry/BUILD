@@ -109,6 +109,7 @@ drake_cc_library(
         ":internal_frame",
         ":internal_geometry",
         "//drake/common",
+        "//drake/common:unused",
     ],
 )
 
