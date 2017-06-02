@@ -111,7 +111,7 @@ template <typename T>
     int frame_group = initial_state_->get_frame_group(f_id);
     bundle.set_model_instance_id(i, frame_group);
 
-    SourceId s_id = initial_state_->GetSourceId(f_id);
+    SourceId s_id = initial_state_->get_source_id(f_id);
     const std::string& src_name = initial_state_->get_source_name(s_id);
     const std::string& frm_name = initial_state_->get_frame_name(f_id);
     // TODO(SeanCurtis-TRI): Consider replacing geometry id with geometry name.

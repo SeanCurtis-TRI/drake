@@ -22,6 +22,8 @@ namespace geometry {
 // forward declarations
 template <typename T> class FrameKinematicsSet;
 template <typename T> struct GeometryFrame;
+template <typename T> class GeometrySystem;
+template <typename T> class GeometryWorld;
 
 /** @name Structures for maintaining the entity relationships
  @{ */
@@ -30,9 +32,6 @@ template <typename T> struct GeometryFrame;
 using FrameIdSet = std::unordered_set<FrameId>;
 
 //@}
-
-// forward declaration
-template <typename T> class GeometryWorld;
 
 /**
  The context-dependent state of GeometryWorld. This serves as an AbstractValue
@@ -189,21 +188,22 @@ class GeometryState {
    entities.
    @{ */
 
-  /** Retrieves the geometry source id on which the given frame id is
-   registered.
+  /** Reports if the given frame id was registered to the given source id.
    @param frame_id      The query frame id.
-   @returns The identifier of the source that registered this frame.
-   @throws std::logic_error  If the `frame_id` does _not_ map to a frame which
-                             belongs to an active source. */
-  SourceId GetSourceId(FrameId frame_id) const;
+   @param source_id     The query source id.
+   @returns True if `frame_id` was registered on `source_id`.
+   @throws std::logic_error  If the `frame_id` does _not_ map to a frame or the
+                             identified source is not active. */
+  bool BelongsToSource(FrameId frame_id, SourceId source_id) const;
 
-  /** Retrieves the geometry source id on which the given geometry id is
-   ultimately registered.
+  /** Reports if the given geometry id was ultimately registered to the given
+   source id.
    @param geometry_id      The query geometry id.
-   @returns The identifier of the source that registered this geometry.
-   @throws std::logic_error  If the `geometry_id` does _not_ map to a geometry
-                             which belongs to an active source. */
-  SourceId GetSourceId(GeometryId geometry_id) const;
+   @param source_id     The query source id.
+   @returns True if `geometry_id` was registered on `source_id`.
+   @throws std::logic_error  If the `geometry_id` does _not_ map to a valid
+                             geometry or the identified source is not active */
+  bool BelongsToSource(GeometryId geometry_id, SourceId source_id) const;
 
   /** Retrieves the frame id on which the given geometry id is declared.
    @param geometry_id   The query geometry id.
@@ -385,9 +385,16 @@ class GeometryState {
   // Allow GeometryWorld unique access to the state members to perform queries.
   friend class GeometryWorld<T>;
 
+  // Allow GeometrySystem unique access to the state members to perform queries.
+  friend class GeometrySystem<T>;
+
   // Friend declaration so that the internals of the state can be confirmed in
   // unit tests.
   template <class U> friend class GeometryStateTester;
+
+  // Gets the source id for the given frame id. Throws std::logic_error if the
+  // frame belongs to no registered source.
+  SourceId get_source_id(FrameId frame_id) const;
 
   // Does the work of registering geometry. Attaches the given geometry to the
   // identified frame (which must belong to the identified source). The geometry
