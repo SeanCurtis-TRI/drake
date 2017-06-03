@@ -24,7 +24,8 @@ std::unique_ptr<Shape> make_sphere(double radius) {
   return std::unique_ptr<Shape>(new Sphere(radius));
 }
 
-std::unique_ptr<Shape> make_plane(const Vector3<double>& n, const Vector3<double>& p) {
+std::unique_ptr<Shape> make_plane(const Vector3<double>& n,
+                                  const Vector3<double>& p) {
   return std::unique_ptr<Shape>(new HalfSpace(n, p));
 }
 
@@ -75,8 +76,8 @@ GTEST_TEST(MickeyMouse, LoadTest) {
 }
 
 GTEST_TEST(GeometrySystemTest, Construct) {
-  // TODO: This isn't actually a *TEST*. It doesn't validate anything. I was
-  // using this to exercise code.
+  // TODO(SeanCurtis-Tri): This isn't actually a *TEST*. It doesn't validate
+  // anything. I was using this to exercise code.
   using std::to_string;
   GSystem system;
   SourceId s_id = system.RegisterSource("first_source");
@@ -96,7 +97,8 @@ GTEST_TEST(GeometrySystemTest, Construct) {
       geometries.emplace(g_id);
     }
   }
-  OutputPortDescriptor<double> descriptor(&system, 0, systems::kAbstractValued, 0);
+  OutputPortDescriptor<double> descriptor(&system, 0,
+                                          systems::kAbstractValued, 0);
   auto value = system.AllocateOutputAbstract(descriptor);
 }
 }  // namespace

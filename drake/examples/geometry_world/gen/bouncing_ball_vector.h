@@ -13,9 +13,9 @@
 #include "drake/common/never_destroyed.h"
 #include "drake/systems/framework/basic_vector.h"
 
-namespace drake{
-namespace examples{
-namespace bouncing_ball{
+namespace drake {
+namespace examples {
+namespace bouncing_ball {
 
 /// Describes the row indices of a BouncingBallVector.
 struct BouncingBallVectorIndices {
@@ -63,10 +63,10 @@ class BouncingBallVector : public systems::BasicVector<T> {
   }
   //@}
 
-    /// See BouncingBallVectorIndices::GetCoordinateNames().
-    static const std::vector<std::string>& GetCoordinateNames() {
-      return BouncingBallVectorIndices::GetCoordinateNames();
-   }
+  /// See BouncingBallVectorIndices::GetCoordinateNames().
+  static const std::vector<std::string>& GetCoordinateNames() {
+    return BouncingBallVectorIndices::GetCoordinateNames();
+  }
 
   /// Returns whether the current values of this vector are well-formed.
   decltype(T() < T()) IsValid() const {
@@ -76,7 +76,6 @@ class BouncingBallVector : public systems::BasicVector<T> {
     result = result && !isnan(zdot());
     return result;
   }
-
 };
 
 }  // namespace bouncing_ball

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <utility>
+#include <vector>
 
 #include "drake/common/drake_throw.h"
 #include "drake/common/eigen_autodiff_types.h"
@@ -48,7 +49,8 @@ BouncingBallPlant<T>::BouncingBallPlant(SourceId source_id,
   static_assert(BouncingBallVectorIndices::kNumCoordinates == 1 + 1, "");
 
   ball_frame_id_ = geometry_system->RegisterFrame(
-      source_id, GeometryFrame<T>("ball_frame", Isometry3<T>::Identity() /*X_PF = X_WF*/));
+      source_id, GeometryFrame<T>("ball_frame",
+                                  Isometry3<T>::Identity() /*X_PF = X_WF*/));
   ball_id_ = geometry_system->RegisterGeometry(
       source_id, ball_frame_id_,
       make_unique<GeometryInstance<T>>(Isometry3<double>::Identity(), /*X_FG*/
@@ -101,7 +103,7 @@ void BouncingBallPlant<T>::DoCalcTimeDerivatives(
 
   std::vector<Contact<T>> contacts;
   geometry_system_->ComputeContact(context, &contacts);
-  T fC = 0; // the contact force
+  T fC = 0;  // the contact force
   if (contacts.size() > 0) {
     for (const auto& contact : contacts) {
       if (contact.id_A == ball_id_ || contact.id_B == ball_id_) {
@@ -125,20 +127,20 @@ void BouncingBallPlant<T>::DoCalcTimeDerivatives(
 
 // BouncingBallPlant has no constructor arguments, so there's no work to do
 // here.
-//template <typename T>
-//BouncingBallPlant<AutoDiffXd>* BouncingBallPlant<T>::DoToAutoDiffXd() const {
-//  return new BouncingBallPlant<AutoDiffXd>();
-//}
+// template <typename T>
+// BouncingBallPlant<AutoDiffXd>* BouncingBallPlant<T>::DoToAutoDiffXd() const {
+//   return new BouncingBallPlant<AutoDiffXd>();
+// }
 //
-//template <typename T>
-//BouncingBallPlant<symbolic::Expression>*
-//BouncingBallPlant<T>::DoToSymbolic() const {
-//  return new BouncingBallPlant<symbolic::Expression>();
-//}
+// template <typename T>
+// BouncingBallPlant<symbolic::Expression>*
+// BouncingBallPlant<T>::DoToSymbolic() const {
+//   return new BouncingBallPlant<symbolic::Expression>();
+// }
 
 template class BouncingBallPlant<double>;
-//template class BouncingBallPlant<AutoDiffXd>;
-//template class BouncingBallPlant<symbolic::Expression>;
+// template class BouncingBallPlant<AutoDiffXd>;
+// template class BouncingBallPlant<symbolic::Expression>;
 
 }  // namespace bouncing_ball
 }  // namespace examples

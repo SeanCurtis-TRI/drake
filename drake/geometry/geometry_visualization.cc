@@ -1,5 +1,8 @@
 #include "drake/geometry/geometry_visualization.h"
 
+#include <string>
+#include <vector>
+
 #include "drake/geometry/geometry_state.h"
 #include "drake/geometry/geometry_system.h"
 #include "drake/geometry/shapes.h"
@@ -7,7 +10,6 @@
 #include "drake/lcmtypes/drake/lcmt_viewer_geometry_data.hpp"
 #include "drake/lcmtypes/drake/lcmt_viewer_load_robot.hpp"
 #include "drake/math/rotation_matrix.h"
-#include "geometry_system.h"
 
 namespace drake {
 namespace geometry {
@@ -40,13 +42,14 @@ Matrix3<double> ComputeBasisFromZ(const Vector3<double> z_axis) {
 lcmt_viewer_geometry_data MakeGeometryData(const Shape& shape,
                                            const Isometry3<double>& X_GP) {
   lcmt_viewer_geometry_data geometry_data;
-  Eigen::Isometry3d transform; // extract X_FG
+  Eigen::Isometry3d transform;  // The extracted X_FG.
   switch (shape.get_type()) {
     case Shape::SPHERE: {
       geometry_data.type = geometry_data.SPHERE;
       geometry_data.num_float_data = 1;
       auto sphere = static_cast<const Sphere&>(shape);
-      geometry_data.float_data.push_back(static_cast<float>(sphere.get_radius()));
+      geometry_data.float_data.push_back(static_cast<float>(
+                                             sphere.get_radius()));
       transform = X_GP;
       break;
     }
@@ -60,8 +63,8 @@ lcmt_viewer_geometry_data MakeGeometryData(const Shape& shape,
       // space.
       geometry_data.float_data.push_back(50);
       geometry_data.float_data.push_back(50);
-      const double thickness = 1;
-      geometry_data.float_data.push_back(float(thickness));
+      const float thickness = 1;
+      geometry_data.float_data.push_back(thickness);
       // Set transform based on this voodoo.
       auto half_space = static_cast<const HalfSpace&>(shape);
       Isometry3<double> box_xform = Isometry3<double>::Identity();
@@ -137,13 +140,15 @@ void DispatchLoadMessage(const GeometryState<double>& state) {
   // Load dynamic geometry into their own frames.
   for (const auto& pair : state.frames_) {
     const internal::InternalFrame& frame = pair.second;
-    // TODO: This frame has to have the same name as when loaded.
-    SourceId s_id = state.GetSourceId(frame.get_id());
+    // TODO(SeanCurtis-TRI): This frame has to have the same name as when
+    // loaded.
+    SourceId s_id = state.get_source_id(frame.get_id());
     const std::string& src_name = state.get_source_name(s_id);
     // This name should be well correlated with the GeometrySystem output.
     message.link[link_index].name = src_name + "::" + frame.get_name();
     message.link[link_index].robot_num = frame.get_frame_group();
-    const int geom_count = static_cast<int>(frame.get_child_geometries().size());
+    const int geom_count = static_cast<int>(
+        frame.get_child_geometries().size());
     message.link[link_index].num_geom = geom_count;
     message.link[link_index].geom.resize(geom_count);
     int geom_index = 0;
