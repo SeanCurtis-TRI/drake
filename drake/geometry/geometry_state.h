@@ -95,6 +95,7 @@ class GeometryState {
     std::unordered_map<K, V> map_;
   };
 
+  // TODO(SeanCurtis-TRI): Kill this
   /** Provides a range iterator for all of the source ids in the world. The
    order is not generally guaranteed; but it will be consistent as long as there
    are no changes to the topology. This is intended to be used as:

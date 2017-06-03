@@ -57,7 +57,7 @@ int do_main() {
   geometry_system->RegisterAnchoredGeometry(
       global_source,
       make_unique<GeometryInstance<double>>(
-          Isometry3<double>::Identity(), /* X_WG: pose of the GeometryInstance in its parent frame, in this case the world.*/
+          Isometry3<double>::Identity(),
               make_unique<HalfSpace>(normal_G, point_G)));
 
   DrakeLcm lcm;
