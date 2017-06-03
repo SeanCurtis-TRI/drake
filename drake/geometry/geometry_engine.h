@@ -102,7 +102,8 @@ class GeometryEngine {
   virtual const Shape& get_shape(GeometryIndex index) const = 0;
 
   /** Returns a const reference to the ith anchored shape. */
-  virtual const Shape& get_anchored_shape(AnchoredGeometryIndex index) const = 0;
+  virtual const Shape& get_anchored_shape(
+      AnchoredGeometryIndex index) const = 0;
 
   //@}
 

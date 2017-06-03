@@ -41,7 +41,7 @@ GeometrySystem<T>::~GeometrySystem() {}
 template <typename T>
 SourceId GeometrySystem<T>::RegisterSource(const std::string &name) {
   if (!context_allocated_) {
-   return geometry_world_.RegisterNewSource(initial_state_, name);
+    return geometry_world_.RegisterNewSource(initial_state_, name);
   } else {
     throw std::logic_error(
         "A context has been created for this system. Adding "
@@ -65,8 +65,8 @@ GeometrySystem<T>::get_port_for_source_id(SourceId id) {
         input_source_ids_[id] = input_port.get_index();
         return input_port;
       } else {
-        throw std::logic_error("Can't create input port for unknown source id: " +
-                               to_string(id) + ".");
+        throw std::logic_error("Can't create input port for unknown source id: "
+                               + to_string(id) + ".");
       }
     } else {
       throw std::logic_error(
