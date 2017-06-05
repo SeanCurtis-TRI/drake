@@ -23,8 +23,8 @@ class SpatialPose {
  public:
   DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(SpatialPose)
 
-  /** @name     Constructors
-   @{ */
+  /** @name     Constructors  */
+  // @{
 
   /** Default constructor. In Release builds the elements of the newly
    constructed spatial pose are left uninitialized resulting in a zero
@@ -43,17 +43,17 @@ class SpatialPose {
   explicit SpatialPose(const Isometry3<T>& isometry)
       : orientation_(isometry.linear()), position_(isometry.translation()) {}
 
-  /** @} */
+  //@}
 
-  /** @name  Access to pose values
-   @{ */
+  /** @name  Const access to pose values */
+  //@{
 
   /** Returns the pose represented by a 4x4 homogeneous matrix (or isometry).
    The matrix is measured and expressed in the same frame as the underlying
    pose. */
   Isometry3<T> get_isometry() const {
     Isometry3<T> isometry;
-    isometry.linear() = Quaternion<T>(rotational()).toRotationMatrix();
+    isometry.linear() = orientation_.toRotationMatrix();
     isometry.translation() = translational();
     return isometry;
   }
@@ -63,25 +63,36 @@ class SpatialPose {
     return orientation_;
   }
 
-  /** Mutable access to the rotational component of this spatial vector. */
-  Quaternion<T>& rotational() {
-    return orientation_;
-  }
-
   /** Const access to the translational component of this spatial vector. */
   const Vector3<T>& translational() const {
     return position_;
   }
 
-  /** Mutable access to the translational component of this spatial vector. */
-  Vector3<T>& translational() {
-    return position_;
+  //@}
+
+  /** @name  Updating pose values  */
+  // @{
+
+  /** Sets the rotational component of the pose from the given `rotational`. */
+  void set_rotational(const Quaternion<T>& rotational) {
+    orientation_ = rotational;
   }
 
-  /** @} */
+  /** Sets the translational component of the pose from the given `position`. */
+  void set_translational(const Vector3<T>& position) {
+    position_ = position;
+  }
 
-  /** @name  Data access and manipulation
-   @{ */
+  /** Sets the pose from the given isometry. */
+  void set_pose(const Isometry3<T>& pose) {
+    orientation_ = pose.linear();
+    position_ = pose.translation();
+  }
+
+  //@}
+
+  /** @name  Data access and manipulation  */
+  // @{
 
   /** Compares `this` spatial pose to the provided spatial pose `other`
    with respect to a specified precision.
@@ -105,7 +116,7 @@ class SpatialPose {
         typename Eigen::NumTraits<T>::Literal>::quiet_NaN());
   }
 
-  /** @} */
+  //@}
 
  private:
   Quaternion<T> orientation_;
