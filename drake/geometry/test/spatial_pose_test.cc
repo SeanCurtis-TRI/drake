@@ -62,6 +62,7 @@ GTEST_TEST(SpatialPose, Constructor) {
 }
 
 GTEST_TEST(SpatialPose, IsometryFromPose) {
+  // A rotation of the axes; the basis goes from x-y-z to y-z-x.
   Quatd q(0.5, -0.5, -0.5, -0.5);
   Vector3d p(10, 20, 30);
   SpatialPosed pose(q, p);
