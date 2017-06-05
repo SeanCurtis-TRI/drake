@@ -78,6 +78,52 @@ GTEST_TEST(SpatialPose, IsometryFromPose) {
                               expected.matrix().template block<3, 4>(0, 0)));
 }
 
+GTEST_TEST(SpatialPose, Setters) {
+  // A rotation of the axes; the basis goes from x-y-z to y-z-x.
+  Quatd q(0.5, -0.5, -0.5, -0.5);
+  Vector3d p(10, 20, 30);
+  SpatialPosed pose(q, p);
+  SpatialPosed cached_pose = pose;
+
+  Vector3d new_p(-10, -20, -30);
+  Quatd new_q(0.5, 0.5, 0.5, 0.5); // rotation in the opposite direction.
+  Iso3d new_expected;
+  new_expected.linear() << 0, 0, 1, 1, 0, 0, 0, 1, 0;
+  new_expected.translation() = new_p;
+
+  // Confirm initial conditions.
+  EXPECT_FALSE(CompareMatrices(pose.rotational().coeffs(), new_q.coeffs()));
+  EXPECT_FALSE(CompareMatrices(pose.translational(), new_p));
+  EXPECT_FALSE(CompareMatrices(
+      pose.get_isometry().matrix().template block<3, 4>(0, 0),
+      new_expected.matrix().template block<3, 4>(0, 0)));
+
+  // Set rotational and translational components.
+  pose.set_translational(new_p);
+  EXPECT_TRUE(CompareMatrices(pose.translational(), new_p));
+  pose.set_rotational(new_q);
+  EXPECT_TRUE(CompareMatrices(pose.rotational().coeffs(), new_q.coeffs()));
+  EXPECT_TRUE(CompareMatrices(
+      pose.get_isometry().matrix().template block<3, 4>(0, 0),
+      new_expected.matrix().template block<3, 4>(0, 0)));
+
+  // Set isometry.
+  pose = cached_pose;
+  // Confirm initial conditions.
+  EXPECT_FALSE(CompareMatrices(pose.rotational().coeffs(), new_q.coeffs()));
+  EXPECT_FALSE(CompareMatrices(pose.translational(), new_p));
+  EXPECT_FALSE(CompareMatrices(
+      pose.get_isometry().matrix().template block<3, 4>(0, 0),
+      new_expected.matrix().template block<3, 4>(0, 0)));
+
+  pose.set_pose(new_expected);
+  EXPECT_TRUE(CompareMatrices(pose.translational(), new_p));
+  EXPECT_TRUE(CompareMatrices(pose.rotational().coeffs(), new_q.coeffs()));
+  EXPECT_TRUE(CompareMatrices(
+      pose.get_isometry().matrix().template block<3, 4>(0, 0),
+      new_expected.matrix().template block<3, 4>(0, 0)));
+}
+
 }  // namespace
 }  // namespace geometry
 }  // namespace drake
