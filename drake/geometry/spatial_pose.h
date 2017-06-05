@@ -45,7 +45,7 @@ class SpatialPose {
 
   /** @} */
 
-  /** @name  Spatial functionality
+  /** @name  Access to pose values
    @{ */
 
   /** Returns the pose represented by a 4x4 homogeneous matrix (or isometry).
