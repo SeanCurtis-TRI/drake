@@ -281,6 +281,10 @@ class DiagramBuilder {
     while (!nodes_with_in_degree_zero.empty()) {
       // Pop a node with in-degree zero.
       const System<T>* node = nodes_with_in_degree_zero.back();
+      // TODO(SeanCurtis-TRI): Instead of const casting this, I should be
+      // working on non-const pointers.
+      const_cast<System<T> *>(node)->set_subsystem_index(
+          static_cast<int>(sorted_systems.size()));
       nodes_with_in_degree_zero.pop_back();
 
       // Push the node onto the sorted output.

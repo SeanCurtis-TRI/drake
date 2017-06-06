@@ -395,6 +395,9 @@ class Context {
     parent_ = parent;
   }
 
+  /// Returns a pointer to this context's parent context.
+  const Context<T>* get_parent() const { return parent_; }
+
   /// Throws an exception unless the given @p descriptor matches the inputs
   /// actually connected to this context in shape.
   /// Supports any scalar type of `descriptor`, but expects T by default.

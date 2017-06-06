@@ -181,6 +181,42 @@ GTEST_TEST(DiagramBuilderTest, ExportInputOutputIndex) {
         adder2->get_output_port()), 1 /* exported output port id */);
 }
 
+// Tests that the systems are provided with subsystem indices consistent with
+// their position in their parent diagram's child list.
+GTEST_TEST(DiagramBuilderTest, SystemIndexAssignment) {
+  {
+    DiagramBuilder<double> builder;
+    auto adder1 = builder.AddSystem<Adder>(1 /* inputs */, 1 /* size */);
+    adder1->set_name("adder1");
+    auto adder2 = builder.AddSystem<Adder>(1 /* inputs */, 1 /* size */);
+    adder2->set_name("adder2");
+    builder.Connect(adder1->get_output_port(),
+                    adder2->get_input_port(0));
+    auto diagram = builder.Build();
+    EXPECT_EQ(diagram->GetSystemIndexOrAbort(adder1),
+              adder1->get_subsystem_index());
+    EXPECT_EQ(diagram->GetSystemIndexOrAbort(adder2),
+              adder2->get_subsystem_index());
+  }
+  // Confirm that the order systems are adding vs. dependency direction doesn't
+  // change the result.
+  {
+    DiagramBuilder<double> builder;
+    auto adder2 = builder.AddSystem<Adder>(1 /* inputs */, 1 /* size */);
+    adder2->set_name("adder2");
+    auto adder1 = builder.AddSystem<Adder>(1 /* inputs */, 1 /* size */);
+    adder1->set_name("adder1");
+    builder.Connect(adder1->get_output_port(),
+                    adder2->get_input_port(0));
+    auto diagram = builder.Build();
+    EXPECT_EQ(diagram->GetSystemIndexOrAbort(adder1),
+              adder1->get_subsystem_index());
+    EXPECT_EQ(diagram->GetSystemIndexOrAbort(adder2),
+              adder2->get_subsystem_index());
+  }
+}
+
+
 }  // namespace
 }  // namespace systems
 }  // namespace drake

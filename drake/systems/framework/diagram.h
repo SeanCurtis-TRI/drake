@@ -1284,6 +1284,9 @@ class Diagram : public System<T>,
     system->CalcOutput(*subsystem_context, subsystem_output);
   }
 
+ public:
+  // TODO(SeanCurtis-TRI): This is a horrible hack to facilitate a unit test.
+  // Do this in a more principled way.
   // Returns the index of the given @p sys in the sorted order of this diagram,
   // or aborts if @p sys is not a member of the diagram.
   int GetSystemIndexOrAbort(const System<T>* sys) const {
@@ -1292,6 +1295,7 @@ class Diagram : public System<T>,
     return it->second;
   }
 
+ private:
   // Converts a PortIdentifier to a DiagramContext::PortIdentifier.
   // The DiagramContext::PortIdentifier contains the index of the System in the
   // sorted order of the diagram, instead of an actual pointer to the System.
