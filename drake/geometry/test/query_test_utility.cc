@@ -23,14 +23,13 @@ void GeometryQueryTest::SetUpAxisSpheres() {
 
   // Add set of known spheres to the engine; encode known query relationships
   // between them.
-  source_id_ = SourceId::get_new_id();
-  state_.RegisterNewSource(source_id_, "axis-aligned spheres");
+  source_id_ = state_->RegisterNewSource("axis-aligned spheres");
 
   for (int i = 0; i < kSphereCount; ++i) {
-    FrameId frame_id = state_.RegisterFrame(
+    FrameId frame_id = state_->RegisterFrame(
         source_id_, GeometryFrame<double>("frame_" + to_string(i),
                                           Isometry3<double>::Identity()));
-    state_.RegisterGeometry(
+    state_->RegisterGeometry(
         source_id_, frame_id,
         make_unique<GeometryInstance<double>>(Isometry3<double>::Identity(),
                                               make_sphere(kRadius)));

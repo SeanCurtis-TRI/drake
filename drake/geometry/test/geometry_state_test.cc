@@ -87,9 +87,7 @@ class GeometryStateTest : public ::testing::Test {
 
   // Utility method for adding a source to the state.
   SourceId NewSource(const std::string& name = "") {
-    SourceId s_id = SourceId::get_new_id();
-    geometry_state_.RegisterNewSource(s_id, name == "" ? source_name : name);
-    return s_id;
+    return geometry_state_.RegisterNewSource(name == "" ? source_name : name);
   }
 
   // This method sets up a dummy tree to facilitate testing. It creates a single
@@ -262,17 +260,17 @@ TEST_F(GeometryStateTest, SourceRegistrationWithNames) {
   using std::to_string;
 
   // Case: Successful registration of unique source id and name.
-  SourceId s_id = SourceId::get_new_id();
-  std::string name = "Unique_" + to_string(s_id);
-  EXPECT_NO_THROW(geometry_state_.RegisterNewSource(s_id, name));
+  SourceId s_id;
+  std::string name = "Unique";
+  EXPECT_NO_THROW((s_id = geometry_state_.RegisterNewSource(name)));
   EXPECT_TRUE(geometry_state_.source_is_active(s_id));
   EXPECT_EQ(geometry_state_.get_source_name(s_id), name);
 
   // Case: Unique id with duplicate name.
   EXPECT_ERROR_MESSAGE(
-      geometry_state_.RegisterNewSource(SourceId::get_new_id(), name),
+      geometry_state_.RegisterNewSource(name),
       std::logic_error,
-      "Registering new source with duplicate name: Unique_\\d+.");
+      "Registering new source with duplicate name: Unique.");
 
   // Case: query with invalid source id.
   EXPECT_ERROR_MESSAGE(geometry_state_.get_source_name(SourceId::get_new_id()),
@@ -421,8 +419,7 @@ TEST_F(GeometryStateTest, AddFrameToSourceWithFrames) {
 // sources.
 TEST_F(GeometryStateTest, AddFrameToNewSourceWithFrames) {
   SourceId s_id = SetUpSingleSourceTree();
-  SourceId new_s_id = SourceId::get_new_id();
-  geometry_state_.RegisterNewSource(new_s_id, "new_source");
+  SourceId new_s_id = geometry_state_.RegisterNewSource("new_source");
   FrameId fid = geometry_state_.RegisterFrame(new_s_id, *frame_.get());
   // Confirm addition.
   EXPECT_TRUE(geometry_state_.BelongsToSource(fid, new_s_id));
@@ -512,8 +509,7 @@ TEST_F(GeometryStateTest, RemoveFrameInvalid) {
       "Referenced geometry source \\d+ is not active.");
 
   // Case: Valid source and frame, but frame does _not_ belong to source.
-  SourceId s_id2 = SourceId::get_new_id();
-  geometry_state_.RegisterNewSource(s_id2, "new_source");
+  SourceId s_id2 = geometry_state_.RegisterNewSource("new_source");
   FrameId frame_id = geometry_state_.RegisterFrame(s_id2, *frame_.get());
   EXPECT_EQ(geometry_state_.get_num_frames(), kFrameCount + 1);
   EXPECT_ERROR_MESSAGE(
@@ -761,8 +757,7 @@ TEST_F(GeometryStateTest, RemoveGeometryInvalid) {
       "Referenced geometry \\d+ has not been registered.");
 
   // Case: Valid geometry and source, but geometry belongs to different source.
-  SourceId s_id2 = SourceId::get_new_id();
-  geometry_state_.RegisterNewSource(s_id2, "new_source");
+  SourceId s_id2 = geometry_state_.RegisterNewSource("new_source");
   FrameId frame_id = geometry_state_.RegisterFrame(s_id2, *frame_);
   EXPECT_EQ(geometry_state_.get_num_frames(), kFrameCount + 1);
   GeometryId g_id = geometry_state_.RegisterGeometry(

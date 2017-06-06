@@ -155,10 +155,10 @@ TEST_F(GeometryEngineStubTest, CollisionsIntersectingSphere) {
   const double collider_radius =
       (p_WX - p_WO).norm() + collide_depth - kRadius * 2;
 
-  FrameId frame_id = state_.RegisterFrame(
+  FrameId frame_id = state_->RegisterFrame(
       source_id_, GeometryFrame<double>("collider",
                                         Isometry3<double>::Identity()));
-  GeometryId collider_id = state_.RegisterGeometry(
+  GeometryId collider_id = state_->RegisterGeometry(
       source_id_, frame_id,
       make_unique<GeometryInstance<double>>(Isometry3<double>::Identity(),
                                             make_sphere(collider_radius)));
@@ -198,13 +198,13 @@ TEST_F(GeometryEngineStubTest, CollisionsIntersectingSphere) {
 // Confirms that half space cannot be added as a dynamic geometry.
 TEST_F(GeometryEngineStubTest, AddHalfspaceAsDynamic) {
   SetUpAxisSpheres();
-  FrameId frame_id = state_.RegisterFrame(
+  FrameId frame_id = state_->RegisterFrame(
       source_id_, GeometryFrame<double>("space",
                                         Isometry3<double>::Identity()));
   // Create half space
   Vector3<double> normal = Vector3<double>(1, 1, 1).normalized();
   Vector3<double> point = normal * (-kRadius - 0.1);
-  EXPECT_THROW(state_.RegisterGeometry(
+  EXPECT_THROW(state_->RegisterGeometry(
       source_id_, frame_id,
       make_unique<GeometryInstance<double>>(
           Isometry3<double>::Identity(),
@@ -220,7 +220,7 @@ TEST_F(GeometryEngineStubTest, CollisionsHalfSpaceNoCollide) {
   // Create half space
   Vector3<double> normal = Vector3<double>(1, 2, 3);
   Vector3<double> point = normal * (-kRadius - 0.1);
-  GeometryId plane_id = state_.RegisterAnchoredGeometry(
+  GeometryId plane_id = state_->RegisterAnchoredGeometry(
       source_id_, make_unique<GeometryInstance<double>>(
                       Isometry3<double>::Identity(),
                       make_unique<HalfSpace>(normal, point)));
@@ -241,12 +241,11 @@ TEST_F(GeometryEngineStubTest, CollisionsHalfSpaceNoCollide) {
 // This implicitly tests the auto normalization of the HalfSpace constructor.
 TEST_F(GeometryEngineStubTest, CollisionsHalfSpaceCollide) {
   // Add single sphere at the origin.
-  source_id_ = SourceId::get_new_id();
-  state_.RegisterNewSource(source_id_, "axis-aligned spheres");
-  FrameId frame_id = state_.RegisterFrame(
+  source_id_ = state_->RegisterNewSource("axis-aligned spheres");
+  FrameId frame_id = state_->RegisterFrame(
       source_id_, GeometryFrame<double>("sphere" ,
                                         Isometry3<double>::Identity()));
-  GeometryId sphere_id = state_.RegisterGeometry(
+  GeometryId sphere_id = state_->RegisterGeometry(
       source_id_, frame_id,
       make_unique<GeometryInstance<double>>(Isometry3<double>::Identity(),
                                             make_sphere(kRadius)));
@@ -261,7 +260,7 @@ TEST_F(GeometryEngineStubTest, CollisionsHalfSpaceCollide) {
   Vector3<double> direction = Vector3<double>(1, 2, 3);
   Vector3<double> normal = direction.normalized();
   Vector3<double> point = pose.translation() - normal * (kRadius - penetration);
-  GeometryId plane_id = state_.RegisterAnchoredGeometry(
+  GeometryId plane_id = state_->RegisterAnchoredGeometry(
       source_id_, make_unique<GeometryInstance<double>>(
                       Isometry3<double>::Identity(),
                       make_unique<HalfSpace>(direction, point)));

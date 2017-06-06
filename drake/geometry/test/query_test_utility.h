@@ -7,11 +7,13 @@
 #include <gtest/gtest.h>
 
 #include "drake/common/eigen_types.h"
+#include "drake/geometry/geometry_context.h"
 #include "drake/geometry/geometry_engine_stub.h"
 #include "drake/geometry/geometry_ids.h"
 #include "drake/geometry/geometry_state.h"
 #include "drake/geometry/internal_geometry.h"
 #include "drake/geometry/shapes.h"
+#include "drake/geometry/geometry_world.h"
 
 namespace drake {
 namespace geometry {
@@ -59,7 +61,10 @@ struct IdPair {
 class GeometryQueryTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    state_tester_.set_state(&state_);
+    GeometryWorld<double> world;
+    context_ = world.MakeContext();
+    state_ = &context_->get_mutable_geometry_state();
+    state_tester_.set_state(state_);
   }
 
   // Utility methods to create a sphere of the given radius.
@@ -80,8 +85,10 @@ class GeometryQueryTest : public ::testing::Test {
 
   // Source id for the frames/geometries.
   SourceId source_id_;
+  // The context containing the state.
+  std::unique_ptr<GeometryContext<double>> context_;
   // The state of the geometry world.
-  GeometryState<double> state_;
+  GeometryState<double>* state_;
   // The poses of the axis spheres.
   std::vector<Isometry3<double>> poses_;
   // The class that provides access to the GeometryState internals.

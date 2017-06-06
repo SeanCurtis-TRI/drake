@@ -86,7 +86,7 @@ GTEST_TEST(SpatialPose, Setters) {
   SpatialPosed cached_pose = pose;
 
   Vector3d new_p(-10, -20, -30);
-  Quatd new_q(0.5, 0.5, 0.5, 0.5); // rotation in the opposite direction.
+  Quatd new_q(0.5, 0.5, 0.5, 0.5);  // rotation in the opposite direction.
   Iso3d new_expected;
   new_expected.linear() << 0, 0, 1, 1, 0, 0, 0, 1, 0;
   new_expected.translation() = new_p;

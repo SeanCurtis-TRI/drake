@@ -61,7 +61,11 @@ class GeometrySystem : public systems::LeafSystem<T> {
    dynamic geometry is registered (via RegisterGeometry/RegisterFrame), then
    the context-dependent pose values must be provided on an input port.
    See get_port_for_source_id().
-   @throws  std::logic_error if a context has been allocated for this system. */
+   @param name          The optional name of the source. If none is provided
+                        (or the empty string) it will be defined by
+                        GeometryState's logic.
+   @throws  std::logic_error if a context has been allocated for this system.
+   @see GeometryState::RegisterNewSource() */
   SourceId RegisterSource(const std::string &name = "");
 
   /** Given a valid source identifier, returns an input port associated with
@@ -429,7 +433,7 @@ class GeometrySystem : public systems::LeafSystem<T> {
   // Updates the state of geometry world from the inputs. It is *declared* const
   // so it can be invoked in the const query methods.  But it has mutable
   // behavior. Part of a horrible hack.
-  const GeometryState<T>& UpdateFromInputs(
+  const GeometryContext<T>& UpdateFromInputs(
       const systems::Context<T>& sibling_context) const;
 
   // Override of construction to account for
@@ -437,35 +441,15 @@ class GeometrySystem : public systems::LeafSystem<T> {
   //    - modifying the state to prevent additional sources being added. */
   std::unique_ptr<systems::Context<T>> MakeContext() const override;
 
-  // Given a sibling context, extracts a mutable instance of the geometry state.
-  GeometryState<T>* ExtractMutableStateViaSiblingContext(
-      systems::Context<T>* context);
+  // Given a sibling context, extracts a mutable instance of the geometry
+  // context.
+  GeometryContext<T>& ExtractMutableContextViaSiblingContext(
+      const systems::Context<T>& sibling_context);
 
   // Given a const sibling context, extracts a const instance of the geometry
-  // state.
-  const GeometryState<T>& ExtractStateViaSiblingContext(
+  // context.
+  const GeometryContext<T>& ExtractContextViaSiblingContext(
       const systems::Context<T>& sibling_context) const;
-
-  // Given a mutable *sibling* context, extracts a mutable GeometryContext for
-  // this system from the parent diagram context. Throws an exception if such a
-  // context cannot be found.
-  GeometryContext<T>* get_mutable_context(const systems::Context<T>* context);
-
-  // Given a *sibling* context, extracts a GeometryContext for this system from
-  // the parent diagram context. Throws an exception if such a context cannot be
-  // found.
-  const GeometryContext<T>& get_context(
-      const systems::Context<T>& sibling_context) const;
-
-  // Extracts a mutable geometry state from the given GeometryContext.
-  // Ultimately, this should be a private utility method, but it is made public
-  // to facilitate testing.
-  GeometryState<T>* get_mutable_state(GeometryContext<T>* context);
-
-  // Extracts a read-only geometry state from the given GeometryContext.
-  // Ultimately, this should be a private utility method, but it is made public
-  // to facilitate testing.
-  const GeometryState<T>& get_state(const GeometryContext<T>& context) const;
 
   // Helper method for throwing an exception if a context has *ever* been
   // allocated by this system.

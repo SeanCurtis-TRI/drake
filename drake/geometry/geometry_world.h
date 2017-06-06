@@ -17,6 +17,7 @@ namespace geometry {
 
 // Forward declarations.
 template <typename T> class FrameKinematicsSet;
+template <typename T> class GeometryContext;
 template <typename T> class GeometryInstance;
 template <typename T> class GeometryState;
 template <typename T> struct NearestPair;
@@ -153,11 +154,16 @@ class GeometryWorld {
   /** Default constructor. */
   GeometryWorld() = default;
 
+  /** Creates a context that can be used with geometry world operations. This
+   is a utility method to facilitate using %GeometryWorld _outside_ of a Drake
+   diagram. It should not be used otherwise. */
+  std::unique_ptr<GeometryContext<T>> MakeContext() const;
+
   /** Reports the number of moving frames in %GeometryWorld. */
-  int get_num_frames(const GeometryState<T>& state) const;
+  int get_num_frames(const GeometryContext<T>& context) const;
 
   /** Reports the number of dynamic geometries. */
-  int get_num_moving_geometries(const GeometryState<T>& state) const;
+  int get_num_moving_geometries(const GeometryContext<T>& context) const;
 
   /** @name Registration methods
 
@@ -173,46 +179,48 @@ class GeometryWorld {
 
   // TODO(SeanCurtis-TRI): Discuss the implications of the name -- where does it
   // appear?
-  /** Registers a new geometry source to GeometryWorld, receiving the unique
-   identifier for this new source.
-   @param state         A mutable geometry state for this geometry world.
+  /** Registers a new geometry source to GeometryWorld, returning the unique
+   identifier for this new source. The provided context will be changed.
+   @param context       A mutable geometry context for this geometry world.
    @param name          The optional name of the source. If none is provided
-                        it will be named Source## where the number is the
-                        value of the returned SourceId.
+                        (or the empty string) it will be defined by
+                        GeometryState's logic.
    @throws std::logic_error if the name duplicates a previously registered
-                            source name. */
-  SourceId RegisterNewSource(GeometryState<T>* state,
+                            source name.
+   @see GeometryState::RegisterNewSource() */
+  SourceId RegisterNewSource(GeometryContext<T>* context,
                              const std::string& name = "");
 
   /** Reports the source name for the given source id.
-   @param id  The identifier of the source.
+   @param context   The geometry context to query.
+   @param id        The identifier of the source.
    @return The name of the source.
    @throws std::logic_error if the id does _not_ map to an active source. */
-  const std::string& get_source_name(const GeometryState<T>& state,
+  const std::string& get_source_name(const GeometryContext<T>& context,
                                      SourceId id) const {
-    return state.get_source_name(id);
+    return context.get_geometry_state().get_source_name(id);
   }
 
   /** Reports if the identifier references a registered source. */
-  bool SourceIsRegistered(const GeometryState<T>& state, SourceId id) const;
+  bool SourceIsRegistered(const GeometryContext<T>& context, SourceId id) const;
 
   // TODO(SeanCurtis-TRI): Add metadata. E.g., name, some kind of payload, etc.
   /**
    Declares a new frame on this channel, receiving the unique id for the new
    frame.
-   @param state         A mutable geometry state for this geometry world.
+   @param context       A mutable geometry context for this geometry world.
    @param source_id     The identifier for the geometry source registering the
                         frame.
    @param frame         The definition of the frame to add.
    @returns  A newly allocated frame id.
    @throws std::logic_error  If the `source_id` does _not_ map to an active
                              source. */
-  FrameId RegisterFrame(GeometryState<T>* state, SourceId source_id,
+  FrameId RegisterFrame(GeometryContext<T>* context, SourceId source_id,
                         const GeometryFrame<T>& frame);
 
   /** Registers a new frame for the given source as a child of a previously
       registered frame. The id of the new frame is returned.
-   @param state        A mutable geometry state for this geometry world.
+   @param context       A mutable geometry context for this geometry world.
    @param source_id    The id of the source for which this frame is allocated.
    @param parent_id    The id of the parent frame.
    @param frame        The frame to register.
@@ -221,14 +229,14 @@ class GeometryWorld {
                              source, or
                              2. If the `parent_id` does _not_ map to a known
                              frame or does not belong to the source. */
-  FrameId RegisterFrame(GeometryState<T>* state, SourceId source_id,
+  FrameId RegisterFrame(GeometryContext<T>* context, SourceId source_id,
                         FrameId parent_id, const GeometryFrame<T>& frame);
 
   /**
    Declares a `geometry` instance as "hanging" from the specified frame at the
    given pose relative to the frame. The geometry is _rigidly_ affixed to the
    parent frame.
-   @param state       A mutable geometry state for this geometry world.
+   @param context     A mutable geometry context for this geometry world.
    @param source_id   The identifier for the geometry source registering the
                       frame.
    @param frame_id    The id for the frame `F` to hang the geometry on.
@@ -238,7 +246,7 @@ class GeometryWorld {
                              source, or
                              2. the `frame_id` doesn't belong to the source, or
                              3. The `geometry` is equal to `nullptr`. */
-  GeometryId RegisterGeometry(GeometryState<T>* state,
+  GeometryId RegisterGeometry(GeometryContext<T>* context,
                               SourceId source_id,
                               FrameId frame_id,
                               std::unique_ptr<GeometryInstance<T>> geometry);
@@ -252,7 +260,7 @@ class GeometryWorld {
    geometries. This rigid structure will all be driven by the declared frame
    to which the root geometry is registered.
 
-   @param state        A mutable geometry state for this geometry world.
+   @param context      A mutable geometry context for this geometry world.
    @param source_id    The identifier for the geometry source registering the
                        geometry.
    @param geometry_id  The id for the geometry to hang the declared geometry on.
@@ -263,14 +271,14 @@ class GeometryWorld {
                             2. the `geometry_id` doesn't belong to the source,
                             or
                             3. the `geometry` is equal to `nullptr`. */
-  GeometryId RegisterGeometry(GeometryState<T>* state,
+  GeometryId RegisterGeometry(GeometryContext<T>* context,
                               SourceId source_id,
                               GeometryId geometry_id,
                               std::unique_ptr<GeometryInstance<T>> geometry);
 
   /**
    Adds the given geometry to the world as anchored geometry.
-   @param state         A mutable geometry state for this geometry world.
+   @param context       A mutable geometry context for this geometry world.
    @param source_id     The identifier for the geometry source registering the
                         geometry.
    @param geometry      The geometry to add to the world.
@@ -278,7 +286,7 @@ class GeometryWorld {
    @throws std::logic_error  If the `source_id` does _not_ map to an active
                              source. */
   GeometryId RegisterAnchoredGeometry(
-      GeometryState<T>* state, SourceId source_id,
+      GeometryContext<T>* context, SourceId source_id,
       std::unique_ptr<GeometryInstance<T>> geometry);
 
   /** @} */
@@ -292,38 +300,38 @@ class GeometryWorld {
   /**
    Clears all the registered frames and geometries from this source, but leaves
    the source active for future registration of frames and geometries.
-   @param state       A mutable geometry state for this geometry world.
+   @param context     A mutable geometry context for this geometry world.
    @param source_id   The identifier of the source to be deactivated and
                       removed.
    @throws std::logic_error  If the `source_id` does _not_ map to an active
                              source. */
-  void ClearSource(GeometryState<T>* state, SourceId source_id);
+  void ClearSource(GeometryContext<T>* context, SourceId source_id);
 
   /**
    Removes the given frame from the the indicated source's frames. All
    registered geometries connected to this frame will also be removed from the
    world.
-   @param state       A mutable geometry state for this geometry world.
+   @param context     A mutable geometry context for this geometry world.
    @param source_id   The identifier for the owner geometry source.
    @param frame_id    The identifier of the frame to remove.
    @throws std::logic_error If:
                             1. The `source_id` is not an active source, or
                             2. the `frame_id` doesn't belong to the source. */
-  void RemoveFrame(GeometryState<T>* state, SourceId source_id,
+  void RemoveFrame(GeometryContext<T>* context, SourceId source_id,
                    FrameId frame_id);
 
   /**
    Removes the given geometry from the the indicated source's geometries. All
    registered geometries connected to this geometry will also be removed from
    the world.
-   @param state       A mutable geometry state for this geometry world.
+   @param context     A mutable geometry context for this geometry world.
    @param source_id   The identifier for the owner geometry source.
    @param geometry_id The identifier of the geometry to remove.
    @throws std::logic_error If:
                             1. The `source_id` is not an active source, or
                             2. the `geometry_id` doesn't belong to the source.
    */
-  void RemoveGeometry(GeometryState<T>* state, SourceId source_id,
+  void RemoveGeometry(GeometryContext<T>* context, SourceId source_id,
                       GeometryId geometry_id);
   /** @} */
 
@@ -332,6 +340,17 @@ class GeometryWorld {
    These methods define the interface for updating the state of geometry world
    and performing queries on that state.
    @{ */
+
+  /**
+   Requests a frame kinematics set for the given geometry source. This should be
+   invoked every time the frame kinematics values are evaluated and provided.
+
+   Aborts if the source identifier does not reference an active source.
+
+   @param context       The geometry context for this geometry world.
+   @param source_id     The identifier of the evaluating geometry source. */
+  FrameKinematicsSet<T> GetFrameKinematicsSet(const GeometryContext<T>& context,
+                                              SourceId source_id) const;
 
   /**
    Requests a frame kinematics set for the given geometry source. This should be
@@ -360,13 +379,13 @@ class GeometryWorld {
      - The data set does not come from a known geometry source,
      - The frames in the set are inconsistent with the registered frames.
 
-   @param state             A mutable geometry state for this geometry world.
+   @param context           A mutable geometry state for this geometry world.
    @param frame_kinematics  The kinematics data for the frames registered by a
                             single source.
    @throws std::logic_error If the frame kinematics data is missing any data for
                             registered frames, or includes frame ids that were
                             not registered with the associated source. */
-  void SetFrameKinematics(GeometryState<T>* state,
+  void SetFrameKinematics(GeometryContext<T>* context,
                           const FrameKinematicsSet<T>& frame_kinematics);
 
   /** @} */
@@ -374,7 +393,7 @@ class GeometryWorld {
   /** Creates a default-initialized instance of geometry state to serve as an
    operand of  %GeometryWorld operations. This serves as the portable data
    repository for all GeometryWorld operations. */
-  std::unique_ptr<GeometryState<T>> CreateState();
+  std::unique_ptr<GeometryState<T>> CreateState() const;
 
   //----------------------------------------------------------------------------
   /** @name                   Proximity Queries
@@ -392,12 +411,12 @@ class GeometryWorld {
    The output vector will *not* be cleared. Contact information will merely be
    added to the vector.
 
-   @param[in]   state           The state against which to queries will be made.
-   @param[out]  near_points     A vector containing `O(N²)` pairs, where there
-                                are `N` geometries in the world.
+   @param context         The geometry context to query against.
+   @param near_points     A vector containing `O(N²)` pairs, where there are `N`
+                          geometries in the world.
    @returns True if the operation was successful. */
   bool ComputePairwiseClosestPoints(
-      const GeometryState<T>& state,
+      const GeometryContext<T>& context,
       std::vector<NearestPair<T>>* near_points) const;
 
   // NOTE: This maps to Model::closestPointsAllToAll().
@@ -406,13 +425,13 @@ class GeometryWorld {
    The output vector will *not* be cleared. Contact information will merely be
    added to the vector.
 
-   @param[in]   state           The state against which to queries will be made.
-   @param[in]   ids_to_check    A vector of `N` geometry ids for which the
-                                pair-wise points are computed.
-   @param[out]  near_points     A vector containing O(N²) pairs.
+   @param context         The geometry context to query against.
+   @param ids_to_check    A vector of `N` geometry ids for which the pair-wise
+                          points are computed.
+   @param near_points     A vector containing O(N²) pairs.
    @returns True if the operation was successful. */
   bool ComputePairwiseClosestPoints(
-      const GeometryState<T>& state,
+      const GeometryContext<T>& context,
       const std::vector<GeometryId>& ids_to_check,
       std::vector<NearestPair<T>>* near_points) const;
 
@@ -423,14 +442,14 @@ class GeometryWorld {
    The output vector will *not* be cleared. Contact information will merely be
    added to the vector.
 
-   @param[in]   state           The state against which to queries will be made.
-   @param[in]  pairs        A vector of `N` geometry pairs. The closest points
-                            for each pair will be computed.
-   @param[out] near_points  A vector of `N` NearestPair values will be added
-                            to the vector, one for each input pair.
+   @param context      The geometry context to query against.
+   @param pairs        A vector of `N` geometry pairs. The closest points for
+                       each pair will be computed.
+   @param near_points  A vector of `N` NearestPair values will be added to the
+                       vector, one for each input pair.
    @returns True if the operation was successful. */
   bool ComputePairwiseClosestPoints(
-      const GeometryState<T>& state,
+      const GeometryContext<T>& context,
       const std::vector<GeometryPair>& pairs,
       std::vector<NearestPair<T>>* near_points) const;
   // TODO(SeanCurtis-TRI): Add a version that takes *frame* pairs.
@@ -438,15 +457,15 @@ class GeometryWorld {
   // NOTE: This maps to Model::collisionDetectFromPoints().
   /** Determines the nearest body/element to a point for a set of points.
 
-   @param[in]   state           The state against which to queries will be made.
-   @param[in]   points        An ordered list of `N` points represented
-                              column-wise by a `3 x N` Matrix.
-   @param[out]  near_bodies   A vector of `N` PointProximity instances such that
-                              the iᵗʰ instance reports the nearest body/element
-                              to the iᵗʰ point.
+   @param context      The geometry context to query against.
+   @param points       An ordered list of `N` points represented column-wise by
+                       a `3 x N` Matrix.
+   @param near_bodies  A vector of `N` PointProximity instances such that the
+                       iᵗʰ instance reports the nearest body/element to the iᵗʰ
+                       point.
    @returns True if the operation was successful. */
   bool FindClosestGeometry(
-      const GeometryState<T>& state,
+      const GeometryContext<T>& context,
       const Eigen::Matrix3Xd &points,
       std::vector<PointProximity<T>> *near_bodies) const;
 #if 0
@@ -514,9 +533,10 @@ class GeometryWorld {
    The output vector will *not* be cleared. Contact information will merely be
    added to the vector.
 
-   @param[out]  contacts    All contacts will be aggregated in this structure.
+   @param context     The geometry context to query against.
+   @param contacts    All contacts will be aggregated in this structure.
    @returns True if the operation was successful. */
-  bool ComputeContact(const GeometryState<T>& state,
+  bool ComputeContact(const GeometryContext<T>& context,
                       std::vector<Contact<T>>* contacts) const;
 #if 0
   //@}

@@ -229,11 +229,11 @@ class GeometryState {
    @{ */
 
   /** Registers a new, named source into the state.
-   @param source_id     The id of the source to add.
-   @param name          The name of the source to add.
-   @trhows std::logic_error is thrown if the name or source_id are _not_
-   unique. */
-  void RegisterNewSource(SourceId source_id, const std::string& name);
+    @param name          The optional name of the source. If none or the empty
+                        string is provided it will be named "Source_##" where
+                        the number is the value of the returned SourceId.
+   @trhows std::logic_error is thrown if the name is _not_ unique. */
+  SourceId RegisterNewSource(const std::string& name = "");
 
   /** Removes  all frames and geometry registered from the identified source.
    The source remains active and further frames and geometry can be registered
@@ -356,7 +356,7 @@ class GeometryState {
 
   /** Informs the state that all kinematics data has been set (via calls to
    SetFrameKinematics()). Allows the state to update internal bookkeeping. */
-  void SignalUpdateComplete() { geometry_engine_->UpdateWorldPoses(X_WG_); }
+  void FinalizeKinematicsUpdate() { geometry_engine_->UpdateWorldPoses(X_WG_); }
 
   // TODO(SeanCurtis-TRI): Make this method private?
   /** Performs the work for confirming the frame values provided in the
