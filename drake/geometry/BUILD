@@ -25,7 +25,10 @@ drake_cc_library(
     name = "geometry_context",
     srcs = ["geometry_context.cc"],
     hdrs = ["geometry_context.h"],
-    deps = ["//drake/systems/framework:leaf_context"],
+    deps = [
+        ":geometry_state",
+        "//drake/systems/framework:leaf_context",
+    ],
 )
 
 drake_cc_library(
@@ -218,8 +221,10 @@ drake_cc_library(
     hdrs = ["test/query_test_utility.h"],
     deps = [
         "@gtest//:main",
+        ":geometry_context",
         ":geometry_engine",
         ":geometry_state",
+        ":geometry_world",
         ":internal_geometry",
         "//drake/common:eigen_matrix_compare",
     ],
