@@ -132,21 +132,25 @@ const std::string& GeometryState<T>::get_source_name(SourceId id) const {
 }
 
 template <typename T>
-void GeometryState<T>::RegisterNewSource(SourceId source_id,
-                                         const std::string& name) {
-  // GeometryWorld should always provide a unique id, confirm in debug.
-  DRAKE_ASSERT(source_names_.find(source_id) == source_names_.end());
+SourceId GeometryState<T>::RegisterNewSource(const std::string& name) {
+  SourceId source_id = SourceId::get_new_id();
+  using std::to_string;
+  const std::string final_name =
+      name != "" ? name : "Source_" + to_string(source_id);
+
   // The user can provide bad names, _always_ test.
-  for (const auto&pair : source_names_) {
-    if (pair.second == name) {
+  for (const auto &pair : source_names_) {
+    if (pair.second == final_name) {
       throw std::logic_error(
-          "Registering new source with duplicate name: " + name + ".");
+          "Registering new source with duplicate name: " + final_name + ".");
     }
   }
+
   source_frame_id_map_[source_id];
   source_root_frame_map_[source_id];
   source_anchored_geometry_map_[source_id];
-  source_names_[source_id] = name;
+  source_names_[source_id] = final_name;
+  return source_id;
 }
 
 template <typename T>

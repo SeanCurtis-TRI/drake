@@ -14,6 +14,7 @@ namespace drake {
 namespace geometry {
 
 using drake::systems::AbstractValue;
+using drake::systems::AbstractValues;
 using drake::systems::Context;
 using drake::systems::Value;
 using std::make_unique;
@@ -21,85 +22,102 @@ using std::unique_ptr;
 using std::vector;
 
 template <typename T>
-int GeometryWorld<T>::get_num_frames(const GeometryState<T>& state) const {
-  return state.get_num_frames();
+unique_ptr<GeometryContext<T>> GeometryWorld<T>::MakeContext() const {
+  auto context = make_unique<GeometryContext<T>>();
+  vector<unique_ptr<AbstractValue>> values;
+  values.emplace_back(
+      make_unique<Value<GeometryState<T>>>(move(CreateState())));
+  context->set_abstract_state(make_unique<AbstractValues>(move(values)));
+  return context;
+}
+
+template <typename T>
+int GeometryWorld<T>::get_num_frames(const GeometryContext<T>& context) const {
+  return context.get_geometry_state().get_num_frames();
 }
 
 template <typename T>
 int GeometryWorld<T>::get_num_moving_geometries(
-    const GeometryState<T>& state) const {
-  return state.get_num_geometries();
+    const GeometryContext<T>& context) const {
+  return context.get_geometry_state().get_num_geometries();
 }
 
 template <typename T>
-SourceId GeometryWorld<T>::RegisterNewSource(GeometryState<T>* state,
+SourceId GeometryWorld<T>::RegisterNewSource(GeometryContext<T>* context,
                                              const std::string& name) {
-  using std::to_string;
-  SourceId id = SourceId::get_new_id();
-  std::string source_name = name == "" ? "Source_" + to_string(id) : name;
-  state->RegisterNewSource(id, source_name);
-  return id;
+  return context->get_mutable_geometry_state().RegisterNewSource(name);
 }
 
 template <typename T>
-bool GeometryWorld<T>::SourceIsRegistered(const GeometryState<T>& state,
+bool GeometryWorld<T>::SourceIsRegistered(const GeometryContext<T>& context,
                                           SourceId id) const {
-  return state.source_is_active(id);
+  return context.get_geometry_state().source_is_active(id);
 }
 
 template <typename T>
-FrameId GeometryWorld<T>::RegisterFrame(GeometryState<T>* state,
+FrameId GeometryWorld<T>::RegisterFrame(GeometryContext<T>* context,
                                         SourceId source_id,
                                         const GeometryFrame<T>& frame) {
-  return state->RegisterFrame(source_id, frame);
+  return context->get_mutable_geometry_state().RegisterFrame(source_id, frame);
 }
 
 template <typename T>
-FrameId GeometryWorld<T>::RegisterFrame(GeometryState<T>* state,
+FrameId GeometryWorld<T>::RegisterFrame(GeometryContext<T>* context,
                                         SourceId source_id, FrameId parent_id,
                                         const GeometryFrame<T>& frame) {
-  return state->RegisterFrame(source_id, parent_id, frame);
+  return context->get_mutable_geometry_state().RegisterFrame(source_id,
+                                                             parent_id, frame);
 }
 
 template <typename T>
 GeometryId GeometryWorld<T>::RegisterGeometry(
-    GeometryState<T>* state, SourceId source_id, FrameId frame_id,
+    GeometryContext<T>* context, SourceId source_id, FrameId frame_id,
     unique_ptr<GeometryInstance<T>> geometry) {
-  return state->RegisterGeometry(source_id, frame_id, move(geometry));
+  return context->get_mutable_geometry_state().RegisterGeometry(
+      source_id, frame_id, move(geometry));
 }
 
 template <typename T>
 GeometryId GeometryWorld<T>::RegisterGeometry(
-    GeometryState<T>* state, SourceId source_id, GeometryId geometry_id,
+    GeometryContext<T>* context, SourceId source_id, GeometryId geometry_id,
     unique_ptr<GeometryInstance<T>> geometry) {
-  return state->RegisterGeometryWithParent(source_id, geometry_id,
-                                          std::move(geometry));
+  return context->get_mutable_geometry_state().RegisterGeometryWithParent(
+      source_id, geometry_id, std::move(geometry));
 }
 
 template <typename T>
 GeometryId GeometryWorld<T>::RegisterAnchoredGeometry(
-    GeometryState<T>* state, SourceId source_id,
+    GeometryContext<T>* context, SourceId source_id,
     unique_ptr<GeometryInstance<T>> geometry) {
-  return state->RegisterAnchoredGeometry(source_id, std::move(geometry));
+  return context->get_mutable_geometry_state().RegisterAnchoredGeometry(
+      source_id, std::move(geometry));
 }
 
 template <typename T>
-void GeometryWorld<T>::ClearSource(GeometryState<T>* state,
+void GeometryWorld<T>::ClearSource(GeometryContext<T>* context,
                                    SourceId source_id) {
-  state->ClearSource(source_id);
+  context->get_mutable_geometry_state().ClearSource(source_id);
 }
 
 template <typename T>
-void GeometryWorld<T>::RemoveFrame(GeometryState<T>* state, SourceId source_id,
-                                   FrameId frame_id) {
-  state->RemoveFrame(source_id, frame_id);
+void GeometryWorld<T>::RemoveFrame(GeometryContext<T>* context,
+                                   SourceId source_id, FrameId frame_id) {
+  context->get_mutable_geometry_state().RemoveFrame(source_id, frame_id);
 }
 
 template <typename T>
-void GeometryWorld<T>::RemoveGeometry(GeometryState<T>* state,
+void GeometryWorld<T>::RemoveGeometry(GeometryContext<T>* context,
                                       SourceId source_id,
                                       GeometryId geometry_id) {
-  state->RemoveGeometry(source_id, geometry_id);
+  context->get_mutable_geometry_state().RemoveGeometry(source_id, geometry_id);
+}
+
+template <typename T>
+FrameKinematicsSet<T> GeometryWorld<T>::GetFrameKinematicsSet(
+    const GeometryContext<T>& context, SourceId source_id) const {
+  DRAKE_ASSERT_VOID(AssertValidSource(context.get_geometry_state(), source_id));
+  FrameKinematicsSet<T> set(source_id);
+  return set;
 }
 
 template <typename T>
@@ -112,29 +130,31 @@ FrameKinematicsSet<T> GeometryWorld<T>::GetFrameKinematicsSet(
 
 template <typename T>
 void GeometryWorld<T>::SetFrameKinematics(
-    GeometryState<T>* state,
+    GeometryContext<T>* context,
     const FrameKinematicsSet<T>& frame_kinematics) {
-  state->SetFrameKinematics(frame_kinematics);
+  context->get_mutable_geometry_state().SetFrameKinematics(frame_kinematics);
 }
 
 template <typename T>
-unique_ptr<GeometryState<T>> GeometryWorld<T>::CreateState() {
+unique_ptr<GeometryState<T>> GeometryWorld<T>::CreateState() const {
   return make_unique<GeometryState<T>>();
 }
 
 template <typename T>
 bool GeometryWorld<T>::ComputePairwiseClosestPoints(
-    const GeometryState<T>& state,
+    const GeometryContext<T>& context,
     std::vector<NearestPair<T>>* near_points) const {
+  const GeometryState<T>& state = context.get_geometry_state();
   return state.geometry_engine_->ComputePairwiseClosestPoints(
       state.geometry_index_id_map_, near_points);
 }
 
 template <typename T>
 bool GeometryWorld<T>::ComputePairwiseClosestPoints(
-    const GeometryState<T>& state,
+    const GeometryContext<T>& context,
     const std::vector<GeometryId>& ids_to_check,
     std::vector<NearestPair<T>>* near_points) const {
+  const GeometryState<T>& state = context.get_geometry_state();
   std::vector<GeometryIndex> indices;
   indices.reserve(ids_to_check.size());
   for (const auto id : ids_to_check) {
@@ -146,9 +166,10 @@ bool GeometryWorld<T>::ComputePairwiseClosestPoints(
 
 template <typename T>
 bool GeometryWorld<T>::ComputePairwiseClosestPoints(
-    const GeometryState<T>& state,
+    const GeometryContext<T>& context,
     const std::vector<GeometryPair> &pairs,
     std::vector<NearestPair<T>> *near_points) const {
+  const GeometryState<T>& state = context.get_geometry_state();
   std::vector<internal::GeometryIndexPair> index_pairs;
   index_pairs.reserve(pairs.size());
   for (const auto& pair : pairs) {
@@ -162,16 +183,18 @@ bool GeometryWorld<T>::ComputePairwiseClosestPoints(
 
 template <typename T>
 bool GeometryWorld<T>::FindClosestGeometry(
-    const GeometryState<T>& state,
+    const GeometryContext<T>& context,
     const Eigen::Matrix3Xd& points,
     std::vector<PointProximity<T>>* near_bodies) const {
+  const GeometryState<T>& state = context.get_geometry_state();
   return state.geometry_engine_->FindClosestGeometry(
       state.geometry_index_id_map_, points, near_bodies);
 }
 
 template <typename T>
-bool GeometryWorld<T>::ComputeContact(const GeometryState<T>& state,
+bool GeometryWorld<T>::ComputeContact(const GeometryContext<T>& context,
                     std::vector<Contact<T>>* contacts) const {
+  const GeometryState<T>& state = context.get_geometry_state();
   return state.geometry_engine_->ComputeContact(
       state.geometry_index_id_map_, state.anchored_geometry_index_id_map_,
       contacts);

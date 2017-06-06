@@ -41,7 +41,7 @@ GeometrySystem<T>::~GeometrySystem() {}
 template <typename T>
 SourceId GeometrySystem<T>::RegisterSource(const std::string &name) {
   if (!context_allocated_) {
-    return geometry_world_.RegisterNewSource(initial_state_, name);
+    return initial_state_->RegisterNewSource(name);
   } else {
     throw std::logic_error(
         "A context has been created for this system. Adding "
@@ -80,7 +80,7 @@ void GeometrySystem<T>::DoCalcOutput(const Context<T>& context,
                   SystemOutput<T>* output) const {
   // This should *always* be invoked with a GeometryContext.
   const GeometryState<T>& state =
-      get_state(static_cast<const GeometryContext<T>&>(context));
+      static_cast<const GeometryContext<T>&>(context).get_geometry_state();
   PoseBundle<T>& bundle =
       output->GetMutableData(0)->template GetMutableValue<PoseBundle<T>>();
   int i = 0;
@@ -102,7 +102,7 @@ template <typename T>
   // guarantee that no change can be made to the model geometry state to which
   // this variable points and now. It is carved in stone. So, it will be safe.
   auto value = AbstractValue::Make(PoseBundle<T>(
-      geometry_world_.get_num_moving_geometries(*initial_state_)));
+      initial_state_->get_num_frames()));
   // This is the work that should be done whenever the pose bundle is resize;
   //  the configuration
   auto& bundle = value->template GetMutableValue<PoseBundle<T>>();
@@ -133,33 +133,32 @@ template <typename T>
 FrameId GeometrySystem<T>::RegisterFrame(SourceId source_id,
                                          const GeometryFrame<T>& frame) {
   ThrowIfContextAllocated();
-  return geometry_world_.RegisterFrame(initial_state_, source_id, frame);
+  return initial_state_->RegisterFrame(source_id, frame);
 }
 
 template <typename T>
 FrameId GeometrySystem<T>::RegisterFrame(Context<T>* sibling_context,
                                          SourceId source_id,
                                          const GeometryFrame<T>& frame) {
-  GeometryState<T>* state =
-      ExtractMutableStateViaSiblingContext(sibling_context);
-  return geometry_world_.RegisterFrame(state, source_id, frame);
+  GeometryContext<T>& context =
+      ExtractMutableContextViaSiblingContext(*sibling_context);
+  return geometry_world_.RegisterFrame(&context, source_id, frame);
 }
 
 template <typename T>
 FrameId GeometrySystem<T>::RegisterFrame(SourceId source_id, FrameId parent_id,
                                          const GeometryFrame<T>& frame) {
   ThrowIfContextAllocated();
-  return geometry_world_.RegisterFrame(initial_state_, source_id, parent_id,
-                                       frame);
+  return initial_state_->RegisterFrame(source_id, parent_id, frame);
 }
 
 template <typename T>
 FrameId GeometrySystem<T>::RegisterFrame(Context<T>* sibling_context,
                                          SourceId source_id, FrameId parent_id,
                                          const GeometryFrame<T>& frame) {
-  GeometryState<T>* state =
-      ExtractMutableStateViaSiblingContext(sibling_context);
-  return geometry_world_.RegisterFrame(state, source_id, parent_id,
+  GeometryContext<T>& context =
+      ExtractMutableContextViaSiblingContext(*sibling_context);
+  return geometry_world_.RegisterFrame(&context, source_id, parent_id,
                                        frame);
 }
 
@@ -168,7 +167,7 @@ GeometryId GeometrySystem<T>::RegisterGeometry(
     SourceId source_id, FrameId frame_id,
     std::unique_ptr<GeometryInstance<T>> geometry) {
   ThrowIfContextAllocated();
-  return geometry_world_.RegisterGeometry(initial_state_, source_id, frame_id,
+  return initial_state_->RegisterGeometry(source_id, frame_id,
                                           std::move(geometry));
 }
 
@@ -177,9 +176,9 @@ GeometryId GeometrySystem<T>::RegisterGeometry(
     Context<T>* sibling_context, SourceId source_id, FrameId frame_id,
     std::unique_ptr<GeometryInstance<T>> geometry) {
   // TODO(SeanCurtis-TRI): Resize the output pose bundle.
-  GeometryState<T>* state =
-      ExtractMutableStateViaSiblingContext(sibling_context);
-  return geometry_world_.RegisterGeometry(state, source_id, frame_id,
+  GeometryContext<T>& context =
+      ExtractMutableContextViaSiblingContext(*sibling_context);
+  return geometry_world_.RegisterGeometry(&context, source_id, frame_id,
                                           std::move(geometry));
 }
 
@@ -188,8 +187,8 @@ GeometryId GeometrySystem<T>::RegisterGeometry(
     SourceId source_id, GeometryId geometry_id,
     std::unique_ptr<GeometryInstance<T>> geometry) {
   ThrowIfContextAllocated();
-  return geometry_world_.RegisterGeometry(initial_state_, source_id,
-                                          geometry_id, std::move(geometry));
+  return initial_state_->RegisterGeometryWithParent(source_id, geometry_id,
+                                                    std::move(geometry));
 }
 
 template <typename T>
@@ -197,9 +196,9 @@ GeometryId GeometrySystem<T>::RegisterGeometry(
     Context<T>* sibling_context, SourceId source_id, GeometryId geometry_id,
     std::unique_ptr<GeometryInstance<T>> geometry) {
   // TODO(SeanCurtis-TRI): Resize the output pose bundle.
-  GeometryState<T>* state =
-      ExtractMutableStateViaSiblingContext(sibling_context);
-  return geometry_world_.RegisterGeometry(state, source_id,
+  GeometryContext<T>& context =
+      ExtractMutableContextViaSiblingContext(*sibling_context);
+  return geometry_world_.RegisterGeometry(&context, source_id,
                                           geometry_id, std::move(geometry));
 }
 
@@ -208,7 +207,7 @@ GeometryId GeometrySystem<T>::RegisterAnchoredGeometry(
     SourceId source_id,
     std::unique_ptr<GeometryInstance<T>> geometry) {
   ThrowIfContextAllocated();
-  return geometry_world_.RegisterAnchoredGeometry(initial_state_, source_id,
+  return initial_state_->RegisterAnchoredGeometry(source_id,
                                                   std::move(geometry));
 }
 
@@ -217,47 +216,47 @@ GeometryId GeometrySystem<T>::RegisterAnchoredGeometry(
     Context<T>* sibling_context, SourceId source_id,
     std::unique_ptr<GeometryInstance<T>> geometry) {
   // TODO(SeanCurtis-TRI): Resize the output pose bundle.
-  GeometryState<T>* state =
-      ExtractMutableStateViaSiblingContext(sibling_context);
-  return geometry_world_.RegisterAnchoredGeometry(state, source_id,
+  GeometryContext<T>& context =
+      ExtractMutableContextViaSiblingContext(*sibling_context);
+  return geometry_world_.RegisterAnchoredGeometry(&context, source_id,
                                                   std::move(geometry));
 }
 
 template <typename T>
 void GeometrySystem<T>::ClearSource(SourceId source_id) {
   ThrowIfContextAllocated();
-  geometry_world_.ClearSource(initial_state_, source_id);
+  initial_state_->ClearSource(source_id);
 }
 
 template <typename T>
 void GeometrySystem<T>::ClearSource(Context<T>* sibling_context,
                                     SourceId source_id) {
   // TODO(SeanCurtis-TRI): Resize the output pose bundle.
-  GeometryState<T>* state =
-      ExtractMutableStateViaSiblingContext(sibling_context);
-  geometry_world_.ClearSource(state, source_id);
+  GeometryContext<T>& context =
+      ExtractMutableContextViaSiblingContext(*sibling_context);
+  geometry_world_.ClearSource(&context, source_id);
 }
 
 template <typename T>
 void GeometrySystem<T>::RemoveFrame(SourceId source_id, FrameId frame_id) {
   ThrowIfContextAllocated();
-  geometry_world_.RemoveFrame(initial_state_, source_id, frame_id);
+  initial_state_->RemoveFrame(source_id, frame_id);
 }
 
 template <typename T>
 void GeometrySystem<T>::RemoveFrame(Context<T>* sibling_context,
                                     SourceId source_id, FrameId frame_id) {
   // TODO(SeanCurtis-TRI): Resize the output pose bundle.
-  GeometryState<T>* state =
-      ExtractMutableStateViaSiblingContext(sibling_context);
-  geometry_world_.RemoveFrame(state, source_id, frame_id);
+  GeometryContext<T>& context =
+      ExtractMutableContextViaSiblingContext(*sibling_context);
+  geometry_world_.RemoveFrame(&context, source_id, frame_id);
 }
 
 template <typename T>
 void GeometrySystem<T>::RemoveGeometry(SourceId source_id,
                                        GeometryId geometry_id) {
   ThrowIfContextAllocated();
-  geometry_world_.RemoveGeometry(initial_state_, source_id, geometry_id);
+  initial_state_->RemoveGeometry(source_id, geometry_id);
 }
 
 template <typename T>
@@ -265,51 +264,52 @@ void GeometrySystem<T>::RemoveGeometry(Context<T>* sibling_context,
                                        SourceId source_id,
                                        GeometryId geometry_id) {
   // TODO(SeanCurtis-TRI): Resize the output pose bundle.
-  GeometryState<T>* state =
-      ExtractMutableStateViaSiblingContext(sibling_context);
-  geometry_world_.RemoveGeometry(state, source_id, geometry_id);
+  GeometryContext<T>& context =
+      ExtractMutableContextViaSiblingContext(*sibling_context);
+  geometry_world_.RemoveGeometry(&context, source_id, geometry_id);
 }
 
 template <typename T>
 const std::string& GeometrySystem<T>::get_source_name(
     const Context<T>& sibling_context, SourceId id) const {
-  const GeometryState<T>& state =
-      ExtractStateViaSiblingContext(sibling_context);
-  return geometry_world_.get_source_name(state, id);
+  const GeometryContext<T>& context =
+      ExtractContextViaSiblingContext(sibling_context);
+  return geometry_world_.get_source_name(context, id);
 }
 
 template <typename T>
 bool GeometrySystem<T>::SourceIsRegistered(const Context<T>& sibling_context,
                                            SourceId id) const {
-  const GeometryState<T>& state =
-      ExtractStateViaSiblingContext(sibling_context);
-  return geometry_world_.SourceIsRegistered(state, id);
+  const GeometryContext<T>& context =
+      ExtractContextViaSiblingContext(sibling_context);
+  return geometry_world_.SourceIsRegistered(context, id);
 }
 
 template <typename T>
 FrameKinematicsSet<T> GeometrySystem<T>::GetFrameKinematicsSet(
     const Context<T>& sibling_context, SourceId source_id) const {
-  const GeometryState<T>& state =
-      ExtractStateViaSiblingContext(sibling_context);
-  return geometry_world_.GetFrameKinematicsSet(state, source_id);
+  const GeometryContext<T>& context =
+      ExtractContextViaSiblingContext(sibling_context);
+  return geometry_world_.GetFrameKinematicsSet(context, source_id);
 }
 
 template <typename T>
-FrameId GeometrySystem<T>::GetFrameId(const systems::Context<T> &context,
-                                      GeometryId geometry_id) const {
-  const GeometryState<T>& state = ExtractStateViaSiblingContext(context);
-  return state.GetFrameId(geometry_id);
+FrameId GeometrySystem<T>::GetFrameId(
+    const systems::Context<T>& sibling_context, GeometryId geometry_id) const {
+  const GeometryContext<T>& context =
+      ExtractContextViaSiblingContext(sibling_context);
+  return context.get_geometry_state().GetFrameId(geometry_id);
 }
 
 template <typename T>
 bool GeometrySystem<T>::ComputeContact(const systems::Context<T> &context,
-                                       vector<Contact<T>> *contacts) const {
-  const GeometryState<T>& state = UpdateFromInputs(context);
-  return geometry_world_.ComputeContact(state, contacts);
+                                       vector<Contact<T>>* contacts) const {
+  const GeometryContext<T>& g_context = UpdateFromInputs(context);
+  return geometry_world_.ComputeContact(g_context, contacts);
 }
 
 template <typename T>
-const GeometryState<T>& GeometrySystem<T>::UpdateFromInputs(
+const GeometryContext<T>& GeometrySystem<T>::UpdateFromInputs(
     const Context<T>& sibling_context) const {
   // TODO(SeanCurtis-TRI): This needs to exploit a cache to avoid doing this
   // work redundantly.
@@ -318,16 +318,18 @@ const GeometryState<T>& GeometrySystem<T>::UpdateFromInputs(
   // world state is up to date (relative to its inputs).
   // This needs to be done in a better way that will do this only *once*
   // regardless of how many queries are performed.
-  const GeometryContext<T>& g_context = get_context(sibling_context);
-  const GeometryState<T>& state = get_state(g_context);
+  const GeometryContext<T>& g_context =
+      ExtractContextViaSiblingContext(sibling_context);
+  const GeometryState<T>& state = g_context.get_geometry_state();
   GeometryState<T>& mutable_state = const_cast<GeometryState<T>&>(state);
   for (int i = 0; i < this->get_num_input_ports(); ++i) {
     mutable_state.SetFrameKinematics(
         this->template EvalAbstractInput(g_context, i)
             ->template GetValue<FrameKinematicsSet<T>>());
   }
-  mutable_state.SignalUpdateComplete();
-  return state;
+  // TODO(SeanCurtis-TRI): Change this method name to: FinalizeKinematicsUpdate.
+  mutable_state.FinalizeKinematicsUpdate();
+  return g_context;
 }
 
 template <typename T>
@@ -338,57 +340,30 @@ std::unique_ptr<Context<T>> GeometrySystem<T>::MakeContext() const {
 }
 
 template <typename T>
-GeometryState<T>* GeometrySystem<T>::ExtractMutableStateViaSiblingContext(
-    Context<T>* sibling_context) {
-  GeometryContext<T>* g_context = get_mutable_context(sibling_context);
-  return get_mutable_state(g_context);
-}
-
-template <typename T>
-const GeometryState<T>& GeometrySystem<T>::ExtractStateViaSiblingContext(
-    const Context<T>& sibling_context) const {
-  const GeometryContext<T>& g_context = get_context(sibling_context);
-  return get_state(g_context);
-}
-
-template <typename T>
-GeometryContext<T>* GeometrySystem<T>::get_mutable_context(
-    const Context<T>* sibling_context) {
-  const systems::DiagramContext<T>* parent_context =
-      dynamic_cast<const systems::DiagramContext<T>*>(
-          sibling_context->get_parent());
-  if (parent_context != nullptr) {
-    int index = this->get_subsystem_index();
-    const Context<T> *child_context =
-        parent_context->GetSubsystemContext(index);
-    const GeometryContext<T> *geometry_context =
-        dynamic_cast<const GeometryContext<T> *>(child_context);
-    if (geometry_context != nullptr) {
-      return const_cast<GeometryContext<T> *>(geometry_context);
+GeometryContext<T>& GeometrySystem<T>::ExtractMutableContextViaSiblingContext(
+    const Context<T>& sibling_context) {
+    const systems::DiagramContext<T>* parent_context =
+        dynamic_cast<const systems::DiagramContext<T>*>(
+            sibling_context.get_parent());
+    if (parent_context != nullptr) {
+      int index = this->get_subsystem_index();
+      const Context<T> *child_context =
+          parent_context->GetSubsystemContext(index);
+      const GeometryContext<T> *geometry_context =
+          dynamic_cast<const GeometryContext<T>*>(child_context);
+      if (geometry_context != nullptr) {
+        return *const_cast<GeometryContext<T>*>(geometry_context);
+      }
     }
-  }
-  throw std::logic_error("The context given cannot be used to acquire this "
-                         "geometry system's context.");
+    throw std::logic_error("The context given cannot be used to acquire this "
+                               "geometry system's context.");
 }
 
 template <typename T>
-const GeometryContext<T>& GeometrySystem<T>::get_context(
+const GeometryContext<T>& GeometrySystem<T>::ExtractContextViaSiblingContext(
     const Context<T>& sibling_context) const {
-  return *const_cast<GeometrySystem<T>*>(this)->get_mutable_context(
-      &sibling_context);
-}
-
-template <typename T>
-GeometryState<T>* GeometrySystem<T>::get_mutable_state(
-    GeometryContext<T>* context) {
-  return &context->get_mutable_state()
-      ->template get_mutable_abstract_state<GeometryState<T>>(0);
-}
-
-template <typename T>
-const GeometryState<T>& GeometrySystem<T>::get_state(
-    const GeometryContext<T>& context) const {
-  return context.get_state().template get_abstract_state<GeometryState<T>>(0);
+  return const_cast<GeometrySystem<T>*>(this)
+              ->ExtractMutableContextViaSiblingContext(sibling_context);
 }
 
 template <typename T>

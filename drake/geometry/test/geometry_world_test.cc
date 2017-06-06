@@ -5,6 +5,7 @@
 
 #include <gtest/gtest.h>
 
+#include "drake/geometry/geometry_context.h"
 #include "drake/geometry/geometry_instance.h"
 #include "drake/geometry/geometry_state.h"
 #include "drake/geometry/test/expect_error_message.h"
@@ -24,12 +25,15 @@ class GeometryWorldTest : public ::testing::Test {
  protected:
   void SetUp() {
     world_ = make_unique<GeometryWorld<double>>();
-    geometry_state_ = world_->CreateState();
+    context_ = world_->MakeContext();
+    geometry_state_ = &context_->get_mutable_geometry_state();
   }
 
   // Members owned by the test class.
   unique_ptr<GeometryWorld<double>> world_;
-  unique_ptr<GeometryState<double>> geometry_state_;
+  unique_ptr<GeometryContext<double>> context_;
+  // The state is owned by the context; this provides easy access.
+  GeometryState<double>* geometry_state_;
 };
 
 
@@ -50,9 +54,17 @@ TEST_F(GeometryWorldTest, CreateFrameKinematicsSetFromBadSource) {
   SourceId s_id = SourceId::get_new_id();
 #ifdef DRAKE_ASSERT_IS_DISARMED
   // In release mode, this would be considered valid. No exception thrown.
-  auto fks = world_->GetFrameKinematicsSet(*geometry_state_, s_id);
+  auto fks = world_->GetFrameKinematicsSet(*context_, s_id);
 #else
-  EXPECT_ERROR_MESSAGE(world_->GetFrameKinematicsSet(s_id),
+  EXPECT_ERROR_MESSAGE(world_->GetFrameKinematicsSet(*context_, s_id),
+                       std::logic_error,
+                       "Invalid source id: \\d+.");
+#endif
+#ifdef DRAKE_ASSERT_IS_DISARMED
+  // In release mode, this would be considered valid. No exception thrown.
+  fks = world_->GetFrameKinematicsSet(*geometry_state_, s_id);
+#else
+  EXPECT_ERROR_MESSAGE(world_->GetFrameKinematicsSet(*geometry_state_, s_id),
                        std::logic_error,
                        "Invalid source id: \\d+.");
 #endif
@@ -64,16 +76,16 @@ TEST_F(GeometryWorldTest, CreateFrameKinematicsSetFromBadSource) {
 TEST_F(GeometryWorldTest, TestSourceNames) {
   using std::to_string;
 
-  GeometryState<double>* state = geometry_state_.get();
+  GeometryContext<double>* context = context_.get();
 
   // Case: user-specified source name.
   std::string name = "my_source";
-  SourceId named_id = world_->RegisterNewSource(state, name);
-  EXPECT_EQ(world_->get_source_name(*state, named_id), name);
+  SourceId named_id = world_->RegisterNewSource(context, name);
+  EXPECT_EQ(world_->get_source_name(*context, named_id), name);
 
   // Case: default name.
-  SourceId anon_id = world_->RegisterNewSource(state);
-  EXPECT_EQ(world_->get_source_name(*state, anon_id),
+  SourceId anon_id = world_->RegisterNewSource(context);
+  EXPECT_EQ(world_->get_source_name(*context, anon_id),
             "Source_" + to_string(anon_id));
 }
 
@@ -97,7 +109,7 @@ TEST_F(GeometryWorldQueryTest, ComputePairwiseClosestPoints_SelectIndices) {
                                   sphere_ids[2],
                                   sphere_ids[3]};
   std::vector<NearestPair<double>> pairs;
-  EXPECT_TRUE(world.ComputePairwiseClosestPoints(state_,
+  EXPECT_TRUE(world.ComputePairwiseClosestPoints(*context_,
                                                  query_ids, &pairs));
   vector<test::IdPair> computed_pairs = {{sphere_ids[0], sphere_ids[2]},
                                          {sphere_ids[0], sphere_ids[3]},
@@ -115,7 +127,7 @@ TEST_F(GeometryWorldQueryTest, ComputePairwiseClosestPoints_SelectPairs) {
   query_pairs.emplace_back(sphere_ids[0], sphere_ids[1]);
   query_pairs.emplace_back(sphere_ids[2], sphere_ids[3]);
   std::vector<NearestPair<double>> results;
-  EXPECT_TRUE(world.ComputePairwiseClosestPoints(state_,
+  EXPECT_TRUE(world.ComputePairwiseClosestPoints(*context_,
                                                  query_pairs, &results));
   vector<test::IdPair> computed_pairs = {{sphere_ids[0], sphere_ids[1]},
                                          {sphere_ids[2], sphere_ids[3]}};
