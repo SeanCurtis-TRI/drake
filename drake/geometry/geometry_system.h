@@ -439,7 +439,7 @@ class GeometrySystem : public systems::LeafSystem<T> {
   // Override of construction to account for
   //    - instantiating a GeometryContext instance (as opposed to LeafContext),
   //    - modifying the state to prevent additional sources being added. */
-  std::unique_ptr<systems::Context<T>> MakeContext() const override;
+  std::unique_ptr<systems::LeafContext<T>> DoMakeContext() const override;
 
   // Given a sibling context, extracts a mutable instance of the geometry
   // context.

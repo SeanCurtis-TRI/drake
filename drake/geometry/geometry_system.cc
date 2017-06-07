@@ -16,6 +16,7 @@ namespace geometry {
 using systems::AbstractValue;
 using systems::Context;
 using systems::InputPortDescriptor;
+using systems::LeafContext;
 using systems::LeafSystem;
 using systems::OutputPortDescriptor;
 using systems::SystemOutput;
@@ -333,10 +334,10 @@ const GeometryContext<T>& GeometrySystem<T>::UpdateFromInputs(
 }
 
 template <typename T>
-std::unique_ptr<Context<T>> GeometrySystem<T>::MakeContext() const {
+std::unique_ptr<LeafContext<T>> GeometrySystem<T>::DoMakeContext() const {
   // Disallow further geometry source additions.
   context_allocated_ = true;
-  return std::unique_ptr<Context<T>>(new GeometryContext<T>());
+  return std::unique_ptr<LeafContext<T>>(new GeometryContext<T>());
 }
 
 template <typename T>
