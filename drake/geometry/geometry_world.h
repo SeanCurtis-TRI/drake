@@ -104,8 +104,8 @@ struct GeometryPair;
                                                                 source_id_);
 
  foreach (FrameId frame_id : frames_) {
-    // Compute SpatialPose, SpatialVelocity, and SpatialAcceleration
-    SpatialPose X_WF = ...;
+    // Compute pose (Isometry3), SpatialVelocity, and SpatialAcceleration
+    Isometry3 X_WF = ...;
     SpatialVelocity V_WF = ...;
     SpatialAcceleration A_WF = ...;
     fks.ReportFullKinematics(frame_id, X_WF, V_WF, A_WF);

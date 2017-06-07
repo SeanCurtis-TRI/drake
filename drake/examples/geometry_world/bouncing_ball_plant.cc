@@ -9,7 +9,6 @@
 #include "drake/geometry/geometry_frame.h"
 #include "drake/geometry/geometry_instance.h"
 #include "drake/geometry/geometry_query_results.h"
-#include "drake/geometry/spatial_pose.h"
 #include "drake/geometry/shapes.h"
 
 namespace drake {
@@ -23,7 +22,6 @@ using geometry::GeometryInstance;
 using geometry::GeometrySystem;
 using geometry::HalfSpace;
 using geometry::SourceId;
-using geometry::SpatialPose;
 using geometry::Sphere;
 using systems::Value;
 using std::make_unique;
@@ -82,11 +80,9 @@ void BouncingBallPlant<T>::DoCalcOutput(const systems::Context<T>& context,
   FrameKinematicsSet<T> fks =
       geometry_system_->GetFrameKinematicsSet(context, source_id_);
   const BouncingBallVector<T>& state = get_state(context);
-  fks.ReportPose(ball_frame_id_,
-                 SpatialPose<T>(Quaternion<T>::Identity(),
-                                Vector3<T>(init_position_(0),
-                                           init_position_(1),
-                                           state.z())));
+  Isometry3<T> pose = Isometry3<T>::Identity();
+  pose.translation() << init_position_(0), init_position_(1), state.z();
+  fks.ReportPose(ball_frame_id_, pose);
   output->GetMutableData(geometry_port_)
       ->template GetMutableValue<FrameKinematicsSet<T>>() = fks;
 }
