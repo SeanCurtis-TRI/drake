@@ -5,14 +5,12 @@
 #include "drake/common/drake_copyable.h"
 #include "drake/geometry/geometry_ids.h"
 #include "drake/multibody/multibody_tree/math/spatial_velocity.h"
-#include "drake/geometry/spatial_pose.h"
 
 namespace drake {
 namespace geometry {
 
-// NOTE: These classes don't exist yet in the multibody namespace yet. These are
-// dummy place-holders to simply allow the declarations below to be "valid".
-
+// NOTE: This class don't exist yet in the multibody namespace yet. This is a
+// dummy place-holder to simply allow the declarations below to be "valid".
 template <typename T>
 class SpatialAcceleration {};
 
@@ -75,7 +73,7 @@ class FrameKinematicsSet {
        2. previously reported frames (since the last invocation of Clear()) have
        velocity or acceleration values.
    */
-  int ReportPose(FrameId frame_id, const SpatialPose<T> &X_WF);
+  int ReportPose(FrameId frame_id, const Isometry3<T>& X_WF);
 
   /** Reports the pose values for a set of frames, {`Fᵢ`}.  It is assumed that
    the iᵗʰ pose belongs to the iᵗʰ frame identifier.
@@ -92,7 +90,7 @@ class FrameKinematicsSet {
    */
 
   int ReportPoses(const std::vector<FrameId>& frame_ids,
-                  const std::vector<SpatialPose<T>>& X_WF);
+                  const std::vector<Isometry3<T>>& X_WF);
 
   /** Reports the pose and velocity values for the indicated frame, `F`.
    @param frame_id    The identifier for the target frame `F`.
@@ -107,8 +105,8 @@ class FrameKinematicsSet {
        have a different set of values (i.e., pose only, or pose, velocity, and
        acceleration).
    */
-  int ReportPoseVelocity(FrameId frame_id, const SpatialPose<T> &X_WF,
-                         const drake::multibody::SpatialVelocity<T> &V_WF);
+  int ReportPoseVelocity(FrameId frame_id, const Isometry3<T>& X_WF,
+                         const drake::multibody::SpatialVelocity<T>& V_WF);
 
   /** Reports the pose and velocity values for a set of frames, {`Fᵢ`}. It is
    assumed that the iᵗʰ pose and velocity belong with the iᵗʰ frame identifier.
@@ -127,9 +125,9 @@ class FrameKinematicsSet {
        3. there are not an equal number of frame ids as pose or velocity values.
    */
   int ReportPosesVelocities(
-      const std::vector<FrameId> &frame_ids,
-      const std::vector<SpatialPose<T>> &X_WF,
-      const std::vector<drake::multibody::SpatialVelocity<T>> &V_WF);
+      const std::vector<FrameId>& frame_ids,
+      const std::vector<Isometry3<T>>& X_WF,
+      const std::vector<drake::multibody::SpatialVelocity<T>>& V_WF);
 
   /** Reports the pose, velocity, and acceleration values for the indicated
    frame, `F`.
@@ -146,9 +144,9 @@ class FrameKinematicsSet {
        2. previously reported frames (since the last invocation of Clear()) have
        have a different set of values (i.e., pose only, or pose and velocity).
    */
-  int ReportFullKinematics(FrameId frame_id, const SpatialPose<T> &X_WF,
-                           const drake::multibody::SpatialVelocity<T> &V_WF,
-                           const SpatialAcceleration<T> &A_WF);
+  int ReportFullKinematics(FrameId frame_id, const Isometry3<T>& X_WF,
+                           const drake::multibody::SpatialVelocity<T>& V_WF,
+                           const SpatialAcceleration<T>& A_WF);
 
   /** Reports the pose, velocity, and acceleration values for a set of frames,
    {`Fᵢ`}. It is assumed that the iᵗʰ pose, velocity, and acceleration belong
@@ -172,7 +170,7 @@ class FrameKinematicsSet {
    */
   int ReportFullKinematics(
       const std::vector<FrameId>& frame_ids,
-      const std::vector<SpatialPose<T>>& X_WF,
+      const std::vector<Isometry3<T>>& X_WF,
       const std::vector<drake::multibody::SpatialVelocity<T>>& V_WF,
       const std::vector<SpatialAcceleration<T>>& A_WF);
 
@@ -188,13 +186,13 @@ class FrameKinematicsSet {
   // data, etc.
   /** Returns the pose for the identified frame. Throws std::logic_error if
    the identified frame is not in the set. */
-  const SpatialPose<T>& GetPose(FrameId frame_id) const;
+  const Isometry3<T>& GetPose(FrameId frame_id) const;
 
   // TODO(SeanCurtis-TRI): Determine if this is a good interface.
   /** Return the frames included in the data set. */
   const std::vector<FrameId>& get_frame_ids() const { return frame_ids_; }
 //
-//  const std::vector<SpatialPose<T>>& get_poses() const { return poses_; }
+//  const std::vector<Isometry3<T>>& get_poses() const { return poses_; }
 //  const std::vector<drake::multibody::SpatialVelocity<T>> get_velocities()
 //      const {
 //    return velocities_;
@@ -246,23 +244,23 @@ class FrameKinematicsSet {
   // It facilitates eliminating code duplication without performing redundant
   // checks at runtime. There is a *NoCheck version for each public Report*
   // method.
-  int ReportPoseNoCheck(FrameId frame_id, const SpatialPose<T> &X_WF);
+  int ReportPoseNoCheck(FrameId frame_id, const Isometry3<T> &X_WF);
   int ReportPosesNoCheck(const std::vector<FrameId>& frame_ids,
-                              const std::vector<SpatialPose<T>>& X_WF);
+                              const std::vector<Isometry3<T>>& X_WF);
   int ReportFrameVelocityNoCheck(
-      FrameId frame_id, const SpatialPose<T>& X_WF,
+      FrameId frame_id, const Isometry3<T>& X_WF,
       const drake::multibody::SpatialVelocity<T>& V_WF);
   int ReportPosesVelocitiesNoCheck(
       const std::vector<FrameId>& frame_ids,
-      const std::vector<SpatialPose<T>>& X_WF,
+      const std::vector<Isometry3<T>>& X_WF,
       const std::vector<drake::multibody::SpatialVelocity<T>>& V_WF);
   int ReportFullKinematicsNoCheck(
-      FrameId frame_id, const SpatialPose<T>& X_WF,
+      FrameId frame_id, const Isometry3<T>& X_WF,
       const drake::multibody::SpatialVelocity<T>& V_WF,
       const SpatialAcceleration<T>& A_WF);
   int ReportFullKinematicsNoCheck(
       const std::vector<FrameId>& frame_ids,
-      const std::vector<SpatialPose<T>>& X_WF,
+      const std::vector<Isometry3<T>>& X_WF,
       const std::vector<drake::multibody::SpatialVelocity<T>>& V_WF,
       const std::vector<SpatialAcceleration<T>>& A_WF);
 
@@ -288,7 +286,7 @@ class FrameKinematicsSet {
 
   std::vector<FrameId> frame_ids_;
 
-  std::vector<SpatialPose<T>> poses_;
+  std::vector<Isometry3<T>> poses_;
 
   std::vector<drake::multibody::SpatialVelocity<T>> velocities_;
 

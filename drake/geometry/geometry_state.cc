@@ -511,8 +511,7 @@ void GeometryState<T>::UpdateKinematics(
     const internal::InternalFrame& frame, const Isometry3<T>& X_WP,
     const FrameKinematicsSet<T>& frame_kinematics) {
   const auto frame_id = frame.get_id();
-  const auto& pose = frame_kinematics.GetPose(frame_id);
-  Isometry3<T> X_PF = pose.get_isometry();
+  const auto& X_PF = frame_kinematics.GetPose(frame_id);
   X_PF_[frame.get_pose_index()] = X_PF;  // Also cache this transform.
   Isometry3<T> X_WF = X_WP * X_PF;
 

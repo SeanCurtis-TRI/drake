@@ -944,7 +944,7 @@ TEST_F(GeometryStateTest, ValidateKinematicsData) {
   FrameKinematicsSet<double> fks = g_world.GetFrameKinematicsSet(
       geometry_state_, s_id);
   // Create one pose per frame.
-  std::vector<SpatialPose<double>> poses;
+  std::vector<Isometry3<double>> poses;
   for (size_t i = 0; i < frames_.size(); ++i) {
     poses.emplace_back();
   }
@@ -963,7 +963,7 @@ TEST_F(GeometryStateTest, ValidateKinematicsData) {
   // Case: Strictly adding frames that don't belong.
   fks.Clear();
   fks.ReportPoses(frames_, poses);
-  fks.ReportPose(FrameId::get_new_id(), SpatialPose<double>());
+  fks.ReportPose(FrameId::get_new_id(), Isometry3<double>::Identity());
   EXPECT_ERROR_MESSAGE(geometry_state_.ValidateKinematicsSet(fks),
                        std::logic_error,
                        "Disagreement in expected number of frames \\(\\d+\\) "
@@ -972,9 +972,9 @@ TEST_F(GeometryStateTest, ValidateKinematicsData) {
   // Case: Correct number; required frame swapped with invalid frame.
   fks.Clear();
   std::vector<FrameId> frames_subset(++frames_.begin(), frames_.end());
-  std::vector<SpatialPose<double>> pose_subset(++poses.begin(), poses.end());
+  std::vector<Isometry3<double>> pose_subset(++poses.begin(), poses.end());
   fks.ReportPoses(frames_subset, pose_subset);
-  fks.ReportPose(FrameId::get_new_id(), SpatialPose<double>());
+  fks.ReportPose(FrameId::get_new_id(), Isometry3<double>::Identity());
   EXPECT_ERROR_MESSAGE(geometry_state_.ValidateKinematicsSet(fks),
                        std::logic_error,
                        "Frame id provided in kinematics data \\(\\d+\\) "
@@ -996,11 +996,9 @@ TEST_F(GeometryStateTest, SetKinematicsData) {
       geometry_state_, s_id);
 
   // Create a vector of poses (initially set to the identity pose).
-  SpatialPose<double> identity(Quaternion<double>(1, 0, 0, 0),
-                               Vector3<double>(0, 0, 0));
-  std::vector<SpatialPose<double>> frame_poses;
+  std::vector<Isometry3<double>> frame_poses;
   for (int i = 0; i < kFrameCount; ++i) {
-    frame_poses.push_back(identity);
+    frame_poses.push_back(Isometry3<double>::Identity());
   }
 
   // Case 1: Set all frames to identity poses. The world pose of all the
@@ -1016,18 +1014,17 @@ TEST_F(GeometryStateTest, SetKinematicsData) {
   // Case 2: Move the two *root* frames 1 unit in the +y direction. The f2 will
   // stay at the identity.
   // The final geometry poses should all be offset by 1 unit in the y.
-  SpatialPose<double> offset(Quaternion<double>(1, 0, 0, 0),
-                             Vector3<double>(0, 1, 0));
-  Isometry3<double> M_offset = offset.get_isometry();
+  Isometry3<double> offset = Isometry3<double>::Identity();
+  offset.translation() << 0, 1, 0;
   fks.Clear();
   fks.ReportPose(frames_[0], offset);
   fks.ReportPose(frames_[1], offset);
-  fks.ReportPose(frames_[2], identity);
+  fks.ReportPose(frames_[2], Isometry3<double>::Identity());
   geometry_state_.SetFrameKinematics(fks);
   for (int i = 0; i < kFrameCount * kGeometryCount; ++i) {
     EXPECT_TRUE(
         CompareMatrices(world_poses[i].matrix().block<3, 4>(0, 0),
-                        (M_offset * X_FG_[i].matrix()).block<3, 4>(0, 0)));
+                        (offset * X_FG_[i].matrix()).block<3, 4>(0, 0)));
   }
 
   // Case 3: All frames get set to move up one unit. This will leave geometries
@@ -1040,13 +1037,13 @@ TEST_F(GeometryStateTest, SetKinematicsData) {
   for (int i = 0; i < (kFrameCount - 1) * kGeometryCount; ++i) {
     EXPECT_TRUE(
         CompareMatrices(world_poses[i].matrix().block<3, 4>(0, 0),
-                        (M_offset * X_FG_[i].matrix()).block<3, 4>(0, 0)));
+                        (offset * X_FG_[i].matrix()).block<3, 4>(0, 0)));
   }
   for (int i = (kFrameCount - 1) * kGeometryCount;
        i < kFrameCount * kGeometryCount; ++i) {
     EXPECT_TRUE(CompareMatrices(
         world_poses[i].matrix().block<3, 4>(0, 0),
-        (M_offset * M_offset * X_FG_[i].matrix()).block<3, 4>(0, 0)));
+        (offset * offset * X_FG_[i].matrix()).block<3, 4>(0, 0)));
   }
 }
 

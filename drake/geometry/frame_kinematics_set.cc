@@ -27,7 +27,7 @@ void FrameKinematicsSet<T>::Clear() {
 
 template <typename T>
 int FrameKinematicsSet<T>::ReportPose(FrameId frame_id,
-                                      const SpatialPose<T> &X_WF) {
+                                      const Isometry3<T> &X_WF) {
   // Test invariants:
   //  1. No duplicate frames.
   //  2. All previous data has only pose data.
@@ -39,7 +39,7 @@ int FrameKinematicsSet<T>::ReportPose(FrameId frame_id,
 template <typename T>
 int FrameKinematicsSet<T>::ReportPoses(
     const vector<FrameId>& frame_ids,
-    const vector<SpatialPose<T>>& X_WF) {
+    const vector<Isometry3<T>>& X_WF) {
   // Test invariants:
   //  1. No duplicate frames.
   //  2. All previous data has only pose data.
@@ -56,7 +56,7 @@ int FrameKinematicsSet<T>::ReportPoses(
 
 template <typename T>
 int FrameKinematicsSet<T>::ReportPoseVelocity(FrameId frame_id,
-                                              const SpatialPose<T> &X_WF,
+                                              const Isometry3<T> &X_WF,
                                               const SpatialVelocity<T> &V_WF) {
   // Test invariants:
   //  1. No duplicate frames.
@@ -69,7 +69,7 @@ int FrameKinematicsSet<T>::ReportPoseVelocity(FrameId frame_id,
 template <typename T>
 int FrameKinematicsSet<T>::ReportPosesVelocities(
     const vector<FrameId>& frame_ids,
-    const vector<SpatialPose<T>>& X_WF,
+    const vector<Isometry3<T>>& X_WF,
     const vector<SpatialVelocity<T>>& V_WF) {
   // Test invariants:
   //  1. No duplicate frames.
@@ -89,7 +89,7 @@ int FrameKinematicsSet<T>::ReportPosesVelocities(
 
 template <typename T>
 int FrameKinematicsSet<T>::ReportFullKinematics(
-    FrameId frame_id, const SpatialPose<T> &X_WF,
+    FrameId frame_id, const Isometry3<T> &X_WF,
     const SpatialVelocity<T> &V_WF, const SpatialAcceleration<T> &A_WF) {
   // Test invariants:
   //  1. No duplicate frames.
@@ -102,7 +102,7 @@ int FrameKinematicsSet<T>::ReportFullKinematics(
 template <typename T>
 int FrameKinematicsSet<T>::ReportFullKinematics(
     const vector<FrameId>& frame_ids,
-    const vector<SpatialPose<T>>& X_WF,
+    const vector<Isometry3<T>>& X_WF,
     const vector<SpatialVelocity<T>>& V_WF,
     const vector<SpatialAcceleration<T>>& A_WF) {
   // Test invariants:
@@ -124,7 +124,7 @@ int FrameKinematicsSet<T>::ReportFullKinematics(
 }
 
 template <typename T>
-const SpatialPose<T>& FrameKinematicsSet<T>::GetPose(FrameId frame_id) const {
+const Isometry3<T>& FrameKinematicsSet<T>::GetPose(FrameId frame_id) const {
   using std::to_string;
   // TODO(SeanCurtis-TRI): This needs to be *faster*. This is called *every*
   // time the context changes *per body*.
@@ -221,7 +221,7 @@ void FrameKinematicsSet<T>::ValidateConfiguration(DataConfig test_config) {
 
 template <typename T>
 int FrameKinematicsSet<T>::ReportPoseNoCheck(FrameId frame_id,
-                                             const SpatialPose<T>& X_WF) {
+                                             const Isometry3<T>& X_WF) {
   // Insert values
   frame_ids_.push_back(frame_id);
   poses_.push_back(X_WF);
@@ -231,7 +231,7 @@ int FrameKinematicsSet<T>::ReportPoseNoCheck(FrameId frame_id,
 template <typename T>
 int FrameKinematicsSet<T>::ReportPosesNoCheck(
     const std::vector<FrameId>& frame_ids,
-    const std::vector<SpatialPose<T>>& X_WF) {
+    const std::vector<Isometry3<T>>& X_WF) {
   const int new_count = static_cast<int>(frame_ids_.size() + frame_ids.size());
   frame_ids_.reserve(new_count);
   frame_ids_.insert(frame_ids_.end(), frame_ids.begin(), frame_ids.end());
@@ -242,7 +242,7 @@ int FrameKinematicsSet<T>::ReportPosesNoCheck(
 
 template <typename T>
 int FrameKinematicsSet<T>::ReportFrameVelocityNoCheck(
-    FrameId frame_id, const SpatialPose<T>& X_WF,
+    FrameId frame_id, const Isometry3<T>& X_WF,
     const drake::multibody::SpatialVelocity<T>& V_WF) {
   int new_count = ReportPoseNoCheck(frame_id, X_WF);
   velocities_.push_back(V_WF);
@@ -252,7 +252,7 @@ int FrameKinematicsSet<T>::ReportFrameVelocityNoCheck(
 template <typename T>
 int FrameKinematicsSet<T>::ReportPosesVelocitiesNoCheck(
     const std::vector<FrameId>& frame_ids,
-    const std::vector<SpatialPose<T>>& X_WF,
+    const std::vector<Isometry3<T>>& X_WF,
     const std::vector<drake::multibody::SpatialVelocity<T>>& V_WF) {
   int new_count = ReportPosesNoCheck(frame_ids, X_WF);
   velocities_.reserve(new_count);
@@ -262,7 +262,7 @@ int FrameKinematicsSet<T>::ReportPosesVelocitiesNoCheck(
 
 template <typename T>
 int FrameKinematicsSet<T>::ReportFullKinematicsNoCheck(
-    FrameId frame_id, const SpatialPose<T>& X_WF,
+    FrameId frame_id, const Isometry3<T>& X_WF,
     const drake::multibody::SpatialVelocity<T>& V_WF,
     const SpatialAcceleration<T>& A_WF) {
   int new_count = ReportFrameVelocityNoCheck(frame_id, X_WF, V_WF);
@@ -273,7 +273,7 @@ int FrameKinematicsSet<T>::ReportFullKinematicsNoCheck(
 template <typename T>
 int FrameKinematicsSet<T>::ReportFullKinematicsNoCheck(
     const std::vector<FrameId>& frame_ids,
-    const std::vector<SpatialPose<T>>& X_WF,
+    const std::vector<Isometry3<T>>& X_WF,
     const std::vector<drake::multibody::SpatialVelocity<T>>& V_WF,
     const std::vector<SpatialAcceleration<T>>& A_WF) {
   int new_count = ReportPosesVelocitiesNoCheck(frame_ids, X_WF, V_WF);

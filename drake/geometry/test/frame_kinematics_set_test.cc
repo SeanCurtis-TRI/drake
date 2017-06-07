@@ -20,9 +20,8 @@ class GeometryWorld {
 };
 
 namespace {
-
 using FKSet = FrameKinematicsSet<double>;
-using Pose = SpatialPose<double>;
+using Pose = Isometry3<double>;
 using Velocity = drake::multibody::SpatialVelocity<double>;
 using Acceleration = SpatialAcceleration<double>;
 using std::vector;
