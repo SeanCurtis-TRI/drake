@@ -11,6 +11,15 @@ load(
 package(default_visibility = ["//visibility:public"])
 
 drake_cc_library(
+    name = "frame_id_vector",
+    srcs = ["frame_id_vector.cc"],
+    hdrs = ["frame_id_vector.h"],
+    deps = [
+        ":geometry_ids",
+    ],
+)
+
+drake_cc_library(
     name = "frame_kinematics_set",
     srcs = ["frame_kinematics_set.cc"],
     hdrs = ["frame_kinematics_set.h"],
@@ -219,6 +228,14 @@ drake_cc_library(
         ":geometry_world",
         ":internal_geometry",
         "//drake/common:eigen_matrix_compare",
+    ],
+)
+
+drake_cc_googletest(
+    name = "frame_id_vector_test",
+    deps = [
+        ":expect_error_message",
+        ":frame_id_vector",
     ],
 )
 
