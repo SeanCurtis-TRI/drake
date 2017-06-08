@@ -11,11 +11,16 @@ load(
 package(default_visibility = ["//visibility:public"])
 
 drake_cc_library(
-    name = "frame_id_vector",
+    name = "frame_kinematics",
     srcs = ["frame_id_vector.cc"],
-    hdrs = ["frame_id_vector.h"],
+    hdrs = [
+        "frame_id_vector.h",
+        "frame_kinematics_vector.h",
+    ],
     deps = [
         ":geometry_ids",
+        "//drake/common",
+        "//drake/multibody/multibody_tree/math:spatial_velocity",
     ],
 )
 
@@ -235,7 +240,15 @@ drake_cc_googletest(
     name = "frame_id_vector_test",
     deps = [
         ":expect_error_message",
-        ":frame_id_vector",
+        ":frame_kinematics",
+    ],
+)
+
+drake_cc_googletest(
+    name = "frame_kinematics_vector_test",
+    deps = [
+        ":frame_kinematics",
+        "//drake/common:eigen_matrix_compare",
     ],
 )
 
