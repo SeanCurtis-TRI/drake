@@ -69,6 +69,10 @@ class FrameKinematicsVector {
     return this->size();
   }
 
+  // TODO(SeanCurtis-TRI): I believe I need "set" methods; minimize copying/
+  // writing of pose values. This may ultimately depend on how things integrate
+  // with the cache.
+
   /** Simply removes the value at position 'index'. */
   void RemoveByIndex(int index) {
     data_.erase(data_.begin() + index);

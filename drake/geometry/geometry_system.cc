@@ -51,20 +51,21 @@ SourceId GeometrySystem<T>::RegisterSource(const std::string &name) {
 }
 
 template <typename T>
-const systems::InputPortDescriptor<T>&
-GeometrySystem<T>::get_port_for_source_id(SourceId id) {
+const InputPortDescriptor<T>&
+GeometrySystem<T>::get_port_for_source_id(
+    SourceId id, GeometrySystem<T>::PortType port_type) {
   using std::to_string;
+  SourcePorts* source_ports;
+
+  // Access port data based on the source id -- catching the possibility of an
+  // invalid id.
   auto itr = input_source_ids_.find(id);
   if (itr != input_source_ids_.end()) {
-    return this->get_input_port(itr->second);
+    source_ports = &(itr->second);
   } else {
     if (!context_allocated_) {
       if (initial_state_->source_is_active(id)) {
-        DRAKE_ASSERT(static_cast<int>(input_source_ids_.size()) ==
-            this->get_num_input_ports());
-        const auto& input_port = this->DeclareAbstractInputPort();
-        input_source_ids_[id] = input_port.get_index();
-        return input_port;
+        source_ports = &input_source_ids_[id];
       } else {
         throw std::logic_error("Can't create input port for unknown source id: "
                                + to_string(id) + ".");
@@ -74,6 +75,48 @@ GeometrySystem<T>::get_port_for_source_id(SourceId id) {
           "Can't create new input ports after context has been allocated.");
     }
   }
+
+  // Helper method to return the input port (creating it as necessary).
+  auto get_port = [this](int* port_id) -> const InputPortDescriptor<T>& {
+    if (*port_id != -1) {
+      return this->get_input_port(*port_id);
+    } else {
+      const auto &input_port = this->DeclareAbstractInputPort();
+      *port_id = input_port.get_index();
+      return input_port;
+    }
+  };
+
+  // Get the port based on requested type.
+  switch (port_type) {
+    case ID: {
+      return get_port(&source_ports->id_port);
+    }
+    case POSE: {
+      return get_port(&source_ports->pose_port);
+    }
+    case VELOCITY: {
+      return get_port(&source_ports->velocity_port);
+    }
+  }
+}
+
+template <typename T>
+const systems::InputPortDescriptor<T>&
+GeometrySystem<T>::get_source_frame_id_port(SourceId id) {
+  return get_port_for_source_id(id, ID);
+}
+
+template <typename T>
+const systems::InputPortDescriptor<T>&
+GeometrySystem<T>::get_source_pose_port(SourceId id) {
+  return get_port_for_source_id(id, POSE);
+}
+
+template <typename T>
+const systems::InputPortDescriptor<T>&
+GeometrySystem<T>::get_source_velocity_port(SourceId id) {
+  return get_port_for_source_id(id, VELOCITY);
 }
 
 template <typename T>
@@ -312,24 +355,56 @@ bool GeometrySystem<T>::ComputeContact(const systems::Context<T> &context,
 template <typename T>
 const GeometryContext<T>& GeometrySystem<T>::UpdateFromInputs(
     const Context<T>& sibling_context) const {
+  using std::to_string;
   // TODO(SeanCurtis-TRI): This needs to exploit a cache to avoid doing this
-  // work redundantly.
+  // work redundantly (and to even allow *changing* geometry engine state.
   // This is the horrible, hacky terrible thing where I'm implicitly treating
   // my own context's const state to be mutable so I can make sure the geometry
   // world state is up to date (relative to its inputs).
-  // This needs to be done in a better way that will do this only *once*
-  // regardless of how many queries are performed.
   const GeometryContext<T>& g_context =
       ExtractContextViaSiblingContext(sibling_context);
   const GeometryState<T>& state = g_context.get_geometry_state();
   GeometryState<T>& mutable_state = const_cast<GeometryState<T>&>(state);
-  for (int i = 0; i < this->get_num_input_ports(); ++i) {
-    mutable_state.SetFrameKinematics(
-        this->template EvalAbstractInput(g_context, i)
-            ->template GetValue<FrameKinematicsSet<T>>());
+
+  for (const auto& pair : state.source_frame_id_map_) {
+    if (pair.second.size() > 0) {
+      SourceId source_id = pair.first;
+      const auto itr = input_source_ids_.find(source_id);
+      if (itr != input_source_ids_.end()) {
+        const int id_port = itr->second.id_port;
+        if (id_port >= 0) {
+          const FrameIdVector& ids =
+              this->template EvalAbstractInput(g_context, id_port)
+                  ->template GetValue<FrameIdVector>();
+          state.ValidateFrameIds(ids);
+          const int pose_port = itr->second.pose_port;
+          if (pose_port >= 0) {
+            const FramePoseSet<T>& poses =
+                this->template EvalAbstractInput(g_context, pose_port)
+                    ->template GetValue<FramePoseSet<T>>();
+            mutable_state.SetFramePoses(ids, poses);
+          } else {
+            throw std::logic_error(
+                "Source " + to_string(source_id) + " has registered frames "
+                "but does not provide pose values on the input port.");
+          }
+        } else {
+          throw std::logic_error(
+              "Source " + to_string(source_id) + " has registered frames "
+              "but does not provide id values on the input port.");
+        }
+      } else {
+        throw std::logic_error(
+            "Source " + to_string(source_id) + " has registered frames "
+                "but does not provide values on any input port.");
+      }
+    }
   }
-  // TODO(SeanCurtis-TRI): Change this method name to: FinalizeKinematicsUpdate.
-  mutable_state.FinalizeKinematicsUpdate();
+
+  // TODO(SeanCurtis-TRI): This should be part of responding to dirty pose
+  // inputs.
+  mutable_state.FinalizePoseUpdate();
+  // TODO(SeanCurtis-TRI): Add velocity as appropriate.
   return g_context;
 }
 
