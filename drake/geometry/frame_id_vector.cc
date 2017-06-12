@@ -7,48 +7,52 @@ namespace drake {
 namespace geometry {
 
 using std::move;
+using std::vector;
 
 FrameIdVector::FrameIdVector(SourceId source_id) : source_id_(source_id) {}
 
 FrameIdVector::FrameIdVector(SourceId source_id,
-                             const std::vector<FrameId>& ids) :
-    source_id_(source_id), frame_ids_(ids) {
-  DRAKE_ASSERT_VOID(ThrowIfDuplicatesExist());
-}
-
-FrameIdVector::FrameIdVector(SourceId source_id, std::vector<FrameId>&& ids) :
-    source_id_(source_id), frame_ids_(move(ids)) {
-  DRAKE_ASSERT_VOID(ThrowIfDuplicatesExist());
+                             const vector<FrameId>& ids) :
+    source_id_(source_id) {
+  AddFrameIds(ids);
 }
 
 int FrameIdVector::GetIndex(FrameId frame_id) const {
-  for (size_t i = 0; i < frame_ids_.size(); ++i) {
-    if (frame_ids_[i] == frame_id) return static_cast<int>(i);
+  auto itr = id_index_map_.find(frame_id);
+  if (itr != id_index_map_.end()) {
+    return itr->second;
   }
   using std::to_string;
-  throw std::logic_error("The given frame id is not in the set: " +
-                         to_string(frame_id) + ".");
+  throw std::logic_error(
+      "The given frame id (" + to_string(frame_id) + ") is not in the set.");
 }
 
 int FrameIdVector::AddFrameId(FrameId frame_id) {
   DRAKE_ASSERT_VOID(ThrowIfContains(frame_id));
-  frame_ids_.push_back(frame_id);
-  return static_cast<int>(frame_ids_.size());
+  int index = static_cast<int>(id_index_map_.size());
+  id_index_map_[frame_id] = index;
+  index_id_map_.push_back(frame_id);
+  return index + 1;
 }
 
-int FrameIdVector::AddFrameIds(const std::vector<FrameId>& ids) {
-  frame_ids_.insert(frame_ids_.end(), ids.begin(), ids.end());
-  DRAKE_ASSERT_VOID(ThrowIfDuplicatesExist());
-  return static_cast<int>(frame_ids_.size());
+int FrameIdVector::AddFrameIds(const vector<FrameId>& ids) {
+  DRAKE_ASSERT_VOID(ThrowIfContains(ids));
+  int start_index = static_cast<int>(id_index_map_.size());
+  index_id_map_.resize(start_index + ids.size());
+  for (auto id : ids) {
+    index_id_map_[start_index] = id;
+    id_index_map_[id] = start_index++;
+  }
+  return start_index;
 }
 
 int FrameIdVector::RemoveFrameId(FrameId frame_id) {
-  for (auto itr = frame_ids_.begin(); itr != frame_ids_.end(); ++itr) {
-    if (*itr == frame_id) {
-      int i = static_cast<int>(itr - frame_ids_.begin());
-      frame_ids_.erase(itr);
-      return i;
-    }
+  auto itr = id_index_map_.find(frame_id);
+  if (itr != id_index_map_.end()) {
+    int i = itr->second;
+    index_id_map_.erase(index_id_map_.begin() + i);
+    id_index_map_.erase(itr);
+    return i;
   }
   using std::to_string;
   throw std::logic_error("Cannot remove frame identifier " +
@@ -57,31 +61,27 @@ int FrameIdVector::RemoveFrameId(FrameId frame_id) {
 }
 
 void FrameIdVector::RemoveFrameIdByIndex(int index) {
-  frame_ids_.erase(frame_ids_.begin() + index);
+  auto itr = index_id_map_.erase(index_id_map_.begin() + index);
+  FrameId f_id = *itr;
+  id_index_map_.erase(f_id);
 }
 
-void FrameIdVector::ThrowIfDuplicatesExist() {
-  const int count = size();
-  for (int i = 0; i < count - 1; ++i) {
-    FrameId f_i = frame_ids_[i];
-    for (int j = i + 1; j < count; ++j) {
-      FrameId f_j = frame_ids_[j];
-      if (f_i == f_j) {
-        throw std::logic_error("The frame id vector contains duplicate frame"
-                                   " ids, including, at least, " +
-            to_string(f_i) + ".");
-      }
+void FrameIdVector::ThrowIfContains(const std::vector<FrameId>& frame_ids) {
+  using std::to_string;
+  for (auto f_id : frame_ids) {
+    if (id_index_map_.find(f_id) != id_index_map_.end()) {
+      throw std::logic_error("The frame id vector contains duplicate frame"
+                                " ids, including, at least, " +
+          to_string(f_id) + ".");
     }
   }
 }
 
 void FrameIdVector::ThrowIfContains(FrameId frame_id) {
-  for (FrameId test_id : frame_ids_) {
-    if (test_id == frame_id) {
-      using std::to_string;
-      throw std::logic_error("Id vector already contains frame id: " +
-          to_string(frame_id) + ".");
-    }
+  if (id_index_map_.find(frame_id) != id_index_map_.end()) {
+    using std::to_string;
+    throw std::logic_error("Id vector already contains frame id: " +
+        to_string(frame_id) + ".");
   }
 }
 

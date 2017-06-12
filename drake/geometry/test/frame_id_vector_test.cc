@@ -35,18 +35,6 @@ GTEST_TEST(FrameIdVector, ConstructorSuccess) {
   for (int i = 0; i < frame_count; ++i) {
     EXPECT_EQ(ids2.get_frame_id(i), frames[i]);
   }
-
-  // Case: Move from vector.
-  for (int i = 0; i < frame_count; ++i) {
-    frames[i] = FrameId::get_new_id();
-  }
-  FrameIdVector ids3(source_id, move(frames));
-  EXPECT_EQ(ids3.get_source_id(), source_id);
-  EXPECT_EQ(ids3.size(), frame_count);
-  EXPECT_EQ(frames.size(), 0);
-  for (int i = 0; i < frame_count; ++i) {
-    EXPECT_NE(ids2.get_frame_id(i), ids3.get_frame_id(i));
-  }
 }
 
 // Tests the range iterators.
@@ -166,7 +154,7 @@ GTEST_TEST(FrameIdVector, FrameLookup) {
 
   EXPECT_ERROR_MESSAGE(ids.GetIndex(FrameId::get_new_id()),
                        std::logic_error,
-                       "The given frame id is not in the set: \\d+.");
+                       "The given frame id \\(\\d+\\) is not in the set.");
 }
 
 // Tests frame removal from the set.
