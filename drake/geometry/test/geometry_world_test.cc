@@ -36,7 +36,6 @@ class GeometryWorldTest : public ::testing::Test {
   GeometryState<double>* geometry_state_;
 };
 
-
 // TODO(SeanCurtis-TRI): Move this into the GeometrySystem test.
 // // Confirm that the state is extracted from the context without any copying.
 // TEST_F(GeometryWorldTest, PullStateFromContext) {
@@ -45,30 +44,6 @@ class GeometryWorldTest : public ::testing::Test {
 //  auto& state = world_->get_state(*context_);
 //  EXPECT_EQ(&state, geometry_state_);
 //}
-
-// Confirms the behavior of creating a FrameKinematicsSet from a bad source id.
-// In release build, this is allowed (it'll throw an exception later when the
-// frame kinematics set is used. In Debug build, an exception is thrown at the
-// invocation. This tests confirms *both* behaviors.
-TEST_F(GeometryWorldTest, CreateFrameKinematicsSetFromBadSource) {
-  SourceId s_id = SourceId::get_new_id();
-#ifdef DRAKE_ASSERT_IS_DISARMED
-  // In release mode, this would be considered valid. No exception thrown.
-  auto fks = world_->GetFrameKinematicsSet(*context_, s_id);
-#else
-  EXPECT_ERROR_MESSAGE(world_->GetFrameKinematicsSet(*context_, s_id),
-                       std::logic_error,
-                       "Invalid source id: \\d+.");
-#endif
-#ifdef DRAKE_ASSERT_IS_DISARMED
-  // In release mode, this would be considered valid. No exception thrown.
-  fks = world_->GetFrameKinematicsSet(*geometry_state_, s_id);
-#else
-  EXPECT_ERROR_MESSAGE(world_->GetFrameKinematicsSet(*geometry_state_, s_id),
-                       std::logic_error,
-                       "Invalid source id: \\d+.");
-#endif
-}
 
 // Confirms the registration of a new source with and without "default" names.
 // This does not test error conditions as that is handled in

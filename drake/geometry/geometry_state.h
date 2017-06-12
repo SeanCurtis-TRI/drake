@@ -23,7 +23,6 @@ namespace geometry {
 
 // forward declarations
 class FrameIdVector;
-template <typename T> class FrameKinematicsSet;
 template <typename T> struct GeometryFrame;
 template <typename T> class GeometrySystem;
 template <typename T> class GeometryWorld;
@@ -400,29 +399,9 @@ class GeometryState {
   void ValidateFrameVelocities(const FrameIdVector& ids,
                                const FrameVelocitySet<T>& velocities) const;
 
-  /** Computes updated geometry kinematics values based on the frames in the
-   given frame kinematics set.
-   @param frame_kinematics  The frame kinematics values for a single source.
-   @throws std::logic_error 1. Frames registered on the source are not given
-                               kinematics values, or
-                            2. frames _not_ registered on the source _are_
-                               included in the set. */
-  void SetFrameKinematics(const FrameKinematicsSet<T>& frame_kinematics);
-
   /** Informs the state that all kinematics data has been set (via calls to
    SetFrameKinematics()). Allows the state to update internal bookkeeping. */
   void FinalizeKinematicsUpdate() { geometry_engine_->UpdateWorldPoses(X_WG_); }
-
-  // TODO(SeanCurtis-TRI): Make this method private?
-  /** Performs the work for confirming the frame values provided in the
-   kinematics set cover the expected set of frames (and no more).
-   @param frame_kinematics      The input frame kinematics data.
-   @throws std::logic_error 1. Frames registered on the source are not given
-                               kinematics values, or
-                            2. frames _not_ registered on the source _are_
-                               included in the set. */
-  void ValidateKinematicsSet(
-      const FrameKinematicsSet<T>& frame_kinematics) const;
 
   /** Finds the identifier for parent geometry of the given geometry_id. The
    optional will be invalid if geometry_id's parent is the frame itself.
@@ -529,13 +508,6 @@ class GeometryState {
     // parent velocity as well.
     throw std::runtime_error("Not implemented");
   }
-
-  // Recursively updates the frame and geometry pose information for the tree
-  // rooted at the given frame, whose parents pose in the world frame is given
-  // as `X_WP`.
-  void UpdateKinematics(const internal::InternalFrame& frame,
-                        const Isometry3<T>& X_WP,
-                        const FrameKinematicsSet<T>& frame_kinematics);
 
   // TODO(SeanCurtis-TRI): Several design issues on this:
   //  1. It should *ideally* be const.

@@ -9,7 +9,6 @@
 #include "drake/common/eigen_types.h"
 #include "drake/geometry/frame_id_vector.h"
 #include "drake/geometry/frame_kinematics_vector.h"
-#include "drake/geometry/frame_kinematics_set.h"
 #include "drake/geometry/geometry_frame.h"
 #include "drake/geometry/geometry_ids.h"
 #include "drake/geometry/geometry_query_results.h"
@@ -96,29 +95,32 @@ struct GeometryPair;
 
  @code{.cpp}
  // Assume the following variables are defined.
- const GeometryState state;
  GeometryWorld* geometry_world;
+ SourceId source_id_;
 
- // Acquire an instance of FrameKinematicsSet and populate it with kinematics
- // values.
- FrameKinematicsSet fks = geometry_world->GetFrameKinematicsSet(state,
-                                                                source_id_);
+ // Define ordered sets of frame ids and their corresponding kinematics values.
+ FrameIdVVector ids(source_id_);
+ ids.AddFrames(frames_);
+
+ FramePoseVector poses(source_id_);
+ FrameVelocityVector velocities(source_id_);
 
  foreach (FrameId frame_id : frames_) {
-    // Compute pose (Isometry3), SpatialVelocity, and SpatialAcceleration
+    // Compute pose (Isometry3) and SpatialVelocity.
     Isometry3 X_WF = ...;
+    poses.AddValue(X_WF);
     SpatialVelocity V_WF = ...;
-    SpatialAcceleration A_WF = ...;
-    fks.ReportFullKinematics(frame_id, X_WF, V_WF, A_WF);
+    velocities.AddValue(V_WF);
  }
- geometry_world->SetFrameKinematics(state, fks);
+ geometry_world->SetFramePoses(ids, poses);
+ geometry_world->SetFrameVelocities(ids, velocities);
  @endcode
 
  @subsection geom_world_usage_notes Notes on workflow
 
- These code snippets shows a general workflow as an order of operations, but
+ These code snippets show a general workflow as an order of operations, but
  should not be taken as literal suggestions. It merely underscores several
- things:
+ principles:
    - A geometry source must register itself before doing anything else.
    - The SourceId returned is very important and should be saved as a member of
      the class. All operations on GeometryWorld depend on that unique id.
@@ -126,8 +128,6 @@ struct GeometryPair;
      first.
    - The geometry source is responsible for creating and defining the
      GeometryInstance. GeometryWorld merely takes ownership when passed over.
-   - When evaluating frames' kinematic values for a particular context, always
-     acquire a new instance of the FrameKinematicsSet from GeometryWorld.
 
   What these examples _don't_ cover:
     - The example shows saving FrameId values in local variables (e.g., `f0`).
@@ -343,28 +343,6 @@ class GeometryWorld {
    @{ */
 
   /**
-   Requests a frame kinematics set for the given geometry source. This should be
-   invoked every time the frame kinematics values are evaluated and provided.
-
-   Aborts if the source identifier does not reference an active source.
-
-   @param context       The geometry context for this geometry world.
-   @param source_id     The identifier of the evaluating geometry source. */
-  FrameKinematicsSet<T> GetFrameKinematicsSet(const GeometryContext<T>& context,
-                                              SourceId source_id) const;
-
-  /**
-   Requests a frame kinematics set for the given geometry source. This should be
-   invoked every time the frame kinematics values are evaluated and provided.
-
-   Aborts if the source identifier does not reference an active source.
-
-   @param state         The geometry state for this geometry world.
-   @param source_id     The identifier of the evaluating geometry source. */
-  FrameKinematicsSet<T> GetFrameKinematicsSet(const GeometryState<T>& state,
-                                              SourceId source_id) const;
-
-  /**
    Sets the poses of the frames from the given pose data. It is essential that
    this is called once for each registered geometry source before invoking a
    query. Failure to do so will lead to queries on a world with inconsistent
@@ -418,34 +396,6 @@ class GeometryWorld {
   void SetFrameVelocities(GeometryContext<T>* context,
                           const FrameIdVector& ids,
                           const FrameVelocitySet<T>& velocities);
-
-  /**
-   Sets the kinematics _values_ from the given value set. GeometryWorld consumes
-   the set of frame kinematics data to update its knowledge of the geometry's
-   motion. It is essential that this is called once for each
-   registered geometry source before invoking a query. Failure to do so will
-   lead to queries on a world with inconsistent state.
-
-   @internal In the future, this may be relaxed in favor of a protocol that
-   allows the use of the last known value by default.
-
-   This is the only mechanism for updating the state of the geometry in
-   GeometryWorld.
-
-   Several circumstances will lead to an exception being thrown:
-     - One or more of the frames registered by the invoking geometry source has
-       _not_ had its data set,
-     - The data set does not come from a known geometry source,
-     - The frames in the set are inconsistent with the registered frames.
-
-   @param context           A mutable geometry state for this geometry world.
-   @param frame_kinematics  The kinematics data for the frames registered by a
-                            single source.
-   @throws std::logic_error If the frame kinematics data is missing any data for
-                            registered frames, or includes frame ids that were
-                            not registered with the associated source. */
-  void SetFrameKinematics(GeometryContext<T>* context,
-                          const FrameKinematicsSet<T>& frame_kinematics);
 
   /** @} */
 

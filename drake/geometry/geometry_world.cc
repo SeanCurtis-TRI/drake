@@ -113,22 +113,6 @@ void GeometryWorld<T>::RemoveGeometry(GeometryContext<T>* context,
 }
 
 template <typename T>
-FrameKinematicsSet<T> GeometryWorld<T>::GetFrameKinematicsSet(
-    const GeometryContext<T>& context, SourceId source_id) const {
-  DRAKE_ASSERT_VOID(AssertValidSource(context.get_geometry_state(), source_id));
-  FrameKinematicsSet<T> set(source_id);
-  return set;
-}
-
-template <typename T>
-FrameKinematicsSet<T> GeometryWorld<T>::GetFrameKinematicsSet(
-    const GeometryState<T>& state, SourceId source_id) const {
-  DRAKE_ASSERT_VOID(AssertValidSource(state, source_id));
-  FrameKinematicsSet<T> set(source_id);
-  return set;
-}
-
-template <typename T>
 void GeometryWorld<T>::SetFramePoses(GeometryContext<T>* context,
                                      const FrameIdVector& ids,
                                      const FramePoseSet<T>& poses) {
@@ -140,13 +124,6 @@ void GeometryWorld<T>::SetFrameVelocities(
     GeometryContext<T>* context, const FrameIdVector& ids,
     const FrameVelocitySet<T>& velocities) {
   context->get_mutable_geometry_state().SetFrameVelocities(ids, velocities);
-}
-
-template <typename T>
-void GeometryWorld<T>::SetFrameKinematics(
-    GeometryContext<T>* context,
-    const FrameKinematicsSet<T>& frame_kinematics) {
-  context->get_mutable_geometry_state().SetFrameKinematics(frame_kinematics);
 }
 
 template <typename T>
