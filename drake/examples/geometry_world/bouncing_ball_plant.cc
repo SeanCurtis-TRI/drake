@@ -6,6 +6,8 @@
 
 #include "drake/common/drake_throw.h"
 #include "drake/common/eigen_autodiff_types.h"
+#include "drake/geometry/frame_id_vector.h"
+#include "drake/geometry/frame_kinematics_set.h"
 #include "drake/geometry/geometry_frame.h"
 #include "drake/geometry/geometry_instance.h"
 #include "drake/geometry/geometry_query_results.h"
@@ -16,6 +18,8 @@ namespace examples {
 namespace bouncing_ball {
 
 using geometry::Contact;
+using geometry::FrameIdVector;
+using geometry::FramePoseSet;
 using geometry::FrameKinematicsSet;
 using geometry::GeometryFrame;
 using geometry::GeometryInstance;
@@ -35,10 +39,6 @@ BouncingBallPlant<T>::BouncingBallPlant(SourceId source_id,
                                         const Vector2<T>& init_position)
     : source_id_(source_id), geometry_system_(geometry_system),
       init_position_(init_position) {
-  geometry_port_ = this->DeclareAbstractOutputPort(
-      Value<FrameKinematicsSet<T>>(
-          geometry_system->MakeDefaultFrameKinematicsSet(source_id))).
-      get_index();
   state_port_ =
       this->DeclareVectorOutputPort(BouncingBallVector<T>()).get_index();
   this->DeclareContinuousState(
@@ -53,6 +53,14 @@ BouncingBallPlant<T>::BouncingBallPlant(SourceId source_id,
       source_id, ball_frame_id_,
       make_unique<GeometryInstance<T>>(Isometry3<double>::Identity(), /*X_FG*/
                                        make_unique<Sphere>(diameter_ / 2.0)));
+  FrameIdVector ids(source_id);
+  ids.AddFrameId(ball_frame_id_);
+  geometry_id_port_ = this->DeclareAbstractOutputPort(
+      Value<FrameIdVector>(ids)).get_index();
+  FramePoseSet<T> poses(source_id);
+  poses.AddValue(Isometry3<T>::Identity());
+  geometry_pose_port_ = this->DeclareAbstractOutputPort(
+      Value<FramePoseSet<T>>(poses)).get_index();
 }
 
 template <typename T>
@@ -66,8 +74,14 @@ BouncingBallPlant<T>::get_state_output_port() const {
 
 template <typename T>
 const systems::OutputPortDescriptor<T>&
-BouncingBallPlant<T>::get_geometry_output_port() const {
-  return systems::System<T>::get_output_port(geometry_port_);
+BouncingBallPlant<T>::get_geometry_id_output_port() const {
+  return systems::System<T>::get_output_port(geometry_id_port_);
+}
+
+template <typename T>
+const systems::OutputPortDescriptor<T>&
+BouncingBallPlant<T>::get_geometry_pose_output_port() const {
+  return systems::System<T>::get_output_port(geometry_pose_port_);
 }
 
 template <typename T>
@@ -77,14 +91,14 @@ void BouncingBallPlant<T>::DoCalcOutput(const systems::Context<T>& context,
   get_mutable_state_output(output)->set_value(get_state(context).get_value());
 
   // 2) Output for GeometrySystem's input.
-  FrameKinematicsSet<T> fks =
-      geometry_system_->GetFrameKinematicsSet(context, source_id_);
   const BouncingBallVector<T>& state = get_state(context);
   Isometry3<T> pose = Isometry3<T>::Identity();
   pose.translation() << init_position_(0), init_position_(1), state.z();
-  fks.ReportPose(ball_frame_id_, pose);
-  output->GetMutableData(geometry_port_)
-      ->template GetMutableValue<FrameKinematicsSet<T>>() = fks;
+  FramePoseSet<T> poses(source_id_);
+  poses.AddValue(pose);
+  output->GetMutableData(geometry_pose_port_)
+      ->template GetMutableValue<FramePoseSet<T>>() = poses;
+
 }
 
 // Compute the actual physics.

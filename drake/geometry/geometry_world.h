@@ -7,6 +7,8 @@
 
 #include "drake/common/drake_copyable.h"
 #include "drake/common/eigen_types.h"
+#include "drake/geometry/frame_id_vector.h"
+#include "drake/geometry/frame_kinematics_vector.h"
 #include "drake/geometry/frame_kinematics_set.h"
 #include "drake/geometry/geometry_frame.h"
 #include "drake/geometry/geometry_ids.h"
@@ -16,7 +18,6 @@ namespace drake {
 namespace geometry {
 
 // Forward declarations.
-template <typename T> class FrameKinematicsSet;
 template <typename T> class GeometryContext;
 template <typename T> class GeometryInstance;
 template <typename T> class GeometryState;
@@ -364,11 +365,69 @@ class GeometryWorld {
                                               SourceId source_id) const;
 
   /**
+   Sets the poses of the frames from the given pose data. It is essential that
+   this is called once for each registered geometry source before invoking a
+   query. Failure to do so will lead to queries on a world with inconsistent
+   state.
+
+   @internal In the future, this may be relaxed in favor of a protocol that
+   allows the use of the last known value by default.
+
+   This is the only mechanism for updating the poses of the geometry in
+   GeometryWorld.
+
+   Several circumstances will lead to an exception being thrown:
+     - One or more of the frames registered by the invoking geometry source has
+       _not_ had its data set,
+     - The data set does not come from a known geometry source,
+     - The frames in the set are inconsistent with the registered frames.
+
+   @param context           A mutable geometry state for this geometry world.
+   @param ids               The ids of the frames whose poses are being set.
+   @param poses             The frame pose values.
+   @throws std::logic_error If the frame kinematics data is missing any data for
+                            registered frames, or includes frame ids that were
+                            not registered with the associated source. */
+  void SetFramePoses(GeometryContext<T>* context,
+                     const FrameIdVector& ids, const FramePoseSet<T>& poses);
+
+  /**
+   Sets the velocities of the frames from the given velocity data. It is
+   essential that this is called once for each registered geometry source before
+   invoking a query. Failure to do so will lead to queries on a world with
+   inconsistent state.
+
+   @internal In the future, this may be relaxed in favor of a protocol that
+   defines the velocity as being zero when not explicitly provided.
+
+   This is the only mechanism for updating the velocities of the geometry in
+   GeometryWorld.
+
+   Several circumstances will lead to an exception being thrown:
+     - One or more of the frames registered by the invoking geometry source has
+       _not_ had its data set,
+     - The data set does not come from a known geometry source,
+     - The frames in the set are inconsistent with the registered frames.
+
+   @param context           A mutable geometry state for this geometry world.
+   @param ids               The ids of the frames whose poses are being set.
+   @param velocities        The frame velocity values.
+   @throws std::logic_error If the frame kinematics data is missing any data for
+                            registered frames, or includes frame ids that were
+                            not registered with the associated source. */
+  void SetFrameVelocities(GeometryContext<T>* context,
+                          const FrameIdVector& ids,
+                          const FrameVelocitySet<T>& velocities);
+
+  /**
    Sets the kinematics _values_ from the given value set. GeometryWorld consumes
-   the set of frame kinematics data to update the poses of the geometry affixed
-   to the frames in the set. It is essential that this is called once for each
+   the set of frame kinematics data to update its knowledge of the geometry's
+   motion. It is essential that this is called once for each
    registered geometry source before invoking a query. Failure to do so will
    lead to queries on a world with inconsistent state.
+
+   @internal In the future, this may be relaxed in favor of a protocol that
+   allows the use of the last known value by default.
 
    This is the only mechanism for updating the state of the geometry in
    GeometryWorld.

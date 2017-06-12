@@ -328,6 +328,26 @@ const FrameIdSet& GeometryState<T>::GetFramesForSource(
 }
 
 template <typename T>
+void GeometryState<T>::SetFramePoses(const FrameIdVector& ids,
+                                    const FramePoseSet<T>& poses) {
+  ValidateFramePoses(ids, poses);
+  const Isometry3<T> world_pose = Isometry3<T>::Identity();
+  for (auto frame_id : source_root_frame_map_[ids.get_source_id()]) {
+    UpdatePosesRecursively(frames_[frame_id], world_pose, ids, poses);
+  }
+}
+
+template <typename T>
+void GeometryState<T>::SetFrameVelocities(
+    const FrameIdVector& ids, const FrameVelocitySet<T>& velocities) {
+  ValidateFrameVelocities(ids, velocities);
+  const Isometry3<T> world_pose = Isometry3<T>::Identity();
+  for (auto frame_id : source_root_frame_map_[ids.get_source_id()]) {
+    UpdateVelocitiesRecursively(frames_[frame_id], world_pose, ids, velocities);
+  }
+}
+
+template <typename T>
 void GeometryState<T>::SetFrameKinematics(
     const FrameKinematicsSet<T>& frame_kinematics) {
   ValidateKinematicsSet(frame_kinematics);
@@ -335,6 +355,63 @@ void GeometryState<T>::SetFrameKinematics(
   for (auto frame_id :
        source_root_frame_map_[frame_kinematics.get_source_id()]) {
     UpdateKinematics(frames_[frame_id], world_pose, frame_kinematics);
+  }
+}
+
+template <typename T>
+void GeometryState<T>::ValidateFrameIds(const FrameIdVector& ids) const {
+  SourceId source_id = ids.get_source_id();
+  auto& frames = GetFramesForSource(source_id);
+  const int ref_frame_count = static_cast<int>(frames.size());
+  if (ref_frame_count != ids.size()) {
+    // TODO(SeanCurtis-TRI): Determine if more specific information is required.
+    // e.g., which frames are missing/added.
+    throw std::logic_error(
+        "Disagreement in expected number of frames (" +
+        std::to_string(frames.size()) + ") and the given number of frames (" +
+        std::to_string(ids.size()) + ").");
+  } else {
+    for (auto id : ids) {
+      FindOrThrow(id, frames, [id, source_id]() {
+        return "Frame id provided in kinematics data (" + to_string(id) + ") "
+            "does not belong to the source (" + to_string(source_id) +
+            "). At least one required frame id is also missing.";
+      });
+    }
+  }
+}
+
+template <typename T>
+void GeometryState<T>::ValidateFramePoses(const FrameIdVector& ids,
+                                          const FramePoseSet<T>& poses) const {
+  using std::to_string;
+  if (ids.get_source_id() != poses.get_source_id()) {
+    throw std::logic_error(
+        "Error setting poses for given ids; the ids and poses belong to "
+        "different geometry sources (" + to_string(ids.get_source_id()) +
+        " and " + to_string(poses.get_source_id()) + ", respectively).");
+  }
+  if (ids.size() != poses.size()) {
+    throw std::logic_error("Different number of ids and poses. " +
+        to_string(ids.size()) + " ids and " + to_string(poses.size()) +
+        " poses.");
+  }
+}
+
+template <typename T>
+void GeometryState<T>::ValidateFrameVelocities(
+    const FrameIdVector& ids, const FrameVelocitySet<T>& velocities) const {
+  using std::to_string;
+  if (ids.get_source_id() != velocities.get_source_id()) {
+    throw std::logic_error(
+        "Error setting velocities for given ids; the ids and velocities belong "
+        "to different geometry sources (" + to_string(ids.get_source_id()) +
+        " and " + to_string(velocities.get_source_id()) + ", respectively).");
+  }
+  if (ids.size() != velocities.size()) {
+    throw std::logic_error("Different number of ids and velocities. " +
+        to_string(ids.size()) + " ids and " + to_string(velocities.size()) +
+        " velocities.");
   }
 }
 
@@ -504,6 +581,30 @@ void GeometryState<T>::RemoveGeometryUnchecked(GeometryId geometry_id,
 
   // Remove from the geometries.
   geometries_.erase(geometry_id);
+}
+
+template <typename T>
+void GeometryState<T>::UpdatePosesRecursively(
+    const internal::InternalFrame& frame, const Isometry3<T>& X_WP,
+    const FrameIdVector& ids, const FramePoseSet<T>& poses) {
+  const auto frame_id = frame.get_id();
+  int index = ids.GetIndex(frame_id);
+  const auto& X_PF = poses.get_value(index);
+  X_PF_[frame.get_pose_index()] = X_PF;  // Also cache this transform.
+  Isometry3<T> X_WF = X_WP * X_PF;
+
+  // Update the geometry which belong to *this* frame.
+  for (auto child_id : frame.get_child_geometries()) {
+    auto& child_geometry = geometries_[child_id];
+    auto child_index = child_geometry.get_engine_index();
+    X_WG_[child_index] = X_WF * X_FG_[child_index];
+  }
+
+  // Update each child frame.
+  for (auto child_id : frame.get_child_frames()) {
+    auto& child_frame = frames_[child_id];
+    UpdatePosesRecursively(child_frame, X_WF, ids, poses);
+  }
 }
 
 template <typename T>

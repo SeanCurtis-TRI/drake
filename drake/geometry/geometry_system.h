@@ -68,12 +68,26 @@ class GeometrySystem : public systems::LeafSystem<T> {
    @see GeometryState::RegisterNewSource() */
   SourceId RegisterSource(const std::string &name = "");
 
-  /** Given a valid source identifier, returns an input port associated with
-   that id.
+  /** Given a valid source identifier, returns an input frame id port associated
+   with that `id`. This port is used to broadcast frame id order to interpret
+   the poses and velocities coming in on other ports.
    @throws  std::logic_error if the source_id is _not_ recognized, or if the
    context has already been allocated.. */
-  const systems::InputPortDescriptor<T>& get_port_for_source_id(
-      SourceId id);
+  const systems::InputPortDescriptor<T>& get_source_frame_id_port(SourceId id);
+
+  /** Given a valid source identifier, returns an input _pose_ port associated
+   with that id. This port is used to communicate _pose_ data for registered
+   frames.
+   @throws  std::logic_error if the source_id is _not_ recognized, or if the
+   context has already been allocated.. */
+  const systems::InputPortDescriptor<T>& get_source_pose_port(SourceId id);
+
+  /** Given a valid source identifier, returns an input _velocity_ port
+   associated with that id. This port is used to communicate _velocity_ data for
+   registered frames.
+   @throws  std::logic_error if the source_id is _not_ recognized, or if the
+   context has already been allocated.. */
+  const systems::InputPortDescriptor<T>& get_source_velocity_port(SourceId id);
 
   /** Updates the state of all geometry in its geometry world by pulling pose
    information from input ports, providing an updated GeometryQuery on the
@@ -467,9 +481,30 @@ class GeometrySystem : public systems::LeafSystem<T> {
   GeometryState<T>* initial_state_;
   mutable bool context_allocated_{false};
 
-  // A mapping from added source identifier to the port index associated with
+  // Enumeration of the type of port to extract.
+  enum PortType {
+    ID,
+    POSE,
+    VELOCITY
+  };
+
+  // For the given source id, reports the id of the existing port of port_type
+  // (creating it as necessary).
+  const systems::InputPortDescriptor<T>& get_port_for_source_id(
+      SourceId id, PortType port_type);
+
+  // A struct that stores the port indices for a given source.
+  // TODO(SeanCurtis-TRI): Consider making these Index values. This would
+  // require relying on the default value.
+  struct SourcePorts {
+    int id_port{-1};
+    int pose_port{-1};
+    int velocity_port{-1};
+  };
+
+  // A mapping from added source identifier to the port indices associated with
   // that id.
-  std::unordered_map<SourceId, int> input_source_ids_;
+  std::unordered_map<SourceId, SourcePorts> input_source_ids_;
 };
 
 }  // namespace geometry

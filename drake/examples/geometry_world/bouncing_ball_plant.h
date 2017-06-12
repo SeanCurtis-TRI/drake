@@ -35,7 +35,8 @@ class BouncingBallPlant : public systems::LeafSystem<T> {
 
   /// Returns the port to output state.
   const systems::OutputPortDescriptor<T>& get_state_output_port() const;
-  const systems::OutputPortDescriptor<T>& get_geometry_output_port() const;
+  const systems::OutputPortDescriptor<T>& get_geometry_id_output_port() const;
+  const systems::OutputPortDescriptor<T>& get_geometry_pose_output_port() const;
 
   void set_z(MyContext* context, const T& z) const {
     get_mutable_state(context)->set_z(z);
@@ -102,7 +103,8 @@ class BouncingBallPlant : public systems::LeafSystem<T> {
   geometry::FrameId ball_frame_id_;
   geometry::GeometryId ball_id_;
 
-  int geometry_port_;
+  int geometry_id_port_;
+  int geometry_pose_port_;
   int state_port_;
 
   const double diameter_{0.1};  // Ball diameter, just for visualization.
