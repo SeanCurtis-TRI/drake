@@ -129,6 +129,20 @@ FrameKinematicsSet<T> GeometryWorld<T>::GetFrameKinematicsSet(
 }
 
 template <typename T>
+void GeometryWorld<T>::SetFramePoses(GeometryContext<T>* context,
+                                     const FrameIdVector& ids,
+                                     const FramePoseSet<T>& poses) {
+  context->get_mutable_geometry_state().SetFramePoses(ids, poses);
+}
+
+template <typename T>
+void GeometryWorld<T>::SetFrameVelocities(
+    GeometryContext<T>* context, const FrameIdVector& ids,
+    const FrameVelocitySet<T>& velocities) {
+  context->get_mutable_geometry_state().SetFrameVelocities(ids, velocities);
+}
+
+template <typename T>
 void GeometryWorld<T>::SetFrameKinematics(
     GeometryContext<T>* context,
     const FrameKinematicsSet<T>& frame_kinematics) {

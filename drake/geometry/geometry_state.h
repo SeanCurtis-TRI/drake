@@ -10,6 +10,8 @@
 #include "drake/common/drake_copyable.h"
 #include "drake/common/drake_optional.h"
 #include "drake/common/eigen_types.h"
+#include "drake/geometry/frame_id_vector.h"
+#include "drake/geometry/frame_kinematics_vector.h"
 #include "drake/geometry/geometry_engine.h"
 #include "drake/geometry/geometry_ids.h"
 #include "drake/geometry/geometry_index.h"
@@ -20,6 +22,7 @@ namespace drake {
 namespace geometry {
 
 // forward declarations
+class FrameIdVector;
 template <typename T> class FrameKinematicsSet;
 template <typename T> struct GeometryFrame;
 template <typename T> class GeometrySystem;
@@ -345,6 +348,58 @@ class GeometryState {
 
   //@}
 
+  /** Sets the kinematic poses for the frames indicated by the given ids. This
+   method assumes that the `ids` have already been validated by
+   ValidateFrameIds().
+   @param ids   The ids of the frames whose poses are being set.
+   @param poses The frame pose values.
+   @throws std::logic_error  if the poses don't "match" the ids. */
+  void SetFramePoses(const FrameIdVector& ids, const FramePoseSet<T>& poses);
+
+  /** Sets the kinematic velocities for the frames indicated by the given ids.
+   This method assumes that the `ids` have already been validated by
+   ValidateFrameIds().
+   @param ids        The ids of the frames whose poses are being set.
+   @param velocities The frame velocity values.
+   @throws std::logic_error  if the velocities don't "match" the ids.  */
+  void SetFrameVelocities(const FrameIdVector& ids,
+                          const FrameVelocitySet<T>& velocities);
+
+  /** Method that performs any final book-keeping/updating on the state after
+   _all_ of the stat's frames have had their poses updated. */
+  void FinalizePoseUpdate() { geometry_engine_->UpdateWorldPoses(X_WG_); }
+
+  /** Method that performs any final book-keeping/updating on the state after
+   _all_ of the stat's frames have had their poses updated. */
+  void FinalizeVelocityUpdate() {
+    throw std::runtime_error("Not implemented.");
+  }
+
+  // TODO(SeanCurtis-TRI): Why are these public?  Testing?
+
+  // TODO(SeanCurtis-TRI): When *does* this get invoked?
+  /** Confirms that the set of ids provided include _all_ of the frames
+   registered to the set's source id and that no extra frames are included.
+   @param ids The id set to validate.
+   @throws std::logic_error if the set is inconsistent with known topology. */
+  void ValidateFrameIds(const FrameIdVector& ids) const;
+
+  /** Confirms that the pose data is consistent with the set of ids.
+   @param ids       The id set to test against.
+   @param poses     The poses to test.
+   @throws  std::logic_error if the two data sets don't have matching source ids
+                             or matching size. */
+  void ValidateFramePoses(const FrameIdVector& ids,
+                          const FramePoseSet<T>& poses) const;
+
+  /** Confirms that the velocity data is consistent with the set of ids.
+   @param ids       The id set to test against.
+   @param poses     The velocities to test.
+   @throws  std::logic_error if the two data sets don't have matching source ids
+                             or matching size. */
+  void ValidateFrameVelocities(const FrameIdVector& ids,
+                               const FrameVelocitySet<T>& velocities) const;
+
   /** Computes updated geometry kinematics values based on the frames in the
    given frame kinematics set.
    @param frame_kinematics  The frame kinematics values for a single source.
@@ -454,6 +509,26 @@ class GeometryState {
   void RemoveGeometryUnchecked(GeometryId geometry_id,
                                RemoveGeometryOrigin caller);
 
+  // Recursively updates the frame and geometry _pose_ information for the tree
+  // rooted at the given frame, whose parent's pose in the world frame is given
+  // as `X_WP`.
+  void UpdatePosesRecursively(const internal::InternalFrame& frame,
+                              const Isometry3<T>& X_WP,
+                              const FrameIdVector& ids,
+                              const FramePoseSet<T>& poses);
+
+  // Recursively updates the frame and geometry _velocity_ values for the tree
+  // rooted at the given frame, whose parent's pose and velocity in the world
+  // frame is given as `V_WP`, respectively. This assumes that the
+  // poses have already been recursively updated.
+  void UpdateVelocitiesRecursively(const internal::InternalFrame& frame,
+                                   const Isometry3<T>& X_WP,
+                                   const FrameIdVector& ids,
+                                   const FrameVelocitySet<T>& poses) {
+    // TODO(SeanCurtis-TRI): THe interface on this needs to change. I need the
+    // parent velocity as well.
+    throw std::runtime_error("Not implemented");
+  }
 
   // Recursively updates the frame and geometry pose information for the tree
   // rooted at the given frame, whose parents pose in the world frame is given

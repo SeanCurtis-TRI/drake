@@ -35,13 +35,15 @@ GTEST_TEST(GeometrySystemTest, TestInputPorts) {
   GSystem system;
   SourceId src1 = system.RegisterSource("name1");
   SourceId src2 = system.RegisterSource("name2");
-  EXPECT_NO_THROW(system.get_port_for_source_id(src1));
-  EXPECT_EQ(system.get_port_for_source_id(src1).get_index(), 0);
-  EXPECT_EQ(system.get_port_for_source_id(src2).get_index(), 1);
-  EXPECT_THROW(system.get_port_for_source_id(SourceId::get_new_id()),
+  EXPECT_NO_THROW(system.get_source_frame_id_port(src1));
+  EXPECT_EQ(system.get_source_frame_id_port(src1).get_index(), 0);
+  EXPECT_EQ(system.get_source_frame_id_port(src2).get_index(), 1);
+  EXPECT_THROW(system.get_source_frame_id_port(SourceId::get_new_id()),
                std::logic_error);
 }
 
+// This is *not* a real test. This is basically me quickly exercising the
+// underlying code.
 GTEST_TEST(MickeyMouse, LoadTest) {
   GSystem system;
 
@@ -101,6 +103,7 @@ GTEST_TEST(GeometrySystemTest, Construct) {
                                           systems::kAbstractValued, 0);
   auto value = system.AllocateOutputAbstract(descriptor);
 }
+
 }  // namespace
 }  // namespace geometry
 }  // namespace drake

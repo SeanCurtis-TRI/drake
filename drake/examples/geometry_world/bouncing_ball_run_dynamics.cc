@@ -69,10 +69,15 @@ int do_main() {
   std::make_unique<Serializer<drake::lcmt_viewer_draw>>(), &lcm);
   publisher->set_publish_period(1/60.0);
 
-  builder.Connect(bouncing_ball->get_geometry_output_port(),
-                  geometry_system->get_port_for_source_id(ball_source_id));
-  builder.Connect(bouncing_ball2->get_geometry_output_port(),
-                  geometry_system->get_port_for_source_id(ball_source_id2));
+  builder.Connect(bouncing_ball->get_geometry_id_output_port(),
+                  geometry_system->get_source_frame_id_port(ball_source_id));
+  builder.Connect(bouncing_ball->get_geometry_pose_output_port(),
+                  geometry_system->get_source_pose_port(ball_source_id));
+
+  builder.Connect(bouncing_ball2->get_geometry_id_output_port(),
+                  geometry_system->get_source_frame_id_port(ball_source_id2));
+  builder.Connect(bouncing_ball2->get_geometry_pose_output_port(),
+                  geometry_system->get_source_pose_port(ball_source_id2));
   builder.Connect(*geometry_system, *converter);
   builder.Connect(*converter, *publisher);
 
