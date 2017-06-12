@@ -1,5 +1,6 @@
 #pragma once
 
+#include <unordered_map>
 #include <vector>
 
 #include "drake/common/drake_copyable.h"
@@ -18,7 +19,7 @@ namespace geometry {
 //    1. Expectation of constructing once and updating as you go.
 
 /** Represents an _ordered_ set of frame identifiers. Instances of this class
- work in conjunction with instances of FramePoseVector and FrameVelocityVector
+ work in conjunction with instances of FramePoseSet and FrameVelocitySet
  to communicate frame kinematics to GeometryWorld and GeometrySystem. Taken in
  aggregate, the represent a "struct-of-arrays" paradigm. The iᵗʰ value in the
  %FrameIdVector represents the frame identifier whose position is specified by
@@ -52,22 +53,14 @@ class FrameIdVector {
    @throws std::logic_error (in Debug) if any of the ids are duplicated. */
   FrameIdVector(SourceId source_id, const std::vector<FrameId>& ids);
 
-  /** Constructor which initializes the frame ids by _moving_ them from the
-   given set. In Debug builds, the input ids will be tested for duplicates; an
-   exception is thrown if duplicates are found.
-   @param source_id   The id for the geometry source reporting frame kinematics.
-   @param ids         The vector of ids which are moved into this vector.
-   @throws std::logic_error (in Debug) if any of the ids are duplicated. */
-  FrameIdVector(SourceId source_id, std::vector<FrameId>&& ids);
-
   /** Reports the source id for this data. */
   SourceId get_source_id() const { return source_id_; }
 
   /** Report the number of ids stored in the vector. */
-  int size() const { return static_cast<int>(frame_ids_.size()); }
+  int size() const { return static_cast<int>(id_index_map_.size()); }
 
   /** Returns the iᵗʰ frame id. */
-  FrameId get_frame_id(int i) const { return frame_ids_.at(i); }
+  FrameId get_frame_id(int i) const { return index_id_map_[i]; }
 
   /** Returns the index of the given frame id.
    @throws std::logic_error if the frame id is not in the set. */
@@ -101,23 +94,28 @@ class FrameIdVector {
   /** @name  Support for range-based loop iteration */
   //@{
 
-  Iterator begin() const { return frame_ids_.cbegin(); }
-  Iterator end() const { return frame_ids_.cend(); }
+  Iterator begin() const { return index_id_map_.cbegin(); }
+  Iterator end() const { return index_id_map_.cend(); }
 
   // @}
 
  private:
-  // Utility method for testing if the full set of frame identifiers are unique.
-  // While this is O(N^2), it is only invoked
-  void ThrowIfDuplicatesExist();
+  // Throws an exception if any of the given frame ids is already in
+  // id_index_map_.
+  void ThrowIfContains(const std::vector<FrameId>& frame_ids);
 
-  // Throws an exception if the given frame_id is already in frame_ids_.
+  // Throws an exception if the given frame_id is already in id_index_map_.
   void ThrowIfContains(FrameId frame_id);
 
   // The id of the reporting geometry source.
   SourceId source_id_;
-  // The ordered set of moving frame identifiers.
-  std::vector<FrameId> frame_ids_;
+  // A mapping from frame_id to its index value. For N frames, the map should
+  // span the range [0, N-1]. For a given frame id (f_id), the following should
+  // hold:
+  //   f_id == index_id_map_[id_index_map_[f_id]];
+  std::unordered_map<FrameId, int> id_index_map_;
+  // A mapping from index to frame id.
+  std::vector<FrameId> index_id_map_;
 };
 }  // namespace geometry
 }  // namespace drake
