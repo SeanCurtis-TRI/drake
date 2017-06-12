@@ -7,7 +7,6 @@
 #include "drake/common/drake_throw.h"
 #include "drake/common/eigen_autodiff_types.h"
 #include "drake/geometry/frame_id_vector.h"
-#include "drake/geometry/frame_kinematics_set.h"
 #include "drake/geometry/geometry_frame.h"
 #include "drake/geometry/geometry_instance.h"
 #include "drake/geometry/geometry_query_results.h"
@@ -20,7 +19,6 @@ namespace bouncing_ball {
 using geometry::Contact;
 using geometry::FrameIdVector;
 using geometry::FramePoseSet;
-using geometry::FrameKinematicsSet;
 using geometry::GeometryFrame;
 using geometry::GeometryInstance;
 using geometry::GeometrySystem;

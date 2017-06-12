@@ -8,7 +8,6 @@
 
 #include "drake/common/eigen_matrix_compare.h"
 #include "drake/common/eigen_types.h"
-#include "drake/geometry/frame_kinematics_set.h"
 #include "drake/geometry/geometry_frame.h"
 #include "drake/geometry/geometry_instance.h"
 #include "drake/geometry/geometry_world.h"
@@ -1051,50 +1050,6 @@ TEST_F(GeometryStateTest, ValidateFrameVelocities) {
       " different geometry sources \\(\\d+ and \\d+, respectively\\).");
 }
 
-// Tests the validation of frame kinematics data provided.
-TEST_F(GeometryStateTest, ValidateKinematicsData) {
-  SourceId s_id = SetUpSingleSourceTree();
-  GeometryWorld<double> g_world;
-  FrameKinematicsSet<double> fks = g_world.GetFrameKinematicsSet(
-      geometry_state_, s_id);
-  // Create one pose per frame.
-  vector<Isometry3<double>> poses;
-  for (size_t i = 0; i < frames_.size(); ++i) {
-    poses.emplace_back();
-  }
-  // Case: Valid data.
-  fks.ReportPoses(frames_, poses);
-  EXPECT_NO_THROW(geometry_state_.ValidateKinematicsSet(fks));
-
-  // Case: Strictly missing required frames.
-  fks.Clear();
-  fks.ReportPose(frames_[0], poses[0]);
-  EXPECT_ERROR_MESSAGE(geometry_state_.ValidateKinematicsSet(fks),
-                       std::logic_error,
-                       "Disagreement in expected number of frames \\(\\d+\\) "
-                           "and the given number of frames \\(\\d+\\).");
-
-  // Case: Strictly adding frames that don't belong.
-  fks.Clear();
-  fks.ReportPoses(frames_, poses);
-  fks.ReportPose(FrameId::get_new_id(), Isometry3<double>::Identity());
-  EXPECT_ERROR_MESSAGE(geometry_state_.ValidateKinematicsSet(fks),
-                       std::logic_error,
-                       "Disagreement in expected number of frames \\(\\d+\\) "
-                           "and the given number of frames \\(\\d+\\).");
-
-  // Case: Correct number; required frame swapped with invalid frame.
-  fks.Clear();
-  vector<FrameId> frames_subset(++frames_.begin(), frames_.end());
-  vector<Isometry3<double>> pose_subset(++poses.begin(), poses.end());
-  fks.ReportPoses(frames_subset, pose_subset);
-  fks.ReportPose(FrameId::get_new_id(), Isometry3<double>::Identity());
-  EXPECT_ERROR_MESSAGE(geometry_state_.ValidateKinematicsSet(fks),
-                       std::logic_error,
-                       "Frame id provided in kinematics data \\(\\d+\\) "
-                           "does not belong to the source \\(\\d+\\)."
-                           " At least one required frame id is also missing.");
-}
 // Tests the GeometryState::SetFramePoses() method. This doesn't test
 // invalid kinematics sets (as that has been tested already). It simply confirms
 // that for valid values, the geometries are posed as expected in the world
@@ -1168,71 +1123,6 @@ TEST_F(GeometryStateTest, SetFrameVelocities) {
   EXPECT_ERROR_MESSAGE(geometry_state_.SetFrameVelocities(ids, velocities),
                        std::runtime_error,
                        "Not implemented");
-}
-
-// Tests the GeometryState::SetFrameKinematics() method. This doesn't test
-// invalid kinematics sets (as that has been tested already). It simply confirms
-// that for valid values, the geometries are posed as expected in the world
-// frame. This only tests pose (not velocity or acceleration). These tests use
-// simple transforms because it isn't evaluating the matrix multiplication, only
-// that the right matrix multiplications are performed based on the hierarchy
-// of constructs.
-TEST_F(GeometryStateTest, SetKinematicsData) {
-  SourceId s_id = SetUpSingleSourceTree();
-  GeometryWorld<double> g_world;
-  FrameKinematicsSet<double> fks = g_world.GetFrameKinematicsSet(
-      geometry_state_, s_id);
-
-  // Create a vector of poses (initially set to the identity pose).
-  vector<Isometry3<double>> frame_poses;
-  for (int i = 0; i < kFrameCount; ++i) {
-    frame_poses.push_back(Isometry3<double>::Identity());
-  }
-
-  // Case 1: Set all frames to identity poses. The world pose of all the
-  // geometry should be that of the geometry in its frame.
-  fks.ReportPoses(frames_, frame_poses);
-  geometry_state_.SetFrameKinematics(fks);
-  const auto& world_poses = gs_tester_.get_geometry_world_poses();
-  for (int i = 0; i < kFrameCount * kGeometryCount; ++i) {
-    EXPECT_TRUE(CompareMatrices(world_poses[i].matrix().block<3, 4>(0, 0),
-                                X_FG_[i].matrix().block<3, 4>(0, 0)));
-  }
-
-  // Case 2: Move the two *root* frames 1 unit in the +y direction. The f2 will
-  // stay at the identity.
-  // The final geometry poses should all be offset by 1 unit in the y.
-  Isometry3<double> offset = Isometry3<double>::Identity();
-  offset.translation() << 0, 1, 0;
-  fks.Clear();
-  fks.ReportPose(frames_[0], offset);
-  fks.ReportPose(frames_[1], offset);
-  fks.ReportPose(frames_[2], Isometry3<double>::Identity());
-  geometry_state_.SetFrameKinematics(fks);
-  for (int i = 0; i < kFrameCount * kGeometryCount; ++i) {
-    EXPECT_TRUE(
-        CompareMatrices(world_poses[i].matrix().block<3, 4>(0, 0),
-                        (offset * X_FG_[i].matrix()).block<3, 4>(0, 0)));
-  }
-
-  // Case 3: All frames get set to move up one unit. This will leave geometries
-  // 0, 1, 2, & 3 moved up 1, and geometries 4 & 5 moved up two.
-  fks.Clear();
-  fks.ReportPose(frames_[0], offset);
-  fks.ReportPose(frames_[1], offset);
-  fks.ReportPose(frames_[2], offset);
-  geometry_state_.SetFrameKinematics(fks);
-  for (int i = 0; i < (kFrameCount - 1) * kGeometryCount; ++i) {
-    EXPECT_TRUE(
-        CompareMatrices(world_poses[i].matrix().block<3, 4>(0, 0),
-                        (offset * X_FG_[i].matrix()).block<3, 4>(0, 0)));
-  }
-  for (int i = (kFrameCount - 1) * kGeometryCount;
-       i < kFrameCount * kGeometryCount; ++i) {
-    EXPECT_TRUE(CompareMatrices(
-        world_poses[i].matrix().block<3, 4>(0, 0),
-        (offset * offset * X_FG_[i].matrix()).block<3, 4>(0, 0)));
-  }
 }
 
 }  // namespace

@@ -131,16 +131,6 @@ class GeometrySystem : public systems::LeafSystem<T> {
    allocated a context will result in an exception. */
   //@{
 
-  /** Returns a default FrameKinematicsSet for the given source id. Use to
-   initialize output ports on source systems. This is necessary because the
-   FrameKinematicsSet has no default constructor. So, the output port must be
-   instantiated with a concrete example.
-   @param  source_id   The id of a registered source.
-   @returns  An empty FrameKinematicsSet tied to the source id.
-   @throws std::logic_error  If the `source_id` does _not_Map to an active
-                             source or if a context has been allocated. */
-  FrameKinematicsSet<T> MakeDefaultFrameKinematicsSet(SourceId source_id);
-
   /** Initialization registration of a new frame on this channel, receiving the
    unique id for the new frame.
    @param source_id     The identifier for the geometry source registering the
@@ -417,12 +407,6 @@ class GeometrySystem : public systems::LeafSystem<T> {
    See GeometryWorld::SourceIsRegistered() for details. */
   bool SourceIsRegistered(const systems::Context<T>& sibling_context,
                           SourceId id) const;
-
-  /** Creates a frame kinematics set for the given source id.
-   @param   context   The context of a sibling system to `this` %GeometrySystem.
-   See GeometryWorld::GetFrameKinematicsSet() for details. */
-  FrameKinematicsSet<T> GetFrameKinematicsSet(
-      const systems::Context<T>& sibling_context, SourceId source_id) const;
 
   /** Reports the frame to which this geometry is registered.
    @param   context   The context of a sibling system to `this` %GeometrySystem.
