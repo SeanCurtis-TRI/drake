@@ -25,16 +25,6 @@ drake_cc_library(
 )
 
 drake_cc_library(
-    name = "frame_kinematics_set",
-    srcs = ["frame_kinematics_set.cc"],
-    hdrs = ["frame_kinematics_set.h"],
-    deps = [
-        ":geometry_ids",
-        "//drake/multibody/multibody_tree/math:spatial_velocity",
-    ],
-)
-
-drake_cc_library(
     name = "geometry_context",
     srcs = ["geometry_context.cc"],
     hdrs = ["geometry_context.h"],
@@ -117,7 +107,6 @@ drake_cc_library(
     hdrs = ["geometry_state.h"],
     deps = [
         ":frame_kinematics",
-        ":frame_kinematics_set",
         ":geometry_engine",
         ":geometry_frame",
         ":geometry_ids",
@@ -164,7 +153,6 @@ drake_cc_library(
     hdrs = ["geometry_world.h"],
     deps = [
         ":frame_kinematics",
-        # ":frame_kinematics_set",
         ":geometry_context",
         ":geometry_frame",
         ":geometry_ids",
@@ -253,14 +241,6 @@ drake_cc_googletest(
         "//drake/common:eigen_matrix_compare",
     ],
 )
-
-# drake_cc_googletest(
-#     name = "frame_kinematics_set_test",
-#     deps = [
-#         ":expect_error_message",
-#         ":frame_kinematics_set",
-#     ],
-# )
 
 drake_cc_googletest(
     name = "geometry_engine_stub_test",

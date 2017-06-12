@@ -167,13 +167,6 @@ template <typename T>
 }
 
 template <typename T>
-FrameKinematicsSet<T> GeometrySystem<T>::MakeDefaultFrameKinematicsSet(
-    SourceId source_id) {
-  ThrowIfContextAllocated();
-  return geometry_world_.GetFrameKinematicsSet(*initial_state_, source_id);
-}
-
-template <typename T>
 FrameId GeometrySystem<T>::RegisterFrame(SourceId source_id,
                                          const GeometryFrame<T>& frame) {
   ThrowIfContextAllocated();
@@ -327,14 +320,6 @@ bool GeometrySystem<T>::SourceIsRegistered(const Context<T>& sibling_context,
   const GeometryContext<T>& context =
       ExtractContextViaSiblingContext(sibling_context);
   return geometry_world_.SourceIsRegistered(context, id);
-}
-
-template <typename T>
-FrameKinematicsSet<T> GeometrySystem<T>::GetFrameKinematicsSet(
-    const Context<T>& sibling_context, SourceId source_id) const {
-  const GeometryContext<T>& context =
-      ExtractContextViaSiblingContext(sibling_context);
-  return geometry_world_.GetFrameKinematicsSet(context, source_id);
 }
 
 template <typename T>
