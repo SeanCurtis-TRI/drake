@@ -25,6 +25,17 @@ drake_cc_library(
     ],
 )
 
+drake_cc_library(
+    name = "free_ball_plant",
+    srcs = ["free_ball_plant.cc"],
+    hdrs = ["free_ball_plant.h"],
+    deps = [
+        "//drake/geometry:geometry_ids",
+        "//drake/geometry:geometry_system",
+        "//drake/systems/framework",
+    ],
+)
+
 drake_cc_binary(
     name = "bouncing_ball_run_dynamics",
     testonly = 1,
@@ -32,6 +43,25 @@ drake_cc_binary(
     add_test_rule = 1,
     deps = [
         ":bouncing_ball_plant",
+        "//drake/common:call_matlab",
+        "//drake/geometry:geometry_system",
+        "//drake/geometry:geometry_visualization",
+        "//drake/systems/analysis:simulator",
+        "//drake/systems/framework:diagram",
+        "//drake/systems/lcm",
+        "//drake/systems/primitives:constant_vector_source",
+        "//drake/systems/primitives:signal_logger",
+        "//drake/systems/rendering:pose_bundle_to_draw_message",
+    ],
+)
+
+drake_cc_binary(
+    name = "free_ball_run_dynamics",
+    testonly = 1,
+    srcs = ["free_ball_run_dynamics.cc"],
+    add_test_rule = 1,
+    deps = [
+        ":free_ball_plant",
         "//drake/common:call_matlab",
         "//drake/geometry:geometry_system",
         "//drake/geometry:geometry_visualization",
