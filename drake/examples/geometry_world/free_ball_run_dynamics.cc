@@ -35,7 +35,7 @@ using systems::lcm::LcmPublisherSystem;
 using systems::lcm::Serializer;
 using std::make_unique;
 
-#define USE_TWO_BALLS
+using std::vector;
 
 int do_main() {
   systems::DiagramBuilder<double> builder;
@@ -43,25 +43,28 @@ int do_main() {
   auto geometry_system = builder.AddSystem<GeometrySystem<double>>();
   geometry_system->set_name("geometry_system");
 
-  SourceId ball_source_id = geometry_system->RegisterSource("ball1");
-  auto bouncing_ball = builder.AddSystem<FreeBallPlant>(
-      ball_source_id, geometry_system, Vector3<double>(0.25, 0.3, 0.25));
-  bouncing_ball->set_name("BouncingBall1");
-
-#ifdef USE_TWO_BALLS
-  SourceId ball_source_id2 = geometry_system->RegisterSource("ball2");
-  auto bouncing_ball2 = builder.AddSystem<FreeBallPlant>(
-      ball_source_id2, geometry_system, Vector3<double>(-0.25, 0.3, -0.25));
-  bouncing_ball->set_name("BouncingBall2");
-#endif
+  // Funnel-like half-spaces
   SourceId global_source = geometry_system->RegisterSource("anchored");
-  Vector3<double> normal_G(0, 0, 1);
+  Vector3<double> normal_G(0.25, 0, 1);
   Vector3<double> point_G(0, 0, 0);
   geometry_system->RegisterAnchoredGeometry(
       global_source,
       make_unique<GeometryInstance<double>>(
           Isometry3<double>::Identity(),
-          make_unique<HalfSpace>(normal_G, point_G)));
+          make_unique<HalfSpace>(normal_G.normalized(), point_G)));
+  auto plane_rotation = AngleAxis<double>(2 * 3.141597 / 3, Vector3<double>::UnitZ()).matrix();
+  normal_G = plane_rotation * normal_G;
+  geometry_system->RegisterAnchoredGeometry(
+      global_source,
+      make_unique<GeometryInstance<double>>(
+          Isometry3<double>::Identity(),
+          make_unique<HalfSpace>(normal_G.normalized(), point_G)));
+  normal_G = plane_rotation * normal_G;
+  geometry_system->RegisterAnchoredGeometry(
+      global_source,
+      make_unique<GeometryInstance<double>>(
+          Isometry3<double>::Identity(),
+          make_unique<HalfSpace>(normal_G.normalized(), point_G)));
 
   DrakeLcm lcm;
   PoseBundleToDrawMessage* converter =
@@ -72,32 +75,46 @@ int do_main() {
           std::make_unique<Serializer<drake::lcmt_viewer_draw>>(), &lcm);
   publisher->set_publish_period(1/60.0);
 
-  builder.Connect(bouncing_ball->get_geometry_id_output_port(),
-                  geometry_system->get_source_frame_id_port(ball_source_id));
-  builder.Connect(bouncing_ball->get_geometry_pose_output_port(),
-                  geometry_system->get_source_pose_port(ball_source_id));
+  vector<FreeBallPlant<double>*> ball_systems;
+  int kCount = 30;
+  for (int i = 0; i < kCount; ++i) {
+    std::string sys_name = "ball" + std::to_string(i);
+    SourceId ball_source_id = geometry_system->RegisterSource(sys_name);
+    auto bouncing_ball = builder.AddSystem<FreeBallPlant>(
+        ball_source_id, geometry_system, Vector3<double>(0.25, 0.3, 0.25));
+    ball_systems.push_back(bouncing_ball);
+    bouncing_ball->set_name(sys_name);
+    builder.Connect(bouncing_ball->get_geometry_id_output_port(),
+                    geometry_system->get_source_frame_id_port(ball_source_id));
+    builder.Connect(bouncing_ball->get_geometry_pose_output_port(),
+                    geometry_system->get_source_pose_port(ball_source_id));
+  }
 
-#ifdef USE_TWO_BALLS
-  builder.Connect(bouncing_ball2->get_geometry_id_output_port(),
-                  geometry_system->get_source_frame_id_port(ball_source_id2));
-  builder.Connect(bouncing_ball2->get_geometry_pose_output_port(),
-                  geometry_system->get_source_pose_port(ball_source_id2));
-#endif
   builder.Connect(*geometry_system, *converter);
   builder.Connect(*converter, *publisher);
 
   // Log the state.
   // TODO(SeanCurtis-TRI): Encode state size in FreeBallPlant.
-  const int state_size = 6;
-  auto x_logger = builder.AddSystem<systems::SignalLogger<double>>(state_size);
-  x_logger->set_name("x_logger");
-  builder.Connect(bouncing_ball->get_state_output_port(),
-                  x_logger->get_input_port(0));
+//  const int state_size = 6;
+//  auto x_logger = builder.AddSystem<systems::SignalLogger<double>>(state_size);
+//  x_logger->set_name("x_logger");
+//  builder.Connect(bouncing_ball->get_state_output_port(),
+//                  x_logger->get_input_port(0));
 
   // Last thing before building the diagram; dispatch the message to load
   // geometry.
   geometry::DispatchLoadMessage(*geometry_system);
   auto diagram = builder.Build();
+
+  // Initial state of bouncing balls. Position them in a circle. This assumes
+  // ball diameter of 1.0
+  // Position them in a circle with one ball's space between them. This implies
+  // a circumference of 2 * kCount * diameter.
+  const double kBallDiameter = 0.1;
+  const double circle_radius = (2 * kCount * kBallDiameter) / (2 * 3.141597);
+  Vector3<double> pos_0(circle_radius, 0, 0.5);
+  const double kRotation = 2 * 3.141597 / kCount;
+  auto rotation = AngleAxis<double>(kRotation, Vector3<double>::UnitZ()).matrix();
 
   systems::Simulator<double> simulator(*diagram);
   auto init_ball = [&](FreeBallPlant<double>* system,
@@ -108,12 +125,12 @@ int do_main() {
     system->set_pos(ball_context, pos);
     system->set_vel(ball_context, vel);
   };
-  init_ball(bouncing_ball, Vector3<double>(0.25, 0.25, 0.5),
-            Vector3<double>(0, 0, 0));
-#ifdef USE_TWO_BALLS
-  init_ball(bouncing_ball2, Vector3<double>(-0.25, -0.25, 0.5),
-            Vector3<double>(0, 0, 0.1));
-#endif
+  for (int i = 0; i < kCount; ++i) {
+    auto bouncing_ball = ball_systems[i];
+    pos_0 = rotation * pos_0;
+    init_ball(bouncing_ball, pos_0, Vector3<double>(0, 0, 0));
+  }
+
 
   simulator.get_mutable_integrator()->set_maximum_step_size(0.002);
   simulator.set_target_realtime_rate(1.f);
@@ -138,17 +155,17 @@ int do_main() {
   CallMatlab("axis", "tight");
 #endif
 
-  std::stringstream cmd;
-  cmd << "time = [" << x_logger->sample_times() << "];";
-  CallMatlab("eval", cmd.str());
-
-  cmd.str("");
-  cmd << "z = [" << x_logger->data().row(0).transpose() << "];";
-  CallMatlab("eval", cmd.str());
-
-  cmd.str("");
-  cmd << "zdot = [" << x_logger->data().row(1).transpose() << "];";
-  CallMatlab("eval", cmd.str());
+//  std::stringstream cmd;
+//  cmd << "time = [" << x_logger->sample_times() << "];";
+//  CallMatlab("eval", cmd.str());
+//
+//  cmd.str("");
+//  cmd << "z = [" << x_logger->data().row(0).transpose() << "];";
+//  CallMatlab("eval", cmd.str());
+//
+//  cmd.str("");
+//  cmd << "zdot = [" << x_logger->data().row(1).transpose() << "];";
+//  CallMatlab("eval", cmd.str());
 
   return 0;
 }

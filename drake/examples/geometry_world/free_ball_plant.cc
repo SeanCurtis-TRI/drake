@@ -133,8 +133,6 @@ void FreeBallPlant<T>::DoCalcTimeDerivatives(
 
   derivative_vector->get_mutable_value().template head<3>() =
       state.get_value().template tail<3>();
-  // TODO(SeanCurtis-TRI): This may be the problem; am I setting what I *think*
-  // I'm setting?
   Vector3<T> F = (m_ * g_ + fC) / m_;
 //  std::cout << "F: " << F.transpose() <<"\n";
   derivative_vector->get_mutable_value().template tail<3>() = F;
