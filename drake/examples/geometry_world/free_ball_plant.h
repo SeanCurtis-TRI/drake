@@ -13,6 +13,7 @@ class FreeBallPlant : public systems::LeafSystem<T> {
  public:
   FreeBallPlant(geometry::SourceId source_id,
                 geometry::GeometrySystem<T>* geometry_system,
+                const Eigen::Vector4d& color,
                 const Vector3<T>& init_position);
   ~FreeBallPlant() override;
 

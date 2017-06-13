@@ -1,6 +1,7 @@
 #include "drake/examples/geometry_world/free_ball_plant.h"
 
 #include <algorithm>
+#include <memory>
 #include <utility>
 #include <vector>
 
@@ -9,6 +10,7 @@
 #include "drake/geometry/frame_id_vector.h"
 #include "drake/geometry/geometry_frame.h"
 #include "drake/geometry/geometry_instance.h"
+#include "drake/geometry/geometry_material.h"
 #include "drake/geometry/geometry_query_results.h"
 #include "drake/geometry/shapes.h"
 
@@ -25,6 +27,7 @@ using geometry::GeometrySystem;
 using geometry::HalfSpace;
 using geometry::SourceId;
 using geometry::Sphere;
+using geometry::VisualMaterial;
 using systems::Value;
 using std::make_unique;
 
@@ -34,6 +37,7 @@ using std::make_unique;
 template <typename T>
 FreeBallPlant<T>::FreeBallPlant(SourceId source_id,
                                 GeometrySystem<T>* geometry_system,
+                                const Eigen::Vector4d& color,
                                 const Vector3<T>& init_position)
     : source_id_(source_id), geometry_system_(geometry_system),
       init_position_(init_position) {
@@ -45,10 +49,12 @@ FreeBallPlant<T>::FreeBallPlant(SourceId source_id,
   ball_frame_id_ = geometry_system->RegisterFrame(
       source_id, GeometryFrame<T>("ball_frame",
                                   Isometry3<T>::Identity() /*X_PF = X_WF*/));
+  VisualMaterial mat(color);
   ball_id_ = geometry_system->RegisterGeometry(
       source_id, ball_frame_id_,
       make_unique<GeometryInstance<T>>(Isometry3<double>::Identity(), /*X_FG*/
-                                       make_unique<Sphere>(diameter_ / 2.0)));
+                                       make_unique<Sphere>(diameter_ / 2.0),
+                                       mat));
   FrameIdVector ids(source_id);
   ids.AddFrameId(ball_frame_id_);
   geometry_id_port_ = this->DeclareAbstractOutputPort(
@@ -82,7 +88,7 @@ FreeBallPlant<T>::get_geometry_pose_output_port() const {
 
 template <typename T>
 void FreeBallPlant<T>::DoCalcOutput(const systems::Context<T>& context,
-                                        systems::SystemOutput<T>* output) const {
+                                    systems::SystemOutput<T>* output) const {
   // 1) Output for the plant's state.
   get_mutable_state_output(output)->set_value(get_state(context).get_value());
 
@@ -91,8 +97,6 @@ void FreeBallPlant<T>::DoCalcOutput(const systems::Context<T>& context,
   Isometry3<T> pose = Isometry3<T>::Identity();
   pose.translation() <<
       state.GetAtIndex(0), state.GetAtIndex(1), state.GetAtIndex(2);
-//  std::cout << "Ball: " << ball_id_ << " at " << pose.translation().transpose() << ", vel: ";
-//  std::cout << state.GetAtIndex(0) << ", " <<  state.GetAtIndex(1)<< ", " <<  state.GetAtIndex(2) << "\n";
   FramePoseSet<T> poses(source_id_);
   poses.AddValue(pose);
   output->GetMutableData(geometry_pose_port_)
@@ -122,9 +126,10 @@ void FreeBallPlant<T>::DoCalcTimeDerivatives(
       const T& x = contact.depth;  // depth > 0 --> penetration.
       // TODO(SeanCurtis-TRI): Replace this with proper rate of change.
       const T& xdot = 0;  // rate > 0 --> increasing penetration.
-      const Vector3<T> N = contact.id_A == ball_id_ ? -contact.nhat_AcBc_W : contact.nhat_AcBc_W;
-//    PRINT_VAR(contacts[0].depth);
-//    PRINT_VAR(state.zdot());
+      const Vector3<T> N =
+          contact.id_A == ball_id_ ? -contact.nhat_AcBc_W : contact.nhat_AcBc_W;
+      //    PRINT_VAR(contacts[0].depth);
+      //    PRINT_VAR(state.zdot());
       fC += (k_ * x * (1.0 + d_ * xdot)) * N;
     }
   }

@@ -74,6 +74,46 @@ void AddAnchored(GeometrySystem<double>* geometry_system, bool force_plane) {
   }
 }
 
+// Maps from a hue value in the range [0, 360) to an RGB value (with 100%
+// alpha).
+Eigen::Vector4d GetColorFromHue(double hue) {
+  Eigen::Vector4d color(1, 1, 1, 1);
+  const double s = 1.0;
+  const double v = 1.0;
+  // Taken from:
+  //  https://stackoverflow.com/questions/3018313/algorithm-to-convert-rgb-to-hsv-and-hsv-to-rgb-in-range-0-255-for-both
+  // We assume S = V = 1 (i.e., full color saturation and brightness).
+  double hh = hue / 60.0;
+  int64_t i = static_cast<int64_t>(hh);
+  double ff = hh - i;
+  double p = v * (1.0 - s);
+  double q = v * (1.0 - (s * ff));
+  double t = v * (1.0 - (s * (1.0 - ff)));
+  switch (i) {
+    case 0:
+      color.head<3>() << v, t, p;
+      break;
+    case 1:
+      color.head<3>() << q, v, p;
+      break;
+    case 2:
+      color.head<3>() << p, v, t;
+      break;
+    case 3:
+      color.head<3>() << p, q, v;
+      break;
+    case 4:
+      color.head<3>() << t,  p, v;
+      break;
+    case 5:
+    default:
+      color.head<3>() << v, p, q;
+      break;
+  }
+
+  return color;
+}
+
 int do_main() {
   systems::DiagramBuilder<double> builder;
 
@@ -93,12 +133,15 @@ int do_main() {
   publisher->set_publish_period(1/60.0);
 
   vector<FreeBallPlant<double>*> ball_systems;
-  int kCount = 30;
+  int kCount = 10;
+  const float kHueOffset = 360.0 / kCount;
   for (int i = 0; i < kCount; ++i) {
+    double hue = kHueOffset * i;
     std::string sys_name = "ball" + std::to_string(i);
     SourceId ball_source_id = geometry_system->RegisterSource(sys_name);
     auto bouncing_ball = builder.AddSystem<FreeBallPlant>(
-        ball_source_id, geometry_system, Vector3<double>(0.25, 0.3, 0.25));
+        ball_source_id, geometry_system,
+        GetColorFromHue(hue), Vector3<double>(0.25, 0.3, 0.25));
     ball_systems.push_back(bouncing_ball);
     bouncing_ball->set_name(sys_name);
     builder.Connect(bouncing_ball->get_geometry_id_output_port(),
@@ -109,14 +152,6 @@ int do_main() {
 
   builder.Connect(*geometry_system, *converter);
   builder.Connect(*converter, *publisher);
-
-  // Log the state.
-  // TODO(SeanCurtis-TRI): Encode state size in FreeBallPlant.
-//  const int state_size = 6;
-//  auto x_logger = builder.AddSystem<systems::SignalLogger<double>>(state_size);
-//  x_logger->set_name("x_logger");
-//  builder.Connect(bouncing_ball->get_state_output_port(),
-//                  x_logger->get_input_port(0));
 
   // Last thing before building the diagram; dispatch the message to load
   // geometry.
@@ -134,11 +169,12 @@ int do_main() {
     system->set_pos(ball_context, pos);
     system->set_vel(ball_context, vel);
   };
+
 #if 0
   // Simply place them in a vertical line
   for (int i = 0; i < kCount; ++i) {
     auto bouncing_ball = ball_systems[i];
-    Vector3<double> pos(0, 0, 0.3 + (i * 0.3));
+    Vector3<double> pos(0, 0, 0.3 + (i * 0.15));
     init_ball(bouncing_ball, pos, Vector3<double>(0, 0, 0));
   }
 #else
@@ -150,7 +186,8 @@ int do_main() {
   const double circle_radius = (2 * kCount * kBallDiameter) / (2 * 3.141597);
   Vector3<double> pos_0(circle_radius, 0, 0.5);
   const double kRotation = 2 * 3.141597 / kCount;
-  auto rotation = AngleAxis<double>(kRotation, Vector3<double>::UnitZ()).matrix();
+  auto rotation =
+      AngleAxis<double>(kRotation, Vector3<double>::UnitZ()).matrix();
 
   for (int i = 0; i < kCount; ++i) {
     auto bouncing_ball = ball_systems[i];
@@ -158,7 +195,6 @@ int do_main() {
     init_ball(bouncing_ball, pos_0, Vector3<double>(0, 0, 0));
   }
 #endif
-
 
 //  auto context = simulator.get_mutable_context();
 //  simulator.reset_integrator<RungeKutta3Integrator<double>>(*diagram, context);
@@ -169,41 +205,11 @@ int do_main() {
   simulator.Initialize();
   simulator.StepTo(10);
 
-//  const int nsteps = x_logger->sample_times().rows();
-//  MatrixX<double> all_data(nsteps, 2);
-//  all_data << x_logger->sample_times(), x_logger->data();
-//  std::ofstream file("bouncing_ball.dat");
-//  file << all_data;
-//  file.close();
-
-  using common::CallMatlab;
-#if 0
-  // Plot the results (launch lcm_call_matlab_client to see the plots).
-  CallMatlab("figure", 1);
-  CallMatlab("plot",
-             x_logger->sample_times(), x_logger->data().row(0),
-             x_logger->sample_times(), x_logger->data().row(1));
-  CallMatlab("legend", "z", "zdot");
-  CallMatlab("axis", "tight");
-#endif
-
-//  std::stringstream cmd;
-//  cmd << "time = [" << x_logger->sample_times() << "];";
-//  CallMatlab("eval", cmd.str());
-//
-//  cmd.str("");
-//  cmd << "z = [" << x_logger->data().row(0).transpose() << "];";
-//  CallMatlab("eval", cmd.str());
-//
-//  cmd.str("");
-//  cmd << "zdot = [" << x_logger->data().row(1).transpose() << "];";
-//  CallMatlab("eval", cmd.str());
-
   return 0;
 }
 
 }  // namespace
-}  // namespace bouncing_ball
+}  // namespace geometry_world
 }  // namespace examples
 }  // namespace drake
 
