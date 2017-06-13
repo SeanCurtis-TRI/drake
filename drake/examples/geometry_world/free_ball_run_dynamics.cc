@@ -37,34 +37,49 @@ using std::make_unique;
 
 using std::vector;
 
+void AddAnchored(GeometrySystem<double>* geometry_system, bool force_plane) {
+  // Funnel-like half-spaces
+  SourceId global_source = geometry_system->RegisterSource("anchored");
+  if (force_plane) {
+    Vector3<double> normal_G(0.0, 0, 1);
+    Vector3<double> point_G(0, 0, 0);
+    geometry_system->RegisterAnchoredGeometry(
+        global_source,
+        make_unique<GeometryInstance<double>>(
+            Isometry3<double>::Identity(),
+            make_unique<HalfSpace>(normal_G.normalized(), point_G)));
+  } else {
+    Vector3<double> normal_G(0.25, 0, 1);
+    Vector3<double> point_G(0, 0, 0);
+    geometry_system->RegisterAnchoredGeometry(
+        global_source,
+        make_unique<GeometryInstance<double>>(
+            Isometry3<double>::Identity(),
+            make_unique<HalfSpace>(normal_G.normalized(), point_G)));
+    auto plane_rotation =
+        AngleAxis<double>(2 * 3.141597 / 3, Vector3<double>::UnitZ()).matrix();
+    normal_G = plane_rotation * normal_G;
+    geometry_system->RegisterAnchoredGeometry(
+        global_source,
+        make_unique<GeometryInstance<double>>(
+            Isometry3<double>::Identity(),
+            make_unique<HalfSpace>(normal_G.normalized(), point_G)));
+    normal_G = plane_rotation * normal_G;
+    geometry_system->RegisterAnchoredGeometry(
+        global_source,
+        make_unique<GeometryInstance<double>>(
+            Isometry3<double>::Identity(),
+            make_unique<HalfSpace>(normal_G.normalized(), point_G)));
+  }
+}
+
 int do_main() {
   systems::DiagramBuilder<double> builder;
 
   auto geometry_system = builder.AddSystem<GeometrySystem<double>>();
   geometry_system->set_name("geometry_system");
 
-  // Funnel-like half-spaces
-  SourceId global_source = geometry_system->RegisterSource("anchored");
-  Vector3<double> normal_G(0.25, 0, 1);
-  Vector3<double> point_G(0, 0, 0);
-  geometry_system->RegisterAnchoredGeometry(
-      global_source,
-      make_unique<GeometryInstance<double>>(
-          Isometry3<double>::Identity(),
-          make_unique<HalfSpace>(normal_G.normalized(), point_G)));
-  auto plane_rotation = AngleAxis<double>(2 * 3.141597 / 3, Vector3<double>::UnitZ()).matrix();
-  normal_G = plane_rotation * normal_G;
-  geometry_system->RegisterAnchoredGeometry(
-      global_source,
-      make_unique<GeometryInstance<double>>(
-          Isometry3<double>::Identity(),
-          make_unique<HalfSpace>(normal_G.normalized(), point_G)));
-  normal_G = plane_rotation * normal_G;
-  geometry_system->RegisterAnchoredGeometry(
-      global_source,
-      make_unique<GeometryInstance<double>>(
-          Isometry3<double>::Identity(),
-          make_unique<HalfSpace>(normal_G.normalized(), point_G)));
+  AddAnchored(geometry_system, true /* force plane */);
 
   DrakeLcm lcm;
   PoseBundleToDrawMessage* converter =
