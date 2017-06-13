@@ -112,34 +112,27 @@ void FreeBallPlant<T>::DoCalcTimeDerivatives(
   std::vector<Contact<T>> contacts;
   geometry_system_->ComputeContact(context, &contacts);
   Vector3<T> fC(0, 0, 0);
-  // Hacky dissipative force. Apply a friction force counter to the ball's
-  // velocity.
+  // Hacky dissipative drag force. Apply a friction force counter to the ball's
+  // velocity so that the ball eventually comes to rest.
   Vector3<T> vel = state.get_value().template tail<3>();
-  fC += -vel * 0.5;
-  if (contacts.size() > 0) {
-    for (const auto& contact : contacts) {
-      if (contact.id_A == ball_id_ || contact.id_B == ball_id_) {
-        const T& x = contacts[0].depth;  // depth > 0 --> penetration.
-        // TODO(SeanCurtis-TRI): Replace this with proper rate of change.
-        const T& xdot = 0;  // rate > 0 --> increasing penetration.
-        const Vector3<T> N = contact.id_A == ball_id_ ? -contact.nhat_AcBc_W : contact.nhat_AcBc_W;
-//        std::cout << "Contact: " << x << "\n";
-//        std::cout << "\tPenetration: " << x << "\n";
-//        std::cout << "\tNormal: " << N.transpose() << "\n";
+  fC += -vel * 0.1;
+
+  for (const auto& contact : contacts) {
+    if (contact.id_A == ball_id_ || contact.id_B == ball_id_) {
+      const T& x = contact.depth;  // depth > 0 --> penetration.
+      // TODO(SeanCurtis-TRI): Replace this with proper rate of change.
+      const T& xdot = 0;  // rate > 0 --> increasing penetration.
+      const Vector3<T> N = contact.id_A == ball_id_ ? -contact.nhat_AcBc_W : contact.nhat_AcBc_W;
 //    PRINT_VAR(contacts[0].depth);
 //    PRINT_VAR(state.zdot());
-
-        fC += (k_ * x * (1.0 + d_ * xdot)) * N;
-//        std::cout << "\tForce: " << fC.transpose() << "\n";
-      }
+      fC += (k_ * x * (1.0 + d_ * xdot)) * N;
     }
   }
 
   derivative_vector->get_mutable_value().template head<3>() =
       state.get_value().template tail<3>();
-  Vector3<T> F = (m_ * g_ + fC) / m_;
-//  std::cout << "F: " << F.transpose() <<"\n";
-  derivative_vector->get_mutable_value().template tail<3>() = F;
+  Vector3<T> a_WB = (m_ * g_ + fC) / m_;
+  derivative_vector->get_mutable_value().template tail<3>() = a_WB;
 }
 
 // BouncingBallPlant has no constructor arguments, so there's no work to do
