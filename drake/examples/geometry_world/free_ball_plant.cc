@@ -112,6 +112,10 @@ void FreeBallPlant<T>::DoCalcTimeDerivatives(
   std::vector<Contact<T>> contacts;
   geometry_system_->ComputeContact(context, &contacts);
   Vector3<T> fC(0, 0, 0);
+  // Hacky dissipative force. Apply a friction force counter to the ball's
+  // velocity.
+  Vector3<T> vel = state.get_value().template tail<3>();
+  fC += -vel * 0.5;
   if (contacts.size() > 0) {
     for (const auto& contact : contacts) {
       if (contact.id_A == ball_id_ || contact.id_B == ball_id_) {
