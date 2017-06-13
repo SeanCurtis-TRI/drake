@@ -7,6 +7,7 @@
 #include "drake/common/drake_optional.h"
 #include "drake/geometry/geometry_ids.h"
 #include "drake/geometry/geometry_index.h"
+#include "drake/geometry/geometry_material.h"
 
 namespace drake {
 namespace geometry {
@@ -24,7 +25,7 @@ class InternalGeometry {
    invalid. */
   InternalGeometry() {}
 
-  /** Full constructor.
+  /** Default material, full constructor.
    @param frame_id      The identifier of the frame this belongs to.
    @param geometry_id   The identifier for _this_ geometry.
    @param name          The name of the geometry.
@@ -34,11 +35,30 @@ class InternalGeometry {
   InternalGeometry(FrameId frame_id, GeometryId geometry_id,
                    const std::string &name, GeometryIndex engine_index,
                    const optional<GeometryId>& parent_id = {}) :
-  frame_id_(frame_id),
-  id_(geometry_id),
-  name_(name),
-  engine_index_(engine_index),
-  parent_id_(parent_id) {}
+      frame_id_(frame_id),
+      id_(geometry_id),
+      name_(name),
+      engine_index_(engine_index),
+      parent_id_(parent_id) {}
+
+  /** Full constructor.
+   @param frame_id      The identifier of the frame this belongs to.
+   @param geometry_id   The identifier for _this_ geometry.
+   @param name          The name of the geometry.
+   @param engine_index  The position in the geometry engine of this geometry.
+   @param vis_material  The visual material for this geometry.
+   @param parent_id     The optional id of the parent geometry.
+   */
+  InternalGeometry(FrameId frame_id, GeometryId geometry_id,
+                   const std::string &name, GeometryIndex engine_index,
+                   const VisualMaterial& vis_material,
+                   const optional<GeometryId>& parent_id = {}) :
+      frame_id_(frame_id),
+      id_(geometry_id),
+      name_(name),
+      engine_index_(engine_index),
+      parent_id_(parent_id),
+      visual_material_(vis_material) {}
 
   /** Compares two %InternalGeometry instances for "equality". Two internal
    frames are considered equal if they have the same geometry identifier. */
@@ -77,6 +97,7 @@ class InternalGeometry {
   void remove_child(GeometryId geometry_id) {
     child_geometries_.erase(geometry_id);
   }
+  const VisualMaterial& get_visual_material() const { return visual_material_; }
 
  private:
   // The identifier of the frame to which this geometry belongs.
@@ -100,6 +121,11 @@ class InternalGeometry {
   // TODO(SeanCurtis-TRI): Should this be a set?
   // The identifiers for the geometry hung on this frame.
   std::unordered_set<GeometryId> child_geometries_;
+
+  // TODO(SeanCurtis-TRI): Consider making this "optional" so that the values
+  // can be assigned at the frame level.
+  // The "rendering" material -- e.g., OpenGl contexts and the like.
+  VisualMaterial visual_material_;
 };
 
 }  // namespace internal

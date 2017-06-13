@@ -78,9 +78,19 @@ drake_cc_library(
     srcs = ["geometry_instance.cc"],
     hdrs = ["geometry_instance.h"],
     deps = [
+        ":geometry_material",
         ":shapes",
         "//drake/common",
         "//drake/common:copyable_unique_ptr",
+    ],
+)
+
+drake_cc_library(
+    name = "geometry_material",
+    srcs = ["geometry_material.cc"],
+    hdrs = ["geometry_material.h"],
+    deps = [
+        "//drake/common",
     ],
 )
 
@@ -182,6 +192,7 @@ drake_cc_library(
     deps = [
         ":geometry_ids",
         ":geometry_index",
+        ":geometry_material",
         "//drake/common",
     ],
 )
