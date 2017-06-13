@@ -96,7 +96,6 @@ void BouncingBallPlant<T>::DoCalcOutput(const systems::Context<T>& context,
   poses.AddValue(pose);
   output->GetMutableData(geometry_pose_port_)
       ->template GetMutableValue<FramePoseSet<T>>() = poses;
-
 }
 
 // Compute the actual physics.
@@ -116,7 +115,7 @@ void BouncingBallPlant<T>::DoCalcTimeDerivatives(
     for (const auto& contact : contacts) {
       if (contact.id_A == ball_id_ || contact.id_B == ball_id_) {
         const T
-            &x = contacts[0].depth;  // Penetration depth, > 0 at penetration.
+            &x = contact.depth;  // Penetration depth, > 0 at penetration.
         const T
             &xdot = -state.zdot();  // Penetration rate, > 0 during penetration.
 
