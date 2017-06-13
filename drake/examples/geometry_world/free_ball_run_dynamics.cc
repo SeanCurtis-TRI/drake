@@ -121,6 +121,25 @@ int do_main() {
   geometry::DispatchLoadMessage(*geometry_system);
   auto diagram = builder.Build();
 
+  systems::Simulator<double> simulator(*diagram);
+
+  // Set initial state
+  auto init_ball = [&](FreeBallPlant<double>* system,
+                       Vector3<double> pos, Vector3<double> vel) {
+    systems::Context<double>* ball_context =
+        diagram->GetMutableSubsystemContext(
+            simulator.get_mutable_context(), system);
+    system->set_pos(ball_context, pos);
+    system->set_vel(ball_context, vel);
+  };
+#if 0
+  // Simply place them in a vertical line
+  for (int i = 0; i < kCount; ++i) {
+    auto bouncing_ball = ball_systems[i];
+    Vector3<double> pos(0, 0, 0.3 + (i * 0.3));
+    init_ball(bouncing_ball, pos, Vector3<double>(0, 0, 0));
+  }
+#else
   // Initial state of bouncing balls. Position them in a circle. This assumes
   // ball diameter of 1.0
   // Position them in a circle with one ball's space between them. This implies
@@ -131,20 +150,12 @@ int do_main() {
   const double kRotation = 2 * 3.141597 / kCount;
   auto rotation = AngleAxis<double>(kRotation, Vector3<double>::UnitZ()).matrix();
 
-  systems::Simulator<double> simulator(*diagram);
-  auto init_ball = [&](FreeBallPlant<double>* system,
-                       Vector3<double> pos, Vector3<double> vel) {
-    systems::Context<double>* ball_context =
-        diagram->GetMutableSubsystemContext(
-            simulator.get_mutable_context(), system);
-    system->set_pos(ball_context, pos);
-    system->set_vel(ball_context, vel);
-  };
   for (int i = 0; i < kCount; ++i) {
     auto bouncing_ball = ball_systems[i];
     pos_0 = rotation * pos_0;
     init_ball(bouncing_ball, pos_0, Vector3<double>(0, 0, 0));
   }
+#endif
 
 
   simulator.get_mutable_integrator()->set_maximum_step_size(0.002);
