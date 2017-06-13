@@ -10,6 +10,7 @@
 #include "drake/geometry/shapes.h"
 #include "drake/lcm/drake_lcm.h"
 #include "drake/lcmt_viewer_draw.hpp"
+#include "drake/systems/analysis/runge_kutta3_integrator.h"
 #include "drake/systems/analysis/simulator.h"
 #include "drake/systems/framework/diagram.h"
 #include "drake/systems/framework/diagram_builder.h"
@@ -30,11 +31,11 @@ using geometry::HalfSpace;
 using geometry::SourceId;
 using lcm::DrakeLcm;
 using systems::InputPortDescriptor;
-using systems::rendering::PoseBundleToDrawMessage;
 using systems::lcm::LcmPublisherSystem;
 using systems::lcm::Serializer;
+using systems::rendering::PoseBundleToDrawMessage;
+using systems::RungeKutta3Integrator;
 using std::make_unique;
-
 using std::vector;
 
 void AddAnchored(GeometrySystem<double>* geometry_system, bool force_plane) {
@@ -76,6 +77,7 @@ void AddAnchored(GeometrySystem<double>* geometry_system, bool force_plane) {
 int do_main() {
   systems::DiagramBuilder<double> builder;
 
+
   auto geometry_system = builder.AddSystem<GeometrySystem<double>>();
   geometry_system->set_name("geometry_system");
 
@@ -91,7 +93,7 @@ int do_main() {
   publisher->set_publish_period(1/60.0);
 
   vector<FreeBallPlant<double>*> ball_systems;
-  int kCount = 8;
+  int kCount = 30;
   for (int i = 0; i < kCount; ++i) {
     std::string sys_name = "ball" + std::to_string(i);
     SourceId ball_source_id = geometry_system->RegisterSource(sys_name);
@@ -158,10 +160,14 @@ int do_main() {
 #endif
 
 
-  simulator.get_mutable_integrator()->set_maximum_step_size(0.002);
+//  auto context = simulator.get_mutable_context();
+//  simulator.reset_integrator<RungeKutta3Integrator<double>>(*diagram, context);
+//  simulator.get_mutable_integrator()->request_initial_step_size_target(1e-3);
+//  simulator.get_mutable_integrator()->set_target_accuracy(1e-5);
+  simulator.get_mutable_integrator()->set_maximum_step_size(0.00005);
   simulator.set_target_realtime_rate(1.f);
   simulator.Initialize();
-  simulator.StepTo(13);
+  simulator.StepTo(10);
 
 //  const int nsteps = x_logger->sample_times().rows();
 //  MatrixX<double> all_data(nsteps, 2);
