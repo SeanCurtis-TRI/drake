@@ -40,7 +40,8 @@ Matrix3<double> ComputeBasisFromZ(const Vector3<double> z_axis) {
 }
 
 lcmt_viewer_geometry_data MakeGeometryData(const Shape& shape,
-                                           const Isometry3<double>& X_GP) {
+                                           const Isometry3<double>& X_GP,
+                                           const Eigen::Vector4d& in_color) {
   lcmt_viewer_geometry_data geometry_data;
   Eigen::Isometry3d transform;  // The extracted X_FG.
   switch (shape.get_type()) {
@@ -95,8 +96,7 @@ lcmt_viewer_geometry_data MakeGeometryData(const Shape& shape,
   geometry_data.quaternion[3] = q.z();
 
   Eigen::Map<Eigen::Vector4f> color(geometry_data.color);
-  Eigen::Vector4d default_color(0.8, 0.8, 0.8, 1.0);
-  color = default_color.template cast<float>();
+  color = in_color.template cast<float>();
 
   return geometry_data;
 }
@@ -116,6 +116,8 @@ void DispatchLoadMessage(const GeometryState<double>& state) {
   message.num_links = total_link_count;
   message.link.resize(total_link_count);
 
+  Eigen::Vector4d default_color(0.8, 0.8, 0.8, 1.0);
+
   int link_index = 0;
   // Load anchored geometry into the world frame.
   {
@@ -130,7 +132,7 @@ void DispatchLoadMessage(const GeometryState<double>& state) {
         const Shape &shape = state.geometry_engine_->get_anchored_shape(index);
         // TODO(SeanCurtis-TRI): Fix this when anchored geometry has pose.
         message.link[0].geom[geom_index] = MakeGeometryData(
-            shape, Isometry3<double>::Identity());
+            shape, Isometry3<double>::Identity(), default_color);
         ++geom_index;
       }
       link_index = 1;
@@ -156,7 +158,10 @@ void DispatchLoadMessage(const GeometryState<double>& state) {
       GeometryIndex index = state.geometries_.at(geom_id).get_engine_index();
       const Shape& shape = state.geometry_engine_->get_shape(index);
       const Isometry3<double> X_WG = state.X_FG_.at(index);
-      message.link[link_index].geom[geom_index] = MakeGeometryData(shape, X_WG);
+      const Eigen::Vector4d& color =
+          state.geometries_.at(geom_id).get_visual_material().get_diffuse();
+      message.link[link_index].geom[geom_index] =
+          MakeGeometryData(shape, X_WG, color);
       ++geom_index;
     }
     ++link_index;
