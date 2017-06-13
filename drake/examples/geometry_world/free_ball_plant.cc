@@ -125,7 +125,7 @@ void FreeBallPlant<T>::DoCalcTimeDerivatives(
 //    PRINT_VAR(contacts[0].depth);
 //    PRINT_VAR(state.zdot());
 
-        fC = (k_ * x * (1.0 + d_ * xdot)) * N;
+        fC += (k_ * x * (1.0 + d_ * xdot)) * N;
 //        std::cout << "\tForce: " << fC.transpose() << "\n";
       }
     }
