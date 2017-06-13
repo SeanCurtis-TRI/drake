@@ -448,9 +448,10 @@ GeometryId GeometryState<T>::RegisterGeometryHelper(
   // Configure topology.
   frames_[frame_id].add_child(geometry_id);
   // TODO(SeanCurtis-TRI): Get name from geometry instance (when available).
-  geometries_.emplace(geometry_id, InternalGeometry(frame_id, geometry_id,
-                                                    "no_name", engine_index,
-                                                    parent));
+  geometries_.emplace(
+      geometry_id,
+      InternalGeometry(frame_id, geometry_id, "no_name", engine_index,
+                       geometry->get_visual_material(), parent));
   // TODO(SeanCurtis-TRI): I expect my rigid poses are growing at the same
   // rate as in my engine. This seems fragile.
   DRAKE_ASSERT(static_cast<int>(X_FG_.size()) == engine_index);
