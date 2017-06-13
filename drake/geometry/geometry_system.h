@@ -489,6 +489,16 @@ class GeometrySystem : public systems::LeafSystem<T> {
   // A mapping from added source identifier to the port indices associated with
   // that id.
   std::unordered_map<SourceId, SourcePorts> input_source_ids_;
+
+#define FAKE_CONTACT_CACHE
+  // This creates the *illusion* of having a caching mechanism for contact
+  // execution. It uses the simple (and yet woefully incomplete) expedient of
+  // keying on the context's time value.
+#ifdef FAKE_CONTACT_CACHE
+  // Fakes a caching mechanism to assess value.
+  mutable double last_time_{-1};
+  mutable std::vector<Contact<T>> cache_contacts;
+#endif
 };
 
 }  // namespace geometry

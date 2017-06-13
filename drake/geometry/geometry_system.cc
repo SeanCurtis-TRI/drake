@@ -333,8 +333,24 @@ FrameId GeometrySystem<T>::GetFrameId(
 template <typename T>
 bool GeometrySystem<T>::ComputeContact(const systems::Context<T> &context,
                                        vector<Contact<T>>* contacts) const {
-  const GeometryContext<T>& g_context = UpdateFromInputs(context);
+#ifdef FAKE_CONTACT_CACHE
+  if (context.get_time() != last_time_) {
+    cache_contacts.clear();
+    last_time_ = context.get_time();
+    const GeometryContext<T> &g_context = UpdateFromInputs(context);
+    auto result = geometry_world_.ComputeContact(g_context, contacts);
+    cache_contacts.insert(cache_contacts.begin(), contacts->begin(),
+                          contacts->end());
+    return result;
+  } else {
+    contacts->insert(contacts->begin(), cache_contacts.begin(),
+                     cache_contacts.end());
+    return true;
+  }
+#else
+  const GeometryContext<T> &g_context = UpdateFromInputs(context);
   return geometry_world_.ComputeContact(g_context, contacts);
+#endif
 }
 
 template <typename T>
