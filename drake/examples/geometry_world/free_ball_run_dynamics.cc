@@ -79,7 +79,7 @@ int do_main() {
   auto geometry_system = builder.AddSystem<GeometrySystem<double>>();
   geometry_system->set_name("geometry_system");
 
-  AddAnchored(geometry_system, true /* force plane */);
+  AddAnchored(geometry_system, false /* force plane */);
 
   DrakeLcm lcm;
   PoseBundleToDrawMessage* converter =
@@ -91,7 +91,7 @@ int do_main() {
   publisher->set_publish_period(1/60.0);
 
   vector<FreeBallPlant<double>*> ball_systems;
-  int kCount = 30;
+  int kCount = 8;
   for (int i = 0; i < kCount; ++i) {
     std::string sys_name = "ball" + std::to_string(i);
     SourceId ball_source_id = geometry_system->RegisterSource(sys_name);
