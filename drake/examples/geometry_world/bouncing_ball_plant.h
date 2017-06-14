@@ -34,9 +34,9 @@ class BouncingBallPlant : public systems::LeafSystem<T> {
   using MyOutput = systems::SystemOutput<T>;
 
   /// Returns the port to output state.
-  const systems::OutputPortDescriptor<T>& get_state_output_port() const;
-  const systems::OutputPortDescriptor<T>& get_geometry_id_output_port() const;
-  const systems::OutputPortDescriptor<T>& get_geometry_pose_output_port() const;
+  const systems::OutputPort<T>& get_state_output_port() const;
+  const systems::OutputPort<T>& get_geometry_id_output_port() const;
+  const systems::OutputPort<T>& get_geometry_pose_output_port() const;
 
   void set_z(MyContext* context, const T& z) const {
     get_mutable_state(context)->set_z(z);
@@ -69,7 +69,21 @@ class BouncingBallPlant : public systems::LeafSystem<T> {
 //  BouncingBallPlant<symbolic::Expression>* DoToSymbolic() const override;
 
  private:
-  void DoCalcOutput(const MyContext& context, MyOutput* output) const override;
+  // Callback for writing the state vector to an output.
+  void CopyStateToOutput(const MyContext& context,
+                         BouncingBallVector<T>* state_output_vector) const;
+
+  // Allocate the frame pose set output port value.
+  geometry::FramePoseSet<T> AllocateFramePoseOutput(const MyContext& context) const;
+  // Calculate the frame pose set output port value.
+  void CalcFramePoseOutput(const MyContext& context,
+                            geometry::FramePoseSet<T>* pose_set) const;
+
+  // Allocate the id output.
+  geometry::FrameIdVector AllocateFrameIdOutput(const MyContext& context) const;
+  // Calculate the id output.
+  void CalcFrameIdOutput(const MyContext& context,
+                          geometry::FrameIdVector* id_set) const;
 
   void DoCalcTimeDerivatives(const MyContext& context,
                              MyContinuousState* derivatives) const override;

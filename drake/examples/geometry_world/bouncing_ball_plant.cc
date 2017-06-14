@@ -25,6 +25,7 @@ using geometry::GeometrySystem;
 using geometry::HalfSpace;
 using geometry::SourceId;
 using geometry::Sphere;
+using systems::Context;
 using systems::Value;
 using std::make_unique;
 
@@ -38,8 +39,19 @@ BouncingBallPlant<T>::BouncingBallPlant(SourceId source_id,
     : source_id_(source_id), geometry_system_(geometry_system),
       init_position_(init_position) {
   state_port_ =
-      this->DeclareVectorOutputPort(BouncingBallVector<T>()).get_index();
-  this->DeclareContinuousState(
+      this->DeclareVectorOutputPort(BouncingBallVector<T>(),
+                                    &BouncingBallPlant::CopyStateToOutput)
+          .get_index();
+  geometry_id_port_ =
+      this->DeclareAbstractOutputPort(&BouncingBallPlant::AllocateFrameIdOutput,
+                                      &BouncingBallPlant::CalcFrameIdOutput)
+      .get_index();
+  geometry_pose_port_ =
+      this->DeclareAbstractOutputPort(
+          &BouncingBallPlant::AllocateFramePoseOutput,
+          &BouncingBallPlant::CalcFramePoseOutput).get_index();
+
+    this->DeclareContinuousState(
       BouncingBallVector<T>(),
       1 /* num_q */, 1 /* num_v */, 0 /* num_z */);
   static_assert(BouncingBallVectorIndices::kNumCoordinates == 1 + 1, "");
@@ -51,51 +63,69 @@ BouncingBallPlant<T>::BouncingBallPlant(SourceId source_id,
       source_id, ball_frame_id_,
       make_unique<GeometryInstance<T>>(Isometry3<double>::Identity(), /*X_FG*/
                                        make_unique<Sphere>(diameter_ / 2.0)));
-  FrameIdVector ids(source_id);
-  ids.AddFrameId(ball_frame_id_);
-  geometry_id_port_ = this->DeclareAbstractOutputPort(
-      Value<FrameIdVector>(ids)).get_index();
-  FramePoseSet<T> poses(source_id);
-  poses.AddValue(Isometry3<T>::Identity());
-  geometry_pose_port_ = this->DeclareAbstractOutputPort(
-      Value<FramePoseSet<T>>(poses)).get_index();
 }
 
 template <typename T>
 BouncingBallPlant<T>::~BouncingBallPlant() {}
 
 template <typename T>
-const systems::OutputPortDescriptor<T>&
+const systems::OutputPort<T>&
 BouncingBallPlant<T>::get_state_output_port() const {
   return systems::System<T>::get_output_port(state_port_);
 }
 
 template <typename T>
-const systems::OutputPortDescriptor<T>&
+const systems::OutputPort<T>&
 BouncingBallPlant<T>::get_geometry_id_output_port() const {
   return systems::System<T>::get_output_port(geometry_id_port_);
 }
 
 template <typename T>
-const systems::OutputPortDescriptor<T>&
+const systems::OutputPort<T>&
 BouncingBallPlant<T>::get_geometry_pose_output_port() const {
   return systems::System<T>::get_output_port(geometry_pose_port_);
 }
 
+// Updates the state output port.
 template <typename T>
-void BouncingBallPlant<T>::DoCalcOutput(const systems::Context<T>& context,
-                                    systems::SystemOutput<T>* output) const {
-  // 1) Output for the plant's state.
-  get_mutable_state_output(output)->set_value(get_state(context).get_value());
+void BouncingBallPlant<T>::CopyStateToOutput(
+    const Context<T>& context,
+    BouncingBallVector<T>* state_output_vector) const {
+  state_output_vector->set_value(get_state(context).get_value());
+}
 
-  // 2) Output for GeometrySystem's input.
+template <typename T>
+FramePoseSet<T> BouncingBallPlant<T>::AllocateFramePoseOutput(
+    const Context<T>& context) const {
+  FramePoseSet<T> poses(source_id_);
+  poses.AddValue(Isometry3<T>::Identity());
+  return poses;
+}
+
+template <typename T>
+void BouncingBallPlant<T>::CalcFramePoseOutput(
+    const Context<T>& context, FramePoseSet<T>* pose_set) const {
   const BouncingBallVector<T>& state = get_state(context);
   Isometry3<T> pose = Isometry3<T>::Identity();
   pose.translation() << init_position_(0), init_position_(1), state.z();
   FramePoseSet<T> poses(source_id_);
   poses.AddValue(pose);
-  output->GetMutableData(geometry_pose_port_)
-      ->template GetMutableValue<FramePoseSet<T>>() = poses;
+  *pose_set = poses;
+}
+
+template <typename T>
+FrameIdVector BouncingBallPlant<T>::AllocateFrameIdOutput(
+    const MyContext& context) const {
+  FrameIdVector ids(source_id_);
+  ids.AddFrameId(ball_frame_id_);
+  return ids;
+}
+
+template <typename T>
+void BouncingBallPlant<T>::CalcFrameIdOutput(const MyContext &context,
+                                              FrameIdVector *) const {
+  // TODO(SeanCurtis-TRI): Only take action if the topology has changed; this
+  // system never changes the topology.
 }
 
 // Compute the actual physics.

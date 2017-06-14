@@ -18,7 +18,6 @@ using systems::Context;
 using systems::InputPortDescriptor;
 using systems::LeafContext;
 using systems::LeafSystem;
-using systems::OutputPortDescriptor;
 using systems::SystemOutput;
 using systems::rendering::PoseBundle;
 using std::vector;
@@ -32,8 +31,8 @@ GeometrySystem<T>::GeometrySystem() : LeafSystem<T>() {
   initial_state_ = &state_value->template GetMutableValue<GeometryState<T>>();
   this->DeclareAbstractState(std::move(state_value));
 
-  // Place holder for the pose bundle output abstract port.
-  this->DeclareAbstractOutputPort();
+  this->DeclareAbstractOutputPort(&GeometrySystem::MakePoseBundle,
+                                  &GeometrySystem::CalcPoseBundle);
 }
 
 template <typename T>
@@ -117,53 +116,6 @@ template <typename T>
 const systems::InputPortDescriptor<T>&
 GeometrySystem<T>::get_source_velocity_port(SourceId id) {
   return get_port_for_source_id(id, VELOCITY);
-}
-
-template <typename T>
-void GeometrySystem<T>::DoCalcOutput(const Context<T>& context,
-                  SystemOutput<T>* output) const {
-  // This should *always* be invoked with a GeometryContext.
-  const GeometryState<T>& state =
-      static_cast<const GeometryContext<T>&>(context).get_geometry_state();
-  PoseBundle<T>& bundle =
-      output->GetMutableData(0)->template GetMutableValue<PoseBundle<T>>();
-  int i = 0;
-  // This would be more efficient if I simply iterated through engine order.
-  //  To achieve that, I'd need one more map from
-  for (FrameId f_id : initial_state_->get_frame_ids()) {
-    bundle.set_pose(i, state.get_pose_in_parent(f_id));
-    // TODO(SeanCurtis-TRI): Handle velocity.
-    ++i;
-  }
-}
-
-template <typename T>
-  std::unique_ptr<AbstractValue> GeometrySystem<T>::AllocateOutputAbstract(
-  const OutputPortDescriptor<T>&) const {
-  using std::to_string;
-  // NOTE: Using initial_state_ *feels* a bit fragile. This takes place *after*
-  // the context has been allocated. Tests against an allocated context
-  // guarantee that no change can be made to the model geometry state to which
-  // this variable points and now. It is carved in stone. So, it will be safe.
-  auto value = AbstractValue::Make(PoseBundle<T>(
-      initial_state_->get_num_frames()));
-  // This is the work that should be done whenever the pose bundle is resize;
-  //  the configuration
-  auto& bundle = value->template GetMutableValue<PoseBundle<T>>();
-  int i = 0;
-  for (FrameId f_id : initial_state_->get_frame_ids()) {
-    int frame_group = initial_state_->get_frame_group(f_id);
-    bundle.set_model_instance_id(i, frame_group);
-
-    SourceId s_id = initial_state_->get_source_id(f_id);
-    const std::string& src_name = initial_state_->get_source_name(s_id);
-    const std::string& frm_name = initial_state_->get_frame_name(f_id);
-    // TODO(SeanCurtis-TRI): Consider replacing geometry id with geometry name.
-    std::string name = src_name + "::" + frm_name;
-    bundle.set_name(i, name);
-    ++i;
-  }
-  return value;
 }
 
 template <typename T>
@@ -335,6 +287,47 @@ bool GeometrySystem<T>::ComputeContact(const systems::Context<T> &context,
                                        vector<Contact<T>>* contacts) const {
   const GeometryContext<T>& g_context = UpdateFromInputs(context);
   return geometry_world_.ComputeContact(g_context, contacts);
+}
+
+template <typename T>
+void GeometrySystem<T>::CalcPoseBundle(const Context<T>& context,
+                                       PoseBundle<T>* output) const {
+  // TODO(SeanCurtis-TRI): Adding/removing frames during discrete updates will
+  // change the size/composition of the pose bundle. This output port will *not*
+  // be updated to reflect that. I must test the output port to confirm that it
+  // is up to date w.r.t. the current state of the world.
+  //  Add serial number to GeometryState and PoseBundle. If serial numbers match
+  //  everything is good. Otherwise, I need to modify the pose bundle.
+  //  This *also* requires modification of PoseBundle to make it mutable.
+  int i = 0;
+  const auto& g_context = static_cast<const GeometryContext<T>&>(context);
+  const auto& g_state = g_context.get_geometry_state();
+  for (FrameId f_id : initial_state_->get_frame_ids()) {
+    output->set_pose(i, g_state.get_pose_in_parent(f_id));
+    // TODO(SeanCurtis-TRI): Handle velocity.
+    ++i;
+  }
+}
+
+template <typename T>
+PoseBundle<T> GeometrySystem<T>::MakePoseBundle(
+    const Context<T>& context) const {
+  const auto& g_context = static_cast<const GeometryContext<T>&>(context);
+  const auto& g_state = g_context.get_geometry_state();
+  PoseBundle<T> bundle(g_context.get_geometry_state().get_num_frames());
+  int i = 0;
+  for (FrameId f_id : g_state.get_frame_ids()) {
+    int frame_group = g_state.get_frame_group(f_id);
+    bundle.set_model_instance_id(i, frame_group);
+
+    SourceId s_id = g_state.get_source_id(f_id);
+    const std::string& src_name = g_state.get_source_name(s_id);
+    const std::string& frm_name = g_state.get_frame_name(f_id);
+    std::string name = src_name + "::" + frm_name;
+    bundle.set_name(i, name);
+    ++i;
+  }
+  return bundle;
 }
 
 template <typename T>

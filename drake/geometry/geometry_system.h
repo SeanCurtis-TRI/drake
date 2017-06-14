@@ -9,6 +9,7 @@
 #include "drake/systems/framework/leaf_system.h"
 #include "drake/geometry/geometry_query_results.h"
 #include "drake/geometry/geometry_world.h"
+#include "drake/systems/rendering/pose_bundle.h"
 
 namespace drake {
 
@@ -88,16 +89,6 @@ class GeometrySystem : public systems::LeafSystem<T> {
    @throws  std::logic_error if the source_id is _not_ recognized, or if the
    context has already been allocated.. */
   const systems::InputPortDescriptor<T>& get_source_velocity_port(SourceId id);
-
-  /** Updates the state of all geometry in its geometry world by pulling pose
-   information from input ports, providing an updated GeometryQuery on the
-   output. */
-  void DoCalcOutput(const systems::Context<T>& context,
-                    systems::SystemOutput<T>* output) const override;
-
-  /** Allocates a PoseBundle of length equal to the number of dynamic frames. */
-  std::unique_ptr<systems::AbstractValue> AllocateOutputAbstract(
-      const systems::OutputPortDescriptor<T>& descriptor) const override;
 
   /** @name             Topology Manipulation
    Topology manipulation consists of changing the data contained in
@@ -425,6 +416,17 @@ class GeometrySystem : public systems::LeafSystem<T> {
   //@}
 
  private:
+  // Aggregates the input poses into the output PoseBundle, in the order
+  // the input ports were added. Aborts if any inputs have an unexpected
+  // dimension.
+  void CalcPoseBundle(const systems::Context<T>& context,
+                      systems::rendering::PoseBundle<T>* output) const;
+
+  // Constructs a PoseBundle of length equal to the concatenation of all inputs.
+  // This is the method used by the allocator for the output port.
+  systems::rendering::PoseBundle<T> MakePoseBundle(
+      const systems::Context<T>& context) const;
+
   // Allow the load dispatch to peek into GeometrySystem.
   friend void DispatchLoadMessage(const GeometrySystem<T>&);
 
