@@ -1417,18 +1417,6 @@ class Diagram : public System<T>,
     port.Calc(subsystem_context, port_output);
   }
 
- public:
-  // TODO(SeanCurtis-TRI): This is a horrible hack to facilitate a unit test.
-  // Do this in a more principled way.
-  // Returns the index of the given @p sys in the sorted order of this diagram,
-  // or aborts if @p sys is not a member of the diagram.
-  int GetSystemIndexOrAbort(const System<T>* sys) const {
-    auto it = sorted_systems_map_.find(sys);
-    DRAKE_DEMAND(it != sorted_systems_map_.end());
-    return it->second;
-  }
-
- private:
   // Converts a PortIdentifier to a DiagramContext::PortIdentifier.
   // The DiagramContext::PortIdentifier contains the index of the System in the
   // the diagram, instead of an actual pointer to the System.
