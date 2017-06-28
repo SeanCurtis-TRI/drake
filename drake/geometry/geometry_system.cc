@@ -31,8 +31,15 @@ GeometrySystem<T>::GeometrySystem() : LeafSystem<T>() {
   initial_state_ = &state_value->template GetMutableValue<GeometryState<T>>();
   this->DeclareAbstractState(std::move(state_value));
 
-  this->DeclareAbstractOutputPort(&GeometrySystem::MakePoseBundle,
-                                  &GeometrySystem::CalcPoseBundle);
+  bundle_port_index_ =
+      this->DeclareAbstractOutputPort(&GeometrySystem::MakePoseBundle,
+                                      &GeometrySystem::CalcPoseBundle)
+          .get_index();
+
+  query_port_index_ =
+      this->DeclareAbstractOutputPort(&GeometrySystem::MakeQueryHandle,
+                                      &GeometrySystem::CalcQueryHandle)
+          .get_index();
 }
 
 template <typename T>
@@ -44,8 +51,8 @@ SourceId GeometrySystem<T>::RegisterSource(const std::string &name) {
     return initial_state_->RegisterNewSource(name);
   } else {
     throw std::logic_error(
-        "A context has been created for this system. Adding "
-        "new geometry sources is no longer possible.");
+        "A context has been created for this system. Adding new geometry "
+        "sources is no longer possible.");
   }
 }
 
@@ -283,10 +290,28 @@ FrameId GeometrySystem<T>::GetFrameId(
 }
 
 template <typename T>
-bool GeometrySystem<T>::ComputeContact(const systems::Context<T> &context,
+bool GeometrySystem<T>::ComputeContact(const QueryHandle<T>& handle,
                                        vector<Contact<T>>* contacts) const {
-  const GeometryContext<T>& g_context = UpdateFromInputs(context);
+  const GeometryContext<T>& g_context = FullPoseUpdate(handle);
   return geometry_world_.ComputeContact(g_context, contacts);
+}
+
+template <typename T>
+QueryHandle<T> GeometrySystem<T>::MakeQueryHandle(
+    const systems::Context<T>& context) const {
+  const GeometryContext<T>* geom_context =
+      dynamic_cast<const GeometryContext<T>*>(&context);
+  DRAKE_DEMAND(geom_context);
+  return QueryHandle<T>(geom_context);
+}
+
+template <typename T>
+void GeometrySystem<T>::CalcQueryHandle(const Context<T>& context,
+                                        QueryHandle<T>* output) const {
+  const GeometryContext<T>* geom_context =
+      dynamic_cast<const GeometryContext<T>*>(&context);
+  DRAKE_DEMAND(geom_context);
+  output->context_ = geom_context;
 }
 
 template <typename T>
@@ -331,16 +356,17 @@ PoseBundle<T> GeometrySystem<T>::MakePoseBundle(
 }
 
 template <typename T>
-const GeometryContext<T>& GeometrySystem<T>::UpdateFromInputs(
-    const Context<T>& sibling_context) const {
+const GeometryContext<T>& GeometrySystem<T>::FullPoseUpdate(
+    const QueryHandle<T>& handle) const {
+  // TODO(SeanCurtis-TRI): Update this when the cache is available.
+  // This method is const, the handle is const and the context that is contained
+  // in the handle is const. Ultimately, this will pull cached entities to do
+  // the query work. For now, we have to const cast the thing so that we can
+  // update the geometry engine contained.
+
   using std::to_string;
-  // TODO(SeanCurtis-TRI): This needs to exploit a cache to avoid doing this
-  // work redundantly (and to even allow *changing* geometry engine state.
-  // This is the horrible, hacky terrible thing where I'm implicitly treating
-  // my own context's const state to be mutable so I can make sure the geometry
-  // world state is up to date (relative to its inputs).
-  const GeometryContext<T>& g_context =
-      ExtractContextViaSiblingContext(sibling_context);
+
+  const GeometryContext<T>& g_context = *handle.context_;
   const GeometryState<T>& state = g_context.get_geometry_state();
   GeometryState<T>& mutable_state = const_cast<GeometryState<T>&>(state);
 
