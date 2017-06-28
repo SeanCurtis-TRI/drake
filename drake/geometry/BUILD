@@ -132,7 +132,10 @@ drake_cc_library(
 drake_cc_library(
     name = "geometry_system",
     srcs = ["geometry_system.cc"],
-    hdrs = ["geometry_system.h"],
+    hdrs = [
+        "geometry_system.h",
+        "query_handle.h",
+    ],
     deps = [
         ":geometry_context",
         ":geometry_instance",

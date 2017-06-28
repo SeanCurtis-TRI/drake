@@ -38,6 +38,7 @@ BouncingBallPlant<T>::BouncingBallPlant(SourceId source_id,
                                         const Vector2<T>& init_position)
     : source_id_(source_id), geometry_system_(geometry_system),
       init_position_(init_position) {
+  geometry_query_port_ = this->DeclareAbstractInputPort().get_index();
   state_port_ =
       this->DeclareVectorOutputPort(BouncingBallVector<T>(),
                                     &BouncingBallPlant::CopyStateToOutput)
@@ -67,6 +68,12 @@ BouncingBallPlant<T>::BouncingBallPlant(SourceId source_id,
 
 template <typename T>
 BouncingBallPlant<T>::~BouncingBallPlant() {}
+
+template <typename T>
+const systems::InputPortDescriptor<T>&
+BouncingBallPlant<T>::get_geometry_query_input_port() const {
+  return systems::System<T>::get_input_port(geometry_query_port_);
+}
 
 template <typename T>
 const systems::OutputPort<T>&
@@ -138,8 +145,12 @@ void BouncingBallPlant<T>::DoCalcTimeDerivatives(
   const BouncingBallVector<T>& state = get_state(context);
   BouncingBallVector<T>* derivative_vector = get_mutable_state(derivatives);
 
+  const geometry::QueryHandle<T>& query_handle =
+      this->template EvalAbstractInput(context, geometry_query_port_)
+          ->template GetValue<geometry::QueryHandle<T>>();
+
   std::vector<Contact<T>> contacts;
-  geometry_system_->ComputeContact(context, &contacts);
+  geometry_system_->ComputeContact(query_handle, &contacts);
   T fC = 0;  // the contact force
   if (contacts.size() > 0) {
     for (const auto& contact : contacts) {

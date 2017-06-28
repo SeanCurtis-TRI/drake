@@ -73,12 +73,18 @@ int do_main() {
                   geometry_system->get_source_frame_id_port(ball_source_id));
   builder.Connect(bouncing_ball->get_geometry_pose_output_port(),
                   geometry_system->get_source_pose_port(ball_source_id));
+  builder.Connect(geometry_system->get_query_output_port(),
+                  bouncing_ball->get_geometry_query_input_port());
 
   builder.Connect(bouncing_ball2->get_geometry_id_output_port(),
                   geometry_system->get_source_frame_id_port(ball_source_id2));
   builder.Connect(bouncing_ball2->get_geometry_pose_output_port(),
                   geometry_system->get_source_pose_port(ball_source_id2));
-  builder.Connect(*geometry_system, *converter);
+  builder.Connect(geometry_system->get_query_output_port(),
+                  bouncing_ball2->get_geometry_query_input_port());
+
+  builder.Connect(geometry_system->get_pose_bundle_output_port(),
+                  converter->get_input_port(0));
   builder.Connect(*converter, *publisher);
 
   // Log the state.

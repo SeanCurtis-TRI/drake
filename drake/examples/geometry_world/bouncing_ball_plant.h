@@ -8,6 +8,7 @@
 #include "drake/systems/framework/leaf_system.h"
 #include "drake/geometry/geometry_ids.h"
 #include "drake/geometry/geometry_system.h"
+#include "drake/geometry/query_handle.h"
 
 namespace drake {
 namespace examples {
@@ -34,6 +35,7 @@ class BouncingBallPlant : public systems::LeafSystem<T> {
   using MyOutput = systems::SystemOutput<T>;
 
   /// Returns the port to output state.
+  const systems::InputPortDescriptor<T>& get_geometry_query_input_port() const;
   const systems::OutputPort<T>& get_state_output_port() const;
   const systems::OutputPort<T>& get_geometry_id_output_port() const;
   const systems::OutputPort<T>& get_geometry_pose_output_port() const;
@@ -120,6 +122,7 @@ class BouncingBallPlant : public systems::LeafSystem<T> {
   int geometry_id_port_;
   int geometry_pose_port_;
   int state_port_;
+  int geometry_query_port_;
 
   const double diameter_{0.1};  // Ball diameter, just for visualization.
   const double m_{0.1};   // kg
