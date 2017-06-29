@@ -246,9 +246,9 @@ class GeometrySystem : public systems::LeafSystem<T> {
    GeometryWorld. This includes registering a new geometry source, adding or
    removing frames, and adding or removing geometries.
 
-   The topology can be manipulated at one of two phases:
-     - Initialization
-     - Discrete updates
+   Currently, the topology can only be manipulated at initialization.
+   Eventually, the API will expand to include modifications of the topology
+   triggered by events.
 
    The initialization phase begins with the instantiation of a %GeometrySystem
    and ends when a context is allocated by the %GeometrySystem instance. This is
@@ -256,21 +256,7 @@ class GeometrySystem : public systems::LeafSystem<T> {
    Once a source is registered, it can register frames and geometries. Any
    frames and geometries registered during this phase become part of the
    _default_ context state for %GeometrySystem and calls to
-   CreateDefaultContext() will produce identical contexts.
-
-   The discrete update phase happens during the simulation. When geometry
-   sources need to modify the topology (introduce or removing frames and
-   geometries) in response to some internal state, they should request a
-   discrete update event and invoke the appropriate commands to change the
-   geometry data for the source.
-
-   The two interfaces are distinguished by their parameter list. They generally,
-   have the same parameter lists, but the methods to use during discrete
-   updates take an additional context argument. This is the context of the
-   geometry source and it _must_ be a sibling to the %GeometrySystem (in that
-   they are both contained by the same diagram). The initialization methods
-   do not take a context, but invoking them _after_ %GeometrySystem has
-   allocated a context will result in an exception. */
+   CreateDefaultContext() will produce identical contexts. */
   //@{
 
   /** Initialization registration of a new frame on this channel, receiving the
@@ -281,21 +267,6 @@ class GeometrySystem : public systems::LeafSystem<T> {
    @throws std::logic_error  If the `source_id` does _not_ map to an active
                              source or if a context has been allocated. */
   FrameId RegisterFrame(SourceId source_id, const GeometryFrame<T>& frame);
-
-  /** Discrete update registration of a new frame on this channel, receiving the
-   unique id for the new frame.
-   @param context       The context of the _caller_. The caller must be a
-                        sibling system of GeometrySystem.
-   @param source_id     The identifier for the geometry source registering the
-                        frame.
-   @param frame         The definition of the frame to add.
-   @throws std::logic_error  1. If the `source_id` does _not_ map to an active
-                             source, or
-                             2. the context does not belong to a sibling system.
-   */
-  FrameId RegisterFrame(systems::Context<T>* sibling_context,
-                        SourceId source_id,
-                        const GeometryFrame<T>& frame);
 
   /** Initialization registration of a new frame for the given source as a child
    of a previously registered frame. The id of the new frame is returned.
@@ -311,24 +282,6 @@ class GeometrySystem : public systems::LeafSystem<T> {
   FrameId RegisterFrame(SourceId source_id, FrameId parent_id,
                         const GeometryFrame<T>& frame);
 
-  /** Discrete update registration of a new frame for the given source as a
-   child of a previously registered frame. The id of the new frame is returned.
-   @param context      The context of the _caller_. The caller must be a
-                       sibling system of GeometrySystem.
-   @param source_id    The id of the source for which this frame is allocated.
-   @param parent_id    The id of the parent frame.
-   @param frame        The frame to register.
-   @returns  A newly allocated frame id.
-   @throws std::logic_error  1. If the `source_id` does _not_ map to an active
-                             source, or
-                             2. If the `parent_id` does _not_ map to a known
-                             frame or does not belong to the source, or
-                             3. the context does not belong to a sibling system.
-   */
-  FrameId RegisterFrame(systems::Context<T>* sibling_context,
-                        SourceId source_id,
-                        FrameId parent_id, const GeometryFrame<T>& frame);
-
   /** Initialization registration of  a `geometry` instance as "hanging" from
    the specified frame at the given pose relative to the frame. The geometry is
    _rigidly_ affixed to the parent frame.
@@ -343,27 +296,6 @@ class GeometrySystem : public systems::LeafSystem<T> {
                              3. the `geometry` is equal to `nullptr`, or
                              4. a context has been allocated. */
   GeometryId RegisterGeometry(SourceId source_id,
-                              FrameId frame_id,
-                              std::unique_ptr<GeometryInstance<T>> geometry);
-
-  /** Discrete update registration of a `geometry` instance as "hanging" from
-   the specified frame at the given pose relative to the frame. The geometry is
-   _rigidly_ affixed to the parent frame.
-   @param context     The context of the _caller_. The caller must be a
-                      sibling system of GeometrySystem.
-   @param source_id   The identifier for the geometry source registering the
-                      frame.
-   @param frame_id    The id for the frame `F` to hang the geometry on.
-   @param geometry    The geometry to hang.
-   @return A unique identifier for the added geometry.
-   @throws std::logic_error  1. the `source_id` does _not_ map to an active
-                             source, or
-                             2. the `frame_id` doesn't belong to the source, or
-                             3. the `geometry` is equal to `nullptr`, or
-                             4. the context does not belong to a sibling system.
-   */
-  GeometryId RegisterGeometry(systems::Context<T>* sibling_context,
-                              SourceId source_id,
                               FrameId frame_id,
                               std::unique_ptr<GeometryInstance<T>> geometry);
 
@@ -390,33 +322,6 @@ class GeometrySystem : public systems::LeafSystem<T> {
                               GeometryId geometry_id,
                               std::unique_ptr<GeometryInstance<T>> geometry);
 
-  /** Discrete update registration of a `geometry` instance as "hanging" from
-   the specified geometry's frame `F`, with the given pose relative to that
-   frame. The geometry is _rigidly_ affixed to the parent frame.
-
-   This method enables the owner entity to construct rigid hierarchies of posed
-   geometries. This rigid structure will all be driven by the declared frame
-   to which the root geometry is registered.
-
-   @param context      The context of the _caller_. The caller must be a
-                       sibling system of GeometrySystem.
-   @param source_id    The identifier for the geometry source registering the
-                       geometry.
-   @param geometry_id  The id for the geometry to hang the declared geometry on.
-   @param geometry     The geometry to hang.
-   @return A unique identifier for the added geometry.
-   @throws std::logic_error 1. the `source_id` does _not_ map to an active
-                            source, or
-                            2. the `geometry_id` doesn't belong to the source,
-                            or
-                            3. the `geometry` is equal to `nullptr`, or
-                            4. the context does not belong to a sibling system.
-   */
-  GeometryId RegisterGeometry(systems::Context<T>* sibling_context,
-                              SourceId source_id,
-                              GeometryId geometry_id,
-                              std::unique_ptr<GeometryInstance<T>> geometry);
-
   /** Initialization registration of  the given geometry to the world as
    anchored geometry.
    @param source_id     The identifier for the geometry source registering the
@@ -429,23 +334,6 @@ class GeometrySystem : public systems::LeafSystem<T> {
       SourceId source_id,
       std::unique_ptr<GeometryInstance<T>> geometry);
 
-  /** Discrete update registration of the given geometry to the world as
-   anchored geometry.
-   @param context       The context of the _caller_. The caller must be a
-                        sibling system of GeometrySystem.
-   @param source_id     The identifier for the geometry source registering the
-                        geometry.
-   @param geometry      The geometry to add to the world.
-   @returns The index for the added geometry.
-   @throws std::logic_error  1. If the `source_id` does _not_ map to an active
-                             source, or
-                             2. the context does not belong to a sibling system.
-   */
-  GeometryId RegisterAnchoredGeometry(
-      systems::Context<T>* sibling_context,
-      SourceId source_id,
-      std::unique_ptr<GeometryInstance<T>> geometry);
-
   /** Initialization clearing of all the registered frames and geometries from
    this source, but leaves the source active for future registration of frames
    and geometries.
@@ -454,19 +342,6 @@ class GeometrySystem : public systems::LeafSystem<T> {
    @throws std::logic_error  If the `source_id` does _not_ map to an active
                              source or if a context has been allocated. */
   void ClearSource(SourceId source_id);
-
-  /** Discrete update clearing of all the registered frames and geometries from
-   this source, but leaves the source active for future registration of frames
-   and geometries.
-   @param context     The context of the _caller_. The caller must be a
-                      sibling system of GeometrySystem.
-   @param source_id   The identifier of the source to be deactivated and
-                      removed.
-   @throws std::logic_error  1. If the `source_id` does _not_ map to an active
-                             source, or
-                             2. the context does not belong to a sibling system.
-   */
-  void ClearSource(systems::Context<T>* sibling_context, SourceId source_id);
 
   /** Initialization removal of the given frame from the the indicated source's
    frames. All registered geometries connected to this frame will also be
@@ -478,21 +353,6 @@ class GeometrySystem : public systems::LeafSystem<T> {
                             2. the `frame_id` doesn't belong to the source, or
                             3. a context has been allocated. */
   void RemoveFrame(SourceId source_id, FrameId frame_id);
-
-  /** Discrete update removal of the given frame from the the indicated source's
-   frames. All registered geometries connected to this frame will also be
-   removed from the world.
-   @param context     The context of the _caller_. The caller must be a
-                      sibling system of GeometrySystem.
-   @param source_id   The identifier for the owner geometry source.
-   @param frame_id    The identifier of the frame to remove.
-   @throws std::logic_error If:
-                            1. The `source_id` is not an active source, or
-                            2. the `frame_id` doesn't belong to the source, or
-                            3. the context does not belong to a sibling system.
-   */
-  void RemoveFrame(systems::Context<T>* sibling_context, SourceId source_id,
-                   FrameId frame_id);
 
   /** Initialization removal of the given geometry from the the indicated
    source's geometries. All registered geometries connected to this geometry
@@ -506,21 +366,6 @@ class GeometrySystem : public systems::LeafSystem<T> {
                             3. a context has been allocated. */
   void RemoveGeometry(SourceId source_id, GeometryId geometry_id);
 
-  /** Discrete update removal of the given geometry from the the indicated
-   source's geometries. All registered geometries connected to this geometry
-   will also be removed from the world.
-   @param context     The context of the _caller_. The caller must be a
-                      sibling system of GeometrySystem.
-   @param source_id   The identifier for the owner geometry source.
-   @param geometry_id The identifier of the geometry to remove.
-   @throws std::logic_error If:
-                            1. The `source_id` is not an active source, or
-                            2. the `geometry_id` doesn't belong to the source,
-                            or
-                            3. the context does not belong to a sibling system.
-   */
-  void RemoveGeometry(systems::Context<T>* sibling_context, SourceId source_id,
-                      GeometryId geometry_id);
   //@}
 
   /** @name     Geometry Queries
@@ -528,32 +373,34 @@ class GeometrySystem : public systems::LeafSystem<T> {
    proximity queries, contact queries, ray-casting queries, and look ups on
    geometry resources.
 
-   These operations require a context. The caller can provide their own context
-   provided they are a sibling system to the GeometrySystem interface (i.e.,
-   they are contained in the same diagram).
+   These operations require a QueryHandle instance. The caller must acqurie one
+   from the %GeometrySystem by connecting to the output port that provides
+   GeometryQuery instances.
 
    The details of these queries are fully specified in the documentation for
-   GeometryWorld.
-   */
+   GeometryWorld. */
 
   //@{
 
   /** Report the name for the given source id.
-   @param   context   The context of a sibling system to `this` %GeometrySystem.
+   @param   handle   The QueryHandle produced by evaluating the connected
+                     input port on the querying LeafSystem.
    See GeometryWorld::get_source_name() for details. */
-  const std::string& get_source_name(const systems::Context<T>& sibling_context,
+  const std::string& get_source_name(const QueryHandle<T>& handle,
                                      SourceId id) const;
 
   /** Reports if the given source id is registered.
-   @param   context   The context of a sibling system to `this` %GeometrySystem.
+   @param   handle   The QueryHandle produced by evaluating the connected
+                     input port on the querying LeafSystem.
    See GeometryWorld::SourceIsRegistered() for details. */
-  bool SourceIsRegistered(const systems::Context<T>& sibling_context,
+  bool SourceIsRegistered(const QueryHandle<T>& handle,
                           SourceId id) const;
 
   /** Reports the frame to which this geometry is registered.
-   @param   context   The context of a sibling system to `this` %GeometrySystem.
+   @param   handle   The QueryHandle produced by evaluating the connected
+                     input port on the querying LeafSystem.
    See GeometryWorld::GetFrameId() for details. */
-  FrameId GetFrameId(const systems::Context<T>& sibling_context,
+  FrameId GetFrameId(const QueryHandle<T>& handle,
                      GeometryId geometry_id) const;
 
   /** Determines contacts across all geometries in GeometryWorld.
@@ -600,16 +447,6 @@ class GeometrySystem : public systems::LeafSystem<T> {
   //    - instantiating a GeometryContext instance (as opposed to LeafContext),
   //    - modifying the state to prevent additional sources being added. */
   std::unique_ptr<systems::LeafContext<T>> DoMakeContext() const override;
-
-  // Given a sibling context, extracts a mutable instance of the geometry
-  // context.
-  GeometryContext<T>& ExtractMutableContextViaSiblingContext(
-      const systems::Context<T>& sibling_context);
-
-  // Given a const sibling context, extracts a const instance of the geometry
-  // context.
-  const GeometryContext<T>& ExtractContextViaSiblingContext(
-      const systems::Context<T>& sibling_context) const;
 
   // Helper method for throwing an exception if a context has *ever* been
   // allocated by this system.
