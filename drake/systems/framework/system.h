@@ -691,14 +691,6 @@ class System {
   /// an identical name to the system they were created from.
   std::string get_name() const { return name_; }
 
-  /// Reports this subsystem's unique index in its parent's set of chilrden.
-  int get_subsystem_index() const { return subsystem_index_; }
-
-  /// This sets this subsystem's index. This should *only* be invoked by
-  /// the diagram builder as the diagram is being built. It should be treated
-  /// as private and never invoked.
-  void set_subsystem_index(int index) { subsystem_index_ = index; }
-
   /// Returns a name for this %System based on a stringification of its type
   /// name and memory address.  This is intended for use in diagnostic output
   /// and should not be used for behavioral logic, because the stringification
@@ -1511,10 +1503,6 @@ class System {
   //@}
 
  private:
-  // This represents this system's index in its parent diagrams list of children
-  // and and this system's *context's* position in the diagram context's
-  // children contexts.
-  int subsystem_index_;
   std::string name_;
   // input_ports_ and output_ports_ are vectors of unique_ptr so that references
   // to the descriptors will remain valid even if the vector is resized.
