@@ -55,7 +55,28 @@ class PoseBundle {
 
   DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(PoseBundle)
 
-  std::unique_ptr<PoseBundle<AutoDiffXd>> ToAutoDiffXd() const;
+  template <typename T1 = T,
+      typename std::enable_if<
+          std::is_same<T1, double>::value, void*>::type *& = nullptr>
+  std::unique_ptr<PoseBundle<AutoDiffXd>> ToAutoDiffXd() const {
+    // TODO(sherm1): Consider changing this to overload a default implementation
+    // in AbstractValue, as discussed in
+    // https://github.com/RobotLocomotion/drake/issues/5454
+
+    auto bundle = std::make_unique<PoseBundle<AutoDiffXd>>(get_num_poses());
+    for (int pose_index = 0; pose_index < get_num_poses(); pose_index++) {
+      Isometry3<AutoDiffXd> pose(get_pose(pose_index));
+      bundle->set_pose(pose_index, pose);
+      FrameVelocity<AutoDiffXd> velocity;
+      velocity.set_velocity(multibody::SpatialVelocity<AutoDiffXd>(
+          get_velocity(pose_index).get_velocity().get_coeffs()));
+      bundle->set_velocity(pose_index, velocity);
+      bundle->set_name(pose_index, get_name(pose_index));
+      bundle->set_model_instance_id(pose_index,
+                                    get_model_instance_id(pose_index));
+    }
+    return bundle;
+  }
 
  private:
   std::vector<Isometry3<T>> poses_;

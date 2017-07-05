@@ -17,6 +17,12 @@ using GSystem = GeometrySystem<double>;
 using std::make_unique;
 using std::unique_ptr;
 
+
+GTEST_TEST(GeometrySystemTest, Constructor) {
+  GeometrySystem<double> double_system;
+//  GeometrySystem<Expression> expression_system;
+}
+#if 0
 // Utility methods to create a sphere of the given radius.
 std::unique_ptr<Shape> make_sphere(double radius) {
   return std::unique_ptr<Shape>(new Sphere(radius));
@@ -26,7 +32,6 @@ std::unique_ptr<Shape> make_plane(const Vector3<double>& n,
                                   const Vector3<double>& p) {
   return std::unique_ptr<Shape>(new HalfSpace(n, p));
 }
-
 // Tests the addition of input ports. Only valid source ids map to input ports
 // and the input ports are ordered in the declaration order.
 GTEST_TEST(GeometrySystemTest, TestInputPorts) {
@@ -74,7 +79,7 @@ GTEST_TEST(MickeyMouse, LoadTest) {
                            Vector3<double>(0, 0, 0))));
   DispatchLoadMessage(system);
 }
-
+#endif
 }  // namespace
 }  // namespace geometry
 }  // namespace drake

@@ -5,6 +5,7 @@
 #include "drake/common/autodiff_overloads.h"
 #include "drake/common/drake_assert.h"
 #include "drake/common/eigen_autodiff_types.h"
+#include "drake/common/symbolic_expression.h"
 
 namespace drake {
 namespace systems {
@@ -72,7 +73,7 @@ void PoseBundle<T>::set_model_instance_id(int index, int id) {
   DRAKE_DEMAND(id >= 0);
   ids_[index] = id;
 }
-
+#if 0
 template <typename T>
 std::unique_ptr<PoseBundle<AutoDiffXd>> PoseBundle<T>::ToAutoDiffXd() const {
   // TODO(sherm1): Consider changing this to overload a default implementation
@@ -93,9 +94,10 @@ std::unique_ptr<PoseBundle<AutoDiffXd>> PoseBundle<T>::ToAutoDiffXd() const {
   }
   return bundle;
 }
-
+#endif
 template class PoseBundle<double>;
 template class PoseBundle<AutoDiffXd>;
+template class PoseBundle<symbolic::Expression>;
 
 }  // namespace rendering
 }  // namespace systems
