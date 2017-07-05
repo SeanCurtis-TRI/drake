@@ -172,7 +172,7 @@ class GeometryState {
    @return The geometry's pose relative to its frame.
    @throws std::logic_error  If the `geometry_id` does _not_ map to a valid
                              GeometryInstance. */
-  Isometry3<T> GetPoseInFrame(GeometryId geometry_id) const;
+  Isometry3<double> GetPoseInFrame(GeometryId geometry_id) const;
 
   /** Reports the pose, relative to the registered parent, for the geometry
    the given identifier refers to. If the geometry was registered directly to
@@ -181,7 +181,7 @@ class GeometryState {
    @return The geometry's pose relative to its registered parent.
    @throws std::logic_error  If the `geometry_id` does _not_ map to a valid
                              GeometryInstance. */
-  Isometry3<T> GetPoseInParent(GeometryId geometry_id) const;
+  Isometry3<double> GetPoseInParent(GeometryId geometry_id) const;
 
   //@}
 
@@ -306,7 +306,7 @@ class GeometryState {
                              3. The `geometry` is equal to `nullptr`. */
   GeometryId RegisterGeometry(
       SourceId source_id, FrameId frame_id,
-      std::unique_ptr<GeometryInstance<T>> geometry);
+      std::unique_ptr<GeometryInstance> geometry);
 
   /** Registers a GeometryInstance with the state. Rather than hanging directly
    from a _frame_, the instance hangs on another geometry instance. The input
@@ -327,7 +327,7 @@ class GeometryState {
                             3. the `geometry` is equal to `nullptr`. */
   GeometryId RegisterGeometryWithParent(
       SourceId source_id, GeometryId geometry_id,
-      std::unique_ptr<GeometryInstance<T>> geometry);
+      std::unique_ptr<GeometryInstance> geometry);
 
   /** Registers a GeometryInstance with the state as anchored geometry. This
    registers geometry which "hangs" from the world frame and never moves.
@@ -343,7 +343,7 @@ class GeometryState {
                              source. */
   GeometryId RegisterAnchoredGeometry(
       SourceId source_id,
-      std::unique_ptr<GeometryInstance<T>> geometry);
+      std::unique_ptr<GeometryInstance> geometry);
 
   //@}
 
@@ -437,7 +437,7 @@ class GeometryState {
   // Throws an exception as documented in RegisterGeometry().
   GeometryId RegisterGeometryHelper(
       SourceId source_id, FrameId frame_id,
-      std::unique_ptr<GeometryInstance<T>> geometry,
+      std::unique_ptr<GeometryInstance> geometry,
       optional<GeometryId> parent = {});
 
   // The origin from where an invocation of RemoveFrameUnchecked was called.
@@ -569,7 +569,7 @@ class GeometryState {
   // vector at that engine index. Because the geometries are rigidly fixed to
   // frames, these values are a property of the topology and _not_ the time-
   // dependent frame kinematics.
-  std::vector<Isometry3<T>> X_FG_;
+  std::vector<Isometry3<double>> X_FG_;
 
   // The pose of each geometry relative to the *world* frame. The invariant
   // X_FG_.size() == X_WG_.size() should always be true. This vector contains

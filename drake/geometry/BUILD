@@ -49,6 +49,7 @@ drake_cc_library(
         ":geometry_query_results",
         "//drake/common",
         "//drake/common:copyable_unique_ptr",
+        "//drake/common:symbolic",
     ],
 )
 
@@ -125,6 +126,7 @@ drake_cc_library(
         ":internal_frame",
         ":internal_geometry",
         "//drake/common",
+        "//drake/common:symbolic",
         "//drake/common:unused",
     ],
 )

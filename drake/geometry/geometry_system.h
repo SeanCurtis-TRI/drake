@@ -294,7 +294,7 @@ class GeometrySystem : public systems::LeafSystem<T> {
                              4. a context has been allocated. */
   GeometryId RegisterGeometry(SourceId source_id,
                               FrameId frame_id,
-                              std::unique_ptr<GeometryInstance<T>> geometry);
+                              std::unique_ptr<GeometryInstance> geometry);
 
   /** Initialization registration of a `geometry` instance as "hanging" from the
    specified geometry's frame `F`, with the given pose relative to that frame.
@@ -317,7 +317,7 @@ class GeometrySystem : public systems::LeafSystem<T> {
                             4. a context has been allocated. */
   GeometryId RegisterGeometry(SourceId source_id,
                               GeometryId geometry_id,
-                              std::unique_ptr<GeometryInstance<T>> geometry);
+                              std::unique_ptr<GeometryInstance> geometry);
 
   /** Initialization registration of  the given geometry to the world as
    anchored geometry.
@@ -329,7 +329,7 @@ class GeometrySystem : public systems::LeafSystem<T> {
                              source or a context has been allocated. */
   GeometryId RegisterAnchoredGeometry(
       SourceId source_id,
-      std::unique_ptr<GeometryInstance<T>> geometry);
+      std::unique_ptr<GeometryInstance> geometry);
 
   /** Initialization clearing of all the registered frames and geometries from
    this source, but leaves the source active for future registration of frames

@@ -18,7 +18,7 @@ namespace geometry {
 
 // Forward declarations.
 template <typename T> class GeometryContext;
-template <typename T> class GeometryInstance;
+class GeometryInstance;
 template <typename T> class GeometryState;
 template <typename T> struct NearestPair;
 template <typename T> struct PointProximity;
@@ -250,7 +250,7 @@ class GeometryWorld {
   GeometryId RegisterGeometry(GeometryContext<T>* context,
                               SourceId source_id,
                               FrameId frame_id,
-                              std::unique_ptr<GeometryInstance<T>> geometry);
+                              std::unique_ptr<GeometryInstance> geometry);
 
   /**
    Declares a `geometry` instance as "hanging" from the specified geometry's
@@ -275,7 +275,7 @@ class GeometryWorld {
   GeometryId RegisterGeometry(GeometryContext<T>* context,
                               SourceId source_id,
                               GeometryId geometry_id,
-                              std::unique_ptr<GeometryInstance<T>> geometry);
+                              std::unique_ptr<GeometryInstance> geometry);
 
   /**
    Adds the given geometry to the world as anchored geometry.
@@ -288,7 +288,7 @@ class GeometryWorld {
                              source. */
   GeometryId RegisterAnchoredGeometry(
       GeometryContext<T>* context, SourceId source_id,
-      std::unique_ptr<GeometryInstance<T>> geometry);
+      std::unique_ptr<GeometryInstance> geometry);
 
   /** @} */
 

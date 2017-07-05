@@ -6,6 +6,7 @@
 #include <string>
 #include <utility>
 
+#include "drake/common/symbolic_expression.h"
 #include "drake/common/unused.h"
 #include "drake/geometry/geometry_engine_stub.h"
 #include "drake/geometry/geometry_frame.h"
@@ -98,14 +99,14 @@ GeometryState<T>::GeometryState()
       geometry_engine_(make_unique<GeometryEngineStub<T>>()) {}
 
 template <typename T>
-Isometry3<T> GeometryState<T>::GetPoseInFrame(GeometryId geometry_id) const {
+Isometry3<double> GeometryState<T>::GetPoseInFrame(GeometryId geometry_id) const {
   auto& geometry = GetValueOrThrow(geometry_id, &geometries_);
   return X_FG_[geometry.get_engine_index()];
 }
 
 template <typename T>
-Isometry3<T> GeometryState<T>::GetPoseInParent(GeometryId geometry_id) const {
-  Isometry3<T> X_FG = GetPoseInFrame(geometry_id);
+Isometry3<double> GeometryState<T>::GetPoseInParent(GeometryId geometry_id) const {
+  Isometry3<double> X_FG = GetPoseInFrame(geometry_id);
   if (optional<GeometryId> parent_id = FindParentGeometry(geometry_id)) {
     GeometryIndex parent_index = geometries_.at(*parent_id).get_engine_index();
     const Isometry3<double>& X_FP = X_FG_[parent_index];
@@ -224,14 +225,14 @@ FrameId GeometryState<T>::RegisterFrame(SourceId source_id, FrameId parent_id,
 template <typename T>
 GeometryId GeometryState<T>::RegisterGeometry(
     SourceId source_id, FrameId frame_id,
-    std::unique_ptr<GeometryInstance<T>> geometry) {
+    std::unique_ptr<GeometryInstance> geometry) {
   return RegisterGeometryHelper(source_id, frame_id, move(geometry));
 }
 
 template <typename T>
 GeometryId GeometryState<T>::RegisterGeometryWithParent(
     SourceId source_id, GeometryId geometry_id,
-    std::unique_ptr<GeometryInstance<T>> geometry) {
+    std::unique_ptr<GeometryInstance> geometry) {
   // The error condition is that geometry_id doesn't belong to source_id or
   // if the source isn't active.  This is decomposed into two equivalent tests
   // (implicitly):
@@ -251,7 +252,7 @@ GeometryId GeometryState<T>::RegisterGeometryWithParent(
       GetMutableValueOrThrow(geometry_id, &geometries_);
   FrameId frame_id = parent_geometry.get_frame_id();
   // Transform pose relative to geometry, to pose relative to frame.
-  Isometry3<T> X_FG =
+  Isometry3<double> X_FG =
       X_FG_[parent_geometry.get_engine_index()] * geometry->get_pose();
   geometry->set_pose(X_FG);
   // Failure condition 2.
@@ -264,7 +265,7 @@ GeometryId GeometryState<T>::RegisterGeometryWithParent(
 template <typename T>
 GeometryId GeometryState<T>::RegisterAnchoredGeometry(
     SourceId source_id,
-    std::unique_ptr<GeometryInstance<T>> geometry) {
+    std::unique_ptr<GeometryInstance> geometry) {
   using std::to_string;
   if (geometry == nullptr) {
     throw std::logic_error(
@@ -419,7 +420,7 @@ SourceId GeometryState<T>::get_source_id(FrameId frame_id) const {
 template <typename T>
 GeometryId GeometryState<T>::RegisterGeometryHelper(
     SourceId source_id, FrameId frame_id,
-    std::unique_ptr<GeometryInstance<T>> geometry,
+    std::unique_ptr<GeometryInstance> geometry,
     optional<GeometryId> parent) {
   using std::to_string;
   if (geometry == nullptr) {
@@ -561,7 +562,9 @@ void GeometryState<T>::UpdatePosesRecursively(
   for (auto child_id : frame.get_child_geometries()) {
     auto& child_geometry = geometries_[child_id];
     auto child_index = child_geometry.get_engine_index();
-    X_WG_[child_index] = X_WF * X_FG_[child_index];
+    // TODO(SeanCurtis-TRI): Remove the matrix() invocation after Soon-ho gets
+    // a supportin PR in.
+    X_WG_[child_index] = X_WF.matrix() * X_FG_[child_index].matrix();
   }
 
   // Update each child frame.
@@ -573,6 +576,7 @@ void GeometryState<T>::UpdatePosesRecursively(
 
 // Explicitly instantiates on the most common scalar types.
 template class GeometryState<double>;
+template class GeometryState<symbolic::Expression>;
 
 }  // namespace geometry
 }  // namespace drake

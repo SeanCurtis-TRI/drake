@@ -75,7 +75,8 @@ class HalfSpace final : public Shape {
 
   /** Reports the signed distance from the given point `p` to the half-spaces
    plane boundary. Positive values indicate *outside* the half-space. */
-  double get_signed_distance(const Vector3<double>& p) const {
+  template <typename T>
+  T get_signed_distance(const Vector3<T>& p) const {
     return normal_.dot(p) + d_;
   }
 

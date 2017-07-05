@@ -4,6 +4,8 @@
 #include <memory>
 #include <utility>
 
+#include "drake/common/symbolic_expression.h"
+#include "drake/common/symbolic_formula.h"
 #include "drake/geometry/geometry_query_inputs.h"
 
 namespace drake {
@@ -378,7 +380,7 @@ optional<Contact<T>> GeometryEngineStub<T>::CollideHalfSpace(
     const Sphere& sphere, const Vector3<T>& p_WA,
     const HalfSpace& plane) const {
   using std::abs;
-  double signed_dist = plane.get_signed_distance(p_WA) - sphere.get_radius();
+  T signed_dist = plane.get_signed_distance(p_WA) - sphere.get_radius();
   if (signed_dist < 0) {
     Contact<T> contact;
     contact.depth = -signed_dist;
@@ -396,6 +398,7 @@ optional<Contact<T>> GeometryEngineStub<T>::CollideHalfSpace(
 
 // Explicitly instantiates on the most common scalar types.
 template class GeometryEngineStub<double>;
+template class GeometryEngineStub<symbolic::Expression>;
 
 }  // namespace geometry
 }  // namespace drake

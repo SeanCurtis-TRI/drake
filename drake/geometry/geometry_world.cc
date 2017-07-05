@@ -4,6 +4,7 @@
 #include <utility>
 #include <vector>
 
+#include "drake/common/symbolic_expression.h"
 #include "drake/geometry/geometry_context.h"
 #include "drake/geometry/geometry_instance.h"
 #include "drake/geometry/geometry_query_inputs.h"
@@ -72,7 +73,7 @@ FrameId GeometryWorld<T>::RegisterFrame(GeometryContext<T>* context,
 template <typename T>
 GeometryId GeometryWorld<T>::RegisterGeometry(
     GeometryContext<T>* context, SourceId source_id, FrameId frame_id,
-    unique_ptr<GeometryInstance<T>> geometry) {
+    unique_ptr<GeometryInstance> geometry) {
   return context->get_mutable_geometry_state().RegisterGeometry(
       source_id, frame_id, move(geometry));
 }
@@ -80,7 +81,7 @@ GeometryId GeometryWorld<T>::RegisterGeometry(
 template <typename T>
 GeometryId GeometryWorld<T>::RegisterGeometry(
     GeometryContext<T>* context, SourceId source_id, GeometryId geometry_id,
-    unique_ptr<GeometryInstance<T>> geometry) {
+    unique_ptr<GeometryInstance> geometry) {
   return context->get_mutable_geometry_state().RegisterGeometryWithParent(
       source_id, geometry_id, std::move(geometry));
 }
@@ -88,7 +89,7 @@ GeometryId GeometryWorld<T>::RegisterGeometry(
 template <typename T>
 GeometryId GeometryWorld<T>::RegisterAnchoredGeometry(
     GeometryContext<T>* context, SourceId source_id,
-    unique_ptr<GeometryInstance<T>> geometry) {
+    unique_ptr<GeometryInstance> geometry) {
   return context->get_mutable_geometry_state().RegisterAnchoredGeometry(
       source_id, std::move(geometry));
 }
@@ -202,6 +203,7 @@ void GeometryWorld<T>::AssertValidSource(const GeometryState<T>& state,
 
 // Explicitly instantiates on the most common scalar types.
 template class GeometryWorld<double>;
+template class GeometryWorld<symbolic::Expression>;
 
 }  // namespace geometry
 }  // namespace drake

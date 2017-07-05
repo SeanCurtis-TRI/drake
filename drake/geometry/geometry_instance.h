@@ -15,10 +15,11 @@ namespace geometry {
 /**
  A geometry instance combines a geometry definition (i.e., a shape of some
  sort), a pose (relative to a parent frame), material information, and an
- opaque collection of metadata.
-
- @tparam T The underlying scalar type. Must be a valid Eigen scalar. */
-template <typename T>
+ opaque collection of metadata. */
+// TODO(SeanCurtis-TRI): Determine what the right templatization of this is.
+// The pose in the parent frame is a constant. However, the materials it is
+// given may not be. So, move the template to the methods that use/get
+// material types?
 class GeometryInstance {
  public:
   DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(GeometryInstance)
@@ -26,20 +27,20 @@ class GeometryInstance {
   /** Constructor.
    @param X_PG   The pose of this geometry (`G`) in its parent's frame (`P`).
    @param shape  The underlying shape for this geometry instance. */
-  GeometryInstance(const Isometry3<T>& X_PG, std::unique_ptr<Shape> shape);
+  GeometryInstance(const Isometry3<double>& X_PG, std::unique_ptr<Shape> shape);
 
   /** Constructor.
    @param X_PG   The pose of this geometry (`G`) in its parent's frame (`P`).
    @param shape  The underlying shape for this geometry instance.
    @param vis_material The visual material to apply to this geometry. */
-  GeometryInstance(const Isometry3<T>& X_PG, std::unique_ptr<Shape> shape,
+  GeometryInstance(const Isometry3<double>& X_PG, std::unique_ptr<Shape> shape,
                    const VisualMaterial& vis_material);
 
   /** Returns the pose of the instance relative to its parent _frame_. */
-  const Isometry3<T>& get_pose() const { return X_FG_; }
+  const Isometry3<double>& get_pose() const { return X_FG_; }
 
   /** Sets the pose relative to the parent _frame_ `X_PG` for this instance. */
-  void set_pose(const Isometry3<T>& X_PG) { X_FG_ = X_PG; }
+  void set_pose(const Isometry3<double>& X_PG) { X_FG_ = X_PG; }
 
   void set_visual_material(const VisualMaterial& material) {
     visual_material_ = material;
@@ -52,7 +53,7 @@ class GeometryInstance {
  private:
   // The pose of the geometry relative to the source frame it ultimately hangs
   // from.
-  Isometry3<T> X_FG_;
+  Isometry3<double> X_FG_;
 
   // The shape associated with this instance.
   copyable_unique_ptr<Shape> shape_;

@@ -29,7 +29,7 @@ struct GeometryIndexPair {
 
 // forward declaration
 class Geometry;
-template <typename T> class GeometryInstance;
+class GeometryInstance;
 
 
 /**
