@@ -48,62 +48,13 @@ GeometrySystem<T>::~GeometrySystem() {}
 template <typename T>
 SourceId GeometrySystem<T>::RegisterSource(const std::string &name) {
   if (!context_allocated_) {
-    return initial_state_->RegisterNewSource(name);
+    SourceId source_id = initial_state_->RegisterNewSource(name);
+    AddPortsForSource(source_id);
+    return source_id;
   } else {
     throw std::logic_error(
         "A context has been created for this system. Adding new geometry "
         "sources is no longer possible.");
-  }
-}
-
-template <typename T>
-const InputPortDescriptor<T>&
-GeometrySystem<T>::get_port_for_source_id(
-    SourceId id, GeometrySystem<T>::PortType port_type) {
-  using std::to_string;
-  SourcePorts* source_ports;
-
-  // Access port data based on the source id -- catching the possibility of an
-  // invalid id.
-  auto itr = input_source_ids_.find(id);
-  if (itr != input_source_ids_.end()) {
-    source_ports = &(itr->second);
-  } else {
-    if (!context_allocated_) {
-      if (initial_state_->source_is_active(id)) {
-        source_ports = &input_source_ids_[id];
-      } else {
-        throw std::logic_error("Can't create input port for unknown source id: "
-                               + to_string(id) + ".");
-      }
-    } else {
-      throw std::logic_error(
-          "Can't create new input ports after context has been allocated.");
-    }
-  }
-
-  // Helper method to return the input port (creating it as necessary).
-  auto get_port = [this](int* port_id) -> const InputPortDescriptor<T>& {
-    if (*port_id != -1) {
-      return this->get_input_port(*port_id);
-    } else {
-      const auto &input_port = this->DeclareAbstractInputPort();
-      *port_id = input_port.get_index();
-      return input_port;
-    }
-  };
-
-  // Get the port based on requested type.
-  switch (port_type) {
-    case ID: {
-      return get_port(&source_ports->id_port);
-    }
-    case POSE: {
-      return get_port(&source_ports->pose_port);
-    }
-    case VELOCITY: {
-      return get_port(&source_ports->velocity_port);
-    }
   }
 }
 
@@ -214,6 +165,31 @@ bool GeometrySystem<T>::ComputeContact(const QueryHandle<T>& handle,
 }
 
 template <typename T>
+GeometrySystem<symbolic::Expression>* GeometrySystem<T>::DoToSymbolic()
+    const {
+  auto result = new GeometrySystem<symbolic::Expression>();
+  DRAKE_DEMAND(result->get_num_input_ports() == 0);
+  // We have a fixed *three* input ports per registered source. We can simply
+  // add three ports per source id, and then copy the port assignments.
+  for (size_t i = 0; i < input_source_ids_.size(); ++i) {
+    result->DeclareAbstractInputPort();
+    result->DeclareAbstractInputPort();
+    result->DeclareAbstractInputPort();
+  }
+  // Now copy the source id -> port index mapping from the source. This
+  // guarantees the same *ordering* in as simple a manner possible.
+  for (const auto& pair : input_source_ids_) {
+    GeometrySystem<symbolic::Expression>::SourcePorts ports;
+    ports.id_port = pair.second.id_port;
+    ports.pose_port = pair.second.pose_port;
+    ports.velocity_port = pair.second.velocity_port;
+    result->input_source_ids_[pair.first] = ports;
+  }
+  // TODO(SeanCurtis-TRI): How to handle the initial_state_ member?
+  return result;
+}
+
+template <typename T>
 QueryHandle<T> GeometrySystem<T>::MakeQueryHandle(
     const systems::Context<T>& context) const {
   const GeometryContext<T>* geom_context =
@@ -291,41 +267,30 @@ const GeometryContext<T>& GeometrySystem<T>::FullPoseUpdate(
     if (pair.second.size() > 0) {
       SourceId source_id = pair.first;
       const auto itr = input_source_ids_.find(source_id);
-      if (itr != input_source_ids_.end()) {
-        const int id_port = itr->second.id_port;
-        if (id_port >= 0) {
-          const FrameIdVector& ids =
-              this->template EvalAbstractInput(g_context, id_port)
-                  ->template GetValue<FrameIdVector>();
-          state.ValidateFrameIds(ids);
-          const int pose_port = itr->second.pose_port;
-          if (pose_port >= 0) {
-            const FramePoseSet<T>& poses =
-                this->template EvalAbstractInput(g_context, pose_port)
-                    ->template GetValue<FramePoseSet<T>>();
-            mutable_state.SetFramePoses(ids, poses);
-          } else {
-            throw std::logic_error(
-                "Source " + to_string(source_id) + " has registered frames "
-                "but does not provide pose values on the input port.");
-          }
-        } else {
-          throw std::logic_error(
-              "Source " + to_string(source_id) + " has registered frames "
-              "but does not provide id values on the input port.");
-        }
-      } else {
-        throw std::logic_error(
-            "Source " + to_string(source_id) + " has registered frames "
-                "but does not provide values on any input port.");
-      }
+      // Source registration must imply the existence of ports.
+      DRAKE_ASSERT(itr != input_source_ids_.end());
+
+      const int id_port = itr->second.id_port;
+      // Source registration implies *valid* port ids.
+      DRAKE_ASSERT(id_port >= 0);
+
+      const FrameIdVector& ids =
+          this->template EvalAbstractInput(g_context, id_port)
+              ->template GetValue<FrameIdVector>();
+      state.ValidateFrameIds(ids);
+      const int pose_port = itr->second.pose_port;
+      DRAKE_ASSERT(pose_port >= 0);
+      const FramePoseSet<T>& poses =
+          this->template EvalAbstractInput(g_context, pose_port)
+              ->template GetValue<FramePoseSet<T>>();
+      mutable_state.SetFramePoses(ids, poses);
     }
   }
 
   // TODO(SeanCurtis-TRI): This should be part of responding to dirty pose
   // inputs.
   mutable_state.FinalizePoseUpdate();
-  // TODO(SeanCurtis-TRI): Add velocity as appropriate.
+  // TODO(SeanCurtis-TRI): Add velocity/acceleration as appropriate.
   return g_context;
 }
 
@@ -341,6 +306,54 @@ void GeometrySystem<T>::ThrowIfContextAllocated() const {
   if (context_allocated_)
     throw std::logic_error("Operation invalid; a context has already been "
                            "allocated.");
+}
+
+template <typename T>
+void GeometrySystem<T>::AddPortsForSource(SourceId source_id) {
+  if (input_source_ids_.find(source_id) == input_source_ids_.end()) {
+    SourcePorts port_ids;
+    port_ids.id_port = this->DeclareAbstractInputPort().get_index();
+    port_ids.pose_port = this->DeclareAbstractInputPort().get_index();
+    port_ids.velocity_port = this->DeclareAbstractInputPort().get_index();
+    input_source_ids_[source_id] = port_ids;
+  }
+}
+
+template <typename T>
+const InputPortDescriptor<T>&
+GeometrySystem<T>::get_port_for_source_id(
+    SourceId id, GeometrySystem<T>::PortType port_type) {
+  using std::to_string;
+  SourcePorts* source_ports;
+
+  // Access port data based on the source id -- catching the possibility of an
+  // invalid id.
+  auto itr = input_source_ids_.find(id);
+  if (itr != input_source_ids_.end()) {
+    source_ports = &(itr->second);
+  } else {
+    throw std::logic_error("No input ports for the unrecognized source id: "
+                           + to_string(id) + ".");
+  }
+
+  // Helper method to return the input port (creating it as necessary).
+  auto get_port = [this](int port_id) -> const InputPortDescriptor<T>& {
+    DRAKE_ASSERT(port_id >= 0);
+    return this->get_input_port(port_id);
+  };
+
+  // Get the port based on requested type.
+  switch (port_type) {
+    case ID: {
+      return get_port(source_ports->id_port);
+    }
+    case POSE: {
+      return get_port(source_ports->pose_port);
+    }
+    case VELOCITY: {
+      return get_port(source_ports->velocity_port);
+    }
+  }
 }
 
 // Explicitly instantiates on the most common scalar types.

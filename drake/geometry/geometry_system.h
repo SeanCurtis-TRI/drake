@@ -209,22 +209,19 @@ class GeometrySystem : public systems::LeafSystem<T> {
   /** Given a valid source identifier, returns an input frame id port associated
    with that `id`. This port is used to broadcast frame id order to interpret
    the poses and velocities coming in on other ports.
-   @throws  std::logic_error if the source_id is _not_ recognized, or if the
-   context has already been allocated.. */
+   @throws  std::logic_error if the source_id is _not_ recognized. */
   const systems::InputPortDescriptor<T>& get_source_frame_id_port(SourceId id);
 
   /** Given a valid source identifier, returns an input _pose_ port associated
    with that id. This port is used to communicate _pose_ data for registered
    frames.
-   @throws  std::logic_error if the source_id is _not_ recognized, or if the
-   context has already been allocated.. */
+   @throws  std::logic_error if the source_id is _not_ recognized. */
   const systems::InputPortDescriptor<T>& get_source_pose_port(SourceId id);
 
   /** Given a valid source identifier, returns an input _velocity_ port
    associated with that id. This port is used to communicate _velocity_ data for
    registered frames.
-   @throws  std::logic_error if the source_id is _not_ recognized, or if the
-   context has already been allocated.. */
+   @throws  std::logic_error if the source_id is _not_ recognized. */
   const systems::InputPortDescriptor<T>& get_source_velocity_port(SourceId id);
 
   /** Returns the output port which produces the PoseBundle for LCM
@@ -417,7 +414,17 @@ class GeometrySystem : public systems::LeafSystem<T> {
 
   //@}
 
+ protected:
+
+  /** Overrides System::DoToSymbolic(). */
+  GeometrySystem<symbolic::Expression>* DoToSymbolic() const override;
+
  private:
+  // Geometry systems of arbitrary scalar types are friends of each other to
+  // facilitate transmogrification.
+  template <typename Other>
+  friend class GeometrySystem;
+
   // Constructs a QueryHandle for OutputPort allocation.
   QueryHandle<T> MakeQueryHandle(const systems::Context<T>& context) const;
 
@@ -452,6 +459,21 @@ class GeometrySystem : public systems::LeafSystem<T> {
   // allocated by this system.
   void ThrowIfContextAllocated() const;
 
+  // Given a registered source, adds the input ports for the source. Invoking
+  // this repeatedly on the same source_id will only add ports once.
+  void AddPortsForSource(SourceId source_id);
+
+  // Enumeration of the type of port to extract.
+  enum PortType {
+    ID,
+    POSE,
+    VELOCITY
+  };
+
+  // For the given source id, reports the id of the existing port of port_type.
+  const systems::InputPortDescriptor<T>& get_port_for_source_id(
+      SourceId id, PortType port_type);
+
   // The underlying representation of the world's geometry.
   GeometryWorld<T> geometry_world_;
 
@@ -464,19 +486,7 @@ class GeometrySystem : public systems::LeafSystem<T> {
   GeometryState<T>* initial_state_;
   mutable bool context_allocated_{false};
 
-  // Enumeration of the type of port to extract.
-  enum PortType {
-    ID,
-    POSE,
-    VELOCITY
-  };
-
-  // For the given source id, reports the id of the existing port of port_type
-  // (creating it as necessary).
-  const systems::InputPortDescriptor<T>& get_port_for_source_id(
-      SourceId id, PortType port_type);
-
-  // A struct that stores the port indices for a given source.
+  // A struct that stores the port indices for a given geometry source.
   // TODO(SeanCurtis-TRI): Consider making these Index values. This would
   // require relying on the default value.
   struct SourcePorts {
