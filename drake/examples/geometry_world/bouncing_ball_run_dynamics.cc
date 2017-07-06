@@ -102,11 +102,11 @@ int do_main() {
   systems::Simulator<double> simulator(*diagram);
   auto init_ball = [&](BouncingBallPlant<double>* system,
                              double z, double zdot) {
-    systems::Context<double>* ball_context =
-        diagram->GetMutableSubsystemContext(
-            simulator.get_mutable_context(), system);
-    system->set_z(ball_context, z);
-    system->set_zdot(ball_context, zdot);
+    systems::Context<double>& ball_context =
+        diagram->GetMutableSubsystemContext(*system,
+            simulator.get_mutable_context());
+    system->set_z(&ball_context, z);
+    system->set_zdot(&ball_context, zdot);
   };
   init_ball(bouncing_ball, 0.3, 0.);
   init_ball(bouncing_ball2, 0.3, 0.3);
