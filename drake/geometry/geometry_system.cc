@@ -18,6 +18,7 @@ using systems::Context;
 using systems::InputPortDescriptor;
 using systems::LeafContext;
 using systems::LeafSystem;
+using systems::SparsityMatrix;
 using systems::SystemOutput;
 using systems::rendering::PoseBundle;
 using std::vector;
@@ -211,6 +212,19 @@ bool GeometrySystem<T>::ComputeContact(const QueryHandle<T>& handle,
                                        vector<Contact<T>>* contacts) const {
   const GeometryContext<T>& g_context = FullPoseUpdate(handle);
   return geometry_world_.ComputeContact(g_context, contacts);
+}
+
+
+template <typename T>
+bool GeometrySystem<T>::DoHasDirectFeedthrough(const SparsityMatrix* sparsity,
+                                               int input_port,
+                                               int output_port) const {
+  DRAKE_ASSERT(input_port >= 0);
+  DRAKE_ASSERT(input_port < this->get_num_input_ports());
+  DRAKE_ASSERT(output_port >= 0);
+  DRAKE_ASSERT(output_port < this->get_num_output_ports());
+  // Only has direct feedthrough to the pose bundle output.
+  return output_port == bundle_port_index_;
 }
 
 template <typename T>
