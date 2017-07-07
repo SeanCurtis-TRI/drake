@@ -437,6 +437,9 @@ class GeometrySystem : public systems::LeafSystem<T> {
                               int output_port) const override;
 
  private:
+  // Friend class to facilitate testing.
+  friend class GeometrySystemTester;
+
   // Constructs a QueryHandle for OutputPort allocation.
   QueryHandle<T> MakeQueryHandle(const systems::Context<T>& context) const;
 

@@ -40,6 +40,7 @@ class QueryHandle {
  private:
   // Allow GeometrySystem unique access to getting the context back out.
   friend class GeometrySystem<T>;
+  friend class QueryHandleTester;
 
   // Only the GeometrySystem<T> can create this class.
   QueryHandle(const GeometryContext<T>* context) : context_(context) {}

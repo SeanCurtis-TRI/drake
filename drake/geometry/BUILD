@@ -286,6 +286,7 @@ drake_cc_googletest(
 drake_cc_googletest(
     name = "geometry_system_test",
     deps = [
+        ":expect_error_message",
         ":geometry_system",
         ":geometry_visualization",
     ],
