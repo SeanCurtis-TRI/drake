@@ -186,8 +186,17 @@ class GeometrySystem : public systems::LeafSystem<T> {
 
   /** @name       Port management
    Access to GeometrySystem's input/output ports. This includes registration
-   of geometry sources because the input ports are mapped directly to registered
-   geometry sources.   */
+   of geometry sources because the input ports are mapped to registered
+   geometry sources.
+
+   Registration of a source doesn't automatically create all of the input ports
+   for the source. Input ports are allocated on a per-request basis. However,
+   a source that registers frames and geometries _must_ connect an output to
+   the inputs associated with that source. Failure to do so will be treated as
+   a runtime error during the evaluation of GeometrySystem. GeometrySystem will
+   detect that frames have been registered but no values have been provided via
+   the appropriate input port.
+   */
   //@{
 
   /** Registers a new source to the geometry system (see GeometryWorld for the
@@ -198,11 +207,12 @@ class GeometrySystem : public systems::LeafSystem<T> {
    This source id can be used to register arbitrary _anchored_ geometry. But if
    dynamic geometry is registered (via RegisterGeometry/RegisterFrame), then
    the context-dependent pose values must be provided on an input port.
-   See get_port_for_source_id().
+   See get_source_frame_id_port().
    @param name          The optional name of the source. If none is provided
-                        (or the empty string) it will be defined by
+                        (or the empty string) a unique name will be defined by
                         GeometryState's logic.
-   @throws  std::logic_error if a context has been allocated for this system.
+   @throws  std::logic_error if a context has already been allocated for this
+                             system.
    @see GeometryState::RegisterNewSource() */
   SourceId RegisterSource(const std::string &name = "");
 

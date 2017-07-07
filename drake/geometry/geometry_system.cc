@@ -49,7 +49,11 @@ GeometrySystem<T>::~GeometrySystem() {}
 template <typename T>
 SourceId GeometrySystem<T>::RegisterSource(const std::string &name) {
   if (!context_allocated_) {
-    return initial_state_->RegisterNewSource(name);
+    SourceId source_id = initial_state_->RegisterNewSource(name);
+    // Instantiates a default-initialized SourcePorts instance for the new
+    // source id.
+    input_source_ids_[source_id];
+    return source_id;
   } else {
     throw std::logic_error(
         "A context has been created for this system. Adding new geometry "
@@ -70,17 +74,8 @@ GeometrySystem<T>::get_port_for_source_id(
   if (itr != input_source_ids_.end()) {
     source_ports = &(itr->second);
   } else {
-    if (!context_allocated_) {
-      if (initial_state_->source_is_active(id)) {
-        source_ports = &input_source_ids_[id];
-      } else {
-        throw std::logic_error("Can't create input port for unknown source id: "
-                               + to_string(id) + ".");
-      }
-    } else {
-      throw std::logic_error(
-          "Can't create new input ports after context has been allocated.");
-    }
+    throw std::logic_error("Can't acquire input port for unknown source id: "
+                           + to_string(id) + ".");
   }
 
   // Helper method to return the input port (creating it as necessary).
@@ -189,6 +184,7 @@ void GeometrySystem<T>::RemoveGeometry(SourceId source_id,
 template <typename T>
 const std::string& GeometrySystem<T>::get_source_name(
     const QueryHandle<T>& handle, SourceId id) const {
+  DRAKE_DEMAND(handle.context_);
   const GeometryContext<T>& context = *handle.context_;
   return geometry_world_.get_source_name(context, id);
 }
@@ -196,6 +192,7 @@ const std::string& GeometrySystem<T>::get_source_name(
 template <typename T>
 bool GeometrySystem<T>::SourceIsRegistered(const QueryHandle<T>& handle,
                                            SourceId id) const {
+  DRAKE_DEMAND(handle.context_);
   const GeometryContext<T>& context = *handle.context_;
   return geometry_world_.SourceIsRegistered(context, id);
 }
@@ -203,6 +200,7 @@ bool GeometrySystem<T>::SourceIsRegistered(const QueryHandle<T>& handle,
 template <typename T>
 FrameId GeometrySystem<T>::GetFrameId(
     const QueryHandle<T>& handle, GeometryId geometry_id) const {
+  DRAKE_DEMAND(handle.context_);
   const GeometryContext<T>& context = *handle.context_;
   return context.get_geometry_state().GetFrameId(geometry_id);
 }
@@ -210,13 +208,14 @@ FrameId GeometrySystem<T>::GetFrameId(
 template <typename T>
 bool GeometrySystem<T>::ComputeContact(const QueryHandle<T>& handle,
                                        vector<Contact<T>>* contacts) const {
+  DRAKE_DEMAND(handle.context_);
   const GeometryContext<T>& g_context = FullPoseUpdate(handle);
   return geometry_world_.ComputeContact(g_context, contacts);
 }
 
 
 template <typename T>
-bool GeometrySystem<T>::DoHasDirectFeedthrough(const SparsityMatrix* sparsity,
+bool GeometrySystem<T>::DoHasDirectFeedthrough(const SparsityMatrix*,
                                                int input_port,
                                                int output_port) const {
   DRAKE_ASSERT(input_port >= 0);
@@ -305,33 +304,29 @@ const GeometryContext<T>& GeometrySystem<T>::FullPoseUpdate(
     if (pair.second.size() > 0) {
       SourceId source_id = pair.first;
       const auto itr = input_source_ids_.find(source_id);
-      if (itr != input_source_ids_.end()) {
-        const int id_port = itr->second.id_port;
-        if (id_port >= 0) {
-          const FrameIdVector& ids =
-              this->template EvalAbstractInput(g_context, id_port)
-                  ->template GetValue<FrameIdVector>();
-          state.ValidateFrameIds(ids);
-          const int pose_port = itr->second.pose_port;
-          if (pose_port >= 0) {
-            const FramePoseSet<T>& poses =
-                this->template EvalAbstractInput(g_context, pose_port)
-                    ->template GetValue<FramePoseSet<T>>();
-            mutable_state.SetFramePoses(ids, poses);
-          } else {
-            throw std::logic_error(
-                "Source " + to_string(source_id) + " has registered frames "
-                "but does not provide pose values on the input port.");
-          }
+      DRAKE_ASSERT(itr != input_source_ids_.end());
+      const int id_port = itr->second.id_port;
+      if (id_port >= 0) {
+        const FrameIdVector& ids =
+            this->template EvalAbstractInput(g_context, id_port)
+                ->template GetValue<FrameIdVector>();
+        // TODO(SeanCurtis-TRI): Consider only doing this in debug builds.
+        state.ValidateFrameIds(ids);
+        const int pose_port = itr->second.pose_port;
+        if (pose_port >= 0) {
+          const FramePoseSet<T>& poses =
+              this->template EvalAbstractInput(g_context, pose_port)
+                  ->template GetValue<FramePoseSet<T>>();
+          mutable_state.SetFramePoses(ids, poses);
         } else {
           throw std::logic_error(
               "Source " + to_string(source_id) + " has registered frames "
-              "but does not provide id values on the input port.");
+              "but does not provide pose values on the input port.");
         }
       } else {
         throw std::logic_error(
             "Source " + to_string(source_id) + " has registered frames "
-                "but does not provide values on any input port.");
+            "but does not provide id values on the input port.");
       }
     }
   }
