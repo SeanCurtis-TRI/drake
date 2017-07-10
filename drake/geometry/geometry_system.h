@@ -13,8 +13,6 @@
 #include "drake/systems/rendering/pose_bundle.h"
 
 namespace drake {
-
-namespace systems { template <typename T> class DiagramContext; }
 namespace geometry {
 
 template <typename T> class GeometryContext;
@@ -76,12 +74,12 @@ template <typename T> class GeometryContext;
  It provides a "ticket" for downstream LeafSystem instances to perform geometric
  queries on the %GeometrySystem. To perform geometric queries, downstream
  LeafSystem instances must have a pointer to the %GeometrySystem, and connect
- an input port to this output port. The `const QueryHandle*` returned by
- evaluating the input port is provided as an argument to query methods defined
- on the %GeometrySystem pointer.
+ an input port to this output port. The `const QueryHandle` reference returned
+ by evaluating the input port is provided as an argument to query methods
+ defined on the %GeometrySystem pointer.
 
  __lcm visualization port__: An abstract-valued port containing an instance of
- PoseBundle. This is a convenience port designed to feed LCM messages to
+ PoseBundle. This is a convenience port designed to feed LCM update messages to
  director for the purpose of visualizing the state world's geometry. Additional
  uses of this port are strongly discouraged; instead, use an appropriate
  geometric query to obtain the state of the world's geometry.
@@ -104,8 +102,8 @@ template <typename T> class GeometryContext;
 
  With those two requirements satisfied, a LeafSystem can perform geometry
  queries by:
-   1. Evaluate the QueryHandle input port.
-   2. Pass the returned handle into the appropriate query method on
+   1. evaluating the QueryHandle input port, and
+   2. passing the returned handle into the appropriate query method on
    GeometrySystem (e.g., GeometrySystem::ComputeContact()) and then process
    the results.
 
@@ -121,15 +119,15 @@ template <typename T> class GeometryContext;
 
  _Registering Geometry_
 
- %GeometrySystem cannot know what belongs in the shared geometry world. It must
+ %GeometrySystem cannot know what belongs in the shared world. It must
  be informed of what the world contains by other systems. Defining the geometry
  in the world and informing the %GeometrySystem is called _registering_ the
- geometry. Geometry can be registered as _anchored_ or _dynamic_ geometry. The
+ geometry. Geometry can be registered as _anchored_ or _dynamic_. The
  source that registers the geometry _owns_ the geometry; operations that change
  the geometry, or its frames, requires the SourceId used to register it.
 
- Dynamic geometry can move; more specifically, its kinematics (e.g., pose and
- velocity) depends on a system's Context. Particularly, dynamic geometry is
+ Dynamic geometry can move; more specifically, its kinematics (e.g., pose)
+ depends on a system's Context. Particularly, dynamic geometry is
  _fixed_ to a _frame_ whose kinematics values depend on a context. As the frame
  moves, the geometries fixed to it move with it. Therefore, to register dynamic
  geometry a frame must be registered first. These registered frames serve as the
@@ -170,6 +168,7 @@ template <typename T> class GeometryContext;
 
  @cond
  // TODO(SeanCurtis-TRI): Future work which will require add'l documentation:
+ //   - velocity kinematics.
  //   - Finalizing API for topology changes at discrete events.
  @endcond
 
@@ -185,17 +184,17 @@ class GeometrySystem : public systems::LeafSystem<T> {
   ~GeometrySystem() override;
 
   /** @name       Port management
-   Access to GeometrySystem's input/output ports. This includes registration
-   of geometry sources because the input ports are mapped to registered
-   geometry sources.
+   Access to GeometrySystem's input/output ports. This topic includes
+   registration of geometry sources because the input ports are mapped to
+   registered geometry sources.
 
    Registration of a source doesn't automatically create all of the input ports
    for the source. Input ports are allocated on a per-request basis. However,
-   a source that registers frames and geometries _must_ connect an output to
+   a source that registers frames and geometries _must_ connect outputs to
    the inputs associated with that source. Failure to do so will be treated as
-   a runtime error during the evaluation of GeometrySystem. GeometrySystem will
-   detect that frames have been registered but no values have been provided via
-   the appropriate input port.
+   a runtime error during the evaluation of %GeometrySystem. %GeometrySystem
+   will detect that frames have been registered but no values have been provided
+   via the appropriate input port.
    */
   //@{
 
@@ -207,23 +206,24 @@ class GeometrySystem : public systems::LeafSystem<T> {
    This source id can be used to register arbitrary _anchored_ geometry. But if
    dynamic geometry is registered (via RegisterGeometry/RegisterFrame), then
    the context-dependent pose values must be provided on an input port.
-   See get_source_frame_id_port().
+   See get_source_frame_id_port() and get_source_pose_port().
    @param name          The optional name of the source. If none is provided
                         (or the empty string) a unique name will be defined by
-                        GeometryState's logic.
+                        GeometrySystem's logic.
    @throws  std::logic_error if a context has already been allocated for this
-                             system.
+                             %GeometrySystem.
    @see GeometryState::RegisterNewSource() */
   SourceId RegisterSource(const std::string &name = "");
 
-  /** Given a valid source identifier, returns an input frame id port associated
-   with that `id`. This port is used to broadcast frame id order to interpret
-   the poses and velocities coming in on other ports.
+  /** Given a valid source `id`, returns frame id-valued input port which
+   belongs to that `id`. This port's value is an ordered list of frame ids; it
+   is used to provide an interpretation on the pose values provide don the
+   pose port.
    @throws  std::logic_error if the source_id is _not_ recognized, or if the
    context has already been allocated.. */
   const systems::InputPortDescriptor<T>& get_source_frame_id_port(SourceId id);
 
-  /** Given a valid source identifier, returns an input _pose_ port associated
+  /** Given a valid source `id`, returns an input _pose_ port associated
    with that id. This port is used to communicate _pose_ data for registered
    frames.
    @throws  std::logic_error if the source_id is _not_ recognized, or if the
@@ -258,7 +258,7 @@ class GeometrySystem : public systems::LeafSystem<T> {
 
    Currently, the topology can only be manipulated at initialization.
    Eventually, the API will expand to include modifications of the topology
-   triggered by events.
+   during discrete updates.
 
    The initialization phase begins with the instantiation of a %GeometrySystem
    and ends when a context is allocated by the %GeometrySystem instance. This is
@@ -266,77 +266,82 @@ class GeometrySystem : public systems::LeafSystem<T> {
    Once a source is registered, it can register frames and geometries. Any
    frames and geometries registered during this phase become part of the
    _default_ context state for %GeometrySystem and calls to
-   CreateDefaultContext() will produce identical contexts. */
+   CreateDefaultContext() will produce identical contexts.
+
+   Every geometry must be associated with a frame. It is rigidly affixed to the
+   frame. As the frame moves, so does the geometry. Colloquially, this is
+   referred to as "hanging" a geometry on a frame.
+   */
   //@{
 
-  /** Initialization registration of a new frame on this channel, receiving the
-   unique id for the new frame.
-   @param source_id     The identifier for the geometry source registering the
-                        frame.
+  /** Registers a new frame F on for this source. The frame hangs on the world
+   frame (W). Its pose is defined relative to the world frame (i.e, `X_WF`).
+   Returns the corresponding unique frame id.
+   @param source_id     The id for the source registering the frame.
    @param frame         The definition of the frame to add.
+   @returns  A newly allocated frame id.
    @throws std::logic_error  If the `source_id` does _not_ map to an active
                              source or if a context has been allocated. */
   FrameId RegisterFrame(SourceId source_id, const GeometryFrame<T>& frame);
 
-  /** Initialization registration of a new frame for the given source as a child
-   of a previously registered frame. The id of the new frame is returned.
-   @param source_id    The id of the source for which this frame is allocated.
-   @param parent_id    The id of the parent frame.
+  /** Registers a new frame F for this source. The frame hangs on another
+   previously registered frame P (indicated by `parent_id`). The pose of the new
+   frame is defined relative to the parent frame (i.e., `X_PF`).  Returns the
+   corresponding unique frame id.
+   @param source_id    The id for the source registering the frame.
+   @param parent_id    The id of the parent frame P.
    @param frame        The frame to register.
    @returns  A newly allocated frame id.
    @throws std::logic_error  1. If the `source_id` does _not_ map to an active
-                             source, or
+                             source,
                              2. If the `parent_id` does _not_ map to a known
                              frame or does not belong to the source, or
                              3. a context has been allocated. */
   FrameId RegisterFrame(SourceId source_id, FrameId parent_id,
                         const GeometryFrame<T>& frame);
 
-  /** Initialization registration of  a `geometry` instance as "hanging" from
-   the specified frame at the given pose relative to the frame. The geometry is
-   _rigidly_ affixed to the parent frame.
-   @param source_id   The identifier for the geometry source registering the
-                      frame.
-   @param frame_id    The id for the frame `F` to hang the geometry on.
-   @param geometry    The geometry to hang.
+  /** Registers a new geometry G for this source. The geometry hangs on a
+   previously registered frame F (indicated by `frame_id`). The pose of the
+   geometry is defined in a fixed position relative to F (i.e., `X_FG`).
+   Returns the corresponding unique geometry id.
+   @param source_id   The id for the source registering the geometry.
+   @param frame_id    The id for the frame F to hang the geometry on.
+   @param geometry    The geometry G to affix to frame F.
    @return A unique identifier for the added geometry.
    @throws std::logic_error  1. the `source_id` does _not_ map to an active
-                             source, or
-                             2. the `frame_id` doesn't belong to the source, or
-                             3. the `geometry` is equal to `nullptr`, or
+                             source,
+                             2. the `frame_id` doesn't belong to the source,
+                             3. the `geometry` is equal to `nullptr`,
                              4. a context has been allocated. */
   GeometryId RegisterGeometry(SourceId source_id,
                               FrameId frame_id,
                               std::unique_ptr<GeometryInstance<T>> geometry);
 
-  /** Initialization registration of a `geometry` instance as "hanging" from the
-   specified geometry's frame `F`, with the given pose relative to that frame.
-   The geometry is _rigidly_ affixed to the parent frame.
+  /** Registers a new geometry G for this source. The pose of the geometry is
+   defined in a fixed position relative to another, previously registered
+   geometry P (indicated by `geometry_id`). The pose of the new geometry is
+   defined in a fixed position relative to P (i.e., `X_PG`). By induction, this
+   geometry is rigidly affixed to the frame that P is affixed to. Returns the
+   corresponding unique geometry id.
 
-   This method enables the owner entity to construct rigid hierarchies of posed
-   geometries. This rigid structure will all be driven by the declared frame
-   to which the root geometry is registered.
-
-   @param source_id    The identifier for the geometry source registering the
-                       geometry.
-   @param geometry_id  The id for the geometry to hang the declared geometry on.
-   @param geometry     The geometry to hang.
+   @param source_id    The id for the source registering the geometry.
+   @param geometry_id  The id for the parent geometry P.
+   @param geometry     The geometry G to add.
    @return A unique identifier for the added geometry.
    @throws std::logic_error 1. the `source_id` does _not_ map to an active
-                            source, or
+                            source,
                             2. the `geometry_id` doesn't belong to the source,
-                            or
                             3. the `geometry` is equal to `nullptr`, or
                             4. a context has been allocated. */
   GeometryId RegisterGeometry(SourceId source_id,
                               GeometryId geometry_id,
                               std::unique_ptr<GeometryInstance<T>> geometry);
 
-  /** Initialization registration of  the given geometry to the world as
-   anchored geometry.
-   @param source_id     The identifier for the geometry source registering the
-                        geometry.
-   @param geometry      The geometry to add to the world.
+  /** Registers a new _anchored_ geometry G for this source. The geometry hangs
+   from the world frame (W). Its pose is defined in that frame (i.e., `X_WG`).
+   Returns the corresponding unique geometry id.
+   @param source_id     The id for the source registering the frame.
+   @param geometry      The anchored geometry G to add to the world.
    @returns The index for the added geometry.
    @throws std::logic_error  If the `source_id` does _not_ map to an active
                              source or a context has been allocated. */
@@ -344,51 +349,51 @@ class GeometrySystem : public systems::LeafSystem<T> {
       SourceId source_id,
       std::unique_ptr<GeometryInstance<T>> geometry);
 
-  /** Initialization clearing of all the registered frames and geometries from
-   this source, but leaves the source active for future registration of frames
+  /** Clears of all the registered frames and geometries from this source, but
+   the source is still registered, allowing future registration of frames
    and geometries.
-   @param source_id   The identifier of the source to be deactivated and
-                      removed.
+   @param source_id   The id of the source whose regisetered elements will be
+                      cleared.
    @throws std::logic_error  If the `source_id` does _not_ map to an active
                              source or if a context has been allocated. */
   void ClearSource(SourceId source_id);
 
-  /** Initialization removal of the given frame from the the indicated source's
-   frames. All registered geometries connected to this frame will also be
-   removed from the world.
-   @param source_id   The identifier for the owner geometry source.
-   @param frame_id    The identifier of the frame to remove.
+  /** Removes the given frame F (indicated by `frame_id`) from the the given
+   source's registered frames. All registered geometries connected to this frame
+   will also be removed.
+   @param source_id   The id for the owner geometry source.
+   @param frame_id    The id of the frame to remove.
    @throws std::logic_error If:
-                            1. The `source_id` is not an active source, or
+                            1. The `source_id` is not an active source,
                             2. the `frame_id` doesn't belong to the source, or
                             3. a context has been allocated. */
   void RemoveFrame(SourceId source_id, FrameId frame_id);
 
-  /** Initialization removal of the given geometry from the the indicated
-   source's geometries. All registered geometries connected to this geometry
-   will also be removed from the world.
+  /** Removes the given geometry G (indicated by `geometry_id`) from the the
+   given source's registered geometries. All registered geometries hanging from
+   this geometry will also be removed.
    @param source_id   The identifier for the owner geometry source.
    @param geometry_id The identifier of the geometry to remove.
    @throws std::logic_error If:
-                            1. The `source_id` is not an active source, or
+                            1. The `source_id` is not an active source,
                             2. the `geometry_id` doesn't belong to the source,
-                            or
+                               or
                             3. a context has been allocated. */
   void RemoveGeometry(SourceId source_id, GeometryId geometry_id);
 
   //@}
 
   /** @name     Geometry Queries
-   These perform queries on the state of the geometry world including:
+   These methods perform queries on the state of the geometry world including:
    proximity queries, contact queries, ray-casting queries, and look ups on
    geometry resources.
 
-   These operations require a QueryHandle instance. The caller must acqurie one
+   These operations require a QueryHandle instance. The caller must acquire one
    from the %GeometrySystem by connecting to the output port that provides
    GeometryQuery instances.
 
-   The details of these queries are fully specified in the documentation for
-   GeometryWorld. */
+   The details of these queries are more fully specified in the documentation
+   for GeometryWorld. */
 
   //@{
 
@@ -499,8 +504,7 @@ class GeometrySystem : public systems::LeafSystem<T> {
       SourceId id, PortType port_type);
 
   // A struct that stores the port indices for a given source.
-  // TODO(SeanCurtis-TRI): Consider making these Index values. This would
-  // require relying on the default value.
+  // TODO(SeanCurtis-TRI): Consider making these TypeSafeIndex values.
   struct SourcePorts {
     int id_port{-1};
     int pose_port{-1};
