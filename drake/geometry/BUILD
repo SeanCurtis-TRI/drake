@@ -230,13 +230,13 @@ drake_cc_library(
     srcs = ["test/query_test_utility.cc"],
     hdrs = ["test/query_test_utility.h"],
     deps = [
-        "@gtest//:main",
         ":geometry_context",
         ":geometry_engine",
         ":geometry_state",
         ":geometry_world",
         ":internal_geometry",
         "//drake/common:eigen_matrix_compare",
+        "@gtest//:without_main",
     ],
 )
 

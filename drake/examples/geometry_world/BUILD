@@ -32,7 +32,6 @@ drake_cc_binary(
     add_test_rule = 1,
     deps = [
         ":bouncing_ball_plant",
-        "//drake/common:call_matlab",
         "//drake/geometry:geometry_system",
         "//drake/geometry:geometry_visualization",
         "//drake/systems/analysis:simulator",
