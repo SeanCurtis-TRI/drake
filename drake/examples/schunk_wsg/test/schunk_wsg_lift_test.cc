@@ -14,9 +14,11 @@
 /// the final system no longer reproduces the expected baseline behavior.
 
 #include <memory>
+#include <utility>
 
 #include <gtest/gtest.h>
 
+#include "drake/common/drake_copyable.h"
 #include "drake/common/eigen_types.h"
 #include "drake/common/find_resource.h"
 #include "drake/common/trajectories/piecewise_polynomial_trajectory.h"
@@ -44,11 +46,150 @@ namespace examples {
 namespace schunk_wsg {
 namespace {
 
-using drake::systems::RungeKutta3Integrator;
-using drake::systems::ContactResultsToLcmSystem;
-using drake::systems::lcm::LcmPublisherSystem;
-using drake::systems::KinematicsResults;
+using systems::BasicVector;
+using systems::ContactInfo;
+using systems::ContactResults;
+using systems::ContactResultsToLcmSystem;
+using systems::InputPortDescriptor;
+using systems::lcm::LcmPublisherSystem;
+using systems::LeafSystem;
+using systems::KinematicsResults;
+using systems::PublishEvent;
+using systems::RungeKutta3Integrator;
 using Eigen::Vector3d;
+
+
+// Information for computing the slipping behavior at a contact point. Contains:
+//    1. The ids of the two collision elements in the colliion (a and b).
+//    2. The contact normal (pointing into element a), measured and
+//        expressed in the world frame.
+//    3. The contact point, in the world frame.
+//    4. The relative velocity of the elements' two bodies *at* the contact
+//      point, measured and expressed in the world frame.
+struct SlipData {
+  SlipData(DrakeCollision::ElementId a, DrakeCollision::ElementId b,
+           const Vector3<double>& n, const Vector3<double>& p,
+           const Vector3<double>& v)
+      : element_a(a), element_b(b), normal_W(n), p_WC(p), v_AB_W(v) {}
+  DrakeCollision::ElementId element_a;
+  DrakeCollision::ElementId element_b;
+  Vector3<double> normal_W;
+  Vector3<double> p_WC;
+  Vector3<double> v_AB_W;
+};
+
+// This class is a utility class for measuring slip velocity at contact points.
+//  It performs work upon calling Publish. During Publish it:
+//    1. Pulls the contact results from the RigidBodyTree.
+//    2. For each contact point and normal:
+//      Computes the relative velocity of *coincident* points in the frames of
+//      the two bodies involved in the collision.
+//    3. Stores per-time-step information of:
+//      a. The geometry ids involved in the collision
+//      b. The contact point and normal
+//      c. The relative velocity.
+//  At the close of simulation, the aggregated data can be accessed and analyzed
+//  reporting statistics about the relative velocities of the contact points.
+class SlipDetector : public LeafSystem<double> {
+ public:
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(SlipDetector)
+
+  // Takes the tree that it operates on -- it should be connected to that tree's
+  // plant. It also takes an *optional* sample period. If none is provided
+  // (or a non-positive value is provided), it will publish at each step.
+  // Otherwise, it publishes at the given period.
+  SlipDetector(const RigidBodyTree<double>* tree, double period=-1.0)
+      : LeafSystem<double>(), tree_(tree) {
+    // Get the RigidBodyTree's state vector.
+    const int vector_size =
+        tree->get_num_positions() + tree->get_num_velocities();
+    tree_state_input_port_ =
+        DeclareInputPort(systems::kVectorValued, vector_size).get_index();
+    // The contact input port.
+    contact_input_port_ = this->DeclareAbstractInputPort().get_index();
+
+    if (period > 0) {
+      LeafSystem<double>::DeclarePeriodicPublish(period);
+    } else {
+      PublishEvent<double> event(systems::Event<double>::TriggerType::kPerStep);
+      this->DeclarePerStepEvent(event);
+    }
+  }
+
+  void DoPublish(
+      const systems::Context<double>& context,
+      const std::vector<const PublishEvent<double>*>&) const override {
+    // 1. Pull the inputs (contact and tree state).
+    const BasicVector<double>* input_vector =
+        EvalVectorInput(context, tree_state_input_port_);
+    VectorX<double> q =
+        input_vector->get_value().head(tree_->get_num_positions());
+    VectorX<double> v =
+        input_vector->get_value().tail(tree_->get_num_velocities());
+    auto kinsol = tree_->doKinematics(q, v);
+    const ContactResults<double>& contacts =
+        this->EvalAbstractInput(context, contact_input_port_)
+            ->GetValue<ContactResults<double>>();
+
+    // 2. Calculate and store the relative velocity at each contact point.
+    const double kTime = context.get_time();
+    for (int i = 0; i < contacts.get_num_contacts(); ++i) {
+      const ContactInfo<double>& info = contacts.get_contact_info(i);
+      const auto& contact_force = info.get_resultant_force();
+
+      // Compute relative velocity of the contact
+      const Vector3<double>& p_WC = contact_force.get_application_point();
+      const auto& body_a =
+          tree_->FindBody(info.get_element_id_1())->get_body_index();
+      const auto& body_b =
+          tree_->FindBody(info.get_element_id_2())->get_body_index();
+      // The contact point in A's frame.
+      const auto X_AW = kinsol.get_element(body_a)
+          .transform_to_world.inverse(Eigen::Isometry);
+      const Vector3<double> p_AAc = X_AW * p_WC;
+      // The contact point in B's frame.
+      const auto X_BW = kinsol.get_element(body_b)
+          .transform_to_world.inverse(Eigen::Isometry);
+      const Vector3<double> p_BBc = X_BW * p_WC;
+
+      const auto JA =
+          tree_->transformPointsJacobian(kinsol, p_AAc, body_a, 0, false);
+      const auto JB =
+          tree_->transformPointsJacobian(kinsol, p_BBc, body_b, 0, false);
+      const auto J = JA - JB;
+      // The *relative* velocity of the contact point in A relative to that in
+      // B, expressed in the world frame.
+      const auto v_Contact_BcAc_W = J * kinsol.getV();
+
+      // Compute the actual value!!
+      slip_data_.emplace(
+          std::make_pair(kTime,
+                         SlipData(info.get_element_id_1(),
+                                  info.get_element_id_2(),
+                                  contact_force.get_normal(),
+                                  p_WC,
+                                  v_Contact_BcAc_W)));
+    }
+  }
+
+  const InputPortDescriptor<double>& contact_input_port() const {
+    return get_input_port(contact_input_port_);
+  }
+
+  const InputPortDescriptor<double>& state_input_port() const {
+    return get_input_port(tree_state_input_port_);
+  }
+
+  const std::multimap<double, SlipData>& get_slip_data() const {
+    return slip_data_;
+  };
+
+ private:
+  const RigidBodyTree<double>* tree_{nullptr};
+  int tree_state_input_port_{-1};
+  int contact_input_port_{-1};
+  mutable std::multimap<double, SlipData> slip_data_;
+};
 
 // Initial height of the box's origin.
 const double kBoxInitZ = 0.076;
@@ -122,6 +263,14 @@ GTEST_TEST(SchunkWsgLiftTest, BoxLiftTest) {
   const auto& lifting_output_port =
       plant->model_instance_state_output_port(lifter_instance_id);
 
+  // Slip detector
+  SlipDetector* slip_detector =
+      builder.AddSystem<SlipDetector>(&plant->get_rigid_body_tree(), 0.01);
+  builder.Connect(plant->state_output_port(),
+                  slip_detector->state_input_port());
+  builder.Connect(plant->contact_results_output_port(),
+                  slip_detector->contact_input_port());
+
   // Constants chosen arbitrarily.
   const Vector1d lift_kp(300.);
   const Vector1d lift_ki(0.);
@@ -186,6 +335,7 @@ GTEST_TEST(SchunkWsgLiftTest, BoxLiftTest) {
   viz_publisher->set_name("visualization_publisher");
   builder.Connect(plant->state_output_port(),
                   viz_publisher->get_input_port(0));
+  viz_publisher->set_publish_period(1 / 60.0);
 
   // contact force visualization
   ContactResultsToLcmSystem<double>& contact_viz =
@@ -212,6 +362,7 @@ GTEST_TEST(SchunkWsgLiftTest, BoxLiftTest) {
   // Set up the model and simulator and set their starting state.
   const std::unique_ptr<systems::Diagram<double>> model = builder.Build();
   systems::Simulator<double> simulator(*model);
+  simulator.set_publish_every_time_step(false);
 
   const RigidBodyTreed& tree = plant->get_rigid_body_tree();
 
@@ -252,6 +403,17 @@ GTEST_TEST(SchunkWsgLiftTest, BoxLiftTest) {
   // Simulate to one second beyond the trajectory motion.
   const double kSimDuration = lift_breaks[lift_breaks.size() - 1] + 1.0;
   simulator.StepTo(kSimDuration);
+
+  std::cout << "time, A, B, normal, p_WC, v_AB_W\n";
+  for (const auto& pair : slip_detector->get_slip_data()) {
+    const auto& slip_data = pair.second;
+    std::cout << pair.first << ", "
+              << slip_data.element_a << ", "
+              << slip_data.element_b << ", "
+              << slip_data.normal_W.transpose() << ", "
+              << slip_data.p_WC.transpose() << ", "
+              << slip_data.v_AB_W.transpose() << "\n";
+  }
 
   // Extract and log the state of the robot.
   auto state_output = model->AllocateOutput(simulator.get_context());
