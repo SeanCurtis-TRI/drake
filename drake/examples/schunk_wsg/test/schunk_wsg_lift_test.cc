@@ -347,6 +347,7 @@ GTEST_TEST(SchunkWsgLiftTest, BoxLiftTest) {
       LcmPublisherSystem::Make<lcmt_contact_results_for_viz>(
           "CONTACT_RESULTS", &lcm));
   contact_results_publisher.set_name("contact_results_publisher");
+  contact_results_publisher.set_publish_period(1 / 60.0);
   // Contact results to lcm msg.
   builder.Connect(plant->contact_results_output_port(),
                   contact_viz.get_input_port(0));
@@ -423,7 +424,7 @@ GTEST_TEST(SchunkWsgLiftTest, BoxLiftTest) {
   std::cout << "time, A, B, normal, p_WC, v_AB_W\n";
   for (const auto& pair : slip_detector->get_slip_data()) {
     const auto& slip_data = pair.second;
-    std::cout << pair.first << ", "
+    std::cerr << pair.first << ", "
               << slip_data.element_a << ", "
               << slip_data.element_b << ", "
               << slip_data.normal_W.transpose() << ", "
