@@ -28,7 +28,7 @@ namespace systems {
  ContactInfo instance or not. If this happens, the ContactInfo instance will
  contain a valid resultant force, but no contact details.
 
- Eventually, this beahvior will be subject to user configuration; the
+ Eventually, this behavior will be subject to user configuration; the
  user will specify whether they want the details to be included in the
  ContactInfo, overriding the contact model's default behavior, and paying the
  corresponding copying cost.
