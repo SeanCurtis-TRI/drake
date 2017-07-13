@@ -313,7 +313,8 @@ GTEST_TEST(SchunkWsgLiftTest, BoxLiftTest) {
                   lifting_pid_ports.state_input_port);
 
   // Create a trajectory for grip force.
-  std::vector<double> grip_breaks{0., 0.9, 1.};
+  // Settle the grip by the time the lift starts.
+  std::vector<double> grip_breaks{0., kLiftStart - 0.1, kLiftStart};
   std::vector<Eigen::MatrixXd> grip_knots;
   grip_knots.push_back(Vector1d(0));
   grip_knots.push_back(Vector1d(0));
@@ -402,6 +403,21 @@ GTEST_TEST(SchunkWsgLiftTest, BoxLiftTest) {
 
   // Simulate to one second beyond the trajectory motion.
   const double kSimDuration = lift_breaks[lift_breaks.size() - 1] + 1.0;
+  // Step to the moment of lifting and capture the position of the box.
+  simulator.StepTo(kLiftStart);
+  auto state_output = model->AllocateOutput(simulator.get_context());
+  model->CalcOutput(simulator.get_context(), state_output.get());
+
+  auto& interim_kinematics_results =
+      state_output->get_data(kinematrics_results_index)
+          ->GetValue<KinematicsResults<double>>();
+  const int box_index = tree.FindBodyIndex("box");
+  Vector3d init_box_pos =
+      interim_kinematics_results.get_body_position(box_index);
+  const int finger_index = tree.FindBodyIndex("left_finger");
+  Vector3d init_finger_pos =
+      interim_kinematics_results.get_body_position(finger_index);
+
   simulator.StepTo(kSimDuration);
 
   std::cout << "time, A, B, normal, p_WC, v_AB_W\n";
@@ -416,7 +432,6 @@ GTEST_TEST(SchunkWsgLiftTest, BoxLiftTest) {
   }
 
   // Extract and log the state of the robot.
-  auto state_output = model->AllocateOutput(simulator.get_context());
   model->CalcOutput(simulator.get_context(), state_output.get());
   const auto final_output_data =
       state_output->get_vector_data(plant_output_port)->get_value();
@@ -475,16 +490,19 @@ GTEST_TEST(SchunkWsgLiftTest, BoxLiftTest) {
   //     expediency to allow for timely execution.  This does not *prove* that
   //     the behavior is correct for smaller thresholds (and the corresponding
   //     more precise integrator settings).
-  const double kBoxZ0 = 0.075;  // Half the box height.
-  const double kIdealBoxHeight = kBoxZ0 + kLiftHeight;
-  Vector3d ideal_pos;
-  ideal_pos << 0.0, 0.0, kIdealBoxHeight;
   // Expect that the box is off of the ground.
-  auto& kinematics_results = state_output->get_data(kinematrics_results_index)
-      ->GetValue<KinematicsResults<double>>();
-  const int box_index = tree.FindBodyIndex("box");
-  Vector3d final_pos = kinematics_results.get_body_position(box_index);
-  Vector3d displacement = final_pos - ideal_pos;
+  // If there is no slip, then the box should displace as much as the finger.
+  // So, compute the finger's displacement and look for the same displacement
+  // on the box.
+  auto& final_kinematics_results =
+      state_output->get_data(kinematrics_results_index)
+          ->GetValue<KinematicsResults<double>>();
+  Vector3d final_finger_pos =
+      final_kinematics_results.get_body_position(finger_index);
+  Vector3d ideal_final_pos(init_box_pos);
+  ideal_final_pos += final_finger_pos - init_finger_pos;
+  Vector3d final_pos = final_kinematics_results.get_body_position(box_index);
+  Vector3d displacement = final_pos - ideal_final_pos;
   double distance = displacement.norm();
 
   // Lift duration is a sub-interval of the full simulation.
