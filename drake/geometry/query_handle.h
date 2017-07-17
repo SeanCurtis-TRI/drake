@@ -43,7 +43,7 @@ class QueryHandle {
   friend class QueryHandleTester;
 
   // Only the GeometrySystem<T> can create this class.
-  QueryHandle(const GeometryContext<T>* context) : context_(context) {}
+  explicit QueryHandle(const GeometryContext<T>* context) : context_(context) {}
 
   // The context associated with the current handle.
   const GeometryContext<T>* context_;

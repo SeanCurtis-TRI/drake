@@ -177,7 +177,7 @@ void DispatchLoadMessage(const GeometryState<double>& state) {
 }
 
 void DispatchLoadMessage(const GeometrySystem<double>& system) {
-  system.ThrowIfContextAllocated();
+  system.ThrowIfContextAllocated("DisplatchLoadMessage");
   DispatchLoadMessage(*system.initial_state_);
 }
 

@@ -40,8 +40,9 @@ class QueryHandleTester {
 // Friend class for accessing GeometrySystem protected/private functionality.
 class GeometrySystemTester {
  public:
-  static QueryHandle<double> MakeHandle(const GeometrySystem<double>& system,
-                                        const GeometryContext<double>* context) {
+  static QueryHandle<double> MakeHandle(
+      const GeometrySystem<double>& system,
+      const GeometryContext<double>* context) {
     return system.MakeQueryHandle(*context);
   }
   static bool HasDirectFeedthrough(const GeometrySystem<double>& system,
@@ -100,6 +101,7 @@ class GeometrySystemTest : public ::testing::Test {
   unique_ptr<Context<double>> context_;
   // Direct access to a pre-cast geometry context-typed version of context_.
   GeometryContext<double>* geom_context_{nullptr};
+
  private:
   // Keep this private so tests must access it through the getter so we can
   // determine if AllocateContext() has been invoked.
@@ -135,8 +137,8 @@ TEST_F(GeometrySystemTest, PoseContextSourceRegistration) {
   EXPECT_ERROR_MESSAGE(
       system_.RegisterSource(),
       std::logic_error,
-      "A context has been created for this system. Adding new geometry "
-      "sources is no longer possible.");
+      "The call to RegisterSource is invalid; a context has already been "
+      "allocated.");
 }
 
 // Tests ability to report if a source is registered or not.
@@ -196,7 +198,8 @@ TEST_F(GeometrySystemTest, TopologyAfterAllocation) {
       system_.RegisterFrame(
           id, GeometryFrame<double>("frame", Isometry3<double>::Identity())),
       std::logic_error,
-      "Operation invalid; a context has already been allocated.");
+      "The call to RegisterFrame is invalid; a context has already been "
+      "allocated.");
 
   // Attach frame to another frame.
   EXPECT_ERROR_MESSAGE(
@@ -204,45 +207,52 @@ TEST_F(GeometrySystemTest, TopologyAfterAllocation) {
           id, FrameId::get_new_id(),
           GeometryFrame<double>("frame", Isometry3<double>::Identity())),
       std::logic_error,
-      "Operation invalid; a context has already been allocated.");
+      "The call to RegisterFrame is invalid; a context has already been "
+      "allocated.");
 
   // Attach geometry to frame.
   EXPECT_ERROR_MESSAGE(
       system_.RegisterGeometry(
           id, FrameId::get_new_id(), make_sphere_instance()),
       std::logic_error,
-      "Operation invalid; a context has already been allocated.");
+      "The call to RegisterGeometry is invalid; a context has already been "
+      "allocated.");
 
   // Attach geometry to another geometry.
   EXPECT_ERROR_MESSAGE(
       system_.RegisterGeometry(
           id, GeometryId::get_new_id(), make_sphere_instance()),
       std::logic_error,
-      "Operation invalid; a context has already been allocated.");
+      "The call to RegisterGeometry is invalid; a context has already been "
+          "allocated.");
 
   // Attach anchored geometry to world.
   EXPECT_ERROR_MESSAGE(
       system_.RegisterAnchoredGeometry(id, make_sphere_instance()),
       std::logic_error,
-      "Operation invalid; a context has already been allocated.");
+      "The call to RegisterAnchoredGeometry is invalid; a context has already "
+      "been allocated.");
 
   // Clearing a source.
   EXPECT_ERROR_MESSAGE(
       system_.ClearSource(id),
       std::logic_error,
-      "Operation invalid; a context has already been allocated.");
+      "The call to ClearSource is invalid; a context has already been "
+      "allocated.");
 
   // Removing a frame.
   EXPECT_ERROR_MESSAGE(
       system_.RemoveFrame(id, FrameId::get_new_id()),
       std::logic_error,
-      "Operation invalid; a context has already been allocated.");
+      "The call to RemoveFrame is invalid; a context has already been "
+      "allocated.");
 
   // Removing a geometry.
   EXPECT_ERROR_MESSAGE(
       system_.RemoveGeometry(id, GeometryId::get_new_id()),
       std::logic_error,
-      "Operation invalid; a context has already been allocated.");
+      "The call to RemoveGeometry is invalid; a context has already been "
+      "allocated.");
 }
 
 // Confirms that the direct feedthrough logic is correct -- everything feeds
@@ -288,7 +298,7 @@ TEST_F(GeometrySystemTest, FullPoseUpdateAnchoredOnly) {
 // Dummy system to serve as geometry source.
 class GeometrySourceSystem : public systems::LeafSystem<double> {
  public:
-  GeometrySourceSystem(GeometrySystem<double>* geometry_system)
+  explicit GeometrySourceSystem(GeometrySystem<double>* geometry_system)
       : systems::LeafSystem<double>(), geometry_system_(geometry_system) {
     // Register with GeometrySystem.
     source_id_ = geometry_system->RegisterSource();

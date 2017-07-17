@@ -1,5 +1,6 @@
 #include "drake/geometry/geometry_system.h"
 
+#include <string>
 #include <utility>
 
 #include "drake/common/drake_assert.h"
@@ -22,6 +23,8 @@ using systems::SparsityMatrix;
 using systems::SystemOutput;
 using systems::rendering::PoseBundle;
 using std::vector;
+
+#define THROW_IF_CONTEXT_ALLOCATED ThrowIfContextAllocated(__FUNCTION__);
 
 template <typename T>
 GeometrySystem<T>::GeometrySystem() : LeafSystem<T>() {
@@ -48,17 +51,12 @@ GeometrySystem<T>::~GeometrySystem() {}
 
 template <typename T>
 SourceId GeometrySystem<T>::RegisterSource(const std::string &name) {
-  if (!context_allocated_) {
-    SourceId source_id = initial_state_->RegisterNewSource(name);
-    // Instantiates a default-initialized SourcePorts instance for the new
-    // source id.
-    input_source_ids_[source_id];
-    return source_id;
-  } else {
-    throw std::logic_error(
-        "A context has been created for this system. Adding new geometry "
-        "sources is no longer possible.");
-  }
+  ThrowIfContextAllocated(__FUNCTION__);
+  SourceId source_id = initial_state_->RegisterNewSource(name);
+  // Instantiates a default-initialized SourcePorts instance for the new
+  // source id.
+  input_source_ids_[source_id];
+  return source_id;
 }
 
 template <typename T>
@@ -124,14 +122,14 @@ GeometrySystem<T>::get_source_velocity_port(SourceId id) {
 template <typename T>
 FrameId GeometrySystem<T>::RegisterFrame(SourceId source_id,
                                          const GeometryFrame<T>& frame) {
-  ThrowIfContextAllocated();
+  THROW_IF_CONTEXT_ALLOCATED
   return initial_state_->RegisterFrame(source_id, frame);
 }
 
 template <typename T>
 FrameId GeometrySystem<T>::RegisterFrame(SourceId source_id, FrameId parent_id,
                                          const GeometryFrame<T>& frame) {
-  ThrowIfContextAllocated();
+  THROW_IF_CONTEXT_ALLOCATED
   return initial_state_->RegisterFrame(source_id, parent_id, frame);
 }
 
@@ -139,7 +137,7 @@ template <typename T>
 GeometryId GeometrySystem<T>::RegisterGeometry(
     SourceId source_id, FrameId frame_id,
     std::unique_ptr<GeometryInstance<T>> geometry) {
-  ThrowIfContextAllocated();
+  THROW_IF_CONTEXT_ALLOCATED
   return initial_state_->RegisterGeometry(source_id, frame_id,
                                           std::move(geometry));
 }
@@ -148,7 +146,7 @@ template <typename T>
 GeometryId GeometrySystem<T>::RegisterGeometry(
     SourceId source_id, GeometryId geometry_id,
     std::unique_ptr<GeometryInstance<T>> geometry) {
-  ThrowIfContextAllocated();
+  THROW_IF_CONTEXT_ALLOCATED
   return initial_state_->RegisterGeometryWithParent(source_id, geometry_id,
                                                     std::move(geometry));
 }
@@ -157,27 +155,27 @@ template <typename T>
 GeometryId GeometrySystem<T>::RegisterAnchoredGeometry(
     SourceId source_id,
     std::unique_ptr<GeometryInstance<T>> geometry) {
-  ThrowIfContextAllocated();
+  THROW_IF_CONTEXT_ALLOCATED
   return initial_state_->RegisterAnchoredGeometry(source_id,
                                                   std::move(geometry));
 }
 
 template <typename T>
 void GeometrySystem<T>::ClearSource(SourceId source_id) {
-  ThrowIfContextAllocated();
+  THROW_IF_CONTEXT_ALLOCATED
   initial_state_->ClearSource(source_id);
 }
 
 template <typename T>
 void GeometrySystem<T>::RemoveFrame(SourceId source_id, FrameId frame_id) {
-  ThrowIfContextAllocated();
+  THROW_IF_CONTEXT_ALLOCATED
   initial_state_->RemoveFrame(source_id, frame_id);
 }
 
 template <typename T>
 void GeometrySystem<T>::RemoveGeometry(SourceId source_id,
                                        GeometryId geometry_id) {
-  ThrowIfContextAllocated();
+  THROW_IF_CONTEXT_ALLOCATED
   initial_state_->RemoveGeometry(source_id, geometry_id);
 }
 
@@ -346,10 +344,12 @@ std::unique_ptr<LeafContext<T>> GeometrySystem<T>::DoMakeContext() const {
 }
 
 template <typename T>
-void GeometrySystem<T>::ThrowIfContextAllocated() const {
+void GeometrySystem<T>::ThrowIfContextAllocated(
+    const char* source_method) const {
   if (context_allocated_)
-    throw std::logic_error("Operation invalid; a context has already been "
-                           "allocated.");
+    throw std::logic_error(
+        "The call to " + std::string(source_method) + " is invalid; a "
+        "context has already been allocated.");
 }
 
 // Explicitly instantiates on the most common scalar types.
