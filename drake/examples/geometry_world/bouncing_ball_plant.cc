@@ -156,9 +156,10 @@ void BouncingBallPlant<T>::DoCalcTimeDerivatives(
     for (const auto& contact : contacts) {
       if (contact.id_A == ball_id_ || contact.id_B == ball_id_) {
         const T
-            &x = contact.depth;  // Penetration depth, > 0 at penetration.
+            &x = contact.depth;     // Penetration depth, > 0 at penetration.
         const T
-            &xdot = -state.zdot();  // Penetration rate, > 0 during penetration.
+            &xdot = -state.zdot();  // Penetration rate, > 0 implies increasing
+                                    // penetration.
 
 //    PRINT_VAR(contacts[0].depth);
 //    PRINT_VAR(state.zdot());

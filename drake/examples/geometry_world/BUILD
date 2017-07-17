@@ -2,7 +2,12 @@
 # This file contains rules for Bazel; see drake/doc/bazel.rst.
 
 load("//tools:cpplint.bzl", "cpplint")
-load("//tools:drake.bzl", "drake_cc_googletest", "drake_cc_library", "drake_cc_binary")
+load(
+    "//tools:drake.bzl",
+    "drake_cc_googletest",
+    "drake_cc_library",
+    "drake_cc_binary",
+)
 
 drake_cc_library(
     name = "bouncing_ball_vector",
@@ -21,7 +26,7 @@ drake_cc_library(
         ":bouncing_ball_vector",
         "//drake/geometry:geometry_ids",
         "//drake/geometry:geometry_system",
-        "//drake/systems/framework",
+        "//drake/systems/framework:leaf_system",
     ],
 )
 
