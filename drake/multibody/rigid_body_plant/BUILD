@@ -35,6 +35,16 @@ drake_cc_library(
 )
 
 drake_cc_library(
+    name = "compliant_stiction_logger",
+    srcs = ["compliant_stiction_logger.cc"],
+    hdrs = ["compliant_stiction_logger.h"],
+    deps = [
+        ":compliant_contact_model",
+        "//drake/systems/framework:leaf_system",
+    ],
+)
+
+drake_cc_library(
     name = "rigid_body_plant",
     srcs = [
         "kinematics_results.cc",
