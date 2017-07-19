@@ -51,7 +51,7 @@ GeometrySystem<T>::~GeometrySystem() {}
 
 template <typename T>
 SourceId GeometrySystem<T>::RegisterSource(const std::string &name) {
-  ThrowIfContextAllocated(__FUNCTION__);
+  THROW_IF_CONTEXT_ALLOCATED
   SourceId source_id = initial_state_->RegisterNewSource(name);
   // Instantiates a default-initialized SourcePorts instance for the new
   // source id.

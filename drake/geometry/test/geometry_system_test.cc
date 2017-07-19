@@ -58,7 +58,6 @@ class GeometrySystemTester {
 namespace {
 
 using systems::Context;
-using GSystem = GeometrySystem<double>;
 using std::make_unique;
 using std::unique_ptr;
 
@@ -96,7 +95,7 @@ class GeometrySystemTest : public ::testing::Test {
                                                  make_unique<Sphere>(radius));
   }
 
-  GSystem system_;
+  GeometrySystem<double> system_;
   // Ownership of context.
   unique_ptr<Context<double>> context_;
   // Direct access to a pre-cast geometry context-typed version of context_.
