@@ -17,7 +17,14 @@ namespace geometry {
  sort), a pose (relative to a parent frame), material information, and an
  opaque collection of metadata.
 
- @tparam T The underlying scalar type. Must be a valid Eigen scalar. */
+ @tparam T  The underlying scalar type. Must be a valid Eigen scalar.
+
+ Instantiated templates for the following kinds of T's are provided:
+    - double
+
+ They are already available to link against in the containing library.
+ No other values for T are currently supported. */
+// TODO(SeanCurtis-TRI): Add support for AutoDiffXd.
 template <typename T>
 class GeometryInstance {
  public:
