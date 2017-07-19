@@ -60,48 +60,6 @@ SourceId GeometrySystem<T>::RegisterSource(const std::string &name) {
 }
 
 template <typename T>
-const InputPortDescriptor<T>&
-GeometrySystem<T>::get_port_for_source_id(
-    SourceId id, GeometrySystem<T>::PortType port_type) {
-  using std::to_string;
-  SourcePorts* source_ports;
-
-  // Access port data based on the source id -- catching the possibility of an
-  // invalid id.
-  auto itr = input_source_ids_.find(id);
-  if (itr != input_source_ids_.end()) {
-    source_ports = &(itr->second);
-  } else {
-    throw std::logic_error("Can't acquire input port for unknown source id: "
-                           + to_string(id) + ".");
-  }
-
-  // Helper method to return the input port (creating it as necessary).
-  auto get_port = [this](int* port_id) -> const InputPortDescriptor<T>& {
-    if (*port_id != -1) {
-      return this->get_input_port(*port_id);
-    } else {
-      const auto &input_port = this->DeclareAbstractInputPort();
-      *port_id = input_port.get_index();
-      return input_port;
-    }
-  };
-
-  // Get the port based on requested type.
-  switch (port_type) {
-    case ID: {
-      return get_port(&source_ports->id_port);
-    }
-    case POSE: {
-      return get_port(&source_ports->pose_port);
-    }
-    case VELOCITY: {
-      return get_port(&source_ports->velocity_port);
-    }
-  }
-}
-
-template <typename T>
 const systems::InputPortDescriptor<T>&
 GeometrySystem<T>::get_source_frame_id_port(SourceId id) {
   return get_port_for_source_id(id, ID);
@@ -210,7 +168,6 @@ bool GeometrySystem<T>::ComputeContact(const QueryHandle<T>& handle,
   const GeometryContext<T>& g_context = FullPoseUpdate(handle);
   return geometry_world_.ComputeContact(g_context, contacts);
 }
-
 
 template <typename T>
 bool GeometrySystem<T>::DoHasDirectFeedthrough(const SparsityMatrix*,
@@ -350,6 +307,45 @@ void GeometrySystem<T>::ThrowIfContextAllocated(
     throw std::logic_error(
         "The call to " + std::string(source_method) + " is invalid; a "
         "context has already been allocated.");
+}
+
+template <typename T>
+const InputPortDescriptor<T>&
+GeometrySystem<T>::get_port_for_source_id(
+    SourceId id, GeometrySystem<T>::PortType port_type) {
+  using std::to_string;
+  SourcePorts* source_ports;
+
+  // Access port data based on the source id -- catching the possibility of an
+  // invalid id.
+  auto itr = input_source_ids_.find(id);
+  if (itr != input_source_ids_.end()) {
+    source_ports = &(itr->second);
+  } else {
+    throw std::logic_error("Can't acquire input port for unknown source id: "
+                               + to_string(id) + ".");
+  }
+
+  // Helper method to return the input port (creating it as necessary).
+  auto get_port = [this](int* port_id) -> const InputPortDescriptor<T>& {
+    if (*port_id != -1) {
+      return this->get_input_port(*port_id);
+    } else {
+      const auto &input_port = this->DeclareAbstractInputPort();
+      *port_id = input_port.get_index();
+      return input_port;
+    }
+  };
+
+  // Get the port based on requested type.
+  switch (port_type) {
+    case ID: {
+      return get_port(&source_ports->id_port);
+    }
+    case POSE: {
+      return get_port(&source_ports->pose_port);
+    }
+  }
 }
 
 // Explicitly instantiates on the most common scalar types.

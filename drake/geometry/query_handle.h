@@ -15,11 +15,11 @@ template <typename T> class GeometryContext;
 
  From the perspective of every class _except_ GeometrySystem, this class should
  simply be considered a ticket of sorts; acquired _from_ a GeometrySystem
- instance, it is provided in calls to query methods to validate the call.
+ instance, it is provided in calls to query methods.
 
  To perform geometry queries on GeometrySystem:
    - a LeafSystem must have a %QueryHandle-valued input port and connect it to
-   the corresponding output port on GeometrySystem,
+   the corresponding query output port on GeometrySystem,
    - the querying LeafSystem can evaluate the input port, retrieving a `const
  QueryHandle*` in return, and, finally,
    - the acquired handle is passed into query methods invoked on a pointer to

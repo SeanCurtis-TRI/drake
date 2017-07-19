@@ -73,10 +73,10 @@ template <typename T> class GeometryContext;
  __query port__: An abstract-valued port containing an instance of QueryHandle.
  It provides a "ticket" for downstream LeafSystem instances to perform geometric
  queries on the %GeometrySystem. To perform geometric queries, downstream
- LeafSystem instances must have a pointer to the %GeometrySystem, and connect
- an input port to this output port. The `const QueryHandle` reference returned
- by evaluating the input port is provided as an argument to query methods
- defined on the %GeometrySystem pointer.
+ LeafSystem instances acquire the QueryHandle from %GeometrySystem's output port
+ and provide it as a parameter to one of %GeometrySystem's query methods (e.g.,
+ GeometrySystem::ComputeContact). This assumes that the querying system has
+ access to a const pointer to the connected %GeometrySystem instance.
 
  __lcm visualization port__: An abstract-valued port containing an instance of
  PoseBundle. This is a convenience port designed to feed LCM update messages to
@@ -104,8 +104,7 @@ template <typename T> class GeometryContext;
  queries by:
    1. evaluating the QueryHandle input port, and
    2. passing the returned handle into the appropriate query method on
-   GeometrySystem (e.g., GeometrySystem::ComputeContact()) and then process
-   the results.
+   GeometrySystem (e.g., GeometrySystem::ComputeContact()).
 
  __Producer__
 
@@ -195,9 +194,8 @@ class GeometrySystem : public systems::LeafSystem<T> {
    a source that registers frames and geometries _must_ connect outputs to
    the inputs associated with that source. Failure to do so will be treated as
    a runtime error during the evaluation of %GeometrySystem. %GeometrySystem
-   will detect that frames have been registered but no values have been provided
-   via the appropriate input port.
-   */
+   will detect that frames have been registered but no values have been
+   provided. */
   //@{
 
   /** Registers a new source to the geometry system (see GeometryWorld for the
@@ -217,19 +215,19 @@ class GeometrySystem : public systems::LeafSystem<T> {
    @see GeometryState::RegisterNewSource() */
   SourceId RegisterSource(const std::string &name = "");
 
-  /** Given a valid source `id`, returns frame id-valued input port which
-   belongs to that `id`. This port's value is an ordered list of frame ids; it
-   is used to provide an interpretation on the pose values provide don the
+  /** Given a valid source `id`, returns the "frame id" input port associated
+   with that `id`. This port's value is an ordered list of frame ids; it
+   is used to provide an interpretation on the pose values provided on the
    pose port.
    @throws  std::logic_error if the source_id is _not_ recognized, or if the
-   context has already been allocated.. */
+   context has already been allocated. */
   const systems::InputPortDescriptor<T>& get_source_frame_id_port(SourceId id);
 
-  /** Given a valid source `id`, returns an input _pose_ port associated
-   with that id. This port is used to communicate _pose_ data for registered
+  /** Given a valid source `id`, returns an _pose_ input port associated
+   with that `id`. This port is used to communicate _pose_ data for registered
    frames.
    @throws  std::logic_error if the source_id is _not_ recognized, or if the
-   context has already been allocated.. */
+   context has already been allocated. */
   const systems::InputPortDescriptor<T>& get_source_pose_port(SourceId id);
 
   /** Given a valid source identifier, returns an input _velocity_ port
@@ -393,7 +391,7 @@ class GeometrySystem : public systems::LeafSystem<T> {
 
   //@}
 
-  /** @name     Geometry Queries
+  /** @name     System Queries
    These methods perform queries on the state of the geometry world including:
    proximity queries, contact queries, ray-casting queries, and look ups on
    geometry resources.
@@ -408,33 +406,32 @@ class GeometrySystem : public systems::LeafSystem<T> {
   //@{
 
   /** Report the name for the given source id.
-   @param   handle   The QueryHandle produced by evaluating the connected
-                     input port on the querying LeafSystem.
+   @param handle   The QueryHandle produced by evaluating the connected
+                   input port on the querying LeafSystem.
+   @param id       The id of the source to query.
    See GeometryWorld::get_source_name() for details. */
   const std::string& get_source_name(const QueryHandle<T>& handle,
                                      SourceId id) const;
 
   /** Reports if the given source id is registered.
-   @param   handle   The QueryHandle produced by evaluating the connected
+   @param handle   The QueryHandle produced by evaluating the connected
                      input port on the querying LeafSystem.
+   @param id       The id of the source to query.
    See GeometryWorld::SourceIsRegistered() for details. */
   bool SourceIsRegistered(const QueryHandle<T>& handle,
                           SourceId id) const;
 
   /** Reports the frame to which this geometry is registered.
-   @param   handle   The QueryHandle produced by evaluating the connected
-                     input port on the querying LeafSystem.
-   See GeometryWorld::GetFrameId() for details. */
+   @param handle   The QueryHandle produced by evaluating the connected
+                   input port on the querying LeafSystem. */
   FrameId GetFrameId(const QueryHandle<T>& handle,
                      GeometryId geometry_id) const;
 
   /** Determines contacts across all geometries in GeometryWorld.
-   @param   handle   The QueryHandle produced by evaluating the connected
-                     input port on the querying LeafSystem.
-   @param   contacts A vector to be populated with computed contact info. The
-                     size of `contacts` remains unchanged if no contacts were
-                     found.
-   See GeometryWorld::ComputeContact() for details. */
+   @param handle   The QueryHandle produced by evaluating the connected
+                   input port on the querying LeafSystem.
+   @param contacts A vector to be populated with computed contact info. The size
+                   of `contacts` remains unchanged if no contacts were found. */
   bool ComputeContact(const QueryHandle<T>& handle,
                       std::vector<Contact<T>>* contacts) const;
 
@@ -482,7 +479,8 @@ class GeometrySystem : public systems::LeafSystem<T> {
 
   // Override of construction to account for
   //    - instantiating a GeometryContext instance (as opposed to LeafContext),
-  //    - modifying the state to prevent additional sources being added. */
+  //    - to detect allocation in support of the topology semantics described
+  //      above.
   std::unique_ptr<systems::LeafContext<T>> DoMakeContext() const override;
 
   // Helper method for throwing an exception if a context has *ever* been
@@ -509,8 +507,8 @@ class GeometrySystem : public systems::LeafSystem<T> {
     VELOCITY
   };
 
-  // For the given source id, reports the id of the existing port of port_type
-  // (creating it as necessary).
+  // For the given source id, returns the input port of port_type (creating it
+  // as necessary).
   const systems::InputPortDescriptor<T>& get_port_for_source_id(
       SourceId id, PortType port_type);
 
