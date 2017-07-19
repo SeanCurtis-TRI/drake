@@ -25,6 +25,7 @@
 #include "drake/multibody/parsers/sdf_parser.h"
 #include "drake/multibody/parsers/urdf_parser.h"
 #include "drake/multibody/rigid_body_frame.h"
+#include "drake/multibody/rigid_body_plant/compliant_stiction_logger.h"
 #include "drake/multibody/rigid_body_plant/contact_results_to_lcm.h"
 #include "drake/multibody/rigid_body_plant/drake_visualizer.h"
 #include "drake/multibody/rigid_body_plant/kinematics_results.h"
@@ -48,6 +49,7 @@ using drake::systems::RungeKutta3Integrator;
 using drake::systems::ContactResultsToLcmSystem;
 using drake::systems::lcm::LcmPublisherSystem;
 using drake::systems::KinematicsResults;
+using drake::systems::SlipDetector;
 using Eigen::Vector3d;
 
 // Initial height of the box's origin.
@@ -122,6 +124,14 @@ GTEST_TEST(SchunkWsgLiftTest, BoxLiftTest) {
   const auto& lifting_output_port =
       plant->model_instance_state_output_port(lifter_instance_id);
 
+  // Slip detector
+  SlipDetector* slip_detector =
+      builder.AddSystem<SlipDetector>(&plant->get_rigid_body_tree(), 0.01);
+  builder.Connect(plant->state_output_port(),
+                  slip_detector->state_input_port());
+  builder.Connect(plant->contact_results_output_port(),
+                  slip_detector->contact_input_port());
+
   // Constants chosen arbitrarily.
   const Vector1d lift_kp(300.);
   const Vector1d lift_ki(0.);
@@ -187,6 +197,7 @@ GTEST_TEST(SchunkWsgLiftTest, BoxLiftTest) {
   viz_publisher->set_name("visualization_publisher");
   builder.Connect(plant->state_output_port(),
                   viz_publisher->get_input_port(0));
+  viz_publisher->set_publish_period(1 / 60.0);
 
   // contact force visualization
   ContactResultsToLcmSystem<double>& contact_viz =
@@ -197,6 +208,8 @@ GTEST_TEST(SchunkWsgLiftTest, BoxLiftTest) {
       LcmPublisherSystem::Make<lcmt_contact_results_for_viz>(
           "CONTACT_RESULTS", &lcm));
   contact_results_publisher.set_name("contact_results_publisher");
+  contact_results_publisher.set_publish_period(1 / 60.0);
+
   // Contact results to lcm msg.
   builder.Connect(plant->contact_results_output_port(),
                   contact_viz.get_input_port(0));
@@ -213,6 +226,7 @@ GTEST_TEST(SchunkWsgLiftTest, BoxLiftTest) {
   // Set up the model and simulator and set their starting state.
   const std::unique_ptr<systems::Diagram<double>> model = builder.Build();
   systems::Simulator<double> simulator(*model);
+  simulator.set_publish_every_time_step(false);
 
   const RigidBodyTreed& tree = plant->get_rigid_body_tree();
 
@@ -246,7 +260,7 @@ GTEST_TEST(SchunkWsgLiftTest, BoxLiftTest) {
 
   simulator.reset_integrator<RungeKutta3Integrator<double>>(*model, context);
   simulator.get_mutable_integrator()->request_initial_step_size_target(1e-4);
-  simulator.get_mutable_integrator()->set_target_accuracy(1e-3);
+  simulator.get_mutable_integrator()->set_target_accuracy(1e-4);
 
   simulator.Initialize();
 
@@ -272,6 +286,13 @@ GTEST_TEST(SchunkWsgLiftTest, BoxLiftTest) {
 
   // Now run to the end of the simulation.
   simulator.StepTo(kSimDuration);
+
+  {
+    std::ofstream out_file;
+    out_file.open("/home/seanc/code/drake-distro/drake/multibody/"
+                  "rigid_body_plant/visualization/junk.txt");
+    out_file << (*slip_detector) << "\n";
+  }
 
   // Extract and log the state of the robot.
   model->CalcOutput(simulator.get_context(), state_output.get());
