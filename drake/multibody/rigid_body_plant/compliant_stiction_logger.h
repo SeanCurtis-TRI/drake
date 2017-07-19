@@ -1,5 +1,7 @@
 #pragma once
 
+#include <ostream>
+
 #include "drake/common/eigen_types.h"
 #include "drake/multibody/collision/element.h"
 #include "drake/systems/framework/leaf_system.h"
@@ -66,6 +68,9 @@ class SlipDetector : public systems::LeafSystem<double> {
   const std::multimap<double, SlipData>& get_slip_data() const {
     return slip_data_;
   };
+
+  friend std::ostream& operator<<(std::ostream& out,
+                                  const SlipDetector& detector);
 
  private:
   const RigidBodyTree<double>* tree_{nullptr};

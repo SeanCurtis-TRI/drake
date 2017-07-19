@@ -82,5 +82,24 @@ void SlipDetector::DoPublish(
                                 v_Contact_BcAc_W)));
   }
 }
+
+std::ostream& operator<<(std::ostream& out, const SlipDetector& detector) {
+  int i = 0;
+  for (const auto& pair : detector.get_slip_data()) {
+    // Outputs a comma-separated table of values:
+    // Time, A id, B id, normal, p_WC, v_AB_W
+    const auto& slip_data = pair.second;
+    if ( i > 0 ) out << "\n";
+    out << pair.first << ", "
+        << slip_data.element_a << ", "
+        << slip_data.element_b << ", "
+        << slip_data.normal_W.transpose() << ", "
+        << slip_data.p_WC.transpose() << ", "
+        << slip_data.v_AB_W.transpose();
+    ++i;
+  }
+  return out;
+}
+
 }  // namespace systems
 }  // namespace drake
