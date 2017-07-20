@@ -25,6 +25,10 @@
 namespace drake {
 namespace geometry {
 
+using systems::Context;
+using std::make_unique;
+using std::unique_ptr;
+
 // Friend class for working with QueryHandles in a text context.
 class QueryHandleTester {
  public:
@@ -56,10 +60,6 @@ class GeometrySystemTester {
 };
 
 namespace {
-
-using systems::Context;
-using std::make_unique;
-using std::unique_ptr;
 
 // Testing harness to facilitate working with/testing the GeometrySystem. Before
 // performing *any* queries in tests, `AllocateContext` must be explicitly

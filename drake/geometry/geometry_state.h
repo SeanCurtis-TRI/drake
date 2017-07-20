@@ -23,7 +23,7 @@ namespace geometry {
 
 // forward declarations
 class FrameIdVector;
-template <typename T> struct GeometryFrame;
+template <typename T> class GeometryFrame;
 template <typename T> class GeometrySystem;
 template <typename T> class GeometryWorld;
 

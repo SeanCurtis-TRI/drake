@@ -47,9 +47,6 @@ GeometrySystem<T>::GeometrySystem() : LeafSystem<T>() {
 }
 
 template <typename T>
-GeometrySystem<T>::~GeometrySystem() {}
-
-template <typename T>
 SourceId GeometrySystem<T>::RegisterSource(const std::string &name) {
   THROW_IF_CONTEXT_ALLOCATED
   SourceId source_id = initial_state_->RegisterNewSource(name);
@@ -344,6 +341,9 @@ GeometrySystem<T>::get_port_for_source_id(
     }
     case POSE: {
       return get_port(&source_ports->pose_port);
+    }
+    case VELOCITY: {
+      return get_port(&source_ports->velocity_port);
     }
   }
 }

@@ -5,11 +5,11 @@
 #include <unordered_map>
 #include <vector>
 
-#include "drake/systems/framework/context.h"
-#include "drake/systems/framework/leaf_system.h"
-#include "drake/geometry/query_handle.h"
 #include "drake/geometry/geometry_query_results.h"
 #include "drake/geometry/geometry_world.h"
+#include "drake/geometry/query_handle.h"
+#include "drake/systems/framework/context.h"
+#include "drake/systems/framework/leaf_system.h"
 #include "drake/systems/rendering/pose_bundle.h"
 
 namespace drake {
@@ -182,7 +182,7 @@ class GeometrySystem : public systems::LeafSystem<T> {
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(GeometrySystem)
 
   GeometrySystem();
-  ~GeometrySystem() override;
+  ~GeometrySystem() override {}
 
   /** @name       Port management
    Access to GeometrySystem's input/output ports. This topic includes

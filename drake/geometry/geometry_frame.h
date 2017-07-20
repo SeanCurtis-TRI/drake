@@ -29,7 +29,8 @@ namespace geometry {
 
  @tparam T The underlying scalar type. Must be a valid Eigen scalar. */
 template <typename T>
-struct GeometryFrame {
+class GeometryFrame {
+ public:
   DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(GeometryFrame)
 
   /** Constructor.
