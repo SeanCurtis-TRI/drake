@@ -345,6 +345,11 @@ GeometrySystem<T>::get_port_for_source_id(
     case VELOCITY: {
       return get_port(&source_ports->velocity_port);
     }
+    default:
+      // This is here because gcc fails to recognize that all enumerations have
+      // been covered.
+      throw std::runtime_error(
+          "All enum values have been listed; this should not be reached!");
   }
 }
 
