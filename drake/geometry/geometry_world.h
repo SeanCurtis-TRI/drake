@@ -546,7 +546,7 @@ class GeometryWorld {
    @param contacts    All contacts will be aggregated in this structure.
    @returns True if the operation was successful. */
   bool ComputeContact(const GeometryContext<T>& context,
-                      std::vector<Contact<T>>* contacts) const;
+                      std::vector<PenetrationAsPointPair<T>>* contacts) const;
 #if 0
   //@}
 

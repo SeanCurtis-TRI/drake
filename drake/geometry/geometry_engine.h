@@ -260,7 +260,7 @@ class GeometryEngine {
   virtual bool ComputeContact(
       const std::vector<GeometryId>& dynamic_map,
       const std::vector<GeometryId>& anchored_map,
-      std::vector<Contact<T>>* contacts) const = 0;
+      std::vector<PenetrationAsPointPair<T>>* contacts) const = 0;
 
   //@}
 #if 0

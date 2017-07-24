@@ -184,7 +184,7 @@ bool GeometryWorld<T>::FindClosestGeometry(
 
 template <typename T>
 bool GeometryWorld<T>::ComputeContact(const GeometryContext<T>& context,
-                    std::vector<Contact<T>>* contacts) const {
+                    std::vector<PenetrationAsPointPair<T>>* contacts) const {
   const GeometryState<T>& state = context.get_geometry_state();
   return state.geometry_engine_->ComputeContact(
       state.geometry_index_id_map_, state.anchored_geometry_index_id_map_,

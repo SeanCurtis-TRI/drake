@@ -65,7 +65,7 @@ class GeometryEngineStub : public GeometryEngine<T> {
   bool ComputeContact(
       const std::vector<GeometryId>& dynamic_map,
       const std::vector<GeometryId>& anchored_map,
-      std::vector<Contact<T>>* contacts) const override;
+      std::vector<PenetrationAsPointPair<T>>* contacts) const override;
 
  protected:
   // NVI implementation for cloning GeometryEngine instances.
@@ -76,13 +76,12 @@ class GeometryEngineStub : public GeometryEngine<T> {
 
  private:
   // Helper method to compute the contact between two spheres.
-  optional<Contact<T>> CollideSpheres(const Sphere& sphere_A,
-                                      const Vector3<T>& p_WA,
-                                      const Sphere& sphere_B,
-                                      const Vector3<T>& p_WB) const;
-  optional<Contact<T>> CollideHalfSpace(const Sphere& sphere,
-                                        const Vector3<T>& p_WA,
-                                        const HalfSpace& plane) const;
+  optional<PenetrationAsPointPair<T>> CollideSpheres(
+      const Sphere& sphere_A, const Vector3<T>& p_WA, const Sphere& sphere_B,
+      const Vector3<T>& p_WB) const;
+  optional<PenetrationAsPointPair<T>> CollideHalfSpace(
+      const Sphere& sphere, const Vector3<T>& p_WA,
+      const HalfSpace& plane) const;
 
   // The underlying method for executing
   template <class PairSet>

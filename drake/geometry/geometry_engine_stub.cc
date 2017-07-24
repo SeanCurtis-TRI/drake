@@ -299,13 +299,13 @@ template <typename T>
 bool GeometryEngineStub<T>::ComputeContact(
     const std::vector<GeometryId>& dynamic_map,
     const std::vector<GeometryId>& anchored_map,
-    std::vector<Contact<T>>* contacts) const {
+    std::vector<PenetrationAsPointPair<T>>* contacts) const {
   // A simple O(N²) algorithm.
   for (int i = 0; i < get_update_input_size(); ++i) {
     const Sphere& sphere_A = static_cast<const Sphere&>(*geometries_[i]);
     // dynamic-anchored collisions.
     for (int a = 0; a < static_cast<int>(anchored_geometries_.size()); ++a) {
-      optional<Contact<T>> contact;
+      optional<PenetrationAsPointPair<T>> contact;
       switch (anchored_geometries_[a]->get_type()) {
         case Shape::SPHERE:
           {
@@ -351,7 +351,7 @@ bool GeometryEngineStub<T>::ComputeContact(
 }
 
 template <typename T>
-optional<Contact<T>> GeometryEngineStub<T>::CollideSpheres(
+optional<PenetrationAsPointPair<T>> GeometryEngineStub<T>::CollideSpheres(
     const Sphere& sphere_A, const Vector3<T>& p_WA, const Sphere& sphere_B,
     const Vector3<T>& p_WB) const {
   auto r_AB = p_WB - p_WA;
@@ -362,11 +362,11 @@ optional<Contact<T>> GeometryEngineStub<T>::CollideSpheres(
     // Distance between *centers*!
     T distance = sqrt(dist_sqd);
     if (distance > Eigen::NumTraits<T>::dummy_precision()) {
-      Contact<T> contact;
+      PenetrationAsPointPair<T> contact;
       contact.depth = separating_dist - distance;
-      contact.nhat_AcBc_W = r_AB / distance;
-      contact.p_WCa = p_WA + contact.nhat_AcBc_W * sphere_A.get_radius();
-      contact.p_WCb = p_WB - contact.nhat_AcBc_W * sphere_B.get_radius();
+      contact.nhat_AB_W = r_AB / distance;
+      contact.p_WCa = p_WA + contact.nhat_AB_W * sphere_A.get_radius();
+      contact.p_WCb = p_WB - contact.nhat_AB_W * sphere_B.get_radius();
       return contact;
     }
   }
@@ -374,18 +374,18 @@ optional<Contact<T>> GeometryEngineStub<T>::CollideSpheres(
 }
 
 template <typename T>
-optional<Contact<T>> GeometryEngineStub<T>::CollideHalfSpace(
+optional<PenetrationAsPointPair<T>> GeometryEngineStub<T>::CollideHalfSpace(
     const Sphere& sphere, const Vector3<T>& p_WA,
     const HalfSpace& plane) const {
   using std::abs;
   double signed_dist = plane.get_signed_distance(p_WA) - sphere.get_radius();
   if (signed_dist < 0) {
-    Contact<T> contact;
+    PenetrationAsPointPair<T> contact;
     contact.depth = -signed_dist;
-    // Contact direction is *opposite* the plane normal, because the sphere is
-    // always A.
-    contact.nhat_AcBc_W = -plane.get_normal();
-    contact.p_WCa = p_WA + contact.nhat_AcBc_W * sphere.get_radius();
+    // Penetration direction is *opposite* the plane normal, because the sphere
+    // is always A.
+    contact.nhat_AB_W = -plane.get_normal();
+    contact.p_WCa = p_WA + contact.nhat_AB_W * sphere.get_radius();
     contact.p_WCb =
         p_WA - plane.get_normal() * (sphere.get_radius() + signed_dist);
     return contact;

@@ -50,28 +50,40 @@ template <typename T>
 SourceId GeometrySystem<T>::RegisterSource(const std::string &name) {
   THROW_IF_CONTEXT_ALLOCATED
   SourceId source_id = initial_state_->RegisterNewSource(name);
-  // Instantiates a default-initialized SourcePorts instance for the new
-  // source id.
+
+  // Create and store the input ports for this source id.
   input_source_ids_[source_id];
+  input_source_ids_[source_id].id_port =
+      this->DeclareAbstractInputPort().get_index();
+  input_source_ids_[source_id].pose_port =
+      this->DeclareAbstractInputPort().get_index();
+  input_source_ids_[source_id].velocity_port =
+      this->DeclareAbstractInputPort().get_index();
   return source_id;
 }
 
 template <typename T>
 const systems::InputPortDescriptor<T>&
 GeometrySystem<T>::get_source_frame_id_port(SourceId id) {
-  return get_port_for_source_id(id, ID);
+  throw_if_unregistered(
+      id, "Can't acquire id port for unknown source id: ");
+  return this->get_input_port(input_source_ids_[id].id_port);
 }
 
 template <typename T>
 const systems::InputPortDescriptor<T>&
 GeometrySystem<T>::get_source_pose_port(SourceId id) {
-  return get_port_for_source_id(id, POSE);
+  throw_if_unregistered(
+      id, "Can't acquire pose port for unknown source id: ");
+  return this->get_input_port(input_source_ids_[id].pose_port);
 }
 
 template <typename T>
 const systems::InputPortDescriptor<T>&
 GeometrySystem<T>::get_source_velocity_port(SourceId id) {
-  return get_port_for_source_id(id, VELOCITY);
+  throw_if_unregistered(
+      id, "Can't acquire velocity port for unknown source id: ");
+  return this->get_input_port(input_source_ids_[id].velocity_port);
 }
 
 template <typename T>
@@ -159,8 +171,9 @@ FrameId GeometrySystem<T>::GetFrameId(
 }
 
 template <typename T>
-bool GeometrySystem<T>::ComputeContact(const QueryHandle<T>& handle,
-                                       vector<Contact<T>>* contacts) const {
+bool GeometrySystem<T>::ComputeContact(
+    const QueryHandle<T>& handle,
+    vector<PenetrationAsPointPair<T>>* contacts) const {
   DRAKE_DEMAND(handle.context_);
   const GeometryContext<T>& g_context = FullPoseUpdate(handle);
   return geometry_world_.ComputeContact(g_context, contacts);
@@ -258,17 +271,18 @@ const GeometryContext<T>& GeometrySystem<T>::FullPoseUpdate(
       const auto itr = input_source_ids_.find(source_id);
       DRAKE_ASSERT(itr != input_source_ids_.end());
       const int id_port = itr->second.id_port;
-      if (id_port >= 0) {
+      auto id_port_value = this->template EvalAbstractInput(g_context, id_port);
+      if (id_port_value) {
         const FrameIdVector& ids =
-            this->template EvalAbstractInput(g_context, id_port)
-                ->template GetValue<FrameIdVector>();
+            id_port_value->template GetValue<FrameIdVector>();
         // TODO(SeanCurtis-TRI): Consider only doing this in debug builds.
         state.ValidateFrameIds(ids);
         const int pose_port = itr->second.pose_port;
-        if (pose_port >= 0) {
+        auto pose_port_value =
+            this->template EvalAbstractInput(g_context, pose_port);
+        if (pose_port_value) {
           const FramePoseSet<T>& poses =
-              this->template EvalAbstractInput(g_context, pose_port)
-                  ->template GetValue<FramePoseSet<T>>();
+              pose_port_value->template GetValue<FramePoseSet<T>>();
           mutable_state.SetFramePoses(ids, poses);
         } else {
           throw std::logic_error(
@@ -307,49 +321,11 @@ void GeometrySystem<T>::ThrowIfContextAllocated(
 }
 
 template <typename T>
-const InputPortDescriptor<T>&
-GeometrySystem<T>::get_port_for_source_id(
-    SourceId id, GeometrySystem<T>::PortType port_type) {
+void GeometrySystem<T>::throw_if_unregistered(SourceId source_id,
+                                              const char *message) const {
   using std::to_string;
-  SourcePorts* source_ports;
-
-  // Access port data based on the source id -- catching the possibility of an
-  // invalid id.
-  auto itr = input_source_ids_.find(id);
-  if (itr != input_source_ids_.end()) {
-    source_ports = &(itr->second);
-  } else {
-    throw std::logic_error("Can't acquire input port for unknown source id: "
-                               + to_string(id) + ".");
-  }
-
-  // Helper method to return the input port (creating it as necessary).
-  auto get_port = [this](int* port_id) -> const InputPortDescriptor<T>& {
-    if (*port_id != -1) {
-      return this->get_input_port(*port_id);
-    } else {
-      const auto &input_port = this->DeclareAbstractInputPort();
-      *port_id = input_port.get_index();
-      return input_port;
-    }
-  };
-
-  // Get the port based on requested type.
-  switch (port_type) {
-    case ID: {
-      return get_port(&source_ports->id_port);
-    }
-    case POSE: {
-      return get_port(&source_ports->pose_port);
-    }
-    case VELOCITY: {
-      return get_port(&source_ports->velocity_port);
-    }
-    default:
-      // This is here because gcc fails to recognize that all enumerations have
-      // been covered.
-      throw std::runtime_error(
-          "All enum values have been listed; this should not be reached!");
+  if (input_source_ids_.find(source_id) == input_source_ids_.end()) {
+    throw std::logic_error(message + to_string(source_id) + ".");
   }
 }
 

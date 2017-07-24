@@ -129,7 +129,7 @@ TEST_F(GeometryEngineStubTest, FindClosestGeometry) {
 // separation between all axis spheres.
 TEST_F(GeometryEngineStubTest, CollisionsFree) {
   SetUpAxisSpheres();
-  std::vector<Contact<double>> contacts;
+  std::vector<PenetrationAsPointPair<double>> contacts;
   std::vector<GeometryId> anchored_ids;
   const std::vector<GeometryId>& dynamic_ids =
       state_tester_.get_index_to_id_map();
@@ -164,7 +164,7 @@ TEST_F(GeometryEngineStubTest, CollisionsIntersectingSphere) {
                                             make_sphere(collider_radius)));
   state_tester_.get_engine()->UpdateWorldPoses(poses_);
   // Perform collision
-  std::vector<Contact<double>> contacts;
+  std::vector<PenetrationAsPointPair<double>> contacts;
   std::vector<GeometryId> anchored_ids;
   const std::vector<GeometryId>& dynamic_ids =
       state_tester_.get_index_to_id_map();
@@ -180,7 +180,7 @@ TEST_F(GeometryEngineStubTest, CollisionsIntersectingSphere) {
   EXPECT_TRUE(CompareMatrices(
       contacts[0].p_WCb,
       pose.translation() - Vector3<double>(collider_radius, 0, 0)));
-  EXPECT_TRUE(CompareMatrices(contacts[0].nhat_AcBc_W,
+  EXPECT_TRUE(CompareMatrices(contacts[0].nhat_AB_W,
                               (pose.translation() - p_WO).normalized()));
   // Contact between sphere at <1, 0, 0> with collider.
   EXPECT_EQ(contacts[1].id_A, state_tester_.get_index_to_id_map()[1]);
@@ -191,7 +191,7 @@ TEST_F(GeometryEngineStubTest, CollisionsIntersectingSphere) {
   EXPECT_TRUE(CompareMatrices(
       contacts[0].p_WCb,
       pose.translation() - Vector3<double>(collider_radius, 0, 0)));
-  EXPECT_TRUE(CompareMatrices(contacts[1].nhat_AcBc_W,
+  EXPECT_TRUE(CompareMatrices(contacts[1].nhat_AB_W,
                               (pose.translation() - p_WX).normalized()));
 }
 
@@ -227,7 +227,7 @@ TEST_F(GeometryEngineStubTest, CollisionsHalfSpaceNoCollide) {
 
   std::vector<GeometryId> anchored_ids;
   anchored_ids.push_back(plane_id);
-  std::vector<Contact<double>> contacts;
+  std::vector<PenetrationAsPointPair<double>> contacts;
   const std::vector<GeometryId>& dynamic_ids =
       state_tester_.get_index_to_id_map();
   EXPECT_TRUE(state_tester_.get_engine()->ComputeContact(
@@ -267,7 +267,7 @@ TEST_F(GeometryEngineStubTest, CollisionsHalfSpaceCollide) {
 
   std::vector<GeometryId> anchored_ids;
   anchored_ids.push_back(plane_id);
-  std::vector<Contact<double>> contacts;
+  std::vector<PenetrationAsPointPair<double>> contacts;
   const std::vector<GeometryId>& dynamic_ids =
       state_tester_.get_index_to_id_map();
   EXPECT_TRUE(state_tester_.get_engine()->ComputeContact(
@@ -283,7 +283,7 @@ TEST_F(GeometryEngineStubTest, CollisionsHalfSpaceCollide) {
   EXPECT_TRUE(CompareMatrices(
       contacts[0].p_WCb,
       p_WS - normal * (kRadius - penetration), 1e-14));
-  EXPECT_TRUE(CompareMatrices(contacts[0].nhat_AcBc_W, -normal));
+  EXPECT_TRUE(CompareMatrices(contacts[0].nhat_AB_W, -normal));
 }
 
 // TODO(SeanCurtis-TRI):
