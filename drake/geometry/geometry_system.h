@@ -5,9 +5,9 @@
 #include <unordered_map>
 #include <vector>
 
-#include "drake/geometry/geometry_query_results.h"
-#include "drake/geometry/geometry_world.h"
 #include "drake/geometry/query_handle.h"
+#include "drake/geometry/query_results/penetration_as_point_pair.h"
+#include "drake/geometry/geometry_world.h"
 #include "drake/systems/framework/context.h"
 #include "drake/systems/framework/leaf_system.h"
 #include "drake/systems/rendering/pose_bundle.h"
@@ -406,7 +406,7 @@ class GeometrySystem : public systems::LeafSystem<T> {
 
   //@{
 
-  /** Report the name for the given source id.
+  /** Reports the name for the given source id.
    @param handle   The QueryHandle produced by evaluating the connected
                    input port on the querying LeafSystem.
    @param id       The id of the source to query.
@@ -428,13 +428,13 @@ class GeometrySystem : public systems::LeafSystem<T> {
   FrameId GetFrameId(const QueryHandle<T>& handle,
                      GeometryId geometry_id) const;
 
-  /** Determines contacts across all geometries in GeometryWorld.
+  /** Determines penetrations across all pairs of geometries in GeometryWorld.
    @param handle   The QueryHandle produced by evaluating the connected
                    input port on the querying LeafSystem.
-   @param contacts A vector to be populated with computed contact info. The size
-                   of `contacts` remains unchanged if no contacts were found. */
-  bool ComputeContact(const QueryHandle<T>& handle,
-                      std::vector<PenetrationAsPointPair<T>>* contacts) const;
+   @returns A vector populated with all detected penetrations characterized as
+            point pairs. */
+  std::vector<PenetrationAsPointPair<T>> ComputePenetration(
+      const QueryHandle<T>& handle) const;
 
   // TODO(SeanCurtis-TRI): Flesh this out with the full set of queries.
 
@@ -489,6 +489,10 @@ class GeometrySystem : public systems::LeafSystem<T> {
   // that the error message can include that detail.
   void ThrowIfContextAllocated(const char* source_method) const;
 
+  // Asserts the given source_id is registered, throwing an exception whose
+  // message is the given message with the source_id appended if not.
+  void ThrowUnlessRegistered(SourceId source_id, const char *message) const;
+
   // The underlying representation of the world's geometry.
   GeometryWorld<T> geometry_world_;
 
@@ -500,10 +504,6 @@ class GeometrySystem : public systems::LeafSystem<T> {
   // AllocateContext().
   GeometryState<T>* initial_state_;
   mutable bool context_allocated_{false};
-
-  // Asserts the given source_id is registered, throwing an exception whose
-  // message is the given message with the source_id appended if not.
-  void IsRegisteredOrThrow(SourceId source_id, const char *message) const;
 
   // A struct that stores the port indices for a given source.
   // TODO(SeanCurtis-TRI): Consider making these TypeSafeIndex values.

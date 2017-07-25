@@ -11,7 +11,7 @@
 #include "drake/geometry/frame_kinematics_vector.h"
 #include "drake/geometry/geometry_frame.h"
 #include "drake/geometry/geometry_ids.h"
-#include "drake/geometry/geometry_query_results.h"
+#include "drake/geometry/query_results/penetration_as_point_pair.h"
 
 namespace drake {
 namespace geometry {
@@ -531,22 +531,19 @@ class GeometryWorld {
   //@{
 #endif
   // NOTE: This maps to Model::ComputeMaximumDepthCollisionPoints().
-  /** Computes the contact across all elements in the world. Only reports
-   results for elements in *contact*; if two elements are separated, there will
-   be no result for that pair.
+  /** Computes the penetrations across all pairs of geometries in the world.
+   Only reports results for _penetrating_ geometries; if two geometries are
+   separated, there will be no result for that pair.
 
    This method is affected by collision filtering; element pairs that have
    been filtered will not produce contacts, even if their collision geometry is
    penetrating.
 
-   The output vector will *not* be cleared. Contact information will merely be
-   added to the vector.
-
    @param context     The geometry context to query against.
-   @param contacts    All contacts will be aggregated in this structure.
-   @returns True if the operation was successful. */
-  bool ComputeContact(const GeometryContext<T>& context,
-                      std::vector<PenetrationAsPointPair<T>>* contacts) const;
+   @returns A vector populated with all detected penetrations characterized as
+            point pairs. */
+  std::vector<PenetrationAsPointPair<T>> ComputePenetration(
+      const GeometryContext<T>& context) const;
 #if 0
   //@}
 

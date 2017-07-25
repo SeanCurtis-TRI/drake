@@ -9,8 +9,8 @@
 #include "drake/common/eigen_types.h"
 #include "drake/geometry/geometry_ids.h"
 #include "drake/geometry/geometry_index.h"
-#include "drake/geometry/geometry_query_results.h"
 #include "drake/geometry/geometry_query_inputs.h"
+#include "drake/geometry/query_results/penetration_as_point_pair.h"
 #include "drake/geometry/shapes.h"
 
 namespace drake {
@@ -238,29 +238,25 @@ class GeometryEngine {
   //@{
 
   // NOTE: This maps to Model::ComputeMaximumDepthCollisionPoints().
-  /** Computes the contact across all elements in the world. Only reports
-   results for elements in *contact*; if two elements are separated, there will
-   be no result for that pair.
+  /** Computes the penetrations across all pairs of geometries in the world.
+   Only reports results for _penetrating_ geometries; if two geometries are
+   separated, there will be no result for that pair.
 
-   This method is affected by collision filtering; element pairs that have
+   This method is affected by collision filtering; geometry pairs that have
    been filtered will not produce contacts, even if their collision geometry is
    penetrating.
 
    @internal The collision filtering hasn't been implemented yet.
 
-   The output vector will *not* be cleared. Contact information will merely be
-   added to the vector.
-
    @param[in]   dynamic_map   A map from geometry _index_ to the corresponding
                               global geometry identifier for dynamic geometries.
    @param[in]   anchored_map  A map from geometry _index_ to the corresponding
                               global geometry identifier for anchored geometries.
-   @param[out]  contacts      All contacts will be aggregated in this structure.
-   @returns True if the operation was successful. */
-  virtual bool ComputeContact(
+   @returns A vector populated with all detected penetrations characterized as
+            point pairs. */
+  virtual std::vector<PenetrationAsPointPair<T>> ComputePenetration(
       const std::vector<GeometryId>& dynamic_map,
-      const std::vector<GeometryId>& anchored_map,
-      std::vector<PenetrationAsPointPair<T>>* contacts) const = 0;
+      const std::vector<GeometryId>& anchored_map) const = 0;
 
   //@}
 #if 0

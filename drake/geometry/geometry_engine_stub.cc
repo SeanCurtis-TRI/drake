@@ -296,10 +296,10 @@ bool GeometryEngineStub<T>::FindClosestGeometry(
 }
 
 template <typename T>
-bool GeometryEngineStub<T>::ComputeContact(
-    const std::vector<GeometryId>& dynamic_map,
-    const std::vector<GeometryId>& anchored_map,
-    std::vector<PenetrationAsPointPair<T>>* contacts) const {
+std::vector<PenetrationAsPointPair<T>> GeometryEngineStub<
+    T>::ComputePenetration(const std::vector<GeometryId>& dynamic_map,
+                           const std::vector<GeometryId>& anchored_map) const {
+  std::vector<PenetrationAsPointPair<T>> contacts;
   // A simple O(N²) algorithm.
   for (int i = 0; i < get_update_input_size(); ++i) {
     const Sphere& sphere_A = static_cast<const Sphere&>(*geometries_[i]);
@@ -331,7 +331,7 @@ bool GeometryEngineStub<T>::ComputeContact(
       if (contact) {
         (*contact).id_A = dynamic_map[i];
         (*contact).id_B = anchored_map[a];
-        contacts->push_back(*contact);
+        contacts.push_back(*contact);
       }
     }
     // dynamic-dynamic collisions.
@@ -343,11 +343,11 @@ bool GeometryEngineStub<T>::ComputeContact(
       if (contact) {
         (*contact).id_A = dynamic_map[i];
         (*contact).id_B = dynamic_map[j];
-        contacts->push_back(*contact);
+        contacts.push_back(*contact);
       }
     }
   }
-  return true;
+  return contacts;
 }
 
 template <typename T>

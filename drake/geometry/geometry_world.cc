@@ -7,7 +7,7 @@
 #include "drake/geometry/geometry_context.h"
 #include "drake/geometry/geometry_instance.h"
 #include "drake/geometry/geometry_query_inputs.h"
-#include "drake/geometry/geometry_query_results.h"
+#include "drake/geometry/query_results/penetration_as_point_pair.h"
 #include "drake/geometry/geometry_state.h"
 
 namespace drake {
@@ -183,12 +183,11 @@ bool GeometryWorld<T>::FindClosestGeometry(
 }
 
 template <typename T>
-bool GeometryWorld<T>::ComputeContact(const GeometryContext<T>& context,
-                    std::vector<PenetrationAsPointPair<T>>* contacts) const {
+std::vector<PenetrationAsPointPair<T>> GeometryWorld<T>::ComputePenetration(
+    const GeometryContext<T>& context) const {
   const GeometryState<T>& state = context.get_geometry_state();
-  return state.geometry_engine_->ComputeContact(
-      state.geometry_index_id_map_, state.anchored_geometry_index_id_map_,
-      contacts);
+  return state.geometry_engine_->ComputePenetration(
+      state.geometry_index_id_map_, state.anchored_geometry_index_id_map_);
 }
 
 template <typename T>

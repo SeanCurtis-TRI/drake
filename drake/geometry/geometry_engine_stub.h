@@ -7,7 +7,7 @@
 #include "drake/common/eigen_types.h"
 #include "drake/geometry/geometry_engine.h"
 #include "drake/geometry/geometry_instance.h"
-#include "drake/geometry/geometry_query_results.h"
+#include "drake/geometry/query_results/penetration_as_point_pair.h"
 #include "drake/geometry/shapes.h"
 
 namespace drake {
@@ -62,10 +62,9 @@ class GeometryEngineStub : public GeometryEngine<T> {
       const Eigen::Matrix3Xd& points,
       std::vector<PointProximity<T>>* near_bodies) const override;
 
-  bool ComputeContact(
+  std::vector<PenetrationAsPointPair<T>> ComputePenetration(
       const std::vector<GeometryId>& dynamic_map,
-      const std::vector<GeometryId>& anchored_map,
-      std::vector<PenetrationAsPointPair<T>>* contacts) const override;
+      const std::vector<GeometryId>& anchored_map) const override;
 
  protected:
   // NVI implementation for cloning GeometryEngine instances.

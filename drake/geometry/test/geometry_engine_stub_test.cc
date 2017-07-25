@@ -129,13 +129,12 @@ TEST_F(GeometryEngineStubTest, FindClosestGeometry) {
 // separation between all axis spheres.
 TEST_F(GeometryEngineStubTest, CollisionsFree) {
   SetUpAxisSpheres();
-  std::vector<PenetrationAsPointPair<double>> contacts;
   std::vector<GeometryId> anchored_ids;
   const std::vector<GeometryId>& dynamic_ids =
       state_tester_.get_index_to_id_map();
-  EXPECT_TRUE(state_tester_.get_engine()->ComputeContact(
-      dynamic_ids, anchored_ids, &contacts));
-  EXPECT_EQ(contacts.size(), 0);
+  std::vector<PenetrationAsPointPair<double>> penetrations =
+      state_tester_.get_engine()->ComputePenetration(dynamic_ids, anchored_ids);
+  EXPECT_EQ(penetrations.size(), 0);
 }
 
 // Introduces a new sphere at <x', 0, 0> where x' is midway between the origin
@@ -164,34 +163,33 @@ TEST_F(GeometryEngineStubTest, CollisionsIntersectingSphere) {
                                             make_sphere(collider_radius)));
   state_tester_.get_engine()->UpdateWorldPoses(poses_);
   // Perform collision
-  std::vector<PenetrationAsPointPair<double>> contacts;
   std::vector<GeometryId> anchored_ids;
   const std::vector<GeometryId>& dynamic_ids =
       state_tester_.get_index_to_id_map();
-  EXPECT_TRUE(state_tester_.get_engine()->ComputeContact(
-      dynamic_ids, anchored_ids, &contacts));
-  EXPECT_EQ(contacts.size(), 2);
+  std::vector<PenetrationAsPointPair<double>> penetrations =
+      state_tester_.get_engine()->ComputePenetration(dynamic_ids, anchored_ids);
+  EXPECT_EQ(penetrations.size(), 2);
   // Contact between sphere at origin with collider.
-  EXPECT_EQ(contacts[0].id_A, state_tester_.get_index_to_id_map()[0]);
-  EXPECT_EQ(contacts[0].id_B, collider_id);
-  EXPECT_FLOAT_EQ(contacts[0].depth, collide_depth);
-  EXPECT_TRUE(CompareMatrices(contacts[0].p_WCa,
+  EXPECT_EQ(penetrations[0].id_A, state_tester_.get_index_to_id_map()[0]);
+  EXPECT_EQ(penetrations[0].id_B, collider_id);
+  EXPECT_FLOAT_EQ(penetrations[0].depth, collide_depth);
+  EXPECT_TRUE(CompareMatrices(penetrations[0].p_WCa,
                               p_WO + Vector3<double>(kRadius, 0, 0)));
   EXPECT_TRUE(CompareMatrices(
-      contacts[0].p_WCb,
+      penetrations[0].p_WCb,
       pose.translation() - Vector3<double>(collider_radius, 0, 0)));
-  EXPECT_TRUE(CompareMatrices(contacts[0].nhat_AB_W,
+  EXPECT_TRUE(CompareMatrices(penetrations[0].nhat_AB_W,
                               (pose.translation() - p_WO).normalized()));
   // Contact between sphere at <1, 0, 0> with collider.
-  EXPECT_EQ(contacts[1].id_A, state_tester_.get_index_to_id_map()[1]);
-  EXPECT_EQ(contacts[1].id_B, collider_id);
-  EXPECT_FLOAT_EQ(contacts[1].depth, collide_depth);
-  EXPECT_TRUE(CompareMatrices(contacts[0].p_WCa,
+  EXPECT_EQ(penetrations[1].id_A, state_tester_.get_index_to_id_map()[1]);
+  EXPECT_EQ(penetrations[1].id_B, collider_id);
+  EXPECT_FLOAT_EQ(penetrations[1].depth, collide_depth);
+  EXPECT_TRUE(CompareMatrices(penetrations[0].p_WCa,
                               p_WX - Vector3<double>(kRadius, 0, 0)));
   EXPECT_TRUE(CompareMatrices(
-      contacts[0].p_WCb,
+      penetrations[0].p_WCb,
       pose.translation() - Vector3<double>(collider_radius, 0, 0)));
-  EXPECT_TRUE(CompareMatrices(contacts[1].nhat_AB_W,
+  EXPECT_TRUE(CompareMatrices(penetrations[1].nhat_AB_W,
                               (pose.translation() - p_WX).normalized()));
 }
 
@@ -227,12 +225,11 @@ TEST_F(GeometryEngineStubTest, CollisionsHalfSpaceNoCollide) {
 
   std::vector<GeometryId> anchored_ids;
   anchored_ids.push_back(plane_id);
-  std::vector<PenetrationAsPointPair<double>> contacts;
   const std::vector<GeometryId>& dynamic_ids =
       state_tester_.get_index_to_id_map();
-  EXPECT_TRUE(state_tester_.get_engine()->ComputeContact(
-      dynamic_ids, anchored_ids, &contacts));
-  EXPECT_EQ(contacts.size(), 0);
+  std::vector<PenetrationAsPointPair<double>> penetrations =
+      state_tester_.get_engine()->ComputePenetration(dynamic_ids, anchored_ids);
+  EXPECT_EQ(penetrations.size(), 0);
 }
 
 // This introduces a single half spaces. The half space has a normal in the
@@ -267,23 +264,22 @@ TEST_F(GeometryEngineStubTest, CollisionsHalfSpaceCollide) {
 
   std::vector<GeometryId> anchored_ids;
   anchored_ids.push_back(plane_id);
-  std::vector<PenetrationAsPointPair<double>> contacts;
   const std::vector<GeometryId>& dynamic_ids =
       state_tester_.get_index_to_id_map();
-  EXPECT_TRUE(state_tester_.get_engine()->ComputeContact(
-      dynamic_ids, anchored_ids, &contacts));
-  EXPECT_EQ(contacts.size(), 1);
+  std::vector<PenetrationAsPointPair<double>> penetrations =
+      state_tester_.get_engine()->ComputePenetration(dynamic_ids, anchored_ids);
+  EXPECT_EQ(penetrations.size(), 1);
   // Contact between sphere and half plane
   //  Sphere will always be first.
-  EXPECT_EQ(contacts[0].id_A, sphere_id);
-  EXPECT_EQ(contacts[0].id_B, plane_id);
-  EXPECT_FLOAT_EQ(contacts[0].depth, penetration);
-  EXPECT_TRUE(CompareMatrices(contacts[0].p_WCa,
+  EXPECT_EQ(penetrations[0].id_A, sphere_id);
+  EXPECT_EQ(penetrations[0].id_B, plane_id);
+  EXPECT_FLOAT_EQ(penetrations[0].depth, penetration);
+  EXPECT_TRUE(CompareMatrices(penetrations[0].p_WCa,
                               p_WS - normal * kRadius));
   EXPECT_TRUE(CompareMatrices(
-      contacts[0].p_WCb,
+      penetrations[0].p_WCb,
       p_WS - normal * (kRadius - penetration), 1e-14));
-  EXPECT_TRUE(CompareMatrices(contacts[0].nhat_AB_W, -normal));
+  EXPECT_TRUE(CompareMatrices(penetrations[0].nhat_AB_W, -normal));
 }
 
 // TODO(SeanCurtis-TRI):
