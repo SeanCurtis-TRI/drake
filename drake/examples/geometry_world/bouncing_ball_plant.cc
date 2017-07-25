@@ -9,14 +9,14 @@
 #include "drake/geometry/frame_id_vector.h"
 #include "drake/geometry/geometry_frame.h"
 #include "drake/geometry/geometry_instance.h"
-#include "drake/geometry/geometry_query_results.h"
+#include "drake/geometry/query_results/penetration_as_point_pair.h"
 #include "drake/geometry/shapes.h"
 
 namespace drake {
 namespace examples {
 namespace bouncing_ball {
 
-using geometry::Contact;
+using geometry::PenetrationAsPointPair;
 using geometry::FrameIdVector;
 using geometry::FramePoseSet;
 using geometry::GeometryFrame;
@@ -149,17 +149,17 @@ void BouncingBallPlant<T>::DoCalcTimeDerivatives(
       this->template EvalAbstractInput(context, geometry_query_port_)
           ->template GetValue<geometry::QueryHandle<T>>();
 
-  std::vector<Contact<T>> contacts;
-  geometry_system_->ComputeContact(query_handle, &contacts);
+  std::vector<PenetrationAsPointPair<T>> penetrations =
+      geometry_system_->ComputePenetration(query_handle);
   T fC = 0;  // the contact force
-  if (contacts.size() > 0) {
-    for (const auto& contact : contacts) {
-      if (contact.id_A == ball_id_ || contact.id_B == ball_id_) {
+  if (penetrations.size() > 0) {
+    for (const auto& penetration : penetrations) {
+      if (penetration.id_A == ball_id_ || penetration.id_B == ball_id_) {
         const T
-            &x = contact.depth;     // Penetration depth, > 0 at penetration.
+            &x = penetration.depth;  // Penetration depth, > 0 at penetration.
         const T
-            &xdot = -state.zdot();  // Penetration rate, > 0 implies increasing
-                                    // penetration.
+            &xdot = -state.zdot();   // Penetration rate, > 0 implies increasing
+                                     // penetration.
 
 //    PRINT_VAR(contacts[0].depth);
 //    PRINT_VAR(state.zdot());

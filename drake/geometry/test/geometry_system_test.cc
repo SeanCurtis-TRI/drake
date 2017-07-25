@@ -36,6 +36,10 @@ class QueryHandleTester {
   static QueryHandle<double> MakeNullQueryHandle() {
     return QueryHandle<double>(nullptr);
   }
+  static QueryHandle<double> MakeHandle(
+      const GeometryContext<double>* context) {
+    return QueryHandle<double>(context);
+  }
   static void set_context(QueryHandle<double>* handle,
                           const GeometryContext<double>* context) {
     handle->context_ = context;
@@ -45,11 +49,7 @@ class QueryHandleTester {
 // Friend class for accessing GeometrySystem protected/private functionality.
 class GeometrySystemTester {
  public:
-  static QueryHandle<double> MakeHandle(
-      const GeometrySystem<double>& system,
-      const GeometryContext<double>* context) {
-    return system.MakeQueryHandle(*context);
-  }
+  GeometrySystemTester() = delete;
   static bool HasDirectFeedthrough(const GeometrySystem<double>& system,
                                    int input_port, int output_port) {
     return system.DoHasDirectFeedthrough(nullptr, input_port, output_port);
@@ -383,13 +383,14 @@ GTEST_TEST(GeometrySystemConnectionTest, FullPoseUpdateUnconnectedId) {
   builder.Connect(source_system->get_pose_output_port(),
                   geometry_system->get_source_pose_port(source_id));
   auto diagram = builder.Build();
+
   auto diagram_context = diagram->AllocateContext();
   diagram->SetDefaults(diagram_context.get());
   auto& geometry_context = dynamic_cast<GeometryContext<double>&>(
       diagram->GetMutableSubsystemContext(*geometry_system,
                                           diagram_context.get()));
-  auto query_handle = GeometrySystemTester::MakeHandle(
-      *geometry_system, &geometry_context);
+  auto query_handle = QueryHandleTester::MakeHandle(&geometry_context);
+  unused(query_handle);
   EXPECT_NO_THROW(
       GeometrySystemTester::FullPoseUpdate(*geometry_system, query_handle));
 }
@@ -411,8 +412,7 @@ GTEST_TEST(GeometrySystemConnectionTest, FullPoseUpdateNoIdConnection) {
   auto& geometry_context = dynamic_cast<GeometryContext<double>&>(
       diagram->GetMutableSubsystemContext(*geometry_system,
                                           diagram_context.get()));
-  auto query_handle = GeometrySystemTester::MakeHandle(
-      *geometry_system, &geometry_context);
+  auto query_handle = QueryHandleTester::MakeHandle(&geometry_context);
   EXPECT_ERROR_MESSAGE(
       GeometrySystemTester::FullPoseUpdate(*geometry_system, query_handle),
       std::logic_error,
@@ -437,8 +437,7 @@ GTEST_TEST(GeometrySystemConnectionTest, FullPoseUpdateNoPoseConnection) {
   auto& geometry_context = dynamic_cast<GeometryContext<double>&>(
       diagram->GetMutableSubsystemContext(*geometry_system,
                                           diagram_context.get()));
-  auto query_handle = GeometrySystemTester::MakeHandle(
-      *geometry_system, &geometry_context);
+  auto query_handle = QueryHandleTester::MakeHandle(&geometry_context);
   EXPECT_ERROR_MESSAGE(
       GeometrySystemTester::FullPoseUpdate(*geometry_system, query_handle),
       std::logic_error,
@@ -460,8 +459,7 @@ GTEST_TEST(GeometrySystemConnectionTest, FullPoseUpdateNoConnections) {
   auto& geometry_context = dynamic_cast<GeometryContext<double>&>(
       diagram->GetMutableSubsystemContext(*geometry_system,
                                           diagram_context.get()));
-  auto query_handle = GeometrySystemTester::MakeHandle(
-      *geometry_system, &geometry_context);
+  auto query_handle = QueryHandleTester::MakeHandle(&geometry_context);
   EXPECT_ERROR_MESSAGE(
       GeometrySystemTester::FullPoseUpdate(*geometry_system, query_handle),
       std::logic_error,

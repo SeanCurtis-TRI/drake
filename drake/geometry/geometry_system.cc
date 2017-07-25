@@ -192,10 +192,12 @@ bool GeometrySystem<T>::DoHasDirectFeedthrough(const SparsityMatrix*,
 template <typename T>
 QueryHandle<T> GeometrySystem<T>::MakeQueryHandle(
     const systems::Context<T>& context) const {
+  // Confirm allocation on the right *type* of context; but initialize to null
+  // anyways.
   const GeometryContext<T>* geom_context =
       dynamic_cast<const GeometryContext<T>*>(&context);
   DRAKE_DEMAND(geom_context);
-  return QueryHandle<T>(geom_context);
+  return QueryHandle<T>(nullptr);
 }
 
 template <typename T>
