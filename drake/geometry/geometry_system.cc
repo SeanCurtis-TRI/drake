@@ -1,5 +1,6 @@
 #include "drake/geometry/geometry_system.h"
 
+#include <functional>
 #include <string>
 #include <utility>
 
@@ -173,6 +174,7 @@ template <typename T>
 std::vector<PenetrationAsPointPair<T>> GeometrySystem<T>::ComputePenetration(
     const QueryHandle<T>& handle) const {
   DRAKE_DEMAND(handle.context_);
+  ThrowIfStale(handle.guard_, *handle.context_);
   const GeometryContext<T>& g_context = FullPoseUpdate(handle);
   return geometry_world_.ComputePenetration(g_context);
 }
@@ -197,7 +199,7 @@ QueryHandle<T> GeometrySystem<T>::MakeQueryHandle(
   const GeometryContext<T>* geom_context =
       dynamic_cast<const GeometryContext<T>*>(&context);
   DRAKE_DEMAND(geom_context);
-  return QueryHandle<T>(nullptr);
+  return QueryHandle<T>(nullptr, 0);
 }
 
 template <typename T>
@@ -207,6 +209,7 @@ void GeometrySystem<T>::CalcQueryHandle(const Context<T>& context,
       dynamic_cast<const GeometryContext<T>*>(&context);
   DRAKE_DEMAND(geom_context);
   output->context_ = geom_context;
+  output->guard_ = CalcInputHash(*geom_context);
 }
 
 template <typename T>
@@ -328,6 +331,60 @@ void GeometrySystem<T>::ThrowUnlessRegistered(SourceId source_id,
   if (input_source_ids_.find(source_id) == input_source_ids_.end()) {
     throw std::logic_error(message + to_string(source_id) + ".");
   }
+}
+
+template <typename T>
+size_t GeometrySystem<T>::CalcInputHash(
+    const GeometryContext<T>& context) const {
+  size_t guard = 0;
+
+  const GeometryState<T>& state = context.get_geometry_state();
+  for (const auto& pair : state.source_frame_id_map_) {
+    if (pair.second.size() > 0) {
+      SourceId source_id = pair.first;
+      const auto itr = input_source_ids_.find(source_id);
+
+      const int pose_port = itr->second.pose_port;
+      auto pose_port_value =
+          this->template EvalAbstractInput(context, pose_port);
+      if (pose_port_value) {
+        const FramePoseSet<T>& poses =
+            pose_port_value->template GetValue<FramePoseSet<T>>();
+        for (int i = 0; i < poses.size(); ++i) {
+          const Isometry3<T>& pose = poses.get_value(i);
+          // Naive hashing to serve in as a stopgap.
+          guard ^= HashIsometry(pose);
+        }
+      }
+    }
+  }
+  return guard;
+}
+
+template <typename T>
+void GeometrySystem<T>::ThrowIfStale(size_t guard,
+                                     const GeometryContext<T> &context) const {
+  if (guard != CalcInputHash(context)) {
+    throw std::runtime_error(
+        "Attempting to perform a query with a stale QueryHandle. Always get a "
+        "fresh QueryHandle from the input port.");
+  }
+}
+
+template <typename T>
+size_t GeometrySystem<T>::HashIsometry(const Isometry3<T>& iso) {
+  size_t hash_val = 0;
+  std::hash<T> hasher;
+  // The interesting data of an isometry are only the first three rows of
+  // the isometry's corresponding 4x4 matrix.
+  auto matrix = iso.matrix();
+  for (int r = 0; r < 3; ++r) {
+    for (int c = 0; c < 4; ++c) {
+      // Naive hashing to serve in as a stopgap.
+      hash_val ^= hasher(matrix(r, c));
+    }
+  }
+  return hash_val;
 }
 
 // Explicitly instantiates on the most common scalar types.

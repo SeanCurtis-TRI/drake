@@ -504,6 +504,25 @@ class GeometrySystem : public systems::LeafSystem<T> {
   // message is the given message with the source_id appended if not.
   void ThrowUnlessRegistered(SourceId source_id, const char *message) const;
 
+  // NOTE: The following methods are serving a stopgap role. The QueryHandle has
+  // flawed copy semantics. There is plan for fixing that semantics. In the
+  // interim, this is a guard for detecting when someone has copied a
+  // QueryHandle and tries to use it beyond the original's lifespan. This test
+  // is not completely bullet-proof (an imperfect hash function). But as it is
+  // a stopgap we'll see if something this naive is sufficient.
+
+  // Computes the guard hash on the state of the input ports. This is a
+  // temporary measure to detect misuse of QueryHandle instances (such as when
+  // one is used beyond its reasonable lifetime).
+  size_t CalcInputHash(const GeometryContext<T>& context) const;
+
+  // Throws an exception if the guard value is "stale". I.e., it does not match
+  // the hash value on the current state of the input.
+  void ThrowIfStale(size_t guard, const GeometryContext<T>& context) const;
+
+  // Computes a hash value for an isometry.
+  static size_t HashIsometry(const Isometry3<T>& iso);
+
   // The underlying representation of the world's geometry.
   GeometryWorld<T> geometry_world_;
 

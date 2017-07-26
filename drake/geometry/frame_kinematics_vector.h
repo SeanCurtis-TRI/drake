@@ -52,7 +52,7 @@ class FrameKinematicsVector {
   int size() const { return static_cast<int>(data_.size()); }
 
   /** Returns the iᵗʰ value */
-  KinematicsValue get_value(int i) const { return data_.at(i); }
+  const KinematicsValue& get_value(int i) const { return data_.at(i); }
 
   /** Appends the given kinematics value to the set.
    * @param value    The kinematics value to add.

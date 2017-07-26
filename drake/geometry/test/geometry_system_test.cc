@@ -34,15 +34,17 @@ class QueryHandleTester {
  public:
   QueryHandleTester() = delete;
   static QueryHandle<double> MakeNullQueryHandle() {
-    return QueryHandle<double>(nullptr);
+    return QueryHandle<double>(nullptr, 0);
   }
   static QueryHandle<double> MakeHandle(
       const GeometryContext<double>* context) {
-    return QueryHandle<double>(context);
+    return QueryHandle<double>(context, 0);
   }
   static void set_context(QueryHandle<double>* handle,
                           const GeometryContext<double>* context) {
     handle->context_ = context;
+    // NOTE: This does not set the hash because these tests do not depend on it
+    // yet.
   }
 };
 
@@ -57,6 +59,15 @@ class GeometrySystemTester {
   static void FullPoseUpdate(const GeometrySystem<double>& system,
                              const QueryHandle<double>& handle) {
     system.FullPoseUpdate(handle);
+  }
+  static std::vector<PenetrationAsPointPair<double>> ComputePenetration(
+      const GeometrySystem<double>& system, const QueryHandle<double>& handle) {
+    return system.ComputePenetration(handle);
+  }
+  static void GetQueryHandlePortValue(const GeometrySystem<double>& system,
+                                      const systems::Context<double>& context,
+                                      QueryHandle<double>* handle) {
+    system.CalcQueryHandle(context, handle);
   }
 };
 
@@ -466,6 +477,115 @@ GTEST_TEST(GeometrySystemConnectionTest, FullPoseUpdateNoConnections) {
       "Source \\d+ has registered frames but does not provide id values on "
           "the input port.");
 }
+
+// This serves as a dummy geometry source. It registers itself, registers a
+// single frame and provides ids and poses on an output port. It provides a
+// facility for me to edit the pose written to the output port between
+// invocations.
+class DummySourceSystem : public systems::LeafSystem<double> {
+ public:
+  explicit DummySourceSystem(GeometrySystem<double>* geometry_system)
+      : systems::LeafSystem<double>() {
+    // Register with GeometrySystem.
+    source_id_ = geometry_system->RegisterSource();
+    frame_id_ = geometry_system->RegisterFrame(
+        source_id_,
+        GeometryFrame<double>("frame", Isometry3<double>::Identity()));
+    // Set up output ports
+    pose_ = Isometry3<double>::Identity();
+    this->DeclareAbstractOutputPort(
+        &DummySourceSystem::AllocateFrameIdOutput,
+        &DummySourceSystem::CalcFrameIdOutput);
+    this->DeclareAbstractOutputPort(
+        &DummySourceSystem::AllocateFramePoseOutput,
+        &DummySourceSystem::CalcFramePoseOutput);
+  }
+  SourceId get_source_id() const { return source_id_; }
+  const systems::OutputPort<double>& get_id_output_port() const {
+    return systems::System<double>::get_output_port(0);
+  }
+  const systems::OutputPort<double>& get_pose_output_port() const {
+    return systems::System<double>::get_output_port(1);
+  }
+  Isometry3<double>& get_mutable_pose() { return pose_; }
+
+ private:
+  // Frame id output allocation and calculation.
+  FrameIdVector AllocateFrameIdOutput(
+      const Context<double>& context) const {
+    return FrameIdVector(source_id_, {frame_id_});
+  }
+  // Frame ids never change after allocation.
+  void CalcFrameIdOutput(const Context<double> &context,
+                         FrameIdVector*) const {}
+  // Frame pose output allocation.
+  FramePoseSet<double> AllocateFramePoseOutput(
+      const Context<double>& context) const {
+    return FramePoseSet<double> (source_id_, {pose_});
+  }
+  // For test purposes, no changes are required.
+  void CalcFramePoseOutput(
+      const Context<double>& context, FramePoseSet<double>* pose_set) const {
+    *pose_set = FramePoseSet<double> (source_id_, {pose_});
+  }
+
+  SourceId source_id_;
+  FrameId frame_id_;
+  Isometry3<double> pose_;
+};
+
+// Confirms that the guard functionality for the QueryHandle is successfully
+// handled. It detects a trivially fresh handle, allows a copy of it, but
+// detects when the state has changed and the handle has become stale.
+GTEST_TEST(QueryHandleGuardTest, QueryHandleGuardFunctionality) {
+  systems::DiagramBuilder<double> builder;
+  auto geometry_system = builder.AddSystem<GeometrySystem<double>>();
+  geometry_system->set_name("geometry_system");
+  auto source_system = builder.AddSystem<DummySourceSystem>(geometry_system);
+  source_system->set_name("source_system");
+  SourceId source_id = source_system->get_source_id();
+  builder.Connect(source_system->get_id_output_port(),
+                  geometry_system->get_source_frame_id_port(source_id));
+  builder.Connect(source_system->get_pose_output_port(),
+                  geometry_system->get_source_pose_port(source_id));
+  auto diagram = builder.Build();
+
+  auto diagram_context = diagram->AllocateContext();
+  diagram->SetDefaults(diagram_context.get());
+  auto& geometry_context = dynamic_cast<GeometryContext<double>&>(
+      diagram->GetMutableSubsystemContext(*geometry_system,
+                                          diagram_context.get()));
+
+  // Simulate evaluating the query handle output port.
+  QueryHandle<double> handle = QueryHandleTester::MakeNullQueryHandle();
+  GeometrySystemTester::GetQueryHandlePortValue(*geometry_system,
+                                                geometry_context, &handle);
+
+  // It should initially pass.
+  EXPECT_NO_THROW(
+      GeometrySystemTester::ComputePenetration(*geometry_system, handle));
+
+  // It should also work on a copy of the handle, as long as it hasn't gone
+  // stale.
+  QueryHandle<double> handle_copy(handle);
+  EXPECT_NO_THROW(
+      GeometrySystemTester::ComputePenetration(*geometry_system, handle_copy));
+
+  // Now perturb the input value from source system. This will cause the guard
+  // to become stale.
+  // NOTE: This trick may not work when caching is in place.
+  source_system->get_mutable_pose().translation() << 1, 2, 3;
+  // The guard value on the *new* pose inputs should no longer match the value
+  // stored in handle.
+  EXPECT_ERROR_MESSAGE(
+      GeometrySystemTester::ComputePenetration(*geometry_system, handle),
+      std::runtime_error,
+      "Attempting to perform a query with a stale QueryHandle. Always get a "
+      "fresh QueryHandle from the input port.");
+}
+
+// Confirms that a QueryHandle for inputs that are no longer current is _not_
+// considered valid.
 
 }  // namespace
 }  // namespace geometry
