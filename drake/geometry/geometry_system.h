@@ -518,13 +518,12 @@ class GeometrySystem : public systems::LeafSystem<T> {
   GeometryWorld<T> geometry_world_;
 
   // A raw pointer to the default geometry state (which serves as the model for
-  // allocating contexts for this system. It will only be non-null between
+  // allocating contexts for this system). It will only be non-null between
   // construction and context allocation. It serves a key role in enforcing the
   // property that source ids can only be added prior to context allocation.
   // This is mutable so that it can be cleared in the const method
   // AllocateContext().
-  GeometryState<T>* initial_state_;
-  mutable bool context_allocated_{false};
+  mutable GeometryState<T>* initial_state_;
 
   // A struct that stores the port indices for a given source.
   // TODO(SeanCurtis-TRI): Consider making these TypeSafeIndex values.

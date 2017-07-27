@@ -213,7 +213,7 @@ void GeometrySystem<T>::CalcPoseBundle(const Context<T>& context,
   int i = 0;
   const auto& g_context = static_cast<const GeometryContext<T>&>(context);
   const auto& g_state = g_context.get_geometry_state();
-  for (FrameId f_id : initial_state_->get_frame_ids()) {
+  for (FrameId f_id : g_state.get_frame_ids()) {
     output->set_pose(i, g_state.get_pose_in_parent(f_id));
     // TODO(SeanCurtis-TRI): Handle velocity.
     ++i;
@@ -298,14 +298,14 @@ const GeometryContext<T>& GeometrySystem<T>::FullPoseUpdate(
 template <typename T>
 std::unique_ptr<LeafContext<T>> GeometrySystem<T>::DoMakeContext() const {
   // Disallow further geometry source additions.
-  context_allocated_ = true;
+  initial_state_ = nullptr;
   return std::unique_ptr<LeafContext<T>>(new GeometryContext<T>());
 }
 
 template <typename T>
 void GeometrySystem<T>::ThrowIfContextAllocated(
     const char* source_method) const {
-  if (context_allocated_) {
+  if (initial_state_ == nullptr) {
     throw std::logic_error(
         "The call to " + std::string(source_method) + " is invalid; a "
         "context has already been allocated.");

@@ -11,6 +11,12 @@
 #include "drake/geometry/query_handle.h"
 
 namespace drake {
+
+// Forward declarations.
+namespace systems {
+class SparsityMatrix;
+}  // namespace systems
+
 namespace examples {
 namespace bouncing_ball {
 
@@ -66,6 +72,12 @@ class BouncingBallPlant : public systems::LeafSystem<T> {
   BouncingBallPlant& operator=(BouncingBallPlant&& other) = delete;
 
  protected:
+  // The single input (geometry query) only impacts time derivatives and does
+  // not affect any output port. So, there are no direct feedthrouhgs.
+  bool DoHasDirectFeedthrough(const systems::SparsityMatrix* sparsity,
+                              int input_port, int output_port) const override {
+    return false;
+  }
   // System<T> override.
 //  BouncingBallPlant<AutoDiffXd>* DoToAutoDiffXd() const override;
 //  BouncingBallPlant<symbolic::Expression>* DoToSymbolic() const override;
