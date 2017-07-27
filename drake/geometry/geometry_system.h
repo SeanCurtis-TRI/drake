@@ -451,15 +451,6 @@ class GeometrySystem : public systems::LeafSystem<T> {
 
   //@}
 
- protected:
-  /** GeometrySystem *has* direct feedthrough. All inputs ultimately affect the
-   "pose bundle" output port. However, the query output port is unaffected.
-   This implementation encodes that relationship in reporting direct
-   feedthrough. */
-  bool DoHasDirectFeedthrough(const systems::SparsityMatrix* sparsity,
-                              int input_port,
-                              int output_port) const override;
-
  private:
   // Friend class to facilitate testing.
   friend class GeometrySystemTester;

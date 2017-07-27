@@ -180,18 +180,6 @@ std::vector<PenetrationAsPointPair<T>> GeometrySystem<T>::ComputePenetration(
 }
 
 template <typename T>
-bool GeometrySystem<T>::DoHasDirectFeedthrough(const SparsityMatrix*,
-                                               int input_port,
-                                               int output_port) const {
-  DRAKE_ASSERT(input_port >= 0);
-  DRAKE_ASSERT(input_port < this->get_num_input_ports());
-  DRAKE_ASSERT(output_port >= 0);
-  DRAKE_ASSERT(output_port < this->get_num_output_ports());
-  // Only has direct feedthrough to the pose bundle output.
-  return output_port == bundle_port_index_;
-}
-
-template <typename T>
 QueryHandle<T> GeometrySystem<T>::MakeQueryHandle(
     const systems::Context<T>& context) const {
   // Confirm allocation on the right *type* of context; but initialize to null
