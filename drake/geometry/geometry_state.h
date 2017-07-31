@@ -509,9 +509,6 @@ class GeometryState {
     throw std::runtime_error("Not implemented");
   }
 
-  // The frame identifier of the world frame.
-  static const FrameId kWorldFrame;
-
   // ---------------------------------------------------------------------
   // Maps from registered source ids to the entities registered to those
   // sources (e.g., frames and geometries). This lives in the state to support

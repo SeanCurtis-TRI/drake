@@ -11,6 +11,7 @@
 #include "drake/geometry/geometry_frame.h"
 #include "drake/geometry/geometry_instance.h"
 #include "drake/geometry/geometry_world.h"
+#include "drake/geometry/internal_frame.h"
 #include "drake/geometry/shapes.h"
 #include "drake/geometry/test/expect_error_message.h"
 #include "drake/multibody/multibody_tree/math/spatial_velocity.h"
@@ -32,7 +33,7 @@ class GeometryStateTester {
   void set_state(const State* state) { state_ = state; }
 
   FrameId get_world_frame() {
-    return GeometryState<T>::kWorldFrame;
+    return internal::InternalFrame::get_world_frame_id();
   }
 
   const std::unordered_map<SourceId, FrameIdSet>& get_source_frame_id_map() {
