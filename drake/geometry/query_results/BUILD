@@ -20,4 +20,24 @@ drake_cc_library(
     ],
 )
 
+drake_cc_library(
+    name = "nearest_pair",
+    srcs = [],
+    hdrs = ["nearest_pair.h"],
+    deps = [
+        "//drake/common",
+        "//drake/geometry:geometry_ids",
+    ],
+)
+
+drake_cc_library(
+    name = "point_proximity",
+    srcs = [],
+    hdrs = ["point_proximity.h"],
+    deps = [
+        "//drake/common",
+        "//drake/geometry:geometry_ids",
+    ],
+)
+
 cpplint()

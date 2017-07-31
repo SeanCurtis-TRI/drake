@@ -289,8 +289,8 @@ bool GeometryEngineStub<T>::FindClosestGeometry(
     } else {
       data[i].rhat_CaQ_W = {};
     }
-    data[i].p_WCa = p_WA + offset;
-    data[i].p_ACa = X_WG_[i].linear().transpose() * offset;
+    data[i].p_WQa = p_WA + offset;
+    data[i].p_AQa = X_WG_[i].linear().transpose() * offset;
   }
   return true;
 }

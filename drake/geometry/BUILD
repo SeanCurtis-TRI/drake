@@ -48,7 +48,9 @@ drake_cc_library(
         ":geometry_query_inputs",
         "//drake/common",
         "//drake/common:copyable_unique_ptr",
+        "//drake/geometry/query_results:nearest_pair",
         "//drake/geometry/query_results:penetration_as_point_pair",
+        "//drake/geometry/query_results:point_proximity",
     ],
 )
 
