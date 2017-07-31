@@ -15,6 +15,8 @@
 namespace drake {
 namespace geometry {
 
+template <typename T> class GeometryFrame;
+template <typename T> class GeometryInstance;
 template <typename T> class GeometryContext;
 
 /** GeometrySystem serves as a system-level wrapper for GeometryWorld. It serves
@@ -190,8 +192,7 @@ template <typename T> class GeometryContext;
  @endcond
 
  @tparam T The underlying scalar type. Must be a valid Eigen scalar.
- @see GeometryWorld
- */
+ @see GeometryWorld  */
 template <typename T>
 class GeometrySystem : public systems::LeafSystem<T> {
  public:
@@ -426,12 +427,8 @@ class GeometrySystem : public systems::LeafSystem<T> {
                                      SourceId id) const;
 
   /** Reports if the given source id is registered.
-   @param handle   The QueryHandle produced by evaluating the connected
-                     input port on the querying LeafSystem.
-   @param id       The id of the source to query.
-   See GeometryWorld::SourceIsRegistered() for details. */
-  bool SourceIsRegistered(const QueryHandle<T>& handle,
-                          SourceId id) const;
+   @param id       The id of the source to query. */
+  bool SourceIsRegistered(SourceId id) const;
 
   /** Reports the frame to which this geometry is registered.
    @param handle   The QueryHandle produced by evaluating the connected
@@ -455,6 +452,9 @@ class GeometrySystem : public systems::LeafSystem<T> {
   // Friend class to facilitate testing.
   friend class GeometrySystemTester;
 
+  // Allow the load dispatch to peek into GeometrySystem.
+  friend void DispatchLoadMessage(const GeometrySystem<T>&);
+
   // Constructs a QueryHandle for OutputPort allocation.
   QueryHandle<T> MakeQueryHandle(const systems::Context<T>& context) const;
 
@@ -463,19 +463,16 @@ class GeometrySystem : public systems::LeafSystem<T> {
   void CalcQueryHandle(const systems::Context<T>& context,
                       QueryHandle<T>* output) const;
 
-  // Aggregates the input poses into the output PoseBundle, in the order
-  // the input ports were added. Aborts if any inputs have an unexpected
-  // dimension.
-  void CalcPoseBundle(const systems::Context<T>& context,
-                      systems::rendering::PoseBundle<T>* output) const;
-
   // Constructs a PoseBundle of length equal to the concatenation of all inputs.
   // This is the method used by the allocator for the output port.
   systems::rendering::PoseBundle<T> MakePoseBundle(
       const systems::Context<T>& context) const;
 
-  // Allow the load dispatch to peek into GeometrySystem.
-  friend void DispatchLoadMessage(const GeometrySystem<T>&);
+  // Aggregates the input poses into the output PoseBundle, in the order
+  // the input ports were added. Aborts if any inputs have an unexpected
+  // dimension.
+  void CalcPoseBundle(const systems::Context<T>& context,
+                      systems::rendering::PoseBundle<T>* output) const;
 
   // Updates the state of geometry world from *all* the inputs.
   const GeometryContext<T>& FullPoseUpdate(const QueryHandle<T>& handle) const;
@@ -538,10 +535,10 @@ class GeometrySystem : public systems::LeafSystem<T> {
   std::unordered_map<SourceId, SourcePorts> input_source_ids_;
 
   // The index of the output port with the PoseBundle abstract value.
-  int bundle_port_index_;
+  int bundle_port_index_{-1};
 
   // The index of the output port with the QueryHandle abstract value.
-  int query_port_index_;
+  int query_port_index_{-1};
 };
 
 }  // namespace geometry

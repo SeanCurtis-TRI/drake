@@ -7,8 +7,8 @@
 
 #include "drake/geometry/geometry_context.h"
 #include "drake/geometry/geometry_instance.h"
-#include "drake/geometry/query_handle.h"
 #include "drake/geometry/geometry_visualization.h"
+#include "drake/geometry/query_handle.h"
 #include "drake/geometry/shapes.h"
 #include "drake/geometry/test/expect_error_message.h"
 #include "drake/systems/framework/context.h"
@@ -36,7 +36,7 @@ class QueryHandleTester {
   static QueryHandle<double> MakeNullQueryHandle() {
     return QueryHandle<double>(nullptr, 0);
   }
-  static QueryHandle<double> MakeHandle(
+  static QueryHandle<double> MakeQueryHandle(
       const GeometryContext<double>* context) {
     return QueryHandle<double>(context, 0);
   }
@@ -45,6 +45,7 @@ class QueryHandleTester {
     handle->context_ = context;
     // NOTE: This does not set the hash because these tests do not depend on it
     // yet.
+    // TODO(SeanCurtis-TRI): Set guard value. *Test* guard value.
   }
 };
 
@@ -128,7 +129,7 @@ TEST_F(GeometrySystemTest, RegisterSourceDefaultName) {
   EXPECT_TRUE(id.is_valid());
   AllocateContext();
   EXPECT_NO_THROW(system_.get_source_name(get_query_handle(), id));
-  EXPECT_TRUE(system_.SourceIsRegistered(get_query_handle(), id));
+  EXPECT_TRUE(system_.SourceIsRegistered(id));
 }
 
 // Tests registration using a specified source name. Confirms that the source
@@ -139,7 +140,7 @@ TEST_F(GeometrySystemTest, RegisterSourceSpecifiedName) {
   EXPECT_TRUE(id.is_valid());
   AllocateContext();
   EXPECT_EQ(system_.get_source_name(get_query_handle(), id), name);
-  EXPECT_TRUE(system_.SourceIsRegistered(get_query_handle(), id));
+  EXPECT_TRUE(system_.SourceIsRegistered(id));
 }
 
 // Tests that sources cannot be registered after context allocation.
@@ -156,9 +157,8 @@ TEST_F(GeometrySystemTest, PoseContextSourceRegistration) {
 TEST_F(GeometrySystemTest, SourceIsRegistered) {
   SourceId id = system_.RegisterSource();
   AllocateContext();
-  EXPECT_TRUE(system_.SourceIsRegistered(get_query_handle(), id));
-  EXPECT_FALSE(system_.SourceIsRegistered(get_query_handle(),
-                                          SourceId::get_new_id()));
+  EXPECT_TRUE(system_.SourceIsRegistered(id));
+  EXPECT_FALSE(system_.SourceIsRegistered(SourceId::get_new_id()));
 }
 
 // Test ports.
@@ -277,11 +277,16 @@ TEST_F(GeometrySystemTest, DirectFeedThrough) {
   for (int input_port_id : input_ports) {
     EXPECT_TRUE(GeometrySystemTester::HasDirectFeedthrough(
         system_, input_port_id, system_.get_query_output_port().get_index()));
-    EXPECT_TRUE(GeometrySystemTester::HasDirectFeedthrough(
-        system_, input_port_id,
-        system_.get_pose_bundle_output_port().get_index()));
   }
+  // TODO(SeanCurtis-TRI): Update when the pose bundle output is added; it has
+  // direct feedthrough as well.
 }
+
+// NOTE: There are no tests on the query methods: GetFrameId and ComputeContact.
+// Ultimately, that functionality will lie in a different class and will be
+// tested with *that* class. The tests included here, even those that currently
+// only throw exceptions, will change when meaningful functionality is given to
+// GeometrySystem.
 
 // Test the functionality that accumulates the values from the input ports.
 
@@ -397,8 +402,7 @@ GTEST_TEST(GeometrySystemConnectionTest, FullPoseUpdateUnconnectedId) {
   auto& geometry_context = dynamic_cast<GeometryContext<double>&>(
       diagram->GetMutableSubsystemContext(*geometry_system,
                                           diagram_context.get()));
-  auto query_handle = QueryHandleTester::MakeHandle(&geometry_context);
-  unused(query_handle);
+  auto query_handle = QueryHandleTester::MakeQueryHandle(&geometry_context);
   EXPECT_NO_THROW(
       GeometrySystemTester::FullPoseUpdate(*geometry_system, query_handle));
 }
@@ -420,7 +424,7 @@ GTEST_TEST(GeometrySystemConnectionTest, FullPoseUpdateNoIdConnection) {
   auto& geometry_context = dynamic_cast<GeometryContext<double>&>(
       diagram->GetMutableSubsystemContext(*geometry_system,
                                           diagram_context.get()));
-  auto query_handle = QueryHandleTester::MakeHandle(&geometry_context);
+  auto query_handle = QueryHandleTester::MakeQueryHandle(&geometry_context);
   EXPECT_ERROR_MESSAGE(
       GeometrySystemTester::FullPoseUpdate(*geometry_system, query_handle),
       std::logic_error,
@@ -445,7 +449,7 @@ GTEST_TEST(GeometrySystemConnectionTest, FullPoseUpdateNoPoseConnection) {
   auto& geometry_context = dynamic_cast<GeometryContext<double>&>(
       diagram->GetMutableSubsystemContext(*geometry_system,
                                           diagram_context.get()));
-  auto query_handle = QueryHandleTester::MakeHandle(&geometry_context);
+  auto query_handle = QueryHandleTester::MakeQueryHandle(&geometry_context);
   EXPECT_ERROR_MESSAGE(
       GeometrySystemTester::FullPoseUpdate(*geometry_system, query_handle),
       std::logic_error,
@@ -467,7 +471,7 @@ GTEST_TEST(GeometrySystemConnectionTest, FullPoseUpdateNoConnections) {
   auto& geometry_context = dynamic_cast<GeometryContext<double>&>(
       diagram->GetMutableSubsystemContext(*geometry_system,
                                           diagram_context.get()));
-  auto query_handle = QueryHandleTester::MakeHandle(&geometry_context);
+  auto query_handle = QueryHandleTester::MakeQueryHandle(&geometry_context);
   EXPECT_ERROR_MESSAGE(
       GeometrySystemTester::FullPoseUpdate(*geometry_system, query_handle),
       std::logic_error,
@@ -580,9 +584,6 @@ GTEST_TEST(QueryHandleGuardTest, QueryHandleGuardFunctionality) {
       "Attempting to perform a query with a stale QueryHandle. Always get a "
       "fresh QueryHandle from the input port.");
 }
-
-// Confirms that a QueryHandle for inputs that are no longer current is _not_
-// considered valid.
 
 }  // namespace
 }  // namespace geometry

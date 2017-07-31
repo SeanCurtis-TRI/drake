@@ -155,11 +155,8 @@ const std::string& GeometrySystem<T>::get_source_name(
 }
 
 template <typename T>
-bool GeometrySystem<T>::SourceIsRegistered(const QueryHandle<T>& handle,
-                                           SourceId id) const {
-  DRAKE_DEMAND(handle.context_);
-  const GeometryContext<T>& context = *handle.context_;
-  return geometry_world_.SourceIsRegistered(context, id);
+bool GeometrySystem<T>::SourceIsRegistered(SourceId id) const {
+  return input_source_ids_.count(id) > 0;
 }
 
 template <typename T>
@@ -201,26 +198,6 @@ void GeometrySystem<T>::CalcQueryHandle(const Context<T>& context,
 }
 
 template <typename T>
-void GeometrySystem<T>::CalcPoseBundle(const Context<T>& context,
-                                       PoseBundle<T>* output) const {
-  // TODO(SeanCurtis-TRI): Adding/removing frames during discrete updates will
-  // change the size/composition of the pose bundle. This output port will *not*
-  // be updated to reflect that. I must test the output port to confirm that it
-  // is up to date w.r.t. the current state of the world.
-  //  Add serial number to GeometryState and PoseBundle. If serial numbers match
-  //  everything is good. Otherwise, I need to modify the pose bundle.
-  //  This *also* requires modification of PoseBundle to make it mutable.
-  int i = 0;
-  const auto& g_context = static_cast<const GeometryContext<T>&>(context);
-  const auto& g_state = g_context.get_geometry_state();
-  for (FrameId f_id : g_state.get_frame_ids()) {
-    output->set_pose(i, g_state.get_pose_in_parent(f_id));
-    // TODO(SeanCurtis-TRI): Handle velocity.
-    ++i;
-  }
-}
-
-template <typename T>
 PoseBundle<T> GeometrySystem<T>::MakePoseBundle(
     const Context<T>& context) const {
   const auto& g_context = static_cast<const GeometryContext<T>&>(context);
@@ -239,6 +216,26 @@ PoseBundle<T> GeometrySystem<T>::MakePoseBundle(
     ++i;
   }
   return bundle;
+}
+
+template <typename T>
+void GeometrySystem<T>::CalcPoseBundle(const Context<T>& context,
+                                       PoseBundle<T>* output) const {
+  // TODO(SeanCurtis-TRI): Adding/removing frames during discrete updates will
+  // change the size/composition of the pose bundle. This output port will *not*
+  // be updated to reflect that. I must test the output port to confirm that it
+  // is up to date w.r.t. the current state of the world.
+  //  Add serial number to GeometryState and PoseBundle. If serial numbers match
+  //  everything is good. Otherwise, I need to modify the pose bundle.
+  //  This *also* requires modification of PoseBundle to make it mutable.
+  int i = 0;
+  const auto& g_context = static_cast<const GeometryContext<T>&>(context);
+  const auto& g_state = g_context.get_geometry_state();
+  for (FrameId f_id : g_state.get_frame_ids()) {
+    output->set_pose(i, g_state.get_pose_in_parent(f_id));
+    // TODO(SeanCurtis-TRI): Handle velocity.
+    ++i;
+  }
 }
 
 template <typename T>

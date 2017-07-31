@@ -2,6 +2,7 @@
 
 #include <memory>
 
+#include "drake/common/drake_copyable.h"
 #include "drake/common/symbolic_formula.h"
 #include "drake/examples/geometry_world/gen/bouncing_ball_vector.h"
 #include "drake/systems/framework/basic_vector.h"
@@ -20,17 +21,17 @@ class SparsityMatrix;
 namespace examples {
 namespace bouncing_ball {
 
-/// A model of a bouncing ball with Hunt-Crossley compliant contact model.
-///
-/// @tparam T The vector element type, which must be a valid Eigen scalar.
-///
-/// Instantiated templates for the following kinds of T's are provided:
-/// - double
-/// - AutoDiffXd
-/// - symbolic::Expression
+/** A model of a bouncing ball with Hunt-Crossley compliant contact model.
+
+ @tparam T The vector element type, which must be a valid Eigen scalar.
+
+ Instantiated templates for the following kinds of T's are provided:
+ - double */
 template <typename T>
 class BouncingBallPlant : public systems::LeafSystem<T> {
  public:
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(BouncingBallPlant)
+
   BouncingBallPlant(geometry::SourceId source_id,
                     geometry::GeometrySystem<T>* geometry_system,
                     const Vector2<T>& init_position);
@@ -40,8 +41,8 @@ class BouncingBallPlant : public systems::LeafSystem<T> {
   using MyContinuousState = systems::ContinuousState<T>;
   using MyOutput = systems::SystemOutput<T>;
 
-  /// Returns the port to output state.
   const systems::InputPortDescriptor<T>& get_geometry_query_input_port() const;
+  /** Returns the port to output state. */
   const systems::OutputPort<T>& get_state_output_port() const;
   const systems::OutputPort<T>& get_geometry_id_output_port() const;
   const systems::OutputPort<T>& get_geometry_pose_output_port() const;
@@ -54,22 +55,17 @@ class BouncingBallPlant : public systems::LeafSystem<T> {
     get_mutable_state(context)->set_zdot(zdot);
   }
 
-  /// BouncingBall mass in kg
+  /** Mass in kg. */
   T m() const { return m_; }
 
-  /// Stiffness constant.
+  /** Stiffness constant. */
   T k() const {return k_; }
 
-  /// Hunt-Crossley's dissipation factor.
+  /** Hunt-Crossley's dissipation factor. */
   T d() const {return d_; }
 
-  /// Gravity in m/s^2
+  /** Gravity in m/s^2. */
   T g() const { return g_; }
-
-  explicit BouncingBallPlant(const BouncingBallPlant& other) = delete;
-  BouncingBallPlant& operator=(const BouncingBallPlant& other) = delete;
-  explicit BouncingBallPlant(BouncingBallPlant&& other) = delete;
-  BouncingBallPlant& operator=(BouncingBallPlant&& other) = delete;
 
  protected:
   // The single input (geometry query) only impacts time derivatives and does
@@ -139,8 +135,9 @@ class BouncingBallPlant : public systems::LeafSystem<T> {
   const double diameter_{0.1};  // Ball diameter, just for visualization.
   const double m_{0.1};   // kg
   const double g_{9.81};  // m/s^2
-  // Stiffness constant [N/m]. Estimated so that under its onw weight the ball
-  // penetrates the plane by 1 mm.
+  // Stiffness constant [N/m]. Calculated so that under its own weight the ball
+  // penetrates the plane by 1 mm when the contact force and gravitational
+  // force are in equilibrium.
   const double k_{m_* g_ / 0.001};
   // Hunt-Crossley's dissipation factor.
   const double d_{0.0};  // [s/m]

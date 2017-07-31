@@ -161,7 +161,6 @@ drake_cc_library(
         ":frame_kinematics",
         ":geometry_context",
         ":geometry_frame",
-        ":geometry_ids",
         ":geometry_instance",
         ":geometry_query_inputs",
         ":geometry_state",
@@ -190,6 +189,8 @@ drake_cc_library(
         ":geometry_index",
         ":geometry_material",
         "//drake/common",
+        "//drake/geometry/query_results:penetration_as_point_pair",
+        "//drake/systems/framework",
     ],
 )
 
@@ -223,13 +224,13 @@ drake_cc_library(
     srcs = ["test/query_test_utility.cc"],
     hdrs = ["test/query_test_utility.h"],
     deps = [
-        "@gtest//:without_main",
         ":geometry_context",
         ":geometry_engine",
         ":geometry_state",
         ":geometry_world",
         ":internal_geometry",
         "//drake/common:eigen_matrix_compare",
+        "@gtest//:without_main",
     ],
 )
 

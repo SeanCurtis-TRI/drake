@@ -8,11 +8,6 @@
 namespace drake {
 namespace geometry {
 
-// TODO(SeanCurtis-TRI): Include the objects involved -- GeometryFrameIds?
-//    Determine what the query primitive is: the GeometryFrameId?  Contact
-//    element?  Visual element?  Pointer?  Id?  Etc.
-//    This applies to all of these return types.
-
 /** A characterization of the intersection of two penetrating geometries. The
  characterization consists of a pair of points and a normal. The points
  represent a point on each geometry that most deeply penetrates the other
@@ -23,6 +18,9 @@ namespace geometry {
  @tparam T The underlying scalar type. Must be a valid Eigen scalar. */
 template <typename T>
 struct PenetrationAsPointPair {
+  DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(PenetrationAsPointPair)
+  PenetrationAsPointPair() {}
+
   /** The id of the first geometry in the contact. */
   GeometryId id_A;
   /** The id of the second geometry in the contact. */
