@@ -515,7 +515,8 @@ class GeometrySystem : public systems::LeafSystem<T> {
   GeometryWorld<T> geometry_world_;
 
   // A raw pointer to the default geometry state (which serves as the model for
-  // allocating contexts for this system). It will only be non-null between
+  // allocating contexts for this system). The instance is owned by
+  // model_abstract_states_. This pointer will only be non-null between
   // construction and context allocation. It serves a key role in enforcing the
   // property that source ids can only be added prior to context allocation.
   // This is mutable so that it can be cleared in the const method
