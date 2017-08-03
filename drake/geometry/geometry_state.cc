@@ -482,7 +482,6 @@ void GeometryState<T>::RemoveFrameUnchecked(FrameId frame_id,
   }
 
   // Now delete the geometry on this.
-  std::unordered_set<GeometryId> removed_geometries;
   for (auto child_id : *frame.get_mutable_child_geometries()) {
     RemoveGeometryUnchecked(child_id, RemoveGeometryOrigin::kFrame);
   }
