@@ -97,6 +97,20 @@ GeometryState<T>::GeometryState()
     : geometry_engine_(make_unique<GeometryEngineStub<T>>()) {}
 
 template <typename T>
+bool GeometryState<T>::source_is_registered(SourceId source_id) const {
+  return source_frame_id_map_.find(source_id) != source_frame_id_map_.end();
+}
+
+template <typename T>
+const std::string& GeometryState<T>::get_source_name(SourceId id) const {
+  using std::to_string;
+  auto itr = source_names_.find(id);
+  if (itr != source_names_.end()) return itr->second;
+  throw std::logic_error(
+      "Querying source name for an invalid source id: " + to_string(id) + ".");
+}
+
+template <typename T>
 Isometry3<T> GeometryState<T>::GetPoseInFrame(GeometryId geometry_id) const {
   auto& geometry = GetValueOrThrow(geometry_id, &geometries_);
   return X_FG_[geometry.get_engine_index()];
@@ -112,20 +126,6 @@ Isometry3<T> GeometryState<T>::GetPoseInParent(GeometryId geometry_id) const {
   } else {
     return X_FG;
   }
-}
-
-template <typename T>
-bool GeometryState<T>::source_is_registered(SourceId source_id) const {
-  return source_frame_id_map_.find(source_id) != source_frame_id_map_.end();
-}
-
-template <typename T>
-const std::string& GeometryState<T>::get_source_name(SourceId id) const {
-  using std::to_string;
-  auto itr = source_names_.find(id);
-  if (itr != source_names_.end()) return itr->second;
-  throw std::logic_error(
-      "Querying source name for an invalid source id: " + to_string(id) + ".");
 }
 
 template <typename T>
@@ -148,40 +148,6 @@ SourceId GeometryState<T>::RegisterNewSource(const std::string& name) {
   source_anchored_geometry_map_[source_id];
   source_names_[source_id] = final_name;
   return source_id;
-}
-
-template <typename T>
-void GeometryState<T>::ClearSource(SourceId source_id) {
-  FrameIdSet& frames = GetMutableValueOrThrow(source_id, &source_frame_id_map_);
-  for (auto frame_id : frames) {
-    RemoveFrameUnchecked(frame_id, RemoveFrameOrigin::kSource);
-  }
-  source_frame_id_map_[source_id].clear();
-  source_root_frame_map_[source_id].clear();
-}
-
-template <typename T>
-void GeometryState<T>::RemoveFrame(SourceId source_id, FrameId frame_id) {
-  using std::to_string;
-  if (!BelongsToSource(frame_id, source_id)) {
-    throw std::logic_error("Trying to remove frame " + to_string(frame_id) +
-                           " from source " + to_string(source_id) +
-                           ", but the frame doesn't belong to that source.");
-  }
-  RemoveFrameUnchecked(frame_id, RemoveFrameOrigin::kFrame);
-}
-
-template <typename T>
-void GeometryState<T>::RemoveGeometry(SourceId source_id,
-                                      GeometryId geometry_id) {
-  using std::to_string;
-  if (!BelongsToSource(geometry_id, source_id)) {
-    throw std::logic_error(
-        "Trying to remove geometry " + to_string(geometry_id) + " from "
-        "source " + to_string(source_id) + ". But the geometry doesn't belong"
-        " to that source.");
-  }
-  RemoveGeometryUnchecked(geometry_id, RemoveGeometryOrigin::GEOMETRY);
 }
 
 // NOTE: Given that the new_id_() methods are all int64_t, we're not worrying
@@ -284,6 +250,40 @@ GeometryId GeometryState<T>::RegisterAnchoredGeometry(
   anchored_geometry_index_id_map_.push_back(geometry_id);
   anchored_geometries_[geometry_id] = engine_index;
   return geometry_id;
+}
+
+template <typename T>
+void GeometryState<T>::ClearSource(SourceId source_id) {
+  FrameIdSet& frames = GetMutableValueOrThrow(source_id, &source_frame_id_map_);
+  for (auto frame_id : frames) {
+    RemoveFrameUnchecked(frame_id, RemoveFrameOrigin::kSource);
+  }
+  source_frame_id_map_[source_id].clear();
+  source_root_frame_map_[source_id].clear();
+}
+
+template <typename T>
+void GeometryState<T>::RemoveFrame(SourceId source_id, FrameId frame_id) {
+  using std::to_string;
+  if (!BelongsToSource(frame_id, source_id)) {
+    throw std::logic_error("Trying to remove frame " + to_string(frame_id) +
+        " from source " + to_string(source_id) +
+        ", but the frame doesn't belong to that source.");
+  }
+  RemoveFrameUnchecked(frame_id, RemoveFrameOrigin::kFrame);
+}
+
+template <typename T>
+void GeometryState<T>::RemoveGeometry(SourceId source_id,
+                                      GeometryId geometry_id) {
+  using std::to_string;
+  if (!BelongsToSource(geometry_id, source_id)) {
+    throw std::logic_error(
+        "Trying to remove geometry " + to_string(geometry_id) + " from "
+            "source " + to_string(source_id) + ". But the geometry doesn't "
+            "belong to that source.");
+  }
+  RemoveGeometryUnchecked(geometry_id, RemoveGeometryOrigin::kGeometry);
 }
 
 template <typename T>
@@ -484,7 +484,7 @@ void GeometryState<T>::RemoveFrameUnchecked(FrameId frame_id,
   // Now delete the geometry on this.
   std::unordered_set<GeometryId> removed_geometries;
   for (auto child_id : *frame.get_mutable_child_geometries()) {
-    RemoveGeometryUnchecked(child_id, RemoveGeometryOrigin::FRAME);
+    RemoveGeometryUnchecked(child_id, RemoveGeometryOrigin::kFrame);
   }
 
   // TODO(SeanCurtis-TRI): Remove the pose should, ideally, coalesce the
@@ -510,10 +510,10 @@ void GeometryState<T>::RemoveGeometryUnchecked(GeometryId geometry_id,
                                                RemoveGeometryOrigin caller) {
   auto& geometry = GetValueOrThrow(geometry_id, &geometries_);
 
-  if (caller != RemoveGeometryOrigin::FRAME) {
+  if (caller != RemoveGeometryOrigin::kFrame) {
     // Clear children
     for (auto child_id : geometry.get_child_geometries()) {
-      RemoveGeometryUnchecked(child_id, RemoveGeometryOrigin::RECURSE);
+      RemoveGeometryUnchecked(child_id, RemoveGeometryOrigin::kRecurse);
     }
 
     // Remove the geometry from its frame's list of geometries.
@@ -532,7 +532,7 @@ void GeometryState<T>::RemoveGeometryUnchecked(GeometryId geometry_id,
     geometry_index_id_map_[engine_index] = moved_id;
   }
 
-  if (caller == RemoveGeometryOrigin::GEOMETRY) {
+  if (caller == RemoveGeometryOrigin::kGeometry) {
     // Only the root needs to explicitly remove itself from a possible parent
     // geometry.
     if (auto parent_id = geometry.get_parent()) {

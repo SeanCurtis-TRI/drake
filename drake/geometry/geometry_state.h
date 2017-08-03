@@ -187,45 +187,6 @@ class GeometryState {
 
   //@}
 
-  /** @name       Relationship queries
-
-   Various methods that map identifiers for one type of entity to its related
-   entities. */
-  //@{
-
-  /** Reports if the given frame id was registered to the given source id.
-   @param frame_id      The query frame id.
-   @param source_id     The query source id.
-   @returns True if `frame_id` was registered on `source_id`.
-   @throws std::logic_error  If the `frame_id` does _not_ map to a frame or the
-                             identified source is not registered. */
-  bool BelongsToSource(FrameId frame_id, SourceId source_id) const;
-
-  /** Reports if the given geometry id was ultimately registered to the given
-   source id.
-   @param geometry_id      The query geometry id.
-   @param source_id     The query source id.
-   @returns True if `geometry_id` was registered on `source_id`.
-   @throws std::logic_error  If the `geometry_id` does _not_ map to a valid
-                             geometry or the identified source is not active */
-  bool BelongsToSource(GeometryId geometry_id, SourceId source_id) const;
-
-  /** Retrieves the frame id on which the given geometry id is declared.
-   @param geometry_id   The query geometry id.
-   @returns An optional FrameId based on a successful lookup.
-   @throws std::logic_error  If the `geometry_id` does _not_ map to a geometry
-                             which belongs to an existing frame.*/
-  FrameId GetFrameId(GeometryId geometry_id) const;
-
-  /** Returns the set of frames registered to the given source.
-   @param source_id     The identifier of the source to query.
-   @return  The set of frames associated with the id.
-   @throws std::logic_error If the `source_id` does _not_ map to an active
-                            source. */
-  const FrameIdSet& GetFramesForSource(SourceId source_id) const;
-
-  //@}
-
   /** @name        State management
 
    The methods that modify the state including: adding/removing entities from
@@ -238,38 +199,6 @@ class GeometryState {
                         the number is the value of the returned SourceId.
    @throws std::logic_error is thrown if the name is _not_ unique. */
   SourceId RegisterNewSource(const std::string& name = "");
-
-  /** Removes all frames and geometry registered from the identified source.
-   The source remains registered and further frames and geometry can be
-   registered on it.
-   @param source_id     The identifier for the source to clear.
-   @throws std::logic_error  If the `source_id` does _not_ map to a registered
-                             source. */
-  void ClearSource(SourceId source_id);
-
-  /** Removes the given frame from the the indicated source's frames. All
-   registered geometries connected to this frame will also be removed from the
-   world.
-   @param source_id     The identifier for the owner geometry source.
-   @param frame_id      The identifier of the frame to remove.
-   @throws std::logic_error  1. If the `source_id` does _not_ map to a
-                             registered source, or
-                             2. the `frame_id` does not map to a valid frame, or
-                             3. the `frame_id` maps to a frame that does not
-                             belong to the indicated source. */
-  void RemoveFrame(SourceId source_id, FrameId frame_id);
-
-  /** Removes the given geometry from the the indicated source's frames. Any
-   geometry that was hung from the indicated geometry will _also_ be removed.
-   @param source_id     The identifier for the owner geometry source.
-   @param geometry_id   The identifier of the frame to remove.
-   @throws std::logic_error  1. If the `source_id` does _not_ map to an active
-                             source, or
-                             2. the `geometry_id` does not map to a valid
-                             geometry, or
-                             3. the `geometry_id` maps to a geometry that does
-                             not belong to the indicated source. */
-  void RemoveGeometry(SourceId source_id, GeometryId geometry_id);
 
   /** Registers a new frame for the given source, the id of the new frame is
    returned.
@@ -308,9 +237,8 @@ class GeometryState {
                              source, or
                              2. the `frame_id` doesn't belong to the source, or
                              3. The `geometry` is equal to `nullptr`. */
-  GeometryId RegisterGeometry(
-      SourceId source_id, FrameId frame_id,
-      std::unique_ptr<GeometryInstance<T>> geometry);
+  GeometryId RegisterGeometry(SourceId source_id, FrameId frame_id,
+                              std::unique_ptr<GeometryInstance<T>> geometry);
 
   /** Registers a GeometryInstance with the state. Rather than hanging directly
    from a _frame_, the instance hangs on another geometry instance. The input
@@ -348,6 +276,77 @@ class GeometryState {
   GeometryId RegisterAnchoredGeometry(
       SourceId source_id,
       std::unique_ptr<GeometryInstance<T>> geometry);
+
+  /** Removes all frames and geometry registered from the identified source.
+   The source remains registered and further frames and geometry can be
+   registered on it.
+   @param source_id     The identifier for the source to clear.
+   @throws std::logic_error  If the `source_id` does _not_ map to a registered
+                             source. */
+  void ClearSource(SourceId source_id);
+
+  /** Removes the given frame from the the indicated source's frames. All
+   registered geometries connected to this frame will also be removed from the
+   world.
+   @param source_id     The identifier for the owner geometry source.
+   @param frame_id      The identifier of the frame to remove.
+   @throws std::logic_error  1. If the `source_id` does _not_ map to a
+                             registered source, or
+                             2. the `frame_id` does not map to a valid frame, or
+                             3. the `frame_id` maps to a frame that does not
+                             belong to the indicated source. */
+  void RemoveFrame(SourceId source_id, FrameId frame_id);
+
+  /** Removes the given geometry from the the indicated source's frames. Any
+   geometry that was hung from the indicated geometry will _also_ be removed.
+   @param source_id     The identifier for the owner geometry source.
+   @param geometry_id   The identifier of the frame to remove.
+   @throws std::logic_error  1. If the `source_id` does _not_ map to an active
+                             source, or
+                             2. the `geometry_id` does not map to a valid
+                             geometry, or
+                             3. the `geometry_id` maps to a geometry that does
+                             not belong to the indicated source. */
+  void RemoveGeometry(SourceId source_id, GeometryId geometry_id);
+
+  //@}
+
+  /** @name       Relationship queries
+
+   Various methods that map identifiers for one type of entity to its related
+   entities. */
+  //@{
+
+  /** Reports if the given frame id was registered to the given source id.
+   @param frame_id      The query frame id.
+   @param source_id     The query source id.
+   @returns True if `frame_id` was registered on `source_id`.
+   @throws std::logic_error  If the `frame_id` does _not_ map to a frame or the
+                             identified source is not registered. */
+  bool BelongsToSource(FrameId frame_id, SourceId source_id) const;
+
+  /** Reports if the given geometry id was ultimately registered to the given
+   source id.
+   @param geometry_id      The query geometry id.
+   @param source_id     The query source id.
+   @returns True if `geometry_id` was registered on `source_id`.
+   @throws std::logic_error  If the `geometry_id` does _not_ map to a valid
+                             geometry or the identified source is not active */
+  bool BelongsToSource(GeometryId geometry_id, SourceId source_id) const;
+
+  /** Retrieves the frame id on which the given geometry id is declared.
+   @param geometry_id   The query geometry id.
+   @returns An optional FrameId based on a successful lookup.
+   @throws std::logic_error  If the `geometry_id` does _not_ map to a geometry
+                             which belongs to an existing frame.*/
+  FrameId GetFrameId(GeometryId geometry_id) const;
+
+  /** Returns the set of frames registered to the given source.
+   @param source_id     The identifier of the source to query.
+   @return  The set of frames associated with the id.
+   @throws std::logic_error If the `source_id` does _not_ map to a registered
+                            source. */
+  const FrameIdSet& GetFramesForSource(SourceId source_id) const;
 
   //@}
 
@@ -471,9 +470,9 @@ class GeometryState {
   // The origin from where an invocation of RemoveGeometryUnchecked was called.
   // The origin changes the work that is required.
   enum class RemoveGeometryOrigin {
-    FRAME,      // Invoked by RemoveFrame().
-    GEOMETRY,   // Invoked by RemoveGeometry().
-    RECURSE     // Invoked by recursive call in RemoveGeometryUnchecked.
+    kFrame,      // Invoked by RemoveFrame().
+    kGeometry,   // Invoked by RemoveGeometry().
+    kRecurse     // Invoked by recursive call in RemoveGeometryUnchecked.
   };
 
   // Performs the work necessary to remove the identified geometry from
