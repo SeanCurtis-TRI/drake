@@ -6,7 +6,6 @@
 #include <string>
 #include <utility>
 
-#include "drake/common/unused.h"
 #include "drake/geometry/geometry_engine_stub.h"
 #include "drake/geometry/geometry_frame.h"
 #include "drake/geometry/geometry_instance.h"
@@ -116,7 +115,7 @@ Isometry3<T> GeometryState<T>::GetPoseInParent(GeometryId geometry_id) const {
 }
 
 template <typename T>
-bool GeometryState<T>::source_is_active(SourceId source_id) const {
+bool GeometryState<T>::source_is_registered(SourceId source_id) const {
   return source_frame_id_map_.find(source_id) != source_frame_id_map_.end();
 }
 
@@ -126,8 +125,7 @@ const std::string& GeometryState<T>::get_source_name(SourceId id) const {
   auto itr = source_names_.find(id);
   if (itr != source_names_.end()) return itr->second;
   throw std::logic_error(
-      "Querying source name for an invalid source id: " + to_string(id) +
-          ".");
+      "Querying source name for an invalid source id: " + to_string(id) + ".");
 }
 
 template <typename T>
@@ -482,6 +480,7 @@ void GeometryState<T>::RemoveFrameUnchecked(FrameId frame_id,
     // behavior that erasing a non-member of the set does nothing.
     source_root_frame_map_[source_id].erase(frame_id);
   }
+
   // Now delete the geometry on this.
   std::unordered_set<GeometryId> removed_geometries;
   for (auto child_id : *frame.get_mutable_child_geometries()) {

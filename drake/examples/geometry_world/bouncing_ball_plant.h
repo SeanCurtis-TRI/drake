@@ -3,13 +3,13 @@
 #include <memory>
 
 #include "drake/common/drake_copyable.h"
-#include "drake/common/symbolic_formula.h"
+#include "drake/common/symbolic.h"
 #include "drake/examples/geometry_world/gen/bouncing_ball_vector.h"
-#include "drake/systems/framework/basic_vector.h"
-#include "drake/systems/framework/leaf_system.h"
 #include "drake/geometry/geometry_ids.h"
 #include "drake/geometry/geometry_system.h"
 #include "drake/geometry/query_handle.h"
+#include "drake/systems/framework/basic_vector.h"
+#include "drake/systems/framework/leaf_system.h"
 
 namespace drake {
 

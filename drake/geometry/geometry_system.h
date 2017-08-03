@@ -5,9 +5,10 @@
 #include <unordered_map>
 #include <vector>
 
+#include "drake/geometry/geometry_state.h"
+#include "drake/geometry/geometry_world.h"
 #include "drake/geometry/query_handle.h"
 #include "drake/geometry/query_results/penetration_as_point_pair.h"
-#include "drake/geometry/geometry_world.h"
 #include "drake/systems/framework/context.h"
 #include "drake/systems/framework/leaf_system.h"
 #include "drake/systems/rendering/pose_bundle.h"
@@ -15,7 +16,6 @@
 namespace drake {
 namespace geometry {
 
-template <typename T> class GeometryFrame;
 template <typename T> class GeometryInstance;
 template <typename T> class GeometryContext;
 
@@ -511,18 +511,6 @@ class GeometrySystem : public systems::LeafSystem<T> {
   // Computes a hash value for an isometry.
   static size_t HashIsometry(const Isometry3<T>& iso);
 
-  // The underlying representation of the world's geometry.
-  GeometryWorld<T> geometry_world_;
-
-  // A raw pointer to the default geometry state (which serves as the model for
-  // allocating contexts for this system). The instance is owned by
-  // model_abstract_states_. This pointer will only be non-null between
-  // construction and context allocation. It serves a key role in enforcing the
-  // property that source ids can only be added prior to context allocation.
-  // This is mutable so that it can be cleared in the const method
-  // AllocateContext().
-  mutable GeometryState<T>* initial_state_;
-
   // A struct that stores the port indices for a given source.
   // TODO(SeanCurtis-TRI): Consider making these TypeSafeIndex values.
   struct SourcePorts {
@@ -540,6 +528,18 @@ class GeometrySystem : public systems::LeafSystem<T> {
 
   // The index of the output port with the QueryHandle abstract value.
   int query_port_index_{-1};
+
+  // The underlying representation of the world's geometry.
+  GeometryWorld<T> geometry_world_;
+
+  // A raw pointer to the default geometry state (which serves as the model for
+  // allocating contexts for this system). The instance is owned by
+  // model_abstract_states_. This pointer will only be non-null between
+  // construction and context allocation. It serves a key role in enforcing the
+  // property that source ids can only be added prior to context allocation.
+  // This is mutable so that it can be cleared in the const method
+  // AllocateContext().
+  mutable GeometryState<T>* initial_state_;
 };
 
 }  // namespace geometry

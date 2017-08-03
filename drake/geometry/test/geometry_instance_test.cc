@@ -4,8 +4,8 @@
 
 #include <gtest/gtest.h>
 
-#include "drake/common/eigen_types.h"
 #include "drake/common/copyable_unique_ptr.h"
+#include "drake/common/eigen_types.h"
 
 namespace drake {
 namespace geometry {

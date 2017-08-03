@@ -51,7 +51,6 @@ template <typename T>
 SourceId GeometrySystem<T>::RegisterSource(const std::string &name) {
   THROW_IF_CONTEXT_ALLOCATED
   SourceId source_id = initial_state_->RegisterNewSource(name);
-
   // This will fail only if the source generator starts recycling source ids.
   DRAKE_ASSERT(input_source_ids_.count(source_id) == 0);
   // Create and store the input ports for this source id.

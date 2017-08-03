@@ -7,8 +7,8 @@
 #include "drake/geometry/geometry_context.h"
 #include "drake/geometry/geometry_instance.h"
 #include "drake/geometry/geometry_query_inputs.h"
-#include "drake/geometry/query_results/penetration_as_point_pair.h"
 #include "drake/geometry/geometry_state.h"
+#include "drake/geometry/query_results/penetration_as_point_pair.h"
 
 namespace drake {
 namespace geometry {
@@ -51,7 +51,7 @@ SourceId GeometryWorld<T>::RegisterNewSource(GeometryContext<T>* context,
 template <typename T>
 bool GeometryWorld<T>::SourceIsRegistered(const GeometryContext<T>& context,
                                           SourceId id) const {
-  return context.get_geometry_state().source_is_active(id);
+  return context.get_geometry_state().source_is_registered(id);
 }
 
 template <typename T>
@@ -194,7 +194,7 @@ template <typename T>
 void GeometryWorld<T>::AssertValidSource(const GeometryState<T>& state,
                                          SourceId source_id) const {
   using std::to_string;
-  if (!state.source_is_active(source_id)) {
+  if (!state.source_is_registered(source_id)) {
     throw std::logic_error("Invalid source id: " + to_string(source_id) + ".");
   }
 }

@@ -21,10 +21,12 @@
 namespace drake {
 namespace geometry {
 
-// forward declarations
 class FrameIdVector;
+
 template <typename T> class GeometryFrame;
+
 template <typename T> class GeometrySystem;
+
 template <typename T> class GeometryWorld;
 
 /** @name Structures for maintaining the entity relationships */
@@ -56,14 +58,17 @@ class GeometryState {
    Various methods that allow reading the state's properties and values. */
   //@{
 
-  /** Reports the number of active sources -- whether they have frames or not.
-   */
+  /** Reports the number of registered sources -- whether they have frames or
+   not. */
   int get_num_sources() const {
     return static_cast<int>(source_frame_id_map_.size());
   }
 
   /** Reports the total number of frames -- across all sources. */
   int get_num_frames() const { return static_cast<int>(frames_.size()); }
+
+  /** Reports true if the given `source_id` references a registered source. */
+  bool source_is_registered(SourceId source_id) const;
 
   /** Reports the total number of geometries. */
   int get_num_geometries() const {
@@ -157,13 +162,10 @@ class GeometryState {
     return X_PF_[frames_.at(frame_id).get_pose_index()];
   }
 
-  /** Reports true if the given `source_id` references an active source. */
-  bool source_is_active(SourceId source_id) const;
-
   /** Reports the source name for the given source id.
    @param id  The identifier of the source.
    @return The name of the source.
-   @throws std::logic_error if the id does _not_ map to an active source. */
+   @throws std::logic_error if the id does _not_ map to a registered source. */
   const std::string& get_source_name(SourceId id) const;
 
   /** Reports the pose, relative to the registered _frame_, for the geometry
@@ -196,7 +198,7 @@ class GeometryState {
    @param source_id     The query source id.
    @returns True if `frame_id` was registered on `source_id`.
    @throws std::logic_error  If the `frame_id` does _not_ map to a frame or the
-                             identified source is not active. */
+                             identified source is not registered. */
   bool BelongsToSource(FrameId frame_id, SourceId source_id) const;
 
   /** Reports if the given geometry id was ultimately registered to the given
@@ -241,7 +243,7 @@ class GeometryState {
    The source remains registered and further frames and geometry can be
    registered on it.
    @param source_id     The identifier for the source to clear.
-   @throws std::logic_error  If the `source_id` does _not_ map to an active
+   @throws std::logic_error  If the `source_id` does _not_ map to a registered
                              source. */
   void ClearSource(SourceId source_id);
 
@@ -250,8 +252,8 @@ class GeometryState {
    world.
    @param source_id     The identifier for the owner geometry source.
    @param frame_id      The identifier of the frame to remove.
-   @throws std::logic_error  1. If the `source_id` does _not_ map to an active
-                             source, or
+   @throws std::logic_error  1. If the `source_id` does _not_ map to a
+                             registered source, or
                              2. the `frame_id` does not map to a valid frame, or
                              3. the `frame_id` maps to a frame that does not
                              belong to the indicated source. */
@@ -274,7 +276,7 @@ class GeometryState {
    @param source_id    The id of the source for which this frame is allocated.
    @param frame        The frame to register.
    @returns  A newly allocated frame id.
-   @throws std::logic_error  If the `source_id` does _not_ map to an active
+   @throws std::logic_error  If the `source_id` does _not_ map to a registered
                              source. */
   FrameId RegisterFrame(SourceId source_id, const GeometryFrame<T>& frame);
 
@@ -284,12 +286,14 @@ class GeometryState {
    @param parent_id    The id of the parent frame.
    @param frame        The frame to register.
    @returns  A newly allocated frame id.
-   @throws std::logic_error  1. If the `source_id` does _not_ map to an active
-                             source, or
+   @throws std::logic_error  1. If the `source_id` does _not_ map to a
+                             registered source, or
                              2. If the `parent_id` does _not_ map to a known
                              frame or does not belong to the source. */
   FrameId RegisterFrame(SourceId source_id, FrameId parent_id,
                         const GeometryFrame<T>& frame);
+
+  //@}
 
   /** Registers a GeometryInstance with the state. The state takes ownership of
    the geometry and associates it with the given frame and source. Returns the
@@ -452,7 +456,7 @@ class GeometryState {
   // GeometryWorld. The amount of work depends on the context from which this
   // method is invoked:
   //
-  //  - ClearSource(): ClearSource() is deletes *all* frames and geometries.
+  //  - ClearSource(): ClearSource() deletes *all* frames and geometries.
   //    It explicitly iterates through the frames (regardless of hierarchy).
   //    Thus, recursion is unnecessary, removal from parent references is
   //    likewise unnecessary (and actually wrong).
@@ -516,25 +520,25 @@ class GeometryState {
   // events where frames/geometries are introduced and removed. They do *not*
   // depend on time-dependent input values (e.g., System::Context).
 
-  // The active geometry sources and the frame ids that have been registered
+  // The registered geometry sources and the frame ids that have been registered
   // on them.
   std::unordered_map<SourceId, FrameIdSet> source_frame_id_map_;
 
-  // The active geometry sources and the frame ids that have the world frame as
-  // the parent frame. For a completely flat hierarchy, this contains the same
-  // values as the corresponding entry in source_frame_id_map_.
+  // The registered geometry sources and the frame ids that have the world frame
+  // as the parent frame. For a completely flat hierarchy, this contains the
+  // same values as the corresponding entry in source_frame_id_map_.
   std::unordered_map<SourceId, FrameIdSet> source_root_frame_map_;
+
+  // The registered geometry source names. Each name is unique and the keys in
+  // this map should be identical to those in source_frame_id_map_ and
+  // source_root_frame_map_.
+  std::unordered_map<SourceId, std::string> source_names_;
 
   // The active geometry sources and the _anchored_ geometries that have been
   // registered on them. These don't fit in the frame hierarchy because they do
   // not belong to dynamic frames.
   std::unordered_map<SourceId, std::unordered_set<GeometryId>>
       source_anchored_geometry_map_;
-
-  // The active geometry source names. Each name is unique and the keys in this
-  // map should be identical to those in source_frame_id_map_ and
-  // source_root_frame_map_.
-  std::unordered_map<SourceId, std::string> source_names_;
 
   // The frame data, keyed on unique frame identifier.
   std::unordered_map<FrameId, internal::InternalFrame> frames_;

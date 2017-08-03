@@ -11,9 +11,9 @@
 #include "drake/geometry/geometry_engine_stub.h"
 #include "drake/geometry/geometry_ids.h"
 #include "drake/geometry/geometry_state.h"
+#include "drake/geometry/geometry_world.h"
 #include "drake/geometry/internal_geometry.h"
 #include "drake/geometry/shapes.h"
-#include "drake/geometry/geometry_world.h"
 
 namespace drake {
 namespace geometry {

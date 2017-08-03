@@ -7,8 +7,8 @@
 namespace drake {
 namespace geometry {
 
-// forward declarations
 template <typename T> class GeometrySystem;
+
 template <typename T> class GeometryContext;
 
 /** The %QueryHandle serves as a mechanism to allow LeafSystem instances to

@@ -269,7 +269,7 @@ TEST_F(GeometryStateTest, SourceRegistrationWithNames) {
   SourceId s_id;
   std::string name = "Unique";
   EXPECT_NO_THROW((s_id = geometry_state_.RegisterNewSource(name)));
-  EXPECT_TRUE(geometry_state_.source_is_active(s_id));
+  EXPECT_TRUE(geometry_state_.source_is_registered(s_id));
   EXPECT_EQ(geometry_state_.get_source_name(s_id), name);
 
   // Case: Unique id with duplicate name.
@@ -289,12 +289,12 @@ TEST_F(GeometryStateTest, SourceRegistrationWithNames) {
 // of known valid sources and known invalid sources.
 TEST_F(GeometryStateTest, GeometryStatistics) {
   SourceId dummy_source = SetUpSingleSourceTree();
-  EXPECT_TRUE(geometry_state_.source_is_active(dummy_source));
+  EXPECT_TRUE(geometry_state_.source_is_registered(dummy_source));
   EXPECT_EQ(geometry_state_.get_num_sources(), 1);
   EXPECT_EQ(geometry_state_.get_num_frames(), single_tree_frame_count());
   EXPECT_EQ(geometry_state_.get_num_geometries(), single_tree_geometry_count());
   SourceId false_id = SourceId::get_new_id();
-  EXPECT_FALSE(geometry_state_.source_is_active(false_id));
+  EXPECT_FALSE(geometry_state_.source_is_registered(false_id));
 }
 
 // Confirms that the actions of initializing the single-source tree leave the
@@ -912,7 +912,7 @@ TEST_F(GeometryStateTest, ClearSourceData) {
 
   SourceId s_id = SetUpSingleSourceTree();
   geometry_state_.ClearSource(s_id);
-  EXPECT_TRUE(geometry_state_.source_is_active(s_id));
+  EXPECT_TRUE(geometry_state_.source_is_registered(s_id));
   AssertSingleTreeCleared();
 }
 

@@ -1,13 +1,13 @@
 # -*- python -*-
 # This file contains rules for Bazel; see drake/doc/bazel.rst.
 
-load("//tools:cpplint.bzl", "cpplint")
 load(
     "//tools:drake.bzl",
     "drake_cc_googletest",
     "drake_cc_library",
     "drake_cc_binary",
 )
+load("//tools:lint.bzl", "add_lint_tests")
 
 drake_cc_library(
     name = "bouncing_ball_vector",
@@ -48,14 +48,4 @@ drake_cc_binary(
     ],
 )
 
-# === test/ ===
-
-#drake_cc_googletest(
-#    name = "bouncing_ball_plant_test",
-#    deps = [
-#        ":bouncing_ball_plant",
-#        "//drake/common:autodiff",
-#    ],
-#)
-
-cpplint()
+add_lint_tests()
