@@ -13,7 +13,6 @@
 
 namespace drake {
 
-// Forward declarations.
 namespace systems {
 class SparsityMatrix;
 }  // namespace systems

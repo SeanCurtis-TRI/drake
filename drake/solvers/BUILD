@@ -1,7 +1,6 @@
 # -*- python -*-
 # This file contains rules for Bazel; see drake/doc/bazel.rst.
 
-load("//tools:cpplint.bzl", "cpplint")
 load(
     "//tools:drake.bzl",
     "drake_cc_binary",
@@ -9,6 +8,7 @@ load(
     "drake_cc_library",
 )
 load("//tools:gurobi.bzl", "gurobi_test_tags")
+load("//tools:lint.bzl", "add_lint_tests")
 load("//tools:mosek.bzl", "mosek_test_tags")
 
 package(default_visibility = ["//visibility:public"])
@@ -53,7 +53,6 @@ drake_cc_library(
         ":decision_variable",
         "//drake/common",
         "//drake/common:autodiff",
-        "//drake/common:monomial",
         "//drake/common:number_traits",
         "//drake/common:polynomial",
         "//drake/common:symbolic",
@@ -69,7 +68,6 @@ drake_cc_library(
         ":constraint",
         ":symbolic_extraction",
         "//drake/common",
-        "//drake/common:monomial",
         "//drake/common:polynomial",
         "//drake/common:symbolic",
     ],
@@ -84,7 +82,6 @@ drake_cc_library(
         ":cost",
         ":symbolic_extraction",
         "//drake/common",
-        "//drake/common:monomial",
         "//drake/common:polynomial",
         "//drake/common:symbolic",
         "//drake/common:unused",
@@ -154,20 +151,6 @@ drake_cc_library(
     ],
 )
 
-# Supported solvers:
-# - equality_constrained_qp_solver
-# - linear_system_solver
-# - moby_lcp_solver
-# - IPOPT
-# - MOSEK
-# - NLOPT
-# - SNOPT
-# - Gurobi (on Ubuntu only)
-
-# Unsupported solvers:
-# - dReal
-
-# TODO(jwnimmer-tri, david-german-tri): Support more solvers.
 drake_cc_library(
     name = "mathematical_program",
     srcs = [
@@ -194,10 +177,28 @@ drake_cc_library(
         ":symbolic_extraction",
         "//drake/common",
         "//drake/common:autodiff",
-        "//drake/common:monomial",
         "//drake/common:number_traits",
         "//drake/common:polynomial",
         "//drake/common:symbolic",
+    ],
+)
+
+drake_cc_library(
+    name = "bilinear_product_util",
+    srcs = ["bilinear_product_util.cc"],
+    hdrs = ["bilinear_product_util.h"],
+    deps = [
+        ":decision_variable",
+        "//drake/common:symbolic",
+    ],
+)
+
+drake_cc_library(
+    name = "integer_optimization_util",
+    srcs = ["integer_optimization_util.cc"],
+    hdrs = ["integer_optimization_util.h"],
+    deps = [
+        ":create_constraint",
     ],
 )
 
@@ -223,7 +224,9 @@ drake_cc_library(
         "rotation_constraint_internal.h",
     ],
     deps = [
+        ":bilinear_product_util",
         ":mathematical_program",
+        ":mixed_integer_optimization_util",
         "//drake/math:gradient",
     ],
 )
@@ -579,6 +582,14 @@ drake_cc_library(
 
 # === test/ ===
 drake_cc_googletest(
+    name = "bilinear_product_util_test",
+    deps = [
+        ":bilinear_product_util",
+        "//drake/common:symbolic_test_util",
+    ],
+)
+
+drake_cc_googletest(
     name = "binding_test",
     srcs = [
         "test/binding_test.cc",
@@ -675,6 +686,14 @@ drake_cc_googletest(
 )
 
 drake_cc_googletest(
+    name = "integer_optimization_util_test",
+    deps = [
+        ":integer_optimization_util",
+        ":mathematical_program",
+    ],
+)
+
+drake_cc_googletest(
     name = "ipopt_solver_test",
     srcs = [
         "test/ipopt_solver_test.cc",
@@ -724,6 +743,7 @@ drake_cc_googletest(
         ":mathematical_program_test_util",
         "//drake/common:eigen_matrix_compare",
         "//drake/common:is_dynamic_castable",
+        "//drake/common:symbolic",
         "//drake/common:symbolic_test_util",
     ],
 )
@@ -784,11 +804,22 @@ drake_cc_googletest(
 
 drake_cc_googletest(
     name = "rotation_constraint_test",
-    size = "medium",
+    size = "large",
     # Excluding because an assertion fails in LLVM code. Issue #6179.
     tags = gurobi_test_tags() + mosek_test_tags() + ["no_tsan"],
     deps = [
         ":gurobi_solver",
+        ":mathematical_program",
+        ":rotation_constraint",
+        "//drake/common:eigen_matrix_compare",
+        "//drake/math:geometric_transform",
+    ],
+)
+
+drake_cc_googletest(
+    name = "rotation_constraint_internal_test",
+    tags = mosek_test_tags() + gurobi_test_tags() + ["no_tsan"],
+    deps = [
         ":mathematical_program",
         ":rotation_constraint",
         "//drake/common:eigen_matrix_compare",
@@ -850,6 +881,14 @@ drake_cc_googletest(
 )
 
 drake_cc_googletest(
+    name = "sos_constraint_test",
+    tags = mosek_test_tags(),
+    deps = [
+        ":mathematical_program",
+    ],
+)
+
+drake_cc_googletest(
     name = "system_identification_test",
     # The test takes ~20 sec in opt mode but ~140 sec in dbg mode.
     # To avoid timeouts in dbg and valgrind, we need "large" here.
@@ -879,9 +918,9 @@ drake_cc_googletest(
     ],
 )
 
-# The extra_srcs are required here because cpplint() doesn't understand how to
-# extract labels from select() functions yet.
-cpplint(extra_srcs = [
+# The extra_srcs are required here because add_lint_tests() doesn't understand
+# how to extract labels from select() functions yet.
+add_lint_tests(cpplint_extra_srcs = [
     "fast_qp.h",
     "gurobi_qp.h",
     "gurobi_solver.cc",

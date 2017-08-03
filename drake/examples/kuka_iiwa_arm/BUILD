@@ -1,27 +1,17 @@
 # -*- python -*-
 # This file contains rules for Bazel; see drake/doc/bazel.rst.
 
-load("//tools:cpplint.bzl", "cpplint")
 load(
     "//tools:drake.bzl",
     "drake_cc_library",
     "drake_cc_binary",
     "drake_cc_googletest",
 )
+load("//tools:install_data.bzl", "install_data")
+load("//tools:lint.bzl", "add_lint_tests")
 
 package(
     default_visibility = [":__subpackages__"],
-)
-
-filegroup(
-    name = "models",
-    srcs = glob([
-        "**/*.obj",
-        "**/*.sdf",
-        "**/*.urdf",
-        "**/*.xml",
-    ]),
-    visibility = ["//visibility:public"],
 )
 
 drake_cc_library(
@@ -137,6 +127,7 @@ drake_cc_binary(
         "//drake/examples/kuka_iiwa_arm/iiwa_world:world_sim_tree_builder",
         "//drake/lcm",
         "//drake/manipulation/schunk_wsg:schunk_wsg_constants",
+        "//drake/manipulation/schunk_wsg:schunk_wsg_controller",
         "//drake/manipulation/schunk_wsg:schunk_wsg_lcm",
         "//drake/multibody/rigid_body_plant",
         "//drake/systems/analysis",
@@ -166,6 +157,7 @@ drake_cc_binary(
         "//drake/examples/kuka_iiwa_arm/iiwa_world:world_sim_tree_builder",
         "//drake/lcm",
         "//drake/multibody/rigid_body_plant",
+        "//drake/multibody/rigid_body_plant:frame_visualizer",
         "//drake/systems/analysis:simulator",
         "//drake/systems/controllers:inverse_dynamics_controller",
         "//drake/systems/primitives:constant_vector_source",
@@ -242,4 +234,6 @@ drake_cc_googletest(
     ],
 )
 
-cpplint()
+install_data()
+
+add_lint_tests()

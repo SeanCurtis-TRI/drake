@@ -83,7 +83,7 @@ template <typename T> class GeometryContext;
 
  @section geom_sys_outputs Outputs
 
- %GeometrySystem has two output ports:.
+ %GeometrySystem has two output ports:
 
  __query port__: An abstract-valued port containing an instance of QueryHandle.
  It provides a "ticket" for downstream LeafSystem instances to perform geometric
