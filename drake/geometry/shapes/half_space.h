@@ -39,6 +39,21 @@ class HalfSpace final : public Shape {
   /** Returns a point on the plane. */
   const Vector3<double>& get_point_on_plane() const { return point_; }
 
+  /** Given a plane `normal` and a point `X_FP` on the plane, both expressed in
+   frame F, creates the transform `X_FC` from the half-space's canonical space
+   to frame F.
+   @tparam T       The underlying scalar type. Must be a valid Eigen scalar.
+   @param normal   A vector perpendicular to the half-space's plane boundary.
+                   Must be a non-zero vector.
+   @param X_FP     A point lying on the half-space's plane boundary.
+   @retval `X_FC` the pose of the canonical half-space in frame F.
+   @throws std::logic_error if the normal is a zero-vector. */
+  template <typename T>
+  static Isometry3<T> MakePose(const Vector3<T>& normal,
+                               const Vector3<T>& X_FP) {
+    throw std::runtime_error("Not implemented!");
+  }
+
  protected:
   Shape* DoClone() const override {
     return new HalfSpace(*this);
