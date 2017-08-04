@@ -20,7 +20,7 @@ GeometryEngineStub<T>::GeometryEngineStub() : GeometryEngine<T>() {}
 template <typename T>
 GeometryIndex GeometryEngineStub<T>::AddDynamicGeometry(
     unique_ptr<Shape> shape) {
-  if (shape->get_type() != Shape::SPHERE)
+  if (shape->get_type() != Shape::kSphere)
     throw std::logic_error(
         "Stub engine only allows spheres as dynamic geometry");
   GeometryIndex index(geometries_.size());
@@ -307,7 +307,7 @@ std::vector<PenetrationAsPointPair<T>> GeometryEngineStub<
     for (int a = 0; a < static_cast<int>(anchored_geometries_.size()); ++a) {
       optional<PenetrationAsPointPair<T>> contact;
       switch (anchored_geometries_[a]->get_type()) {
-        case Shape::SPHERE:
+        case Shape::kSphere:
           {
             DRAKE_DEMAND(false && "This isn't implemented yet");
             const Sphere& sphere_B =
@@ -317,7 +317,7 @@ std::vector<PenetrationAsPointPair<T>> GeometryEngineStub<
                                      sphere_B, X_WG_[a].translation());
           }
           break;
-        case Shape::HALF_SPACE:
+        case Shape::kHalfSpace:
           {
             const HalfSpace& half_space =
                 static_cast<const HalfSpace&>(*anchored_geometries_[a]);
@@ -325,7 +325,7 @@ std::vector<PenetrationAsPointPair<T>> GeometryEngineStub<
                                      half_space);
           }
           break;
-        case Shape::UNKNOWN:
+        case Shape::kUnknown:
           throw std::logic_error("Anchored geometry has unknown type");
       }
       if (contact) {

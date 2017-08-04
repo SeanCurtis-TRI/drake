@@ -5,7 +5,7 @@
 
 #include "drake/geometry/geometry_state.h"
 #include "drake/geometry/geometry_system.h"
-#include "drake/geometry/shapes.h"
+#include "drake/geometry/shapes/shapes.h"
 #include "drake/lcm/drake_lcm.h"
 #include "drake/lcmtypes/drake/lcmt_viewer_geometry_data.hpp"
 #include "drake/lcmtypes/drake/lcmt_viewer_load_robot.hpp"
@@ -45,7 +45,7 @@ lcmt_viewer_geometry_data MakeGeometryData(const Shape& shape,
   lcmt_viewer_geometry_data geometry_data;
   Eigen::Isometry3d transform;  // The extracted X_FG.
   switch (shape.get_type()) {
-    case Shape::SPHERE: {
+    case Shape::kSphere: {
       geometry_data.type = geometry_data.SPHERE;
       geometry_data.num_float_data = 1;
       auto sphere = static_cast<const Sphere&>(shape);
@@ -54,7 +54,7 @@ lcmt_viewer_geometry_data MakeGeometryData(const Shape& shape,
       transform = X_GP;
       break;
     }
-    case Shape::HALF_SPACE: {
+    case Shape::kHalfSpace: {
       // TODO(SeanCurtis-TRI): Modify visualization to support half spaces.
       // Translate it into a box. Assuming it's "centered" at the origin.
       geometry_data.type = geometry_data.BOX;
@@ -79,7 +79,7 @@ lcmt_viewer_geometry_data MakeGeometryData(const Shape& shape,
       transform = plane_xform *box_xform;
       break;
     }
-    case Shape::UNKNOWN:
+    case Shape::kUnknown:
       // Intentionally doing nothing -- copied form drake_visualizer_client.cc.
       break;
   }

@@ -1,14 +1,10 @@
-#include "drake/geometry/shapes.h"
-
-#include "drake/common/eigen_types.h"
+#include "drake/geometry/shapes/half_space.h"
 
 namespace drake {
 namespace geometry {
 
-// -------------          HalfSpace
-
 HalfSpace::HalfSpace(const Vector3<double>& normal,
-                     const Vector3<double>& point) : Shape(HALF_SPACE),
+                     const Vector3<double>& point) : Shape(kHalfSpace),
                                                      point_(point) {
   normal_ = normal.normalized();
   d_ = -normal_.dot(point);

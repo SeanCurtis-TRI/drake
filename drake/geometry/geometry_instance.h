@@ -7,7 +7,7 @@
 #include "drake/common/drake_copyable.h"
 #include "drake/common/eigen_types.h"
 #include "drake/geometry/geometry_material.h"
-#include "drake/geometry/shapes.h"
+#include "drake/geometry/shapes/shape.h"
 
 namespace drake {
 namespace geometry {

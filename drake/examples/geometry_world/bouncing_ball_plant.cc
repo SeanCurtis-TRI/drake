@@ -10,7 +10,7 @@
 #include "drake/geometry/geometry_frame.h"
 #include "drake/geometry/geometry_instance.h"
 #include "drake/geometry/query_results/penetration_as_point_pair.h"
-#include "drake/geometry/shapes.h"
+#include "drake/geometry/shapes/shapes.h"
 
 namespace drake {
 namespace examples {

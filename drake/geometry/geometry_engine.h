@@ -13,7 +13,7 @@
 #include "drake/geometry/query_results/nearest_pair.h"
 #include "drake/geometry/query_results/penetration_as_point_pair.h"
 #include "drake/geometry/query_results/point_proximity.h"
-#include "drake/geometry/shapes.h"
+#include "drake/geometry/shapes/shape.h"
 
 namespace drake {
 namespace geometry {

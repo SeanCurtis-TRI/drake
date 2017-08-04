@@ -6,7 +6,7 @@
 #include "drake/geometry/geometry_instance.h"
 #include "drake/geometry/geometry_system.h"
 #include "drake/geometry/geometry_visualization.h"
-#include "drake/geometry/shapes.h"
+#include "drake/geometry/shapes/shapes.h"
 #include "drake/lcm/drake_lcm.h"
 #include "drake/lcmt_viewer_draw.hpp"
 #include "drake/systems/analysis/simulator.h"
