@@ -7,7 +7,7 @@
 #include "drake/common/drake_copyable.h"
 #include "drake/common/eigen_types.h"
 #include "drake/geometry/geometry_material.h"
-#include "drake/geometry/shapes.h"
+#include "drake/geometry/shape_specification.h"
 
 namespace drake {
 namespace geometry {
@@ -42,19 +42,14 @@ class GeometryInstance {
   GeometryInstance(const Isometry3<T>& X_PG, std::unique_ptr<Shape> shape,
                    const VisualMaterial& vis_material);
 
-  /** Returns the pose of the instance relative to its parent _frame_. */
   const Isometry3<T>& get_pose() const { return X_FG_; }
-
-  /** Sets the pose relative to the parent _frame_ `X_PG` for this instance. */
   void set_pose(const Isometry3<T>& X_PG) { X_FG_ = X_PG; }
 
-  void set_visual_material(const VisualMaterial& material) {
-    visual_material_ = material;
-  }
-  const VisualMaterial& get_visual_material() const { return visual_material_; }
-
+  const Shape& get_shape() const { return *shape_; }
   /** Releases the shape from the instance. */
   std::unique_ptr<Shape> release_shape() { return std::move(shape_); }
+
+  const VisualMaterial& get_visual_material() const { return visual_material_; }
 
  private:
   // The pose of the geometry relative to the source frame it ultimately hangs

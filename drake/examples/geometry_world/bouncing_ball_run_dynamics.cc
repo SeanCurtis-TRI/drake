@@ -6,7 +6,7 @@
 #include "drake/geometry/geometry_instance.h"
 #include "drake/geometry/geometry_system.h"
 #include "drake/geometry/geometry_visualization.h"
-#include "drake/geometry/shapes.h"
+#include "drake/geometry/shape_specification.h"
 #include "drake/lcm/drake_lcm.h"
 #include "drake/lcmt_viewer_draw.hpp"
 #include "drake/systems/analysis/simulator.h"
@@ -56,8 +56,7 @@ int do_main() {
   geometry_system->RegisterAnchoredGeometry(
       global_source,
       make_unique<GeometryInstance<double>>(
-          Isometry3<double>::Identity(),
-              make_unique<HalfSpace>(normal_G, point_G)));
+          HalfSpace::MakePose(normal_G, point_G), make_unique<HalfSpace>()));
 
   DrakeLcm lcm;
   PoseBundleToDrawMessage* converter =

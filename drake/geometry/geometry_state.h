@@ -546,7 +546,8 @@ class GeometryState {
   std::unordered_map<GeometryId, internal::InternalGeometry> geometries_;
 
   // The _anchored_ geometry data, keyed on the unique geometry identifiers.
-  std::unordered_map<GeometryId, AnchoredGeometryIndex> anchored_geometries_;
+  std::unordered_map<GeometryId, internal::InternalAnchoredGeometry>
+      anchored_geometries_;
 
   // This *implicitly* maps each extant geometry engine index to its
   // corresponding unique geometry identifier. It assumes that the index in the

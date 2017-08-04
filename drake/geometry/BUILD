@@ -46,6 +46,7 @@ drake_cc_library(
         ":geometry_index",
         ":geometry_instance",
         ":geometry_query_inputs",
+        ":shape_specification",
         "//drake/common",
         "//drake/common:copyable_unique_ptr",
         "//drake/geometry/query_results:nearest_pair",
@@ -81,7 +82,7 @@ drake_cc_library(
     hdrs = ["geometry_instance.h"],
     deps = [
         ":geometry_material",
-        ":shapes",
+        ":shape_specification",
         "//drake/common",
         "//drake/common:copyable_unique_ptr",
     ],
@@ -200,12 +201,10 @@ drake_cc_library(
 )
 
 drake_cc_library(
-    name = "shapes",
-    srcs = ["shapes.cc"],
-    hdrs = ["shapes.h"],
-    deps = [
-        "//drake/common",
-    ],
+    name = "shape_specification",
+    srcs = [],
+    hdrs = ["shape_specification.h"],
+    deps = ["//drake/common"],
 )
 
 # -----------------------------------------------------
@@ -270,7 +269,7 @@ drake_cc_googletest(
         ":expect_error_message",
         ":geometry_state",
         ":geometry_world",
-        ":shapes",
+        ":shape_specification",
         "//drake/common:eigen_matrix_compare",
     ],
 )

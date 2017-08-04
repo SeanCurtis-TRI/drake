@@ -13,29 +13,25 @@
 #include "drake/geometry/query_results/nearest_pair.h"
 #include "drake/geometry/query_results/penetration_as_point_pair.h"
 #include "drake/geometry/query_results/point_proximity.h"
-#include "drake/geometry/shapes.h"
+#include "drake/geometry/shape_specification.h"
 
 namespace drake {
 namespace geometry {
 
-// These structs are for internal use only and are *not* part of the public
-// API.
-namespace internal {
+/** Specification of a pair of geometry indices. Serves as part of the query
+ interface to allow queries on explicitly itemized pairs of geomtries. */
 struct GeometryIndexPair {
   GeometryIndexPair(GeometryIndex i1, GeometryIndex i2)
       : index1(i1), index2(i2) {}
   GeometryIndex index1;
   GeometryIndex index2;
 };
-}  // namespace internal
 
-// forward declaration
 class Geometry;
+
 template <typename T> class GeometryInstance;
 
-
-/**
- A geometry engine is the underlying engine for computing the results of
+/** A geometry engine is the underlying engine for computing the results of
  geometric queries.
 
  It owns the geometry instances and, once it has been provided with the poses
@@ -63,25 +59,25 @@ class GeometryEngine {
    active geometry indices. */
   virtual int get_update_input_size() const = 0;
 
-  /** Add movable geometry to the engine. The engine takes ownership of the
-   instance. The instances transform is a fixed pose relative to an unknown
-   parent frame (which will be determined later.
-   @param shape    The geometry to add to the engine.
-   @return  An index by which the geometry can be referenced later. */
+  /** Adds movable geometry to the engine. The engine instantiates its own
+   representation of the geometry implied by the given `shape` specification.
+   @param shape    The specification of the canonical shape to add.
+   @return An index by which the geometry can be referenced later. */
   // TODO(SeanCurtis-TRI): Include the invocation of the geometry.
-  virtual GeometryIndex AddDynamicGeometry(std::unique_ptr<Shape> shape) = 0;
+  virtual GeometryIndex AddDynamicGeometry(const Shape& shape) = 0;
 
-  /** Add anchored geometry to the engine. The engine takes ownership of the
-   instance. The instance's pose is a fixed pose relative to the _world_ frame
-   `W`.
-   @param shape    The geometry to add to the engine as anchored geometry.
+  /** Add anchored geometry to the engine. The engine instantiates its own
+   representation of the geometry implied by the given `shape` specification.
+   The instance's pose is a fixed pose relative to the _world_ frame `W`.
+   @param shape     The specification of the canonical shape to add.
+   @param X_WG      The pose of the geometry's canonical frame `G` in the world
+                    frame.
    @return  An index by which the geometry can be referenced later. */
-  // TODO(SeanCurtis-TRI): There be a transform here; shapes that are *not*
-  // inherently defined in the world frame need to be transformed?
-  virtual AnchoredGeometryIndex AddAnchoredGeometry(
-      std::unique_ptr<Shape> shape) = 0;
+  virtual AnchoredGeometryIndex AddAnchoredGeometry(const Shape& shape,
+                                                    Isometry3<T> X_WG) = 0;
 
-  /** Removes the geometry associated with the given `index` from the engine.
+  /** Removes the dynamic geometry associated with the given `index` from the
+   engine.
    To maintain a compact representation, the engine can move one other geometry
    into the just-vacated `index` site. If it does so, the return value will
    contain a GeometryIndex. If it chooses not to (or if it isn't possible --
@@ -99,13 +95,6 @@ class GeometryEngine {
   //  2. I could simply have a method that returns a mutable reference to such
   //    a vector and the caller sets values there directly.
   virtual void UpdateWorldPoses(const std::vector<Isometry3<T>>& X_WG) = 0;
-
-  /** Returns a const reference to the ith shape. */
-  virtual const Shape& get_shape(GeometryIndex index) const = 0;
-
-  /** Returns a const reference to the ith anchored shape. */
-  virtual const Shape& get_anchored_shape(
-      AnchoredGeometryIndex index) const = 0;
 
   //@}
 
@@ -166,7 +155,7 @@ class GeometryEngine {
    @returns True if the operation was successful. */
   virtual bool ComputePairwiseClosestPoints(
       const std::vector<GeometryId>& ids,
-      const std::vector<internal::GeometryIndexPair>& pairs,
+      const std::vector<GeometryIndexPair>& pairs,
       std::vector<NearestPair<T>>* near_points) const = 0;
 
   // NOTE: This maps to Model::collisionDetectFromPoints().

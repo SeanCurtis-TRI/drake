@@ -13,6 +13,7 @@
 namespace drake {
 namespace geometry {
 
+using internal::InternalAnchoredGeometry;
 using internal::InternalFrame;
 using internal::InternalGeometry;
 using std::make_pair;
@@ -244,11 +245,16 @@ GeometryId GeometryState<T>::RegisterAnchoredGeometry(
   // TODO(SeanCurtis-TRI): I should be capturing the returned index so I can
   // remove the geometry later.
   auto engine_index =
-      geometry_engine_->AddAnchoredGeometry(geometry->release_shape());
+      geometry_engine_->AddAnchoredGeometry(geometry->get_shape(),
+                                            geometry->get_pose());
   DRAKE_ASSERT(static_cast<int>(anchored_geometry_index_id_map_.size()) ==
                engine_index);
   anchored_geometry_index_id_map_.push_back(geometry_id);
-  anchored_geometries_[geometry_id] = engine_index;
+  anchored_geometries_.emplace(
+      geometry_id,
+      InternalAnchoredGeometry(
+          geometry->release_shape(), geometry_id, "no name anchored",
+          engine_index, geometry->get_visual_material()));
   return geometry_id;
 }
 
@@ -441,15 +447,15 @@ GeometryId GeometryState<T>::RegisterGeometryHelper(
   // communicate that back, or I need a map in the state that allows me to get
   // id from index.
   GeometryIndex engine_index =
-      geometry_engine_->AddDynamicGeometry(geometry->release_shape());
+      geometry_engine_->AddDynamicGeometry(geometry->get_shape());
 
   // Configure topology.
   frames_[frame_id].add_child(geometry_id);
   // TODO(SeanCurtis-TRI): Get name from geometry instance (when available).
   geometries_.emplace(
-      geometry_id,
-      InternalGeometry(frame_id, geometry_id, "no_name", engine_index,
-                       geometry->get_visual_material(), parent));
+      geometry_id, InternalGeometry(geometry->release_shape(), frame_id,
+                                    geometry_id, "no_name", engine_index,
+                                    geometry->get_visual_material(), parent));
   // TODO(SeanCurtis-TRI): I expect my rigid poses are growing at the same
   // rate as in my engine. This seems fragile.
   DRAKE_ASSERT(static_cast<int>(X_FG_.size()) == engine_index);
@@ -522,7 +528,8 @@ void GeometryState<T>::RemoveGeometryUnchecked(GeometryId geometry_id,
 
   GeometryIndex engine_index = geometry.get_engine_index();
   X_FG_[engine_index].setIdentity();
-  auto moved_index = geometry_engine_->RemoveGeometry(engine_index);
+  optional<GeometryIndex> moved_index =
+      geometry_engine_->RemoveGeometry(engine_index);
   if (moved_index) {
     // The geometry engine moved a geometry into the removed `engine_index`.
     // Update the state's knowledge of this.
