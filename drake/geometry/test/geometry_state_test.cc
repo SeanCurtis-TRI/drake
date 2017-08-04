@@ -540,7 +540,7 @@ TEST_F(GeometryStateTest, RegisterGeometryGoodSource) {
 
   EXPECT_TRUE(gs_tester_.get_frames().at(f_id).has_child(g_id));
   const auto& geometry = gs_tester_.get_geometries().at(g_id);
-  EXPECT_TRUE(geometry.has_frame(f_id));
+  EXPECT_TRUE(geometry.is_child_of_frame(f_id));
   EXPECT_FALSE(geometry.get_parent());
 }
 
@@ -615,7 +615,7 @@ TEST_F(GeometryStateTest, RegisterGeometryonValidGeometry) {
   EXPECT_TRUE(gs_tester_.get_frames().at(frame_id).has_child(g_id));
   const auto& geometry = gs_tester_.get_geometries().at(g_id);
   EXPECT_EQ(geometry.get_frame_id(), frame_id);
-  EXPECT_TRUE(geometry.has_parent(parent_id));
+  EXPECT_TRUE(geometry.is_child_of_geometry(parent_id));
   EXPECT_TRUE(gs_tester_.get_geometries().at(parent_id).has_child(g_id));
 }
 

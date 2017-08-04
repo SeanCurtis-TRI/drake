@@ -81,13 +81,13 @@ class InternalGeometry {
 
   /** Returns true if this geometry has a geometry parent and it is the given
    `geometry_id`. */
-  bool has_geometry_parent(GeometryId geometry_id) const {
+  bool is_child_of_geometry(GeometryId geometry_id) const {
     return parent_id_ && *parent_id_ == geometry_id;
   }
 
   /** Returns true if the geometry is affixed to the frame with the given
    `frame_id`. */
-  bool has_frame_parent(FrameId frame_id) const {
+  bool is_child_of_frame(FrameId frame_id) const {
     return frame_id == frame_id_;
   }
 
