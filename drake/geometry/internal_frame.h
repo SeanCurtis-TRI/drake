@@ -156,15 +156,3 @@ class InternalFrame {
 }  // namespace internal
 }  // namespace geometry
 }  // namespace drake
-
-namespace std {
-/** Enables use of the %InternalFrame to serve as a key in STL containers.
- @relates InternalFrame */
-template <>
-struct hash<drake::geometry::internal::InternalFrame> {
-  size_t operator()(
-      const drake::geometry::internal::InternalFrame& frame) const {
-    return hash<drake::geometry::FrameId>()(frame.get_id());
-  }
-};
-}  // namespace std

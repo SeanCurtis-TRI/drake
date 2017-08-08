@@ -18,25 +18,20 @@
 namespace drake {
 namespace geometry {
 
-// TODO(SeanCurtis-TRI): This class is part of the public API and, therefore,
-// should _not_ be in an "internal" namespace.
-// These structs are for internal use only and are *not* part of the public
-// API.
-namespace internal {
+/** Specification of a pair of geometry indices. Serves as part of the query
+ interface to allow queries on explicitly itemized pairs of geomtries. */
 struct GeometryIndexPair {
   GeometryIndexPair(GeometryIndex i1, GeometryIndex i2)
       : index1(i1), index2(i2) {}
   GeometryIndex index1;
   GeometryIndex index2;
 };
-}  // namespace internal
 
 class Geometry;
 
 template <typename T> class GeometryInstance;
 
-/**
- A geometry engine is the underlying engine for computing the results of
+/** A geometry engine is the underlying engine for computing the results of
  geometric queries.
 
  It owns the geometry instances and, once it has been provided with the poses
@@ -160,7 +155,7 @@ class GeometryEngine {
    @returns True if the operation was successful. */
   virtual bool ComputePairwiseClosestPoints(
       const std::vector<GeometryId>& ids,
-      const std::vector<internal::GeometryIndexPair>& pairs,
+      const std::vector<GeometryIndexPair>& pairs,
       std::vector<NearestPair<T>>* near_points) const = 0;
 
   // NOTE: This maps to Model::collisionDetectFromPoints().

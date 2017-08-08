@@ -156,7 +156,6 @@ optional<PenetrationAsPointPair<T>> CollideHalfSpace(
 using stub_shapes::EngineShape;
 using stub_shapes::OwnedIndex;
 
-using internal::GeometryIndexPair;
 using std::make_unique;
 using std::move;
 using std::unique_ptr;
@@ -385,7 +384,7 @@ bool GeometryEngineStub<T>::ComputePairwiseClosestPoints(
 template <typename T>
 bool GeometryEngineStub<T>::ComputePairwiseClosestPoints(
     const std::vector<GeometryId>& ids,
-    const std::vector<internal::GeometryIndexPair>& pairs,
+    const std::vector<GeometryIndexPair>& pairs,
     std::vector<NearestPair<T>>* near_points) const {
   return ComputePairwiseClosestPointsHelper(ids, pairs, near_points);
 }

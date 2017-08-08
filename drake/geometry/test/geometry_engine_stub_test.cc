@@ -66,7 +66,7 @@ TEST_F(GeometryEngineStubTest, ComputePairwiseClosestPoints_SelectPairs) {
   SetUpAxisSpheres();
   const std::vector<GeometryId>& dynamic_ids =
       state_tester_.get_index_to_id_map();
-  vector<internal::GeometryIndexPair> query_pairs;
+  vector<GeometryIndexPair> query_pairs;
   // As in SetUpAxisSpheres(), this assumes that the indices are 0 - 3 for the
   // spheres.
   query_pairs.emplace_back(GeometryIndex(0), GeometryIndex(1));

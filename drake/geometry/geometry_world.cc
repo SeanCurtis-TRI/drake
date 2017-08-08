@@ -161,7 +161,7 @@ bool GeometryWorld<T>::ComputePairwiseClosestPoints(
     const std::vector<GeometryPair> &pairs,
     std::vector<NearestPair<T>> *near_points) const {
   const GeometryState<T>& state = context.get_geometry_state();
-  std::vector<internal::GeometryIndexPair> index_pairs;
+  std::vector<GeometryIndexPair> index_pairs;
   index_pairs.reserve(pairs.size());
   for (const auto& pair : pairs) {
     index_pairs.emplace_back(

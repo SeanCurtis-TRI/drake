@@ -95,7 +95,7 @@ class GeometryEngineStub : public GeometryEngine<T>, public ShapeReifier {
       std::vector<NearestPair<T>>* near_points) const override;
   bool ComputePairwiseClosestPoints(
       const std::vector<GeometryId>& ids,
-      const std::vector<internal::GeometryIndexPair>& pairs,
+      const std::vector<GeometryIndexPair>& pairs,
       std::vector<NearestPair<T>>* near_points) const override;
 
   bool FindClosestGeometry(

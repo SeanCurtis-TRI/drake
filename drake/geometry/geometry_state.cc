@@ -528,7 +528,8 @@ void GeometryState<T>::RemoveGeometryUnchecked(GeometryId geometry_id,
 
   GeometryIndex engine_index = geometry.get_engine_index();
   X_FG_[engine_index].setIdentity();
-  auto moved_index = geometry_engine_->RemoveGeometry(engine_index);
+  optional<GeometryIndex> moved_index =
+      geometry_engine_->RemoveGeometry(engine_index);
   if (moved_index) {
     // The geometry engine moved a geometry into the removed `engine_index`.
     // Update the state's knowledge of this.
