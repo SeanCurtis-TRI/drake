@@ -8,33 +8,187 @@
 
 namespace drake {
 namespace geometry {
+namespace {
+
+/** The engine's representation of a half space. It is defined in its canonical
+ frame C lying on the origin with its normal in the +z-axis direction. */
+template <typename T>
+class EngineHalfSpace final : public stub_shapes::EngineShape<T> {
+ public:
+  DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(EngineHalfSpace)
+
+  /** Constructor.
+   @param normal    A vector normal to the plane. It points in the "outside"
+                    direction. It is assumed to be unit length. It is
+                    measured and expressed in the frame F.
+   @param r_FC      The position vector from the origin of frame F to the origin
+                    of the canonical frame C. */
+  EngineHalfSpace(stub_shapes::OwnedIndex index, const Vector3<T>& normal,
+                  const Vector3<T>& r_FC)
+      : stub_shapes::EngineShape<T>(stub_shapes::EngineShape<T>::kHalfSpace,
+                                    index) {
+    Update(normal, r_FC);
+  }
+
+  /** Constructor. Defines the plane from the given transform. The plane normal
+   is the z-axis of isometry's z-axis and the origin, translated by the isometry
+   is a point on the plane.
+   @param X_FC      The transform from the plane's canonical frame (normal is
+                    +z-axis, lying on th origin) to the frame F.
+   */
+  EngineHalfSpace(stub_shapes::OwnedIndex index, const Isometry3<T>& X_FC)
+      : stub_shapes::EngineShape<T>(stub_shapes::EngineShape<T>::kHalfSpace,
+                                    index) {
+    Update(X_FC);
+  }
+
+  void Update(const Isometry3<T>& X_WC) override {
+    Update(X_WC.linear().col(2), X_WC.translation());
+  }
+
+  /** Sets the plane parameters from the given normal and point on the plane.
+   @param normal    A vector normal to the plane. It points in the "outside"
+                    direction. It is assumed to be unit length. It is
+                    measured and expressed in the frame F.
+   @param r_FC      The position vector from the origin of frame F to the origin
+                    of the canonical frame C. */
+  void Update(const Vector3<T>& normal, const Vector3<T>& r_FC) {
+    normal_ = normal;
+    d_ = -normal_.dot(r_FC);
+  }
+
+  /** Reports the signed distance of a point (measured from frame F's origin as
+   `r_FP`) to the half-space's plane boundary. Positive values indicate
+   *outside* the half-space. It is assumed that the plane has already been
+   "posed" in frame F via a call to Set(). */
+  T calc_signed_distance(const Vector3<T>& r_FP) const {
+    return normal_.dot(r_FP) + d_;
+  }
+
+  const Vector3<T>& get_normal() const { return normal_; }
+
+ protected:
+  EngineHalfSpace* DoClone() const override {
+    return new EngineHalfSpace(*this);
+  }
+
+ private:
+  // Defines the implicit equation of the plane: P(x) = dot(N, x) + d
+  Vector3<T> normal_;
+  T d_{0.0};
+};
+
+/** The engine's representation of a sphere. It is defined in its canonical
+ frame C centered on the origin with the given circle. */
+template <typename T>
+class EngineSphere : public stub_shapes::EngineShape<T> {
+ public:
+  DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(EngineSphere)
+
+  EngineSphere(stub_shapes::OwnedIndex index, const Vector3<T>& center,
+               double radius)
+      : stub_shapes::EngineShape<T>(stub_shapes::EngineShape<T>::kSphere,
+                                    index),
+        center_(center),
+        radius_(radius) {}
+
+  double get_radius() const { return radius_; }
+
+  void Update(const Isometry3<T>& X_WC) override {
+    center_ = X_WC.translation();
+  }
+
+ protected:
+  EngineSphere* DoClone() const override { return new EngineSphere(*this); }
+
+ private:
+  Vector3<T> center_;
+  double radius_;
+};
+
+// Helper method to compute the contact between two spheres.
+template <typename T>
+optional<PenetrationAsPointPair<T>> CollideSpheres(
+    const EngineSphere<T>& sphere_A, const Vector3<T>& p_WA,
+    const EngineSphere<T>& sphere_B, const Vector3<T>& p_WB) {
+  // TODO(SeanCurtis-TRI): Rather than pass in positions, update the sphere.
+  auto r_AB = p_WB - p_WA;
+  T dist_sqd = r_AB.squaredNorm();
+  const double separating_dist = sphere_A.get_radius() + sphere_B.get_radius();
+  const double separating_dist_sqd = separating_dist * separating_dist;
+  if (dist_sqd < separating_dist_sqd) {
+    // Distance between *centers*!
+    T distance = sqrt(dist_sqd);
+    if (distance > Eigen::NumTraits<T>::dummy_precision()) {
+      PenetrationAsPointPair<T> contact;
+      contact.depth = separating_dist - distance;
+      contact.nhat_AB_W = r_AB / distance;
+      contact.p_WCa = p_WA + contact.nhat_AB_W * sphere_A.get_radius();
+      contact.p_WCb = p_WB - contact.nhat_AB_W * sphere_B.get_radius();
+      return contact;
+    }
+  }
+  return {};
+}
+
+template <typename T>
+optional<PenetrationAsPointPair<T>> CollideHalfSpace(
+    const EngineSphere<T>& sphere, const Vector3<T>& p_WA,
+    const EngineHalfSpace<T>& plane) {
+  using std::abs;
+  double signed_dist = plane.calc_signed_distance(p_WA) - sphere.get_radius();
+  if (signed_dist < 0) {
+    PenetrationAsPointPair<T> contact;
+    contact.depth = -signed_dist;
+    // Penetration direction is *opposite* the plane normal, because the sphere
+    // is always A.
+    contact.nhat_AB_W = -plane.get_normal();
+    contact.p_WCa = p_WA + contact.nhat_AB_W * sphere.get_radius();
+    contact.p_WCb =
+        p_WA - plane.get_normal() * (sphere.get_radius() + signed_dist);
+    return contact;
+  }
+  return {};
+}
+
+}  // namespace
+
+using stub_shapes::EngineShape;
+using stub_shapes::OwnedIndex;
 
 using internal::GeometryIndexPair;
+using std::make_unique;
 using std::move;
 using std::unique_ptr;
 using std::vector;
+using stub_shapes::EngineShape;
 
 template <typename T>
 GeometryEngineStub<T>::GeometryEngineStub() : GeometryEngine<T>() {}
 
 template <typename T>
 GeometryIndex GeometryEngineStub<T>::AddDynamicGeometry(
-    unique_ptr<Shape> shape) {
-  if (shape->get_type() != Shape::kSphere)
-    throw std::logic_error(
-        "Stub engine only allows spheres as dynamic geometry");
+    const Shape& shape) {
   GeometryIndex index(geometries_.size());
-  geometries_.emplace_back(move(shape));
+  shape.Reify(this);
   X_WG_.emplace_back();
+  auto& last = owned_geometries_.back();
+  geometries_.push_back(static_cast<EngineShape<T>*>(last.get_mutable()));
   DRAKE_ASSERT(X_WG_.size() == geometries_.size());
+  DRAKE_ASSERT(geometries_.size() + anchored_geometries_.size() ==
+               owned_geometries_.size());
   return index;
 }
 
 template <typename T>
 AnchoredGeometryIndex GeometryEngineStub<T>::AddAnchoredGeometry(
-    std::unique_ptr<Shape> shape) {
+    const Shape& shape, Isometry3<T> X_WG) {
   AnchoredGeometryIndex index(anchored_geometries_.size());
-  anchored_geometries_.emplace_back(move(shape));
+  shape.Reify(this);
+  anchored_geometries_.push_back(owned_geometries_.back().get_mutable());
+  anchored_geometries_.back()->Update(X_WG);
+  DRAKE_ASSERT(geometries_.size() + anchored_geometries_.size() ==
+      owned_geometries_.size());
   return index;
 }
 
@@ -46,7 +200,12 @@ optional<GeometryIndex> GeometryEngineStub<T>::RemoveGeometry(
   if (last != index) {
     swap(geometries_[index], geometries_[last]);
   }
+  // TODO(SeanCurtis-TRI): Test this functionality!!!
+  OwnedIndex removed = geometries_.back()->get_index();
+  swap(owned_geometries_[removed], owned_geometries_.back());
+  owned_geometries_[removed]->set_index(removed);
   geometries_.pop_back();
+  owned_geometries_.pop_back();
   if (last != index) {
     return last;
   } else {
@@ -59,17 +218,6 @@ void GeometryEngineStub<T>::UpdateWorldPoses(const vector<Isometry3<T>>& X_WG) {
   X_WG_.clear();
   X_WG_.reserve(X_WG.size());
   X_WG_.insert(X_WG_.begin(), X_WG.begin(), X_WG.end());
-}
-
-template <typename T>
-const Shape& GeometryEngineStub<T>::get_shape(GeometryIndex index) const {
-  return *geometries_[index].get();
-}
-
-template <typename T>
-const Shape& GeometryEngineStub<T>::get_anchored_shape(
-    AnchoredGeometryIndex index) const {
-  return *anchored_geometries_[index].get();
 }
 
 // Helpers for queries ------------------------------------------------------
@@ -184,12 +332,12 @@ bool GeometryEngineStub<T>::ComputePairwiseClosestPointsHelper(
   size_t input = near_points->size();
   near_points->resize(near_points->size() + pair_set.size());
   for (const auto& pair : pair_set) {
-    const Sphere* sphere_A =
-        static_cast<const Sphere*>(geometries_[pair.index1].get());
+    const EngineSphere<T>* sphere_A =
+        static_cast<const EngineSphere<T>*>(geometries_[pair.index1]);
     const auto p_WA = X_WG_[pair.index1].translation();
     const double radius_A = sphere_A->get_radius();
-    const Sphere* sphere_B =
-        static_cast<const Sphere*>(geometries_[pair.index2].get());
+    const EngineSphere<T>* sphere_B =
+        static_cast<const EngineSphere<T>*>(geometries_[pair.index2]);
     const auto p_WB = X_WG_[pair.index2].translation();
     const double radius_B = sphere_B->get_radius();
 
@@ -260,7 +408,8 @@ bool GeometryEngineStub<T>::FindClosestGeometry(
     // TODO(SeanCurtis-TRI): Does this work for autodiff?
     data[i].distance = std::numeric_limits<double>::infinity();
     for (int g = 0; g < get_update_input_size(); ++g) {
-      const Sphere& sphere = static_cast<const Sphere&>(*geometries_[g].get());
+      const EngineSphere<T>& sphere =
+          static_cast<const EngineSphere<T>&>(*geometries_[g]);
       const auto& p_WA = X_WG_[g].translation();
       Vector3<T> r_AQ = points.block<3, 1>(0, i) - p_WA;
       double radius_sqd = sphere.get_radius() * sphere.get_radius();
@@ -276,7 +425,8 @@ bool GeometryEngineStub<T>::FindClosestGeometry(
   // reported data.
   for (int i = 0; i < points.cols(); ++i) {
     data[i].id_A = ids[near_geometry[i]];
-    const Sphere& sphere = static_cast<const Sphere&>(*geometries_[i].get());
+    const EngineSphere<T>& sphere =
+        static_cast<const EngineSphere<T>&>(*geometries_[i]);
     const auto& p_WA = X_WG_[near_geometry[i]].translation();
     const double radius_sqd = sphere.get_radius() * sphere.get_radius();
     data[i].distance =
@@ -302,30 +452,31 @@ std::vector<PenetrationAsPointPair<T>> GeometryEngineStub<
   std::vector<PenetrationAsPointPair<T>> contacts;
   // A simple O(N²) algorithm.
   for (int i = 0; i < get_update_input_size(); ++i) {
-    const Sphere& sphere_A = static_cast<const Sphere&>(*geometries_[i]);
+    const EngineSphere<T>& sphere_A =
+        static_cast<const EngineSphere<T>&>(*geometries_[i]);
     // dynamic-anchored collisions.
     for (int a = 0; a < static_cast<int>(anchored_geometries_.size()); ++a) {
       optional<PenetrationAsPointPair<T>> contact;
       switch (anchored_geometries_[a]->get_type()) {
-        case Shape::kSphere:
+        case EngineShape<T>::kSphere:
           {
             DRAKE_DEMAND(false && "This isn't implemented yet");
-            const Sphere& sphere_B =
-                static_cast<const Sphere&>(*anchored_geometries_[a]);
+            const EngineSphere<T>& sphere_B =
+                static_cast<const EngineSphere<T>&>(*anchored_geometries_[a]);
             // TODO(SeanCurtis-TRI): I need to get anchored poses.
-            contact = CollideSpheres(sphere_A, X_WG_[i].translation(),
-                                     sphere_B, X_WG_[a].translation());
+            contact = CollideSpheres<T>(sphere_A, X_WG_[i].translation(),
+                                        sphere_B, X_WG_[a].translation());
           }
           break;
-        case Shape::kHalfSpace:
+        case EngineShape<T>::kHalfSpace:
           {
-            const HalfSpace& half_space =
-                static_cast<const HalfSpace&>(*anchored_geometries_[a]);
-            contact = CollideHalfSpace(sphere_A, X_WG_[i].translation(),
-                                     half_space);
+          const EngineHalfSpace<T>& half_space =
+              static_cast<const EngineHalfSpace<T>&>(*anchored_geometries_[a]);
+          contact =
+              CollideHalfSpace<T>(sphere_A, X_WG_[i].translation(), half_space);
           }
           break;
-        case Shape::kUnknown:
+        case EngineShape<T>::kUnknown:
           throw std::logic_error("Anchored geometry has unknown type");
       }
       if (contact) {
@@ -336,10 +487,10 @@ std::vector<PenetrationAsPointPair<T>> GeometryEngineStub<
     }
     // dynamic-dynamic collisions.
     for (int j = i + 1; j < get_update_input_size(); ++j) {
-      const Sphere& sphere_B =
-          static_cast<const Sphere&>(*geometries_[j]);
-      auto contact = CollideSpheres(sphere_A, X_WG_[i].translation(),
-                                    sphere_B, X_WG_[j].translation());
+      const EngineSphere<T>& sphere_B =
+          static_cast<const EngineSphere<T>&>(*geometries_[j]);
+      auto contact = CollideSpheres<T>(sphere_A, X_WG_[i].translation(),
+                                       sphere_B, X_WG_[j].translation());
       if (contact) {
         (*contact).id_A = dynamic_map[i];
         (*contact).id_B = dynamic_map[j];
@@ -351,46 +502,17 @@ std::vector<PenetrationAsPointPair<T>> GeometryEngineStub<
 }
 
 template <typename T>
-optional<PenetrationAsPointPair<T>> GeometryEngineStub<T>::CollideSpheres(
-    const Sphere& sphere_A, const Vector3<T>& p_WA, const Sphere& sphere_B,
-    const Vector3<T>& p_WB) const {
-  auto r_AB = p_WB - p_WA;
-  T dist_sqd = r_AB.squaredNorm();
-  const double separating_dist = sphere_A.get_radius() + sphere_B.get_radius();
-  const double separating_dist_sqd = separating_dist * separating_dist;
-  if (dist_sqd < separating_dist_sqd) {
-    // Distance between *centers*!
-    T distance = sqrt(dist_sqd);
-    if (distance > Eigen::NumTraits<T>::dummy_precision()) {
-      PenetrationAsPointPair<T> contact;
-      contact.depth = separating_dist - distance;
-      contact.nhat_AB_W = r_AB / distance;
-      contact.p_WCa = p_WA + contact.nhat_AB_W * sphere_A.get_radius();
-      contact.p_WCb = p_WB - contact.nhat_AB_W * sphere_B.get_radius();
-      return contact;
-    }
-  }
-  return {};
+void GeometryEngineStub<T>::implementGeometry(const Sphere &sphere) {
+  stub_shapes::OwnedIndex index(static_cast<int>(owned_geometries_.size()));
+  owned_geometries_.emplace_back(std::unique_ptr<EngineSphere<T>>(
+      new EngineSphere<T>(index, Vector3<T>::Zero(), sphere.get_radius())));
 }
 
 template <typename T>
-optional<PenetrationAsPointPair<T>> GeometryEngineStub<T>::CollideHalfSpace(
-    const Sphere& sphere, const Vector3<T>& p_WA,
-    const HalfSpace& plane) const {
-  using std::abs;
-  double signed_dist = plane.get_signed_distance(p_WA) - sphere.get_radius();
-  if (signed_dist < 0) {
-    PenetrationAsPointPair<T> contact;
-    contact.depth = -signed_dist;
-    // Penetration direction is *opposite* the plane normal, because the sphere
-    // is always A.
-    contact.nhat_AB_W = -plane.get_normal();
-    contact.p_WCa = p_WA + contact.nhat_AB_W * sphere.get_radius();
-    contact.p_WCb =
-        p_WA - plane.get_normal() * (sphere.get_radius() + signed_dist);
-    return contact;
-  }
-  return {};
+void GeometryEngineStub<T>::implementGeometry(const HalfSpace &half_space) {
+  stub_shapes::OwnedIndex index(static_cast<int>(owned_geometries_.size()));
+  owned_geometries_.emplace_back(make_unique<EngineHalfSpace<T>>(
+      index, Vector3<T>{0, 0, 1}, Vector3<T>::Zero()));
 }
 
 

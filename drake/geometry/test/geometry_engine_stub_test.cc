@@ -193,22 +193,6 @@ TEST_F(GeometryEngineStubTest, CollisionsIntersectingSphere) {
                               (pose.translation() - p_WX).normalized()));
 }
 
-// Confirms that half space cannot be added as a dynamic geometry.
-TEST_F(GeometryEngineStubTest, AddHalfspaceAsDynamic) {
-  SetUpAxisSpheres();
-  FrameId frame_id = state_->RegisterFrame(
-      source_id_, GeometryFrame<double>("space",
-                                        Isometry3<double>::Identity()));
-  // Create half space
-  Vector3<double> normal = Vector3<double>(1, 1, 1).normalized();
-  Vector3<double> point = normal * (-kRadius - 0.1);
-  EXPECT_THROW(state_->RegisterGeometry(
-      source_id_, frame_id,
-      make_unique<GeometryInstance<double>>(
-          Isometry3<double>::Identity(),
-          make_unique<HalfSpace>(normal, point))), std::logic_error);
-}
-
 // This introduces a single half spaces. The half space has a normal in the
 // direction <1, 2, 3> but is pushed back so that none of the spheres intersect
 // with it.
@@ -220,8 +204,8 @@ TEST_F(GeometryEngineStubTest, CollisionsHalfSpaceNoCollide) {
   Vector3<double> point = normal * (-kRadius - 0.1);
   GeometryId plane_id = state_->RegisterAnchoredGeometry(
       source_id_, make_unique<GeometryInstance<double>>(
-                      Isometry3<double>::Identity(),
-                      make_unique<HalfSpace>(normal, point)));
+                      HalfSpace::MakePose(normal, point),
+                      make_unique<HalfSpace>()));
 
   std::vector<GeometryId> anchored_ids;
   anchored_ids.push_back(plane_id);
@@ -258,9 +242,9 @@ TEST_F(GeometryEngineStubTest, CollisionsHalfSpaceCollide) {
   Vector3<double> normal = direction.normalized();
   Vector3<double> point = pose.translation() - normal * (kRadius - penetration);
   GeometryId plane_id = state_->RegisterAnchoredGeometry(
-      source_id_, make_unique<GeometryInstance<double>>(
-                      Isometry3<double>::Identity(),
-                      make_unique<HalfSpace>(direction, point)));
+      source_id_,
+      make_unique<GeometryInstance<double>>(HalfSpace::MakePose(normal, point),
+                                            make_unique<HalfSpace>()));
 
   std::vector<GeometryId> anchored_ids;
   anchored_ids.push_back(plane_id);

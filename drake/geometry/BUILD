@@ -46,12 +46,12 @@ drake_cc_library(
         ":geometry_index",
         ":geometry_instance",
         ":geometry_query_inputs",
+        ":shape_specification",
         "//drake/common",
         "//drake/common:copyable_unique_ptr",
         "//drake/geometry/query_results:nearest_pair",
         "//drake/geometry/query_results:penetration_as_point_pair",
         "//drake/geometry/query_results:point_proximity",
-        "//drake/geometry/shapes:all_shapes",
     ],
 )
 
@@ -82,9 +82,9 @@ drake_cc_library(
     hdrs = ["geometry_instance.h"],
     deps = [
         ":geometry_material",
+        ":shape_specification",
         "//drake/common",
         "//drake/common:copyable_unique_ptr",
-        "//drake/geometry/shapes:shape",
     ],
 )
 
@@ -200,6 +200,13 @@ drake_cc_library(
     deps = ["//drake/common"],
 )
 
+drake_cc_library(
+    name = "shape_specification",
+    srcs = [],
+    hdrs = ["shape_specification.h"],
+    deps = ["//drake/common"],
+)
+
 # -----------------------------------------------------
 
 drake_cc_library(
@@ -262,8 +269,8 @@ drake_cc_googletest(
         ":expect_error_message",
         ":geometry_state",
         ":geometry_world",
+        ":shape_specification",
         "//drake/common:eigen_matrix_compare",
-        "//drake/geometry/shapes:sphere",
     ],
 )
 

@@ -9,7 +9,7 @@
 #include "drake/geometry/geometry_instance.h"
 #include "drake/geometry/geometry_visualization.h"
 #include "drake/geometry/query_handle.h"
-#include "drake/geometry/shapes/sphere.h"
+#include "drake/geometry/shape_specification.h"
 #include "drake/geometry/test/expect_error_message.h"
 #include "drake/systems/framework/context.h"
 #include "drake/systems/framework/diagram_builder.h"

@@ -5,7 +5,8 @@
 
 #include "drake/geometry/geometry_state.h"
 #include "drake/geometry/geometry_system.h"
-#include "drake/geometry/shapes/shapes.h"
+#include "drake/geometry/internal_geometry.h"
+#include "drake/geometry/shape_specification.h"
 #include "drake/lcm/drake_lcm.h"
 #include "drake/lcmtypes/drake/lcmt_viewer_geometry_data.hpp"
 #include "drake/lcmtypes/drake/lcmt_viewer_load_robot.hpp"
@@ -14,97 +15,85 @@
 namespace drake {
 namespace geometry {
 
-// Computes a full axis whose z-axis is the given z_axis, and x- and y-axes are
-// arbitrarily select to create an orthonormal basis. The basis is measured and
-// expressed in the same frame that z_axis is.
-Matrix3<double> ComputeBasisFromZ(const Vector3<double> z_axis) {
-  // Projects the z-axis into the first quadrant in order to identify the
-  // *smallest* component of the normal.
-  const Vector3<double> u(z_axis.cwiseAbs());
-  int minAxis;
-  u.minCoeff(&minAxis);
-  // The world axis corresponding to the smallest component of the local
-  // z-axis will be *most* perpendicular.
-  Vector3<double> perpAxis;
-  perpAxis << (minAxis == 0 ? 1 : 0), (minAxis == 1 ? 1 : 0),
-      (minAxis == 2 ? 1 : 0);
-  // Now define x- and y-axes.
-  Vector3<double> x_axis = z_axis.cross(perpAxis).normalized();
-  Vector3<double> y_axis = z_axis.cross(x_axis);
-  // Transformation from world frame to local frame.
-  Matrix3<double> R_WL;
-  R_WL.col(0) = x_axis;
-  R_WL.col(1) = y_axis;
-  R_WL.col(2) = z_axis;
-  return R_WL;
-}
+namespace {
+
+class ShapeToLcm : public ShapeReifier {
+ public:
+  ShapeToLcm() {}
+
+  lcmt_viewer_geometry_data Convert(const Shape& shape,
+                                    const Isometry3<double>& X_GP,
+                                    const Eigen::Vector4d& in_color) {
+    X_GP_ = X_GP;
+    // NOTE: Reify *may* change X_GP_ based on the shape.
+    shape.Reify(this);
+
+    // Saves the location and orientation of the visualization geometry in the
+    // `lcmt_viewer_geometry_data` object. The location and orientation are
+    // specified in the body's frame.
+    Eigen::Map<Eigen::Vector3f> position(geometry_data_.position);
+    position = X_GP_.translation().cast<float>();
+    // LCM quaternion must be w, x, y, z.
+    Eigen::Quaternion<double> q(X_GP_.rotation());
+    geometry_data_.quaternion[0] = q.w();
+    geometry_data_.quaternion[1] = q.x();
+    geometry_data_.quaternion[2] = q.y();
+    geometry_data_.quaternion[3] = q.z();
+
+    Eigen::Map<Eigen::Vector4f> color(geometry_data_.color);
+    color = in_color.template cast<float>();
+    return geometry_data_;
+  }
+
+  void implementGeometry(const Sphere& sphere) override {
+    geometry_data_.type = geometry_data_.SPHERE;
+    geometry_data_.num_float_data = 1;
+    geometry_data_.float_data.push_back(static_cast<float>(
+                                           sphere.get_radius()));
+  }
+
+  void implementGeometry(const HalfSpace& half_space) override {
+    // TODO(SeanCurtis-TRI): Modify visualization to support half spaces.
+
+    // Currently representing a half space as a big box. This assumes that the
+    // underlying box representation is centered on the origin.
+    geometry_data_.type = geometry_data_.BOX;
+    geometry_data_.num_float_data = 3;
+    // Box width, height, and thickness.
+    geometry_data_.float_data.push_back(50);
+    geometry_data_.float_data.push_back(50);
+    const float thickness = 1;
+    geometry_data_.float_data.push_back(thickness);
+
+    // The final pose of the box is the half-space's pose pre-multiplied by
+    // an offset sufficient o move the box down so it's top face lies on the
+    // z = 0 plane.
+    Isometry3<double> box_xform = Isometry3<double>::Identity();
+    // Shift it down so that the origin lies on the top surface.
+    box_xform.translation() << 0, 0, -thickness / 2;
+    X_GP_ = X_GP_ * box_xform;
+  }
+
+ private:
+  lcmt_viewer_geometry_data geometry_data_{};
+  Eigen::Isometry3d X_GP_;
+};
 
 lcmt_viewer_geometry_data MakeGeometryData(const Shape& shape,
                                            const Isometry3<double>& X_GP,
                                            const Eigen::Vector4d& in_color) {
-  lcmt_viewer_geometry_data geometry_data;
-  Eigen::Isometry3d transform;  // The extracted X_FG.
-  switch (shape.get_type()) {
-    case Shape::kSphere: {
-      geometry_data.type = geometry_data.SPHERE;
-      geometry_data.num_float_data = 1;
-      auto sphere = static_cast<const Sphere&>(shape);
-      geometry_data.float_data.push_back(static_cast<float>(
-                                             sphere.get_radius()));
-      transform = X_GP;
-      break;
-    }
-    case Shape::kHalfSpace: {
-      // TODO(SeanCurtis-TRI): Modify visualization to support half spaces.
-      // Translate it into a box. Assuming it's "centered" at the origin.
-      geometry_data.type = geometry_data.BOX;
-      geometry_data.num_float_data = 3;
-      // Re-align the box so that the normal points in the z-direction. It also
-      // needs to be offset so that the "top" of the box aligns with the half
-      // space.
-      geometry_data.float_data.push_back(50);
-      geometry_data.float_data.push_back(50);
-      const float thickness = 1;
-      geometry_data.float_data.push_back(thickness);
-      // Set transform based on this voodoo.
-      auto half_space = static_cast<const HalfSpace&>(shape);
-      Isometry3<double> box_xform = Isometry3<double>::Identity();
-      // Shift it down so that the origin lies on the top surface.
-      box_xform.translation() << 0, 0, -thickness / 2;
-      Isometry3<double> plane_xform = Isometry3<double>::Identity();
-      // Reposition it so that the top surface is oriented perpendicular to the
-      // normal and positioned at the user-specified point.
-      plane_xform.translation() = half_space.get_point_on_plane();
-      plane_xform.linear() = ComputeBasisFromZ(half_space.get_normal());
-      transform = plane_xform *box_xform;
-      break;
-    }
-    case Shape::kUnknown:
-      // Intentionally doing nothing -- copied form drake_visualizer_client.cc.
-      break;
-  }
-  // Saves the location and orientation of the visualization geometry in the
-  // `lcmt_viewer_geometry_data` object. The location and orientation are
-  // specified in the body's frame.
-  Eigen::Map<Eigen::Vector3f> position(geometry_data.position);
-  position = transform.translation().cast<float>();
-  // LCM quaternion must be w, x, y, z.
-  Eigen::Quaternion<double> q(transform.rotation());
-  geometry_data.quaternion[0] = q.w();
-  geometry_data.quaternion[1] = q.x();
-  geometry_data.quaternion[2] = q.y();
-  geometry_data.quaternion[3] = q.z();
-
-  Eigen::Map<Eigen::Vector4f> color(geometry_data.color);
-  color = in_color.template cast<float>();
-
-  return geometry_data;
+  ShapeToLcm converter;
+  return converter.Convert(shape, X_GP, in_color);
 }
 
+}  // namespace
+
 void DispatchLoadMessage(const GeometryState<double>& state) {
+  using internal::InternalAnchoredGeometry;
+  using internal::InternalGeometry;
   using lcm::DrakeLcm;
 
-  lcmt_viewer_load_robot message;
+  lcmt_viewer_load_robot message{};
   // Populate the message.
   const int frame_count = state.get_num_frames();
   const int anchored_count =
@@ -128,8 +117,8 @@ void DispatchLoadMessage(const GeometryState<double>& state) {
       message.link[0].geom.resize(anchored_count);
       int geom_index = 0;
       for (const auto &pair : state.anchored_geometries_) {
-        AnchoredGeometryIndex index = pair.second;
-        const Shape &shape = state.geometry_engine_->get_anchored_shape(index);
+        const InternalAnchoredGeometry& geometry = pair.second;
+        const Shape &shape = geometry.get_shape();
         // TODO(SeanCurtis-TRI): Fix this when anchored geometry has pose.
         message.link[0].geom[geom_index] = MakeGeometryData(
             shape, Isometry3<double>::Identity(), default_color);
@@ -155,8 +144,9 @@ void DispatchLoadMessage(const GeometryState<double>& state) {
     message.link[link_index].geom.resize(geom_count);
     int geom_index = 0;
     for (GeometryId geom_id : frame.get_child_geometries()) {
+      const InternalGeometry& geometry = state.geometries_.at(geom_id);
       GeometryIndex index = state.geometries_.at(geom_id).get_engine_index();
-      const Shape& shape = state.geometry_engine_->get_shape(index);
+      const Shape& shape = geometry.get_shape();
       const Isometry3<double> X_WG = state.X_FG_.at(index);
       const Eigen::Vector4d& color =
           state.geometries_.at(geom_id).get_visual_material().get_diffuse();
