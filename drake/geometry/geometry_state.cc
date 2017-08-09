@@ -289,7 +289,11 @@ void GeometryState<T>::RemoveGeometry(SourceId source_id,
             "source " + to_string(source_id) + ". But the geometry doesn't "
             "belong to that source.");
   }
-  RemoveGeometryUnchecked(geometry_id, RemoveGeometryOrigin::kGeometry);
+  if (is_dynamic(geometry_id)) {
+    RemoveGeometryUnchecked(geometry_id, RemoveGeometryOrigin::kGeometry);
+  } else {
+    RemoveAnchoredGeometryUnchecked(geometry_id);
+  }
 }
 
 template <typename T>
@@ -537,6 +541,7 @@ void GeometryState<T>::RemoveGeometryUnchecked(GeometryId geometry_id,
     geometries_[moved_id].set_engine_index(engine_index);
     geometry_index_id_map_[engine_index] = moved_id;
   }
+  geometry_index_id_map_.pop_back();
 
   if (caller == RemoveGeometryOrigin::kGeometry) {
     // Only the root needs to explicitly remove itself from a possible parent
@@ -550,6 +555,21 @@ void GeometryState<T>::RemoveGeometryUnchecked(GeometryId geometry_id,
 
   // Remove from the geometries.
   geometries_.erase(geometry_id);
+}
+
+template <typename T>
+void GeometryState<T>::RemoveAnchoredGeometryUnchecked(GeometryId geometry_id) {
+  auto& geometry = GetValueOrThrow(geometry_id, &anchored_geometries_);
+  auto engine_index = geometry.get_engine_index();
+  optional<AnchoredGeometryIndex> moved_index =
+      geometry_engine_->RemoveAnchoredGeometry(engine_index);
+  if (moved_index) {
+    GeometryId moved_id = anchored_geometry_index_id_map_[*moved_index];
+    anchored_geometries_[moved_id].set_engine_index(engine_index);
+    anchored_geometry_index_id_map_[engine_index] = moved_id;
+  }
+  anchored_geometry_index_id_map_.pop_back();
+  anchored_geometries_.erase(geometry_id);
 }
 
 template <typename T>

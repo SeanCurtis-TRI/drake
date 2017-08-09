@@ -2,7 +2,6 @@
 
 #include <limits>
 #include <memory>
-#include <utility>
 
 #include "drake/geometry/geometry_query_inputs.h"
 
@@ -194,22 +193,14 @@ AnchoredGeometryIndex GeometryEngineStub<T>::AddAnchoredGeometry(
 template <typename T>
 optional<GeometryIndex> GeometryEngineStub<T>::RemoveGeometry(
     GeometryIndex index) {
-  using std::swap;
-  GeometryIndex last(static_cast<int>(geometries_.size()) - 1);
-  if (last != index) {
-    swap(geometries_[index], geometries_[last]);
-  }
-  // TODO(SeanCurtis-TRI): Test this functionality!!!
-  OwnedIndex removed = geometries_.back()->get_index();
-  swap(owned_geometries_[removed], owned_geometries_.back());
-  owned_geometries_[removed]->set_index(removed);
-  geometries_.pop_back();
-  owned_geometries_.pop_back();
-  if (last != index) {
-    return last;
-  } else {
-    return {};
-  }
+  return RemoveGeometryHelper<GeometryIndex>(index, &geometries_);
+}
+
+template <typename T>
+optional<AnchoredGeometryIndex> GeometryEngineStub<T>::RemoveAnchoredGeometry(
+    AnchoredGeometryIndex index) {
+  return RemoveGeometryHelper<AnchoredGeometryIndex>(index,
+                                                     &anchored_geometries_);
 }
 
 template <typename T>

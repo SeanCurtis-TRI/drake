@@ -53,8 +53,17 @@ class GeometryStateTester {
     return state_->geometries_;
   }
 
+  const std::unordered_map<GeometryId, internal::InternalAnchoredGeometry>&
+  get_anchored_geometries() {
+    return state_->anchored_geometries_;
+  }
+
   const vector<GeometryId>& get_geometry_index_id_map() {
     return state_->geometry_index_id_map_;
+  }
+
+  const vector<GeometryId>& get_anchored_geometry_index_id_map() {
+    return state_->anchored_geometry_index_id_map_;
   }
 
   const vector<Isometry3<T>>& get_geometry_frame_poses() {
@@ -810,6 +819,44 @@ TEST_F(GeometryStateTest, RegisterAnchoredNullGeometry) {
                                                move(instance)),
       std::logic_error,
       "Registering null anchored geometry on source \\d+.");
+}
+
+// Tests removal of anchored geometry.
+TEST_F(GeometryStateTest, RemoveAnchoredGeometry) {
+  SourceId s_id = SetUpSingleSourceTree();
+  Vector3<double> normal{0, 1, 0};
+  Vector3<double> point{1, 1, 1};
+  auto anchored_id_1 = geometry_state_.RegisterAnchoredGeometry(
+      s_id, make_unique<GeometryInstance<double>>(
+          HalfSpace::MakePose(normal, point), make_unique<HalfSpace>()));
+  auto anchored_id_2 = geometry_state_.RegisterAnchoredGeometry(
+      s_id, make_unique<GeometryInstance<double>>(
+          HalfSpace::MakePose(Vector3<double>{1, 0, 0},
+                              Vector3<double>{-1, 0, 0}),
+          make_unique<HalfSpace>()));
+  // Confirm conditions of having added two anchored geometries.
+  EXPECT_TRUE(geometry_state_.BelongsToSource(anchored_id_1, s_id));
+  EXPECT_TRUE(geometry_state_.BelongsToSource(anchored_id_2, s_id));
+  // Confirm engine indices are in the expected orders.
+  const auto& anchored_geometries = gs_tester_.get_anchored_geometries();
+  EXPECT_EQ(anchored_geometries.at(anchored_id_1).get_engine_index(), 0);
+  EXPECT_EQ(anchored_geometries.at(anchored_id_2).get_engine_index(), 1);
+  const auto& index_to_id_map = gs_tester_.get_anchored_geometry_index_id_map();
+  EXPECT_EQ(index_to_id_map.at(0), anchored_id_1);
+  EXPECT_EQ(index_to_id_map.at(1), anchored_id_2);
+  EXPECT_EQ(geometry_state_.get_num_anchored_geometries(), 2);
+
+  // Performs tested action.
+  geometry_state_.RemoveGeometry(s_id, anchored_id_1);
+
+  // Expected results: 1 remaining geometry. Geometry's engine index has moved
+  // to zero. NOTE: These expectations are predicated on an underlying engine
+  // that is actually shuffling last geometry into the gap (vis a vis engine
+  // index values). If the engine changes behavior, this test may fail.
+  EXPECT_EQ(geometry_state_.get_num_anchored_geometries(), 1);
+  EXPECT_EQ(index_to_id_map.size(), 1u);
+  EXPECT_EQ(anchored_geometries.at(anchored_id_2).get_engine_index(), 0);
+  EXPECT_EQ(index_to_id_map.at(0), anchored_id_2);
 }
 
 // Confirms the behavior for requesting geometry poses with a bad geometry

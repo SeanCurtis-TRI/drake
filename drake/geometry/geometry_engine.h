@@ -80,9 +80,26 @@ class GeometryEngine {
    engine.
    To maintain a compact representation, the engine can move one other geometry
    into the just-vacated `index` site. If it does so, the return value will
-   contain a GeometryIndex. If it chooses not to (or if it isn't possible --
-   there are no remaining geometries -- it will contain nothing. */
+   contain a GeometryIndex -- the old index of the moved geometry. The caller
+   should update its own mapping. As an example,
+
+   - Assume that we have two geometries, A and B, with indices iᴬ and iᴮ.
+   - The caller has a mapping from iᴳ → G (an index maps to its geometry) called
+     i_to_g.
+   - We want to remove geometry A, so call RemoveGeometry(iᴬ).
+   - The call returns iᴮ. That means B got moved. Its old index iᴮ is no longer
+     valid. B has been moved to use the just freed up index iᴬ.
+   - Update the map:
+     - Change the index associated with B i_to_g[iᴬ] = B.
+     - Remove the old mapping to B: i_to_g.erase(iᴮ).
+   */
   virtual optional<GeometryIndex> RemoveGeometry(GeometryIndex index) = 0;
+
+  /** Removes the anchored geometry associated with the given `index` from the
+   engine. The return value has the same semantics as RemoveGeometry() but for
+   anchored geometry. */
+  virtual optional<AnchoredGeometryIndex> RemoveAnchoredGeometry(
+      AnchoredGeometryIndex index) = 0;
 
   /** Provides the poses for all of the geometries in the engine. This vector
    should span the full range of active GeometryIndex values provided by the

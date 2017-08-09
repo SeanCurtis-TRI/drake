@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <utility>
 #include <vector>
 
 #include "drake/common/copyable_unique_ptr.h"
@@ -83,6 +84,9 @@ class GeometryEngineStub : public GeometryEngine<T>, public ShapeReifier {
 
   optional<GeometryIndex> RemoveGeometry(GeometryIndex index) override;
 
+  optional<AnchoredGeometryIndex> RemoveAnchoredGeometry(
+      AnchoredGeometryIndex index) override;
+
   void UpdateWorldPoses(const std::vector<Isometry3<T>>& X_WP) override;
 
   // Proximity query methods
@@ -125,6 +129,28 @@ class GeometryEngineStub : public GeometryEngine<T>, public ShapeReifier {
       const std::vector<GeometryId>& ids,
       const PairSet& pair_set,
       std::vector<NearestPair<T>>* near_points) const;
+
+  template <typename IndexType>
+  optional<IndexType> RemoveGeometryHelper(
+      IndexType index,
+      std::vector<stub_shapes::EngineShape<T>*>* geometries_p) {
+    using std::swap;
+    std::vector<stub_shapes::EngineShape<T>*>& geometries = *geometries_p;
+    IndexType last(static_cast<int>(geometries.size()) - 1);
+    if (last != index) {
+      swap(geometries[index], geometries[last]);
+    }
+    stub_shapes::OwnedIndex removed = geometries.back()->get_index();
+    swap(owned_geometries_[removed], owned_geometries_.back());
+    owned_geometries_[removed]->set_index(removed);
+    geometries.pop_back();
+    owned_geometries_.pop_back();
+    if (last != index) {
+      return last;
+    } else {
+      return {};
+    }
+  }
 
   // The set of all owned geometries. It should be an invariant that
   // geometries_.size() + anchored_geometries_.size() =

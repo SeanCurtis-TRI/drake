@@ -70,9 +70,14 @@ class GeometryState {
   /** Reports true if the given `source_id` references a registered source. */
   bool source_is_registered(SourceId source_id) const;
 
-  /** Reports the total number of geometries. */
+  /** Reports the total number of _dynamic_ geometries. */
   int get_num_geometries() const {
     return static_cast<int>(geometries_.size());
+  }
+
+  /** Reports the total number of _anchored_ geometries. */
+  int get_num_anchored_geometries() const {
+    return static_cast<int>(anchored_geometries_.size());
   }
 
   /** Iterator through the keys of an unordered map. */
@@ -300,7 +305,8 @@ class GeometryState {
   /** Removes the given geometry from the the indicated source's frames. Any
    geometry that was hung from the indicated geometry will _also_ be removed.
    @param source_id     The identifier for the owner geometry source.
-   @param geometry_id   The identifier of the frame to remove.
+   @param geometry_id   The identifier of the geometry to remove (can be dyanmic
+                        or anchored).
    @throws std::logic_error  1. If the `source_id` does _not_ map to an active
                              source, or
                              2. the `geometry_id` does not map to a valid
@@ -491,6 +497,10 @@ class GeometryState {
   void RemoveGeometryUnchecked(GeometryId geometry_id,
                                RemoveGeometryOrigin caller);
 
+  // Removes anchored geometry indicated by the id. No checking of source is
+  // required.
+  void RemoveAnchoredGeometryUnchecked(GeometryId geometry_id);
+
   // Recursively updates the frame and geometry _pose_ information for the tree
   // rooted at the given frame, whose parent's pose in the world frame is given
   // as `X_WP`.
@@ -510,6 +520,12 @@ class GeometryState {
     // TODO(SeanCurtis-TRI): THe interface on this needs to change. I need the
     // parent velocity as well.
     throw std::runtime_error("Not implemented");
+  }
+
+  // Reports true if the given id refers to a _dynamic_ geometry. Assumes the
+  // precondition that id refers to a valid geometry in the state.
+  bool is_dynamic(GeometryId id) const {
+    return geometries_.count(id) > 0;
   }
 
   // ---------------------------------------------------------------------
@@ -563,18 +579,12 @@ class GeometryState {
   // geometries_[geometry_index_id_map_[i]].get_engine_index() == i is true.
   std::vector<GeometryId> anchored_geometry_index_id_map_;
 
-  // The pose of each geometry relative to the frame to which it belongs. Each
-  // geometry has an "engine index". That geometry's pose is stored in this
-  // vector at that engine index. Because the geometries are rigidly fixed to
-  // frames, these values are a property of the topology and _not_ the time-
-  // dependent frame kinematics.
+  // The pose of each dynamic geometry relative to the frame to which it
+  // belongs. Each geometry has an "engine index". That geometry's pose is
+  // stored in this vector at that engine index. Because the geometries are
+  // rigidly fixed to frames, these values are a property of the topology and
+  // _not_ the time-dependent frame kinematics.
   std::vector<Isometry3<T>> X_FG_;
-
-  // The pose of each geometry relative to the *world* frame. The invariant
-  // X_FG_.size() == X_WG_.size() should always be true. This vector contains
-  // the values from the last update invocation and is the write target of the
-  // next invocation to update.
-  std::vector<Isometry3<T>> X_WG_;
 
   // ---------------------------------------------------------------------
   // These values depend on time-dependent input values (e.g., current frame
@@ -587,6 +597,12 @@ class GeometryState {
   // Map from the frame id to the *current* pose of the frame it identifies, F,
   // relative to its parent frame, P: X_PF, where X_PF is measured and expressed
   std::vector<Isometry3<T>> X_PF_;
+
+  // The pose of each geometry relative to the *world* frame. The invariant
+  // X_FG_.size() == X_WG_.size() should always be true. This vector contains
+  // the values from the last update invocation and is the write target of the
+  // next invocation to update.
+  std::vector<Isometry3<T>> X_WG_;
 
   // The underlying geometry engine. The topology of the engine does *not*
   // change with respect to time. But its values do. This straddles the two
