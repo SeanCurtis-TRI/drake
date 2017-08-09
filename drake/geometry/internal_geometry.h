@@ -139,10 +139,10 @@ class InternalGeometry : public InternalGeometryBase<GeometryIndex> {
         parent_id_(parent_id) {}
 
   FrameId get_frame_id() const { return frame_id_; }
-  optional<GeometryId> get_parent() const { return parent_id_; }
+  optional<GeometryId> get_parent_id() const { return parent_id_; }
 
-  /** Returns true if this geometry has a geometry parent and it is the given
-   `geometry_id`. */
+  /** Returns true if this geometry has a geometry parent and the parent has the
+   given `geometry_id`. */
   bool is_child_of_geometry(GeometryId geometry_id) const {
     return parent_id_ && *parent_id_ == geometry_id;
   }
@@ -153,29 +153,29 @@ class InternalGeometry : public InternalGeometryBase<GeometryIndex> {
     return frame_id == frame_id_;
   }
 
-  const std::unordered_set<GeometryId>& get_child_geometries() const {
-    return child_geometries_;
+  const std::unordered_set<GeometryId>& get_child_geometry_ids() const {
+    return child_geometry_ids_;
   }
-  std::unordered_set<GeometryId>* get_mutable_child_geometries() {
-    return &child_geometries_;
+  std::unordered_set<GeometryId>* get_mutable_child_geometry_ids() {
+    return &child_geometry_ids_;
   }
 
   /** Returns true if this geometry has a child geometry with the given
    `geometry_id`. */
   bool has_child(GeometryId geometry_id) const {
-    return child_geometries_.find(geometry_id) != child_geometries_.end();
+    return child_geometry_ids_.find(geometry_id) != child_geometry_ids_.end();
   }
 
   /** Adds a geometry with the given `geometry_id` to this geometry's set of
    children. */
   void add_child(GeometryId geometry_id) {
-    child_geometries_.insert(geometry_id);
+    child_geometry_ids_.insert(geometry_id);
   }
 
   /** Removes the given `geometry_id` from this geometry's set of children. If
    the id is not in the set, nothing changes. */
   void remove_child(GeometryId geometry_id) {
-    child_geometries_.erase(geometry_id);
+    child_geometry_ids_.erase(geometry_id);
   }
 
  private:
@@ -186,7 +186,7 @@ class InternalGeometry : public InternalGeometryBase<GeometryIndex> {
   optional<GeometryId> parent_id_;
 
   // The identifiers for the geometry hung on this frame.
-  std::unordered_set<GeometryId> child_geometries_;
+  std::unordered_set<GeometryId> child_geometry_ids_;
 };
 
 /** This class represents the internal representation of registered _anchored_

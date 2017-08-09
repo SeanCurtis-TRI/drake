@@ -376,8 +376,8 @@ TEST_F(GeometryStateTest, ValidateSingleSourceTree) {
       // TODO(SeanCurtis-TRI): Update this when names are being used.
       EXPECT_EQ(geometry.get_name(), "no_name");
       EXPECT_EQ(geometry.get_engine_index(), i);
-      EXPECT_EQ(geometry.get_child_geometries().size(), 0);
-      EXPECT_FALSE(geometry.get_parent());
+      EXPECT_EQ(geometry.get_child_geometry_ids().size(), 0);
+      EXPECT_FALSE(geometry.get_parent_id());
       const auto& geo_in_frame = gs_tester_.get_geometry_frame_poses();
       EXPECT_TRUE(
           CompareMatrices(geo_in_frame[geometry.get_engine_index()].matrix(),
@@ -550,7 +550,7 @@ TEST_F(GeometryStateTest, RegisterGeometryGoodSource) {
   EXPECT_TRUE(gs_tester_.get_frames().at(f_id).has_child(g_id));
   const auto& geometry = gs_tester_.get_geometries().at(g_id);
   EXPECT_TRUE(geometry.is_child_of_frame(f_id));
-  EXPECT_FALSE(geometry.get_parent());
+  EXPECT_FALSE(geometry.get_parent_id());
 }
 
 // Tests registration of geometry on valid source and frame. This relies on the
@@ -573,8 +573,8 @@ TEST_F(GeometryStateTest, RegisterGeometryMissingFrame) {
   EXPECT_ERROR_MESSAGE(geometry_state_.RegisterGeometry(s_id, f_id,
                                                         move(instance_)),
                        std::logic_error,
-                       "Referenced frame \\d+ for source \\d+\\."
-                           " But the frame doesn't belong to the source.");
+                       "Referenced frame \\d+ for source \\d+\\,"
+                           " but the frame doesn't belong to the source.");
 }
 
 // Tests error resulting from passing a null GeometryInstance.
