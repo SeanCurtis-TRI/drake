@@ -25,6 +25,8 @@ class FrameIdVector;
 
 template <typename T> class GeometryFrame;
 
+template <typename T> class GeometryInstance;
+
 template <typename T> class GeometrySystem;
 
 template <typename T> class GeometryWorld;
@@ -67,9 +69,6 @@ class GeometryState {
   /** Reports the total number of frames -- across all sources. */
   int get_num_frames() const { return static_cast<int>(frames_.size()); }
 
-  /** Reports true if the given `source_id` references a registered source. */
-  bool source_is_registered(SourceId source_id) const;
-
   /** Reports the total number of _dynamic_ geometries. */
   int get_num_geometries() const {
     return static_cast<int>(geometries_.size());
@@ -79,6 +78,9 @@ class GeometryState {
   int get_num_anchored_geometries() const {
     return static_cast<int>(anchored_geometries_.size());
   }
+
+  /** Reports true if the given `source_id` references a registered source. */
+  bool source_is_registered(SourceId source_id) const;
 
   /** Iterator through the keys of an unordered map. */
   template <typename K, typename V>
@@ -226,8 +228,6 @@ class GeometryState {
                              frame or does not belong to the source. */
   FrameId RegisterFrame(SourceId source_id, FrameId parent_id,
                         const GeometryFrame<T>& frame);
-
-  //@}
 
   /** Registers a GeometryInstance with the state. The state takes ownership of
    the geometry and associates it with the given frame and source. Returns the
@@ -478,13 +478,14 @@ class GeometryState {
   // GeometryWorld. The amount of work depends on the context from which this
   // method is invoked:
   //
-  //  - RemoveFrame(): RemoveFrame() is deleting *all* geometry attached to the
+  //  - RemoveFrame(): RemoveFrame() deletes *all* geometry attached to the
   //    frame. It explicitly iterates through those geometries. Thus,
   //    recursion is unnecessary, removal from parent references is likewise
   //    unnecessary (and actually wrong).
-  //   - RemoveGeometry(): The full removal is necessary; recursively remove
-  //    children and remove this geometry from the child lists of its parent
-  //    frame and, if exists, parent geometry.
+  //  - RemoveGeometry(): A specific geometry (and its corresponding
+  //    hierarchy) is being removed. In addition to recursively removing all
+  //    child geometries, it must also remove this geometry id from its parent
+  //    frame and, if it exists, its parent geometry.
   //   - RemoveGeometryUnchecked(): This is the recursive call; it's parent
   //    is already slated for removal, so parent references can be left alone.
   void RemoveGeometryUnchecked(GeometryId geometry_id,

@@ -121,7 +121,6 @@ drake_cc_library(
         ":internal_frame",
         ":internal_geometry",
         "//drake/common",
-        "//drake/common:unused",
     ],
 )
 
@@ -190,6 +189,7 @@ drake_cc_library(
         ":geometry_ids",
         ":geometry_index",
         ":geometry_material",
+        "//drake/common",
     ],
 )
 
