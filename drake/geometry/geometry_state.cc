@@ -187,7 +187,41 @@ template <typename T>
 GeometryId GeometryState<T>::RegisterGeometry(
     SourceId source_id, FrameId frame_id,
     std::unique_ptr<GeometryInstance<T>> geometry) {
-  return RegisterGeometryHelper(source_id, frame_id, move(geometry));
+  using std::to_string;
+  if (geometry == nullptr) {
+    throw std::logic_error(
+        "Registering null geometry to frame " + to_string(frame_id) +
+            ", on source " + to_string(source_id) + ".");
+  }
+  FrameIdSet& set = GetMutableValueOrThrow(source_id, &source_frame_id_map_);
+
+  FindOrThrow(frame_id, set, [frame_id, source_id]() {
+    return "Referenced frame " + to_string(frame_id) + " for source " +
+        to_string(source_id) + ", but the frame doesn't belong to the source.";
+  });
+
+  GeometryId geometry_id = GeometryId::get_new_id();
+  geometry_index_id_map_.push_back(geometry_id);
+
+  // Pass the geometry to the engine.
+  GeometryIndex engine_index =
+      geometry_engine_->AddDynamicGeometry(geometry->get_shape());
+
+  // Configure topology.
+  frames_[frame_id].add_child(geometry_id);
+  // TODO(SeanCurtis-TRI): Get name from geometry instance (when available).
+  geometries_.emplace(
+      geometry_id, InternalGeometry(geometry->release_shape(), frame_id,
+                                    geometry_id, "no_name", engine_index,
+                                    geometry->get_visual_material()));
+  // TODO(SeanCurtis-TRI): I expect my rigid poses are growing at the same
+  // rate as in my engine. This seems fragile.
+  DRAKE_ASSERT(static_cast<int>(X_FG_.size()) == engine_index);
+  DRAKE_ASSERT(static_cast<int>(geometry_index_id_map_.size()) - 1 ==
+               engine_index);
+  X_WG_.push_back(Isometry3<T>::Identity());
+  X_FG_.emplace_back(geometry->get_pose());
+  return geometry_id;
 }
 
 template <typename T>
@@ -222,8 +256,8 @@ GeometryId GeometryState<T>::RegisterGeometryWithParent(
   // This implicitly confirms that source_id is registered (condition #2) and
   // that frame_id belongs to source_id. By construction, geometry_id must
   // belong to the same source as frame_id, so this tests  condition #3.
-  GeometryId new_id = RegisterGeometryHelper(source_id, frame_id,
-                                             move(geometry), geometry_id);
+  GeometryId new_id = RegisterGeometry(source_id, frame_id, move(geometry));
+  geometries_[new_id].set_parent_id(geometry_id);
   parent_geometry.add_child(new_id);
   return new_id;
 }
@@ -424,52 +458,6 @@ template <typename T>
 SourceId GeometryState<T>::get_source_id(FrameId frame_id) const {
   auto& frame = GetValueOrThrow(frame_id, &frames_);
   return frame.get_source_id();
-}
-
-template <typename T>
-GeometryId GeometryState<T>::RegisterGeometryHelper(
-    SourceId source_id, FrameId frame_id,
-    std::unique_ptr<GeometryInstance<T>> geometry,
-    optional<GeometryId> parent) {
-  using std::to_string;
-  if (geometry == nullptr) {
-    throw std::logic_error(
-        "Registering null geometry to frame " + to_string(frame_id) +
-            ", on source " + to_string(source_id) + ".");
-  }
-  FrameIdSet& set = GetMutableValueOrThrow(source_id, &source_frame_id_map_);
-
-  FindOrThrow(frame_id, set, [frame_id, source_id]() {
-    return "Referenced frame " + to_string(frame_id) + " for source " +
-        to_string(source_id) + ", but the frame doesn't belong to the source.";
-  });
-
-  GeometryId geometry_id = GeometryId::get_new_id();
-
-  // Pass the geometry to the engine.
-
-  // TODO(SeanCurtis-TRI): I need to map from geometry index to geometry id.
-  // Either the geometry engine needs to know the id so that it can simply
-  // communicate that back, or I need a map in the state that allows me to get
-  // id from index.
-  GeometryIndex engine_index =
-      geometry_engine_->AddDynamicGeometry(geometry->get_shape());
-
-  // Configure topology.
-  frames_[frame_id].add_child(geometry_id);
-  // TODO(SeanCurtis-TRI): Get name from geometry instance (when available).
-  geometries_.emplace(
-      geometry_id, InternalGeometry(geometry->release_shape(), frame_id,
-                                    geometry_id, "no_name", engine_index,
-                                    geometry->get_visual_material(), parent));
-  // TODO(SeanCurtis-TRI): I expect my rigid poses are growing at the same
-  // rate as in my engine. This seems fragile.
-  DRAKE_ASSERT(static_cast<int>(X_FG_.size()) == engine_index);
-  DRAKE_ASSERT(static_cast<int>(geometry_index_id_map_.size()) == engine_index);
-  X_WG_.push_back(Isometry3<T>::Identity());
-  X_FG_.emplace_back(geometry->get_pose());
-  geometry_index_id_map_.push_back(geometry_id);
-  return geometry_id;
 }
 
 template <typename T>
