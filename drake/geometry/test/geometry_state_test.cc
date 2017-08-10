@@ -111,12 +111,12 @@ class GeometryStateTest : public ::testing::Test {
   //
   //  Creates the following tree:
   //                                        s_id
-  //                                        /  \
+  //                                        ╱  ╲
   //                                       f0   f1
-  //                                      / |    |________
-  //                                    g0  g1   |   |   |
+  //                                      ╱ │    ├───┬───┐
+  //                                    g0  g1   │   │   │
   //                                             f2  g2  g3
-  //                                            / \
+  //                                            ╱ ╲
   //                                           g4 g5
   //
   // Frame configuration
