@@ -196,7 +196,7 @@ class GeometryWorld {
    @param context   The geometry context to query.
    @param id        The identifier of the source.
    @return The name of the source.
-   @throws std::logic_error if the id does _not_ map to an active source. */
+   @throws std::logic_error if the id does _not_ map to a registered source. */
   const std::string& get_source_name(const GeometryContext<T>& context,
                                      SourceId id) const {
     return context.get_geometry_state().get_source_name(id);
@@ -214,7 +214,7 @@ class GeometryWorld {
                         frame.
    @param frame         The definition of the frame to add.
    @returns  A newly allocated frame id.
-   @throws std::logic_error  If the `source_id` does _not_ map to an active
+   @throws std::logic_error  If the `source_id` does _not_ map to a registered
                              source. */
   FrameId RegisterFrame(GeometryContext<T>* context, SourceId source_id,
                         const GeometryFrame<T>& frame);
@@ -226,8 +226,8 @@ class GeometryWorld {
    @param parent_id    The id of the parent frame.
    @param frame        The frame to register.
    @returns  A newly allocated frame id.
-   @throws std::logic_error  1. If the `source_id` does _not_ map to an active
-                             source, or
+   @throws std::logic_error  1. If the `source_id` does _not_ map to a
+                             registered source, or
                              2. If the `parent_id` does _not_ map to a known
                              frame or does not belong to the source. */
   FrameId RegisterFrame(GeometryContext<T>* context, SourceId source_id,
@@ -243,7 +243,7 @@ class GeometryWorld {
    @param frame_id    The id for the frame `F` to hang the geometry on.
    @param geometry    The geometry to hang.
    @return A unique identifier for the added geometry.
-   @throws std::logic_error  1. the `source_id` does _not_ map to an active
+   @throws std::logic_error  1. the `source_id` does _not_ map to a registered
                              source, or
                              2. the `frame_id` doesn't belong to the source, or
                              3. The `geometry` is equal to `nullptr`. */
@@ -267,7 +267,7 @@ class GeometryWorld {
    @param geometry_id  The id for the geometry to hang the declared geometry on.
    @param geometry     The geometry to hang.
    @return A unique identifier for the added geometry.
-   @throws std::logic_error 1. the `source_id` does _not_ map to an active
+   @throws std::logic_error 1. the `source_id` does _not_ map to a registered
                             source, or
                             2. the `geometry_id` doesn't belong to the source,
                             or
@@ -284,7 +284,7 @@ class GeometryWorld {
                         geometry.
    @param geometry      The geometry to add to the world.
    @returns The index for the added geometry.
-   @throws std::logic_error  If the `source_id` does _not_ map to an active
+   @throws std::logic_error  If the `source_id` does _not_ map to a registered
                              source. */
   GeometryId RegisterAnchoredGeometry(
       GeometryContext<T>* context, SourceId source_id,
@@ -300,11 +300,11 @@ class GeometryWorld {
 
   /**
    Clears all the registered frames and geometries from this source, but leaves
-   the source active for future registration of frames and geometries.
+   the source registered for future registration of frames and geometries.
    @param context     A mutable geometry context for this geometry world.
    @param source_id   The identifier of the source to be deactivated and
                       removed.
-   @throws std::logic_error  If the `source_id` does _not_ map to an active
+   @throws std::logic_error  If the `source_id` does _not_ map to a registered
                              source. */
   void ClearSource(GeometryContext<T>* context, SourceId source_id);
 
@@ -316,7 +316,7 @@ class GeometryWorld {
    @param source_id   The identifier for the owner geometry source.
    @param frame_id    The identifier of the frame to remove.
    @throws std::logic_error If:
-                            1. The `source_id` is not an active source, or
+                            1. The `source_id` is not a registered source, or
                             2. the `frame_id` doesn't belong to the source. */
   void RemoveFrame(GeometryContext<T>* context, SourceId source_id,
                    FrameId frame_id);
@@ -329,7 +329,7 @@ class GeometryWorld {
    @param source_id   The identifier for the owner geometry source.
    @param geometry_id The identifier of the geometry to remove.
    @throws std::logic_error If:
-                            1. The `source_id` is not an active source, or
+                            1. The `source_id` is not a registered source, or
                             2. the `geometry_id` doesn't belong to the source.
    */
   void RemoveGeometry(GeometryContext<T>* context, SourceId source_id,
@@ -592,7 +592,7 @@ class GeometryWorld {
 #endif
 
  private:
-  // Tests to see if the source_id is an active source identifier. Throws an
+  // Tests to see if the source_id is a registered source identifier. Throws an
   // exception if not.
   void AssertValidSource(const GeometryState<T>& state,
                          SourceId source_id) const;

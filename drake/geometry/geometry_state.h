@@ -277,7 +277,7 @@ class GeometryState {
    @param geometry     The geometry to get the id for. The state takes
                        ownership of the geometry.
    @returns  A newly allocated geometry id.
-   @throws std::logic_error  If the `source_id` does _not_ map to an active
+   @throws std::logic_error  If the `source_id` does _not_ map to a registered
                              source. */
   GeometryId RegisterAnchoredGeometry(
       SourceId source_id,
@@ -306,10 +306,10 @@ class GeometryState {
   /** Removes the given geometry from the the indicated source's geometries. Any
    geometry that was hung from the indicated geometry will _also_ be removed.
    @param source_id     The identifier for the owner geometry source.
-   @param geometry_id   The identifier of the geometry to remove (can be dyanmic
+   @param geometry_id   The identifier of the geometry to remove (can be dynamic
                         or anchored).
-   @throws std::logic_error  1. If the `source_id` does _not_ map to an active
-                             source, or
+   @throws std::logic_error  1. If the `source_id` does _not_ map to a
+                             registered source, or
                              2. the `geometry_id` does not map to a valid
                              geometry, or
                              3. the `geometry_id` maps to a geometry that does
@@ -542,9 +542,9 @@ class GeometryState {
   // source_root_frame_map_.
   std::unordered_map<SourceId, std::string> source_names_;
 
-  // The active geometry sources and the _anchored_ geometries that have been
-  // registered on them. These don't fit in the frame hierarchy because they do
-  // not belong to dynamic frames.
+  // The registered geometry sources and the _anchored_ geometries that have
+  // been registered on them. These don't fit in the frame hierarchy because
+  // they do not belong to dynamic frames.
   std::unordered_map<SourceId, std::unordered_set<GeometryId>>
       source_anchored_geometry_map_;
 

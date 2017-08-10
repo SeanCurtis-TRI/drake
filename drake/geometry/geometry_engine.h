@@ -55,8 +55,8 @@ class GeometryEngine {
    @{ */
 
   /** Reports the _minimum_ vector size required for a successful invocation of
-   UpdateWorldPoses(). A vector of this size is guaranteed to span all of the
-   active geometry indices. */
+   UpdateWorldPoses(). All GeometryIndex values persisted in other entities
+   should lie in the range [0, get_update_input_size() -1]. */
   virtual int get_update_input_size() const = 0;
 
   /** Adds movable geometry to the engine. The engine instantiates its own
@@ -101,10 +101,10 @@ class GeometryEngine {
   virtual optional<AnchoredGeometryIndex> RemoveAnchoredGeometry(
       AnchoredGeometryIndex index) = 0;
 
-  /** Provides the poses for all of the geometries in the engine. This vector
-   should span the full range of active GeometryIndex values provided by the
-   engine. The iᵗʰ entry contains the pose for the frame whose GeometryIndex
-   value is `i`.
+  /** Provides the poses for all of the dynamic geometries in the engine. All
+   GeometryIndex values persisted in other entities should lie in the range
+   [0, get_update_input_size() -1]. The iᵗʰ entry contains the pose for the
+   geometry whose GeometryIndex value is `i`.
    @param X_WG     The poses of each geometry `G` measured and expressed in the
                    world frame `W`. */
   // TODO(SeanCurtis-TRI): I could do things here differently a number of ways:
