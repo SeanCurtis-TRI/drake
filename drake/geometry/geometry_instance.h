@@ -12,20 +12,12 @@
 namespace drake {
 namespace geometry {
 
-/**
- A geometry instance combines a geometry definition (i.e., a shape of some
- sort), a pose (relative to a parent frame), material information, and an
- opaque collection of metadata.
+/** A geometry instance combines a geometry _shape_ definition (i.e., a box,
+ sphere, etc.), a pose (relative to a parent frame), material information, and
+ an opaque collection of metadata.
 
- @tparam T  The underlying scalar type. Must be a valid Eigen scalar.
-
- Instantiated templates for the following kinds of T's are provided:
-    - double
-
- They are already available to link against in the containing library.
- No other values for T are currently supported. */
-// TODO(SeanCurtis-TRI): Add support for AutoDiffXd.
-template <typename T>
+ The parent frame can be a particular GeometryFrame or another GeometryInstance.
+ */
 class GeometryInstance {
  public:
   DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(GeometryInstance)
@@ -33,17 +25,17 @@ class GeometryInstance {
   /** Constructor.
    @param X_PG   The pose of this geometry (`G`) in its parent's frame (`P`).
    @param shape  The underlying shape for this geometry instance. */
-  GeometryInstance(const Isometry3<T>& X_PG, std::unique_ptr<Shape> shape);
+  GeometryInstance(const Isometry3<double>& X_PG, std::unique_ptr<Shape> shape);
 
   /** Constructor.
    @param X_PG   The pose of this geometry (`G`) in its parent's frame (`P`).
    @param shape  The underlying shape for this geometry instance.
    @param vis_material The visual material to apply to this geometry. */
-  GeometryInstance(const Isometry3<T>& X_PG, std::unique_ptr<Shape> shape,
+  GeometryInstance(const Isometry3<double>& X_PG, std::unique_ptr<Shape> shape,
                    const VisualMaterial& vis_material);
 
-  const Isometry3<T>& get_pose() const { return X_FG_; }
-  void set_pose(const Isometry3<T>& X_PG) { X_FG_ = X_PG; }
+  const Isometry3<double>& get_pose() const { return X_FG_; }
+  void set_pose(const Isometry3<double>& X_PG) { X_FG_ = X_PG; }
 
   const Shape& get_shape() const { return *shape_; }
   /** Releases the shape from the instance. */
@@ -54,7 +46,7 @@ class GeometryInstance {
  private:
   // The pose of the geometry relative to the source frame it ultimately hangs
   // from.
-  Isometry3<T> X_FG_;
+  Isometry3<double> X_FG_;
 
   // The shape associated with this instance.
   copyable_unique_ptr<Shape> shape_;

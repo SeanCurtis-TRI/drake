@@ -112,14 +112,16 @@ const std::string& GeometryState<T>::get_source_name(SourceId id) const {
 }
 
 template <typename T>
-Isometry3<T> GeometryState<T>::GetPoseInFrame(GeometryId geometry_id) const {
+Isometry3<double> GeometryState<T>::GetPoseInFrame(
+    GeometryId geometry_id) const {
   auto& geometry = GetValueOrThrow(geometry_id, &geometries_);
   return X_FG_[geometry.get_engine_index()];
 }
 
 template <typename T>
-Isometry3<T> GeometryState<T>::GetPoseInParent(GeometryId geometry_id) const {
-  Isometry3<T> X_FG = GetPoseInFrame(geometry_id);
+Isometry3<double> GeometryState<T>::GetPoseInParent(
+    GeometryId geometry_id) const {
+  Isometry3<double> X_FG = GetPoseInFrame(geometry_id);
   if (optional<GeometryId> parent_id = FindParentGeometry(geometry_id)) {
     GeometryIndex parent_index = geometries_.at(*parent_id).get_engine_index();
     const Isometry3<double>& X_FP = X_FG_[parent_index];
@@ -186,7 +188,7 @@ FrameId GeometryState<T>::RegisterFrame(SourceId source_id, FrameId parent_id,
 template <typename T>
 GeometryId GeometryState<T>::RegisterGeometry(
     SourceId source_id, FrameId frame_id,
-    std::unique_ptr<GeometryInstance<T>> geometry) {
+    std::unique_ptr<GeometryInstance> geometry) {
   using std::to_string;
   if (geometry == nullptr) {
     throw std::logic_error(
@@ -227,7 +229,7 @@ GeometryId GeometryState<T>::RegisterGeometry(
 template <typename T>
 GeometryId GeometryState<T>::RegisterGeometryWithParent(
     SourceId source_id, GeometryId geometry_id,
-    std::unique_ptr<GeometryInstance<T>> geometry) {
+    std::unique_ptr<GeometryInstance> geometry) {
   // There are three error conditions in the doxygen:.
   //    1. geometry == nullptr,
   //    2. source_id is not a registered source, and
@@ -265,7 +267,7 @@ GeometryId GeometryState<T>::RegisterGeometryWithParent(
 template <typename T>
 GeometryId GeometryState<T>::RegisterAnchoredGeometry(
     SourceId source_id,
-    std::unique_ptr<GeometryInstance<T>> geometry) {
+    std::unique_ptr<GeometryInstance> geometry) {
   using std::to_string;
   if (geometry == nullptr) {
     throw std::logic_error(

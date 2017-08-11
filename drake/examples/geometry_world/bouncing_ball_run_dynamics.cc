@@ -55,7 +55,7 @@ int do_main() {
   Vector3<double> point_G(0, 0, 0);
   geometry_system->RegisterAnchoredGeometry(
       global_source,
-      make_unique<GeometryInstance<double>>(
+      make_unique<GeometryInstance>(
           HalfSpace::MakePose(normal_G, point_G), make_unique<HalfSpace>()));
 
   DrakeLcm lcm;

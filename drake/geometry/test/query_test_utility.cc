@@ -30,7 +30,7 @@ void GeometryQueryTest::SetUpAxisSpheres() {
                                           Isometry3<double>::Identity()));
     state_->RegisterGeometry(
         source_id_, frame_id,
-        make_unique<GeometryInstance<double>>(Isometry3<double>::Identity(),
+        make_unique<GeometryInstance>(Isometry3<double>::Identity(),
                                               make_sphere(kRadius)));
   }
 

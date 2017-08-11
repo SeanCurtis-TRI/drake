@@ -159,8 +159,8 @@ TEST_F(GeometryEngineStubTest, CollisionsIntersectingSphere) {
                                         Isometry3<double>::Identity()));
   GeometryId collider_id = state_->RegisterGeometry(
       source_id_, frame_id,
-      make_unique<GeometryInstance<double>>(Isometry3<double>::Identity(),
-                                            make_sphere(collider_radius)));
+      make_unique<GeometryInstance>(Isometry3<double>::Identity(),
+                                    make_sphere(collider_radius)));
   state_tester_.get_engine()->UpdateWorldPoses(poses_);
   // Perform collision
   std::vector<GeometryId> anchored_ids;
@@ -203,7 +203,7 @@ TEST_F(GeometryEngineStubTest, CollisionsHalfSpaceNoCollide) {
   Vector3<double> normal = Vector3<double>(1, 2, 3);
   Vector3<double> point = normal * (-kRadius - 0.1);
   GeometryId plane_id = state_->RegisterAnchoredGeometry(
-      source_id_, make_unique<GeometryInstance<double>>(
+      source_id_, make_unique<GeometryInstance>(
                       HalfSpace::MakePose(normal, point),
                       make_unique<HalfSpace>()));
 
@@ -228,8 +228,8 @@ TEST_F(GeometryEngineStubTest, CollisionsHalfSpaceCollide) {
                                         Isometry3<double>::Identity()));
   GeometryId sphere_id = state_->RegisterGeometry(
       source_id_, frame_id,
-      make_unique<GeometryInstance<double>>(Isometry3<double>::Identity(),
-                                            make_sphere(kRadius)));
+      make_unique<GeometryInstance>(Isometry3<double>::Identity(),
+                                    make_sphere(kRadius)));
   Isometry3<double> pose = Isometry3<double>::Identity();
   Vector3<double> p_WS(0.5, 0.7, 0.9);
   pose.translation() = p_WS;
@@ -243,8 +243,8 @@ TEST_F(GeometryEngineStubTest, CollisionsHalfSpaceCollide) {
   Vector3<double> point = pose.translation() - normal * (kRadius - penetration);
   GeometryId plane_id = state_->RegisterAnchoredGeometry(
       source_id_,
-      make_unique<GeometryInstance<double>>(HalfSpace::MakePose(normal, point),
-                                            make_unique<HalfSpace>()));
+      make_unique<GeometryInstance>(HalfSpace::MakePose(normal, point),
+                                    make_unique<HalfSpace>()));
 
   std::vector<GeometryId> anchored_ids;
   anchored_ids.push_back(plane_id);

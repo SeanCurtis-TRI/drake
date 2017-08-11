@@ -25,7 +25,7 @@ class FrameIdVector;
 
 template <typename T> class GeometryFrame;
 
-template <typename T> class GeometryInstance;
+class GeometryInstance;
 
 template <typename T> class GeometrySystem;
 
@@ -141,16 +141,16 @@ class GeometryState {
    @return The geometry's pose relative to its frame.
    @throws std::logic_error  If the `geometry_id` does _not_ map to a valid
                              GeometryInstance. */
-  Isometry3<T> GetPoseInFrame(GeometryId geometry_id) const;
+  Isometry3<double> GetPoseInFrame(GeometryId geometry_id) const;
 
-  /** Reports the pose, relative to the registered parent, for the geometry
-   the given identifier refers to. If the geometry was registered directly to
-   a frame, this _must_ produce the same pose as GetPoseInFrame().
+  /** Reports the pose of identified geometry, relative to its registered
+   parent. If the geometry was registered directly to a frame, this _must_
+   produce the same pose as GetPoseInFrame().
    @param geometry_id     The id of the queried geometry.
    @return The geometry's pose relative to its registered parent.
    @throws std::logic_error  If the `geometry_id` does _not_ map to a valid
                              GeometryInstance. */
-  Isometry3<T> GetPoseInParent(GeometryId geometry_id) const;
+  Isometry3<double> GetPoseInParent(GeometryId geometry_id) const;
 
   //@}
 
@@ -203,7 +203,7 @@ class GeometryState {
                              2. the `frame_id` doesn't belong to the source, or
                              3. The `geometry` is equal to `nullptr`. */
   GeometryId RegisterGeometry(SourceId source_id, FrameId frame_id,
-                              std::unique_ptr<GeometryInstance<T>> geometry);
+                              std::unique_ptr<GeometryInstance> geometry);
 
   /** Registers a GeometryInstance with the state. Rather than hanging directly
    from a _frame_, the instance hangs on another geometry instance. The input
@@ -225,7 +225,7 @@ class GeometryState {
                             3. the `geometry` is equal to `nullptr`. */
   GeometryId RegisterGeometryWithParent(
       SourceId source_id, GeometryId geometry_id,
-      std::unique_ptr<GeometryInstance<T>> geometry);
+      std::unique_ptr<GeometryInstance> geometry);
 
   /** Registers a GeometryInstance with the state as anchored geometry. This
    registers geometry which "hangs" from the world frame and never moves.
@@ -241,7 +241,7 @@ class GeometryState {
                              source. */
   GeometryId RegisterAnchoredGeometry(
       SourceId source_id,
-      std::unique_ptr<GeometryInstance<T>> geometry);
+      std::unique_ptr<GeometryInstance> geometry);
 
   /** Removes all frames and geometry registered from the identified source.
    The source remains registered and further frames and geometry can be
@@ -569,7 +569,7 @@ class GeometryState {
   // stored in this vector at that engine index. Because the geometries are
   // rigidly fixed to frames, these values are a property of the topology and
   // _not_ the time-dependent frame kinematics.
-  std::vector<Isometry3<T>> X_FG_;
+  std::vector<Isometry3<double>> X_FG_;
 
   // ---------------------------------------------------------------------
   // These values depend on time-dependent input values (e.g., current frame

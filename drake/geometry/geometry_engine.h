@@ -29,7 +29,7 @@ struct GeometryIndexPair {
 
 class Geometry;
 
-template <typename T> class GeometryInstance;
+class GeometryInstance;
 
 /** A geometry engine is the underlying engine for computing the results of
  geometric queries.

@@ -11,12 +11,11 @@ namespace drake {
 namespace geometry {
 namespace {
 
-using GeomInstance = GeometryInstance<double>;
 using Pose = Isometry3<double>;
 
 // Confirms that the instance is copyable.
 GTEST_TEST(GeometryInstanceTest, IsCopyable) {
-  EXPECT_TRUE(is_copyable_unique_ptr_compatible<GeomInstance>::value);
+  EXPECT_TRUE(is_copyable_unique_ptr_compatible<GeometryInstance>::value);
 }
 
 }  // namespace

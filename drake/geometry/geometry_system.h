@@ -16,7 +16,8 @@
 namespace drake {
 namespace geometry {
 
-template <typename T> class GeometryInstance;
+class GeometryInstance;
+
 template <typename T> class GeometryContext;
 
 /** GeometrySystem serves as a system-level wrapper for GeometryWorld. It serves
@@ -337,7 +338,7 @@ class GeometrySystem : public systems::LeafSystem<T> {
                              4. a context has been allocated. */
   GeometryId RegisterGeometry(SourceId source_id,
                               FrameId frame_id,
-                              std::unique_ptr<GeometryInstance<T>> geometry);
+                              std::unique_ptr<GeometryInstance> geometry);
 
   /** Registers a new geometry G for this source. This hangs geometry G on a
    previously registered geometry P (indicated by `geometry_id`). The pose of
@@ -356,7 +357,7 @@ class GeometrySystem : public systems::LeafSystem<T> {
                             4. a context has been allocated. */
   GeometryId RegisterGeometry(SourceId source_id,
                               GeometryId geometry_id,
-                              std::unique_ptr<GeometryInstance<T>> geometry);
+                              std::unique_ptr<GeometryInstance> geometry);
 
   /** Registers a new _anchored_ geometry G for this source. This hangs geometry
    G from the world frame (W). Its pose is defined in that frame (i.e., `X_WG`).
@@ -368,7 +369,7 @@ class GeometrySystem : public systems::LeafSystem<T> {
                              source or a context has been allocated. */
   GeometryId RegisterAnchoredGeometry(
       SourceId source_id,
-      std::unique_ptr<GeometryInstance<T>> geometry);
+      std::unique_ptr<GeometryInstance> geometry);
 
   /** Clears of all the registered frames and geometries from this source, but
    the source is still registered, allowing future registration of frames
