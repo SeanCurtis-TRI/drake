@@ -155,8 +155,7 @@ TEST_F(GeometryEngineStubTest, CollisionsIntersectingSphere) {
       (p_WX - p_WO).norm() + collide_depth - kRadius * 2;
 
   FrameId frame_id = state_->RegisterFrame(
-      source_id_, GeometryFrame<double>("collider",
-                                        Isometry3<double>::Identity()));
+      source_id_, GeometryFrame("collider", Isometry3<double>::Identity()));
   GeometryId collider_id = state_->RegisterGeometry(
       source_id_, frame_id,
       make_unique<GeometryInstance>(Isometry3<double>::Identity(),
@@ -224,8 +223,7 @@ TEST_F(GeometryEngineStubTest, CollisionsHalfSpaceCollide) {
   // Add single sphere at the origin.
   source_id_ = state_->RegisterNewSource("axis-aligned spheres");
   FrameId frame_id = state_->RegisterFrame(
-      source_id_, GeometryFrame<double>("sphere" ,
-                                        Isometry3<double>::Identity()));
+      source_id_, GeometryFrame("sphere", Isometry3<double>::Identity()));
   GeometryId sphere_id = state_->RegisterGeometry(
       source_id_, frame_id,
       make_unique<GeometryInstance>(Isometry3<double>::Identity(),

@@ -155,13 +155,13 @@ SourceId GeometryState<T>::RegisterNewSource(const std::string& name) {
 
 template <typename T>
 FrameId GeometryState<T>::RegisterFrame(SourceId source_id,
-                                        const GeometryFrame<T>& frame) {
+                                        const GeometryFrame& frame) {
   return RegisterFrame(source_id, InternalFrame::get_world_frame_id(), frame);
 }
 
 template <typename T>
 FrameId GeometryState<T>::RegisterFrame(SourceId source_id, FrameId parent_id,
-                                        const GeometryFrame<T>& frame) {
+                                        const GeometryFrame& frame) {
   using std::to_string;
   FrameId frame_id = FrameId::get_new_id();
 
@@ -177,11 +177,11 @@ FrameId GeometryState<T>::RegisterFrame(SourceId source_id, FrameId parent_id,
     source_root_frame_map_[source_id].insert(frame_id);
   }
   PoseIndex pose_index(X_PF_.size());
-  X_PF_.emplace_back(frame.pose);
+  X_PF_.emplace_back(frame.get_pose());
   f_set.insert(frame_id);
-  frames_.emplace(frame_id,
-                  InternalFrame(source_id, frame_id, frame.name,
-                                frame.frame_group, pose_index, parent_id));
+  frames_.emplace(
+      frame_id, InternalFrame(source_id, frame_id, frame.get_name(),
+                              frame.get_frame_group(), pose_index, parent_id));
   return frame_id;
 }
 

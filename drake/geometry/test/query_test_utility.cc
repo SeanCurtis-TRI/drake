@@ -26,7 +26,7 @@ void GeometryQueryTest::SetUpAxisSpheres() {
 
   for (int i = 0; i < kSphereCount; ++i) {
     FrameId frame_id = state_->RegisterFrame(
-        source_id_, GeometryFrame<double>("frame_" + to_string(i),
+        source_id_, GeometryFrame("frame_" + to_string(i),
                                           Isometry3<double>::Identity()));
     state_->RegisterGeometry(
         source_id_, frame_id,

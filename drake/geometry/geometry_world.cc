@@ -57,14 +57,14 @@ bool GeometryWorld<T>::SourceIsRegistered(const GeometryContext<T>& context,
 template <typename T>
 FrameId GeometryWorld<T>::RegisterFrame(GeometryContext<T>* context,
                                         SourceId source_id,
-                                        const GeometryFrame<T>& frame) {
+                                        const GeometryFrame& frame) {
   return context->get_mutable_geometry_state().RegisterFrame(source_id, frame);
 }
 
 template <typename T>
 FrameId GeometryWorld<T>::RegisterFrame(GeometryContext<T>* context,
                                         SourceId source_id, FrameId parent_id,
-                                        const GeometryFrame<T>& frame) {
+                                        const GeometryFrame& frame) {
   return context->get_mutable_geometry_state().RegisterFrame(source_id,
                                                              parent_id, frame);
 }

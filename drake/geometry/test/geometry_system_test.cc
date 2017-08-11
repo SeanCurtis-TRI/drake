@@ -207,7 +207,7 @@ TEST_F(GeometrySystemTest, TopologyAfterAllocation) {
   // Attach frame to world.
   EXPECT_ERROR_MESSAGE(
       system_.RegisterFrame(
-          id, GeometryFrame<double>("frame", Isometry3<double>::Identity())),
+          id, GeometryFrame("frame", Isometry3<double>::Identity())),
       std::logic_error,
       "The call to RegisterFrame is invalid; a context has already been "
       "allocated.");
@@ -216,7 +216,7 @@ TEST_F(GeometrySystemTest, TopologyAfterAllocation) {
   EXPECT_ERROR_MESSAGE(
       system_.RegisterFrame(
           id, FrameId::get_new_id(),
-          GeometryFrame<double>("frame", Isometry3<double>::Identity())),
+          GeometryFrame("frame", Isometry3<double>::Identity())),
       std::logic_error,
       "The call to RegisterFrame is invalid; a context has already been "
       "allocated.");
@@ -316,8 +316,7 @@ class GeometrySourceSystem : public systems::LeafSystem<double> {
     // Register with GeometrySystem.
     source_id_ = geometry_system->RegisterSource();
     FrameId f_id = geometry_system->RegisterFrame(
-        source_id_,
-        GeometryFrame<double>("frame", Isometry3<double>::Identity()));
+        source_id_, GeometryFrame("frame", Isometry3<double>::Identity()));
     frame_ids_.push_back(f_id);
     // Set up output ports
     this->DeclareAbstractOutputPort(
@@ -338,8 +337,7 @@ class GeometrySourceSystem : public systems::LeafSystem<double> {
   // will *not* automatically get a pose.
   void add_extra_frame(bool add_to_output = true) {
     FrameId frame_id = geometry_system_->RegisterFrame(
-        source_id_,
-        GeometryFrame<double>("frame", Isometry3<double>::Identity()));
+        source_id_, GeometryFrame("frame", Isometry3<double>::Identity()));
     if (add_to_output) extra_frame_ids_.push_back(frame_id);
   }
   // Method used to bring frame ids and poses out of sync. Adds a pose in
@@ -490,8 +488,7 @@ class DummySourceSystem : public systems::LeafSystem<double> {
     // Register with GeometrySystem.
     source_id_ = geometry_system->RegisterSource();
     frame_id_ = geometry_system->RegisterFrame(
-        source_id_,
-        GeometryFrame<double>("frame", Isometry3<double>::Identity()));
+        source_id_, GeometryFrame("frame", Isometry3<double>::Identity()));
     // Set up output ports
     pose_ = Isometry3<double>::Identity();
     this->DeclareAbstractOutputPort(

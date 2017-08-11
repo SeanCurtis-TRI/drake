@@ -58,8 +58,8 @@ BouncingBallPlant<T>::BouncingBallPlant(SourceId source_id,
   static_assert(BouncingBallVectorIndices::kNumCoordinates == 1 + 1, "");
 
   ball_frame_id_ = geometry_system->RegisterFrame(
-      source_id, GeometryFrame<T>("ball_frame",
-                                  Isometry3<T>::Identity() /*X_PF = X_WF*/));
+      source_id, GeometryFrame("ball_frame",
+                               Isometry3<double>::Identity() /*X_PF = X_WF*/));
   ball_id_ = geometry_system->RegisterGeometry(
       source_id, ball_frame_id_,
       make_unique<GeometryInstance>(Isometry3<double>::Identity(), /*X_FG*/

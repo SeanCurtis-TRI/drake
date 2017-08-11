@@ -87,14 +87,14 @@ GeometrySystem<T>::get_source_velocity_port(SourceId id) {
 
 template <typename T>
 FrameId GeometrySystem<T>::RegisterFrame(SourceId source_id,
-                                         const GeometryFrame<T>& frame) {
+                                         const GeometryFrame& frame) {
   THROW_IF_CONTEXT_ALLOCATED
   return initial_state_->RegisterFrame(source_id, frame);
 }
 
 template <typename T>
 FrameId GeometrySystem<T>::RegisterFrame(SourceId source_id, FrameId parent_id,
-                                         const GeometryFrame<T>& frame) {
+                                         const GeometryFrame& frame) {
   THROW_IF_CONTEXT_ALLOCATED
   return initial_state_->RegisterFrame(source_id, parent_id, frame);
 }

@@ -23,7 +23,7 @@ namespace geometry {
 
 class FrameIdVector;
 
-template <typename T> class GeometryFrame;
+class GeometryFrame;
 
 class GeometryInstance;
 
@@ -174,7 +174,7 @@ class GeometryState {
    @returns  A newly allocated frame id.
    @throws std::logic_error  If the `source_id` does _not_ map to a registered
                              source. */
-  FrameId RegisterFrame(SourceId source_id, const GeometryFrame<T>& frame);
+  FrameId RegisterFrame(SourceId source_id, const GeometryFrame& frame);
 
   /** Registers a new frame for the given source as a child of a previously
    registered frame. The id of the new frame is returned.
@@ -187,7 +187,7 @@ class GeometryState {
                              2. If the `parent_id` does _not_ map to a known
                              frame or does not belong to the source. */
   FrameId RegisterFrame(SourceId source_id, FrameId parent_id,
-                        const GeometryFrame<T>& frame);
+                        const GeometryFrame& frame);
 
   /** Registers a GeometryInstance with the state. The state takes ownership of
    the geometry and associates it with the given frame and source. Returns the

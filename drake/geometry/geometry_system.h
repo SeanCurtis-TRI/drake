@@ -305,7 +305,7 @@ class GeometrySystem : public systems::LeafSystem<T> {
    @returns  A newly allocated frame id.
    @throws std::logic_error  If the `source_id` does _not_ map to a registered
                              source or if a context has been allocated. */
-  FrameId RegisterFrame(SourceId source_id, const GeometryFrame<T>& frame);
+  FrameId RegisterFrame(SourceId source_id, const GeometryFrame& frame);
 
   /** Registers a new frame F for this source. This hangs frame F on another
    previously registered frame P (indicated by `parent_id`). The pose of the new
@@ -321,7 +321,7 @@ class GeometrySystem : public systems::LeafSystem<T> {
                              frame or does not belong to the source, or
                              3. a context has been allocated. */
   FrameId RegisterFrame(SourceId source_id, FrameId parent_id,
-                        const GeometryFrame<T>& frame);
+                        const GeometryFrame& frame);
 
   /** Registers a new geometry G for this source. This hangs geometry G on a
    previously registered frame F (indicated by `frame_id`). The pose of the

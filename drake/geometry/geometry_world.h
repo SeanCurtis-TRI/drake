@@ -217,7 +217,7 @@ class GeometryWorld {
    @throws std::logic_error  If the `source_id` does _not_ map to a registered
                              source. */
   FrameId RegisterFrame(GeometryContext<T>* context, SourceId source_id,
-                        const GeometryFrame<T>& frame);
+                        const GeometryFrame& frame);
 
   /** Registers a new frame for the given source as a child of a previously
       registered frame. The id of the new frame is returned.
@@ -231,7 +231,7 @@ class GeometryWorld {
                              2. If the `parent_id` does _not_ map to a known
                              frame or does not belong to the source. */
   FrameId RegisterFrame(GeometryContext<T>* context, SourceId source_id,
-                        FrameId parent_id, const GeometryFrame<T>& frame);
+                        FrameId parent_id, const GeometryFrame& frame);
 
   /**
    Declares a `geometry` instance as "hanging" from the specified frame at the

@@ -93,7 +93,7 @@ using std::unique_ptr;
 class GeometryStateTest : public ::testing::Test {
  protected:
   void SetUp() {
-    frame_ = make_unique<GeometryFrame<double>>("ref_frame",
+    frame_ = make_unique<GeometryFrame>("ref_frame",
                                                 Isometry3<double>::Identity());
     instance_pose_.translation() << 10, 20, 30;
     instance_ = make_unique<GeometryInstance>(
@@ -125,7 +125,7 @@ class GeometryStateTest : public ::testing::Test {
   //  f1 is @ <10, 20, 30>, with a 90-degree rotation around y.
   //  f2 is @ <-10, -20, -30>, with a -90-degree rotation around y
   // Geometry configuration
-  //  gi is at position <i + 1, 0, 0>, with a rotation of iπ/2 radians around
+  //  gi is at position <i + 1, 0, 0>, with a rotation of π/2 radians around
   //    the x-axis.
   // The relationship between f1 and f2 is such that for g2 & g3, the pose
   // relative to the parent frame f2 is the same as to the world, e.g.,
@@ -140,7 +140,7 @@ class GeometryStateTest : public ::testing::Test {
     pose.translation() << 1, 2, 3;
     pose.linear() << 1, 0, 0, 0, 0, 1, 0, -1, 0;  // 90° around x-axis.
     frames_.push_back(geometry_state_.RegisterFrame(
-        source_id_, GeometryFrame<double>("f0", pose)));
+        source_id_, GeometryFrame("f0", pose)));
     X_WF_.push_back(pose);
     X_PF_.push_back(pose);
 
@@ -148,7 +148,7 @@ class GeometryStateTest : public ::testing::Test {
     pose.translation() << 10, 20, 30;
     pose.linear() << 0, 0, -1, 0, 1, 0, 1, 0, 0;  // 90° around y-axis.
     frames_.push_back(geometry_state_.RegisterFrame(
-        source_id_, GeometryFrame<double>("f1", pose)));
+        source_id_, GeometryFrame("f1", pose)));
     X_WF_.push_back(pose);
     X_PF_.push_back(pose);
 
@@ -156,7 +156,7 @@ class GeometryStateTest : public ::testing::Test {
     pose.translation() << -10, -20, -30;
     pose.linear() << 0, 0, 1, 0, 1, 0, -1, 0, 0;  // -90° around y-axis.
     frames_.push_back(geometry_state_.RegisterFrame(
-        source_id_, frames_[1], GeometryFrame<double>("f2", pose)));
+        source_id_, frames_[1], GeometryFrame("f2", pose)));
     X_WF_.push_back(X_WF_[1] * pose);
     X_PF_.push_back(pose);
 
@@ -233,7 +233,7 @@ class GeometryStateTest : public ::testing::Test {
   }
 
   // Members owned by the test class.
-  unique_ptr<GeometryFrame<double>> frame_;
+  unique_ptr<GeometryFrame> frame_;
   unique_ptr<GeometryInstance> instance_;
   Isometry3<double> instance_pose_{Isometry3<double>::Identity()};
   GeometryState<double> geometry_state_;
