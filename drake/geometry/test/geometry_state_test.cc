@@ -1,6 +1,7 @@
 #include "drake/geometry/geometry_state.h"
 
 #include <memory>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -482,6 +483,18 @@ TEST_F(GeometryStateTest, RemoveFrame) {
             (kFrameCount -1)* kGeometryCount);
 
   ExpectSourceDoesNotHaveFrame(s_id, frames_[0]);
+}
+
+// Tests the frame iterator, confirming that it iterates through all frames.
+TEST_F(GeometryStateTest, FrameIdIterator) {
+  SetUpSingleSourceTree();
+  std::unordered_set<FrameId> all_frames(frames_.begin(), frames_.end());
+  for (FrameId id : geometry_state_.get_frame_ids()) {
+    // This should remove exactly one element.
+    EXPECT_EQ(all_frames.erase(id), 1);
+  }
+  // There shouldn't be any left over.
+  EXPECT_EQ(all_frames.size(), 0);
 }
 
 // Tests the removal of a frame that has other frames hanging on it.

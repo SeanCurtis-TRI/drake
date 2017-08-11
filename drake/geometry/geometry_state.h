@@ -52,6 +52,12 @@ class GeometryState {
  public:
   DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(GeometryState)
 
+ private:
+  template <typename K, typename V> class MapKeyIterator;
+
+ public:
+  using FrameIdIterator = MapKeyIterator<FrameId, internal::InternalFrame>;
+
   /** Default constructor. */
   GeometryState();
 
@@ -82,60 +88,15 @@ class GeometryState {
   /** Reports true if the given `source_id` references a registered source. */
   bool source_is_registered(SourceId source_id) const;
 
-  /** Iterator through the keys of an unordered map. */
-  template <typename K, typename V>
-  class MapKeyIterator {
-   public:
-    class iterator {
-      friend class MapKeyIterator;
-     public:
-      const K& operator*() const { return itr_->first; }
-      const iterator& operator++() { ++itr_; return *this; }
-      bool operator!=(const iterator& other) { return itr_ != other.itr_; }
-
-     protected:
-      explicit iterator(typename std::unordered_map<K, V>::const_iterator itr)
-          : itr_(itr) {}
-
-     private:
-      typename std::unordered_map<K, V>::const_iterator itr_;
-    };
-
-    explicit MapKeyIterator(std::unordered_map<K, V> map) : map_(map) {}
-    iterator begin() const { return iterator(map_.begin()); }
-    iterator end() const { return iterator(map_.end()); }
-
-   private:
-    std::unordered_map<K, V> map_;
-  };
-
-  // TODO(SeanCurtis-TRI): Kill this
-  /** Provides a range iterator for all of the source ids in the world. The
-   order is not generally guaranteed; but it will be consistent as long as there
-   are no changes to the topology. This is intended to be used as:
-   @code
-   for (SourceId id : state.get_source_ids()) {
-    ...
-   }
-   @endcode  */
-  MapKeyIterator<SourceId, FrameIdSet> get_source_ids() const {
-    return MapKeyIterator<SourceId, FrameIdSet> (source_frame_id_map_);
+  /** The set of all dynamic geometries registered to the world. The order is
+   _not_ guaranteed to have any particular semantic meaning. But the order is
+   guaranteed to remain fixed between topological changes (e.g., removal or
+   addition of geometry/frames. */
+  const std::vector<GeometryId>& get_geometry_ids() const {
+    return geometry_index_id_map_;
   }
 
-  /** Provides a range iterator for all of the geometry ids in the world. The
-   order is not generally guaranteed; but it will be consistent as long as there
-   are no changes to the topology. This is intended to be used as:
-   @code
-   for (GeometryId id : state.get_geometry_ids()) {
-    ...
-   }
-   @endcode  */
-  MapKeyIterator<GeometryId, internal::InternalGeometry>
-  get_geometry_ids() const {
-    return MapKeyIterator<GeometryId, internal::InternalGeometry>(geometries_);
-  }
-
-  /** Provides a range iterator for all of the frame ids in the world. The
+  /** Provides a const range iterator for all of the frame ids in the world. The
    order is not generally guaranteed; but it will be consistent as long as there
    are no changes to the topology. This is intended to be used as:
    @code
@@ -143,9 +104,8 @@ class GeometryState {
     ...
    }
    @endcode  */
-  MapKeyIterator<FrameId, internal::InternalFrame>
-  get_frame_ids() const {
-    return MapKeyIterator<FrameId, internal::InternalFrame>(frames_);
+  FrameIdIterator get_frame_ids() const {
+    return FrameIdIterator(frames_);
   }
 
   /** Reports the frame group for the given frame.
@@ -438,6 +398,36 @@ class GeometryState {
   // unit tests.
   template <class U> friend class GeometryStateTester;
 
+  /** Iterator through the keys of an unordered map. */
+  template <typename K, typename V>
+  class MapKeyIterator {
+   public:
+    class iterator {
+     public:
+      const K& operator*() const { return itr_->first; }
+      const iterator& operator++() {
+        ++itr_;
+        return *this;
+      }
+      bool operator!=(const iterator& other) { return itr_ != other.itr_; }
+
+     protected:
+      explicit iterator(typename std::unordered_map<K, V>::const_iterator itr)
+          : itr_(itr) {}
+
+     private:
+      typename std::unordered_map<K, V>::const_iterator itr_;
+      friend class MapKeyIterator;
+    };
+
+    explicit MapKeyIterator(std::unordered_map<K, V> map) : map_(map) {}
+    iterator begin() const { return iterator(map_.begin()); }
+    iterator end() const { return iterator(map_.end()); }
+
+   private:
+    std::unordered_map<K, V> map_;
+  };
+
   // Gets the source id for the given frame id. Throws std::logic_error if the
   // frame belongs to no registered source.
   SourceId get_source_id(FrameId frame_id) const;
@@ -562,8 +552,9 @@ class GeometryState {
   // This *implicitly* maps each extant geometry engine index to its
   // corresponding unique geometry identifier. It assumes that the index in the
   // vector *is* the index in the engine.
-  // It should be an invariant that:
-  // geometries_[geometry_index_id_map_[i]].get_engine_index() == i is true.
+  // The following invariants should always be true:
+  //   1. geometries_[geometry_index_id_map_[i]].get_engine_index() == i.
+  //   2. geometry_index_id_map_.size() == geometries_.size().
   std::vector<GeometryId> geometry_index_id_map_;
 
   // This *implicitly* maps each extant anchored geometry engine index to its
