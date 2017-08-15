@@ -141,7 +141,7 @@ class GeometryState {
    @return The geometry's pose relative to its frame.
    @throws std::logic_error  If the `geometry_id` does _not_ map to a valid
                              GeometryInstance. */
-  Isometry3<double> GetPoseInFrame(GeometryId geometry_id) const;
+  const Isometry3<double>& GetPoseInFrame(GeometryId geometry_id) const;
 
   /** Reports the pose of identified geometry, relative to its registered
    parent. If the geometry was registered directly to a frame, this _must_
@@ -150,7 +150,7 @@ class GeometryState {
    @return The geometry's pose relative to its registered parent.
    @throws std::logic_error  If the `geometry_id` does _not_ map to a valid
                              GeometryInstance. */
-  Isometry3<double> GetPoseInParent(GeometryId geometry_id) const;
+  const Isometry3<double>& GetPoseInParent(GeometryId geometry_id) const;
 
   //@}
 

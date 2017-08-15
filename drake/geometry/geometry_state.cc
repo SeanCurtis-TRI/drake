@@ -112,23 +112,17 @@ const std::string& GeometryState<T>::get_source_name(SourceId id) const {
 }
 
 template <typename T>
-Isometry3<double> GeometryState<T>::GetPoseInFrame(
+const Isometry3<double>& GeometryState<T>::GetPoseInFrame(
     GeometryId geometry_id) const {
   auto& geometry = GetValueOrThrow(geometry_id, &geometries_);
   return X_FG_[geometry.get_engine_index()];
 }
 
 template <typename T>
-Isometry3<double> GeometryState<T>::GetPoseInParent(
+const Isometry3<double>& GeometryState<T>::GetPoseInParent(
     GeometryId geometry_id) const {
-  Isometry3<double> X_FG = GetPoseInFrame(geometry_id);
-  if (optional<GeometryId> parent_id = FindParentGeometry(geometry_id)) {
-    GeometryIndex parent_index = geometries_.at(*parent_id).get_engine_index();
-    const Isometry3<double>& X_FP = X_FG_[parent_index];
-    return X_FP.inverse() * X_FG;
-  } else {
-    return X_FG;
-  }
+  auto& geometry = GetValueOrThrow(geometry_id, &geometries_);
+  return geometry.get_pose_in_parent();
 }
 
 template <typename T>
@@ -213,9 +207,10 @@ GeometryId GeometryState<T>::RegisterGeometry(
   frames_[frame_id].add_child(geometry_id);
   // TODO(SeanCurtis-TRI): Get name from geometry instance (when available).
   geometries_.emplace(
-      geometry_id, InternalGeometry(geometry->release_shape(), frame_id,
-                                    geometry_id, "no_name", engine_index,
-                                    geometry->get_visual_material()));
+      geometry_id,
+      InternalGeometry(geometry->release_shape(), frame_id, geometry_id,
+                       "no_name", geometry->get_pose(), engine_index,
+                       geometry->get_visual_material()));
   // TODO(SeanCurtis-TRI): I expect my rigid poses are growing at the same
   // rate as in my engine. This seems fragile.
   DRAKE_ASSERT(static_cast<int>(X_FG_.size()) == engine_index);
@@ -250,15 +245,21 @@ GeometryId GeometryState<T>::RegisterGeometryWithParent(
       GetMutableValueOrThrow(geometry_id, &geometries_);
   FrameId frame_id = parent_geometry.get_frame_id();
 
-  // Transform pose relative to geometry, to pose relative to frame.
-  Isometry3<T> X_FG =
-      X_FG_[parent_geometry.get_engine_index()] * geometry->get_pose();
-  geometry->set_pose(X_FG);
-
   // This implicitly confirms that source_id is registered (condition #2) and
   // that frame_id belongs to source_id. By construction, geometry_id must
   // belong to the same source as frame_id, so this tests  condition #3.
   GeometryId new_id = RegisterGeometry(source_id, frame_id, move(geometry));
+
+  // RegisterGeometry stores X_PG into X_FG_ (having assumed that it was the
+  // pose relative to *frame*. This concatenates X_FP with X_PG to get X_FG.
+
+  // Transform pose relative to geometry, to pose relative to frame.
+  const InternalGeometry& new_geometry = geometries_[new_id];
+  Isometry3<T> X_GP = X_FG_[new_geometry.get_engine_index()];
+  Isometry3<T> X_FG =
+      X_FG_[parent_geometry.get_engine_index()] * X_GP;
+  X_FG_[new_geometry.get_engine_index()] = X_FG;
+
   geometries_[new_id].set_parent_id(geometry_id);
   parent_geometry.add_child(new_id);
   return new_id;
@@ -292,7 +293,7 @@ GeometryId GeometryState<T>::RegisterAnchoredGeometry(
       geometry_id,
       InternalAnchoredGeometry(
           geometry->release_shape(), geometry_id, "no name anchored",
-          engine_index, geometry->get_visual_material()));
+          geometry->get_pose(), engine_index, geometry->get_visual_material()));
   return geometry_id;
 }
 
