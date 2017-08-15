@@ -103,7 +103,7 @@ class GeometryStateTest : public ::testing::Test {
 
   // Utility method for adding a source to the state.
   SourceId NewSource(const std::string& name = "") {
-    return geometry_state_.RegisterNewSource(name == "" ? source_name : name);
+    return geometry_state_.RegisterNewSource(name == "" ? kSourceName : name);
   }
 
   // This method sets up a dummy tree to facilitate testing. It creates a single
@@ -190,14 +190,14 @@ class GeometryStateTest : public ::testing::Test {
   // active source identifier. This should only be invoked for scenarios where
   // there is *only* the single source.
   void AssertSingleTreeCleared() {
-    // confirm frames have been closed
+    // Confirms frames have been cleared.
     for (int f = 0; f < kFrameCount; ++f) {
       EXPECT_ERROR_MESSAGE(geometry_state_.BelongsToSource(frames_[f],
                                                            source_id_),
                            std::logic_error,
                            "Referenced frame \\d+ has not been registered.");
     }
-    // confirm geometries have been closed
+    // Confirms geometries have been cleared.
     for (int g = 0; g < kFrameCount * kGeometryCount; ++g) {
       EXPECT_ERROR_MESSAGE(geometry_state_.BelongsToSource(geometries_[g],
                                                            source_id_),
@@ -248,7 +248,7 @@ class GeometryStateTest : public ::testing::Test {
   vector<FrameId> frames_;
   // The geometry ids created in the dummy tree instantiation.
   vector<GeometryId> geometries_;
-  // THe id of the single-source tree.
+  // The id of the single-source tree.
   SourceId source_id_;
 
   // The poses of the frames in the world frame.
@@ -258,7 +258,7 @@ class GeometryStateTest : public ::testing::Test {
   // The poses of the geometries in the parent frame.
   vector<Isometry3<double>> X_FG_;
   // The default source name.
-  const std::string source_name{"default_source"};
+  const std::string kSourceName{"default_source"};
 };
 
 // Confirms that a new GeometryState has no data.
@@ -268,10 +268,10 @@ TEST_F(GeometryStateTest, Constructor) {
   EXPECT_EQ(geometry_state_.get_num_geometries(), 0);
 }
 
-// Confirms the registration of the source with a user-specified name, a default
-// name, and requesting the name for an invalid id. This also folds in looking
-// up source name for invalid id -- because this already implicitly tests
-// successful look up.
+// Confirms semantics of user-specified source name.
+//    - The source name is stored and retrievable,
+//    - duplicate names are detected and considered errors, and
+//    - unrecognized source ids do not produce names.
 TEST_F(GeometryStateTest, SourceRegistrationWithNames) {
   using std::to_string;
 
@@ -282,7 +282,7 @@ TEST_F(GeometryStateTest, SourceRegistrationWithNames) {
   EXPECT_TRUE(geometry_state_.source_is_registered(s_id));
   EXPECT_EQ(geometry_state_.get_source_name(s_id), name);
 
-  // Case: Unique id with duplicate name.
+  // Case: User-specified name duplicates previously registered name.
   EXPECT_ERROR_MESSAGE(
       geometry_state_.RegisterNewSource(name),
       std::logic_error,
@@ -295,8 +295,8 @@ TEST_F(GeometryStateTest, SourceRegistrationWithNames) {
 }
 
 // Tests the geometry statistics values. It uses the single-source tree to
-// create a state with interesting metrics. Also confirms the "is active"-ness
-// of known valid sources and known invalid sources.
+// create a state with interesting metrics. Also confirms the "is registered"
+// -ness of known valid sources and known invalid sources.
 TEST_F(GeometryStateTest, GeometryStatistics) {
   SourceId dummy_source = SetUpSingleSourceTree();
   EXPECT_TRUE(geometry_state_.source_is_registered(dummy_source));
@@ -370,9 +370,9 @@ TEST_F(GeometryStateTest, ValidateSingleSourceTree) {
   {
     const auto& internal_geometries = gs_tester_.get_geometries();
     EXPECT_EQ(internal_geometries.size(), kFrameCount * kGeometryCount);
-    auto test_geometry = [internal_geometries, this, s_id](int i) {
+    for (int i = 0; i < kFrameCount * kGeometryCount; ++i) {
       const auto& geometry = internal_geometries.at(geometries_[i]);
-      EXPECT_EQ(geometry.get_frame_id(), frames_[i / 2]);
+      EXPECT_EQ(geometry.get_frame_id(), frames_[i / kGeometryCount]);
       EXPECT_EQ(geometry.get_id(), geometries_[i]);
       // TODO(SeanCurtis-TRI): Update this when names are being used.
       EXPECT_EQ(geometry.get_name(), "no_name");
@@ -386,9 +386,6 @@ TEST_F(GeometryStateTest, ValidateSingleSourceTree) {
       EXPECT_EQ(
           gs_tester_.get_geometry_index_id_map()[geometry.get_engine_index()],
           geometry.get_id());
-    };
-    for (int i = 0; i < kFrameCount * kGeometryCount; ++i) {
-      test_geometry(i);
     }
   }
 }
@@ -396,14 +393,13 @@ TEST_F(GeometryStateTest, ValidateSingleSourceTree) {
 // Tests that an attempt to add a frame to an invalid source throws an exception
 // with meaningful message.
 TEST_F(GeometryStateTest, AddFrameToInvalidSource) {
-  SourceId s_id = SourceId::get_new_id();  // This is not an active source.
+  SourceId s_id = SourceId::get_new_id();  // This is not a registered source.
   ASSERT_ERROR_MESSAGE(geometry_state_.RegisterFrame(s_id, *frame_.get()),
                        std::logic_error,
                        "Referenced geometry source \\d+ is not registered.");
 }
 
-// Tests that a frame added to a valid source can be used to acquire that source
-// and appears in the source's frames.
+// Tests that a frame added to a valid source appears in the source's frames.
 TEST_F(GeometryStateTest, AddFirstFrameToValidSource) {
   SourceId s_id = NewSource();
   FrameId fid = geometry_state_.RegisterFrame(s_id, *frame_.get());
@@ -566,9 +562,7 @@ TEST_F(GeometryStateTest, RegisterGeometryGoodSource) {
   EXPECT_FALSE(geometry.get_parent_id());
 }
 
-// Tests registration of geometry on valid source and frame. This relies on the
-// correctness of GeometryState::BelongsToSource(GeometryId, SourceId) and
-// GeometryState::GetFrameId(GeometryId) and, therefore, implicitly tests them.
+// Tests registration of geometry on invalid source.
 TEST_F(GeometryStateTest, RegisterGeometryMissingSource) {
   SourceId s_id = SourceId::get_new_id();
   FrameId f_id = FrameId::get_new_id();
@@ -766,7 +760,7 @@ TEST_F(GeometryStateTest, RemoveGeometryRecursiveChild) {
   }
 }
 
-// Tests the response to invalid misuse of RemoveGeometry.
+// Tests the response to invalid use of RemoveGeometry.
 TEST_F(GeometryStateTest, RemoveGeometryInvalid) {
   SourceId s_id = SetUpSingleSourceTree();
 
@@ -962,7 +956,7 @@ TEST_F(GeometryStateTest, GetFrameIdFromBadId) {
 }
 
 // This tests that clearing a source eliminates all of its geometry and frames,
-// leaving the source active.
+// leaving the source registered.
 TEST_F(GeometryStateTest, ClearSourceData) {
   EXPECT_ERROR_MESSAGE(geometry_state_.ClearSource(SourceId::get_new_id()),
                        std::logic_error,
