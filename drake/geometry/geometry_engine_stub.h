@@ -112,8 +112,8 @@ class GeometryEngineStub : public GeometryEngine<T>, public ShapeReifier {
       const std::vector<GeometryId>& anchored_map) const override;
 
   // ShapeReifier interface implementation.
-  void implementGeometry(const Sphere& sphere) override;
-  void implementGeometry(const HalfSpace& half_space) override;
+  void ImplementGeometry(const Sphere& sphere) override;
+  void ImplementGeometry(const HalfSpace& half_space) override;
 
  protected:
   // NVI implementation for cloning GeometryEngine instances.

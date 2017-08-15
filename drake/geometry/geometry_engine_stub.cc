@@ -492,14 +492,14 @@ std::vector<PenetrationAsPointPair<T>> GeometryEngineStub<
 }
 
 template <typename T>
-void GeometryEngineStub<T>::implementGeometry(const Sphere &sphere) {
+void GeometryEngineStub<T>::ImplementGeometry(const Sphere &sphere) {
   stub_shapes::OwnedIndex index(static_cast<int>(owned_geometries_.size()));
   owned_geometries_.emplace_back(std::unique_ptr<EngineSphere<T>>(
       new EngineSphere<T>(index, Vector3<T>::Zero(), sphere.get_radius())));
 }
 
 template <typename T>
-void GeometryEngineStub<T>::implementGeometry(const HalfSpace &half_space) {
+void GeometryEngineStub<T>::ImplementGeometry(const HalfSpace &half_space) {
   stub_shapes::OwnedIndex index(static_cast<int>(owned_geometries_.size()));
   owned_geometries_.emplace_back(make_unique<EngineHalfSpace<T>>(
       index, Vector3<T>{0, 0, 1}, Vector3<T>::Zero()));

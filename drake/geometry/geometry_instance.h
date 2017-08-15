@@ -12,12 +12,11 @@
 namespace drake {
 namespace geometry {
 
-/** A geometry instance combines a geometry _shape_ definition (i.e., a box,
- sphere, etc.), a pose (relative to a parent frame), material information, and
- an opaque collection of metadata.
-
- The parent frame can be a particular GeometryFrame or another GeometryInstance.
- */
+/**
+ A geometry instance combines a geometry definition (i.e., a shape of some
+ sort), a pose (relative to a parent "frame" P), material information, and an
+ opaque collection of metadata. The parent frame can be a registered frame or
+ another registered geometry. */
 class GeometryInstance {
  public:
   DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(GeometryInstance)
@@ -34,8 +33,8 @@ class GeometryInstance {
   GeometryInstance(const Isometry3<double>& X_PG, std::unique_ptr<Shape> shape,
                    const VisualMaterial& vis_material);
 
-  const Isometry3<double>& get_pose() const { return X_FG_; }
-  void set_pose(const Isometry3<double>& X_PG) { X_FG_ = X_PG; }
+  const Isometry3<double>& get_pose() const { return X_PG_; }
+  void set_pose(const Isometry3<double>& X_PG) { X_PG_ = X_PG; }
 
   const Shape& get_shape() const { return *shape_; }
   /** Releases the shape from the instance. */
@@ -44,9 +43,8 @@ class GeometryInstance {
   const VisualMaterial& get_visual_material() const { return visual_material_; }
 
  private:
-  // The pose of the geometry relative to the source frame it ultimately hangs
-  // from.
-  Isometry3<double> X_FG_;
+  // The pose of the geometry relative to the parent frame it hangs on.
+  Isometry3<double> X_PG_;
 
   // The shape associated with this instance.
   copyable_unique_ptr<Shape> shape_;
