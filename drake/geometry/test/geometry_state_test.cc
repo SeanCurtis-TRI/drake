@@ -94,7 +94,7 @@ class GeometryStateTest : public ::testing::Test {
  protected:
   void SetUp() {
     frame_ = make_unique<GeometryFrame>("ref_frame",
-                                                Isometry3<double>::Identity());
+                                        Isometry3<double>::Identity());
     instance_pose_.translation() << 10, 20, 30;
     instance_ = make_unique<GeometryInstance>(
         instance_pose_, unique_ptr<Shape>(new Sphere(1.0)));
@@ -123,11 +123,11 @@ class GeometryStateTest : public ::testing::Test {
   // Frame configuration
   //  f0 is @ <1, 2, 3>, with a 90-degree rotation around x.
   //  f1 is @ <10, 20, 30>, with a 90-degree rotation around y.
-  //  f2 is @ <-10, -20, -30>, with a -90-degree rotation around y
+  //  f2 is @ <-10, -20, -30>, with a -90-degree rotation around y.
   // Geometry configuration
-  //  gi is at position <i + 1, 0, 0>, with a rotation of π/2 radians around
+  //  gi is at position <i + 1, 0, 0>, with a rotation of iπ/2 radians around
   //    the x-axis.
-  // The relationship between f1 and f2 is such that for g2 & g3, the pose
+  // f2's pose is the inverse of f1. As such, for g4 & g5, the pose
   // relative to the parent frame f2 is the same as to the world, e.g.,
   // X_PG = X_WG.
   SourceId SetUpSingleSourceTree() {
@@ -374,6 +374,8 @@ TEST_F(GeometryStateTest, ValidateSingleSourceTree) {
       const auto& geometry = internal_geometries.at(geometries_[i]);
       EXPECT_EQ(geometry.get_frame_id(), frames_[i / kGeometryCount]);
       EXPECT_EQ(geometry.get_id(), geometries_[i]);
+      EXPECT_EQ(geometry.get_child_geometry_ids().size(), 0);
+      EXPECT_FALSE(geometry.get_parent_id());
       // TODO(SeanCurtis-TRI): Update this when names are being used.
       EXPECT_EQ(geometry.get_name(), "no_name");
       EXPECT_EQ(geometry.get_engine_index(), i);
@@ -589,22 +591,20 @@ TEST_F(GeometryStateTest, RegisterNullGeometry) {
   SourceId s_id = NewSource();
   FrameId f_id = geometry_state_.RegisterFrame(s_id, *frame_);
   unique_ptr<GeometryInstance> null_geometry;
-  EXPECT_ERROR_MESSAGE(geometry_state_.RegisterGeometry(s_id, f_id,
-                                                     move(null_geometry)),
-                       std::logic_error,
-                       "Registering null geometry to frame \\d+, on source "
-                       "\\d+.");
+  EXPECT_ERROR_MESSAGE(
+      geometry_state_.RegisterGeometry(s_id, f_id, move(null_geometry)),
+      std::logic_error,
+      "Registering null geometry to frame \\d+, on source \\d+.");
 }
 
 // Tests the logic for hanging a geometry on another geometry. This confirms
 // topology and pose values.
 TEST_F(GeometryStateTest, RegisterGeometryonValidGeometry) {
   SourceId s_id = SetUpSingleSourceTree();
+  const double x = 3;
+  const double y = 2;
+  const double z = 1;
   Isometry3<double> pose = Isometry3<double>::Identity();
-  Isometry3<double> expected_pose = Isometry3<double>::Identity();
-  double x = 3;
-  double y = 2;
-  double z = 1;
   pose.translation() << x, y, z;
   const int parent_index = 0;
   const GeometryId parent_id = geometries_[parent_index];
@@ -615,7 +615,9 @@ TEST_F(GeometryStateTest, RegisterGeometryonValidGeometry) {
       geometry_state_.RegisterGeometryWithParent(s_id,
                                                  parent_id,
                                                  move(instance));
+
   // This relies on the gᵗʰ geometry having position [ g+1 0 0 ]ᵀ.
+  Isometry3<double> expected_pose = Isometry3<double>::Identity();
   expected_pose.translation() << (parent_index + 1) + x, y, z;
   EXPECT_EQ(frame_id,
             geometry_state_.GetFrameId(g_id));
