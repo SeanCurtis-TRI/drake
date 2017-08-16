@@ -187,8 +187,8 @@ class GeometryStateTest : public ::testing::Test {
   }
 
   // This method confirms that the stored dummy identifiers don't map to any
-  // active source identifier. This should only be invoked for scenarios where
-  // there is *only* the single source.
+  // registered source identifier. This should only be invoked for scenarios
+  // where there is *only* the single source.
   void AssertSingleTreeCleared() {
     // Confirms frames have been cleared.
     for (int f = 0; f < kFrameCount; ++f) {
