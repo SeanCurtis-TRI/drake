@@ -87,7 +87,7 @@ class Sphere final : public Shape {
   double radius_{};
 };
 
-/** Definition of a half space. In its canonical frame, the plan defining the
+/** Definition of a half space. In its canonical frame, the plane defining the
  boundary of the half space is that frame's z = 0 plane. By implication, the
  plane's normal points in the +z direction and the origin lies on the plane.
  Other shapes are considered to be penetrating the half space if there exists
@@ -99,13 +99,15 @@ class HalfSpace final : public Shape {
 
   HalfSpace();
 
-  /** Given a plane `normal` and a point `X_FP` on the plane, both expressed in
-   frame F, creates the transform `X_FC` from the half-space's canonical space
-   to frame F.
-   @param normal   A vector perpendicular to the half-space's plane boundary.
-                   Must be a non-zero vector but need not be unit length.
-   @param X_FP     A point lying on the half-space's plane boundary.
-   @retval `X_FC`  The pose of the canonical half-space in frame F.
+  /** Given a plane `normal_F` and a point on the plane `X_FP`, both expressed
+   in frame F, creates the transform `X_FC` from the half-space's canonical
+   space to frame F.
+   @param normal_F  A vector perpendicular to the half-space's plane boundary
+                    expressed in frame F. It must be a non-zero vector but need
+                    not be unit length.
+   @param r_FP      A point lying on the half-space's plane boundary measured
+                    and expressed in frame F.
+   @retval `X_FC`   The pose of the canonical half-space in frame F.
    @throws std::logic_error if the normal is _close_ to a zero-vector (e.g.,
                             ‖normal_F‖₂ < ε). */
   static Isometry3<double> MakePose(const Vector3<double>& normal_F,
@@ -138,6 +140,7 @@ Shape::Shape(S* shape) {
     return std::unique_ptr<Shape>(new S(derived_shape));
   };
   reifier_ = [](const Shape& shape_arg, ShapeReifier* reifier) {
+    DRAKE_DEMAND(typeid(shape_arg) == typeid(S));
     const S& derived_shape = static_cast<const S&>(shape_arg);
     reifier->ImplementGeometry(derived_shape);
   };

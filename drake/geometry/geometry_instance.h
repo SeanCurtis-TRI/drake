@@ -12,8 +12,7 @@
 namespace drake {
 namespace geometry {
 
-/**
- A geometry instance combines a geometry definition (i.e., a shape of some
+/** A geometry instance combines a geometry definition (i.e., a shape of some
  sort), a pose (relative to a parent "frame" P), material information, and an
  opaque collection of metadata. The parent frame can be a registered frame or
  another registered geometry. */

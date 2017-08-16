@@ -92,9 +92,7 @@ drake_cc_library(
     name = "geometry_material",
     srcs = ["geometry_material.cc"],
     hdrs = ["geometry_material.h"],
-    deps = [
-        "//drake/common",
-    ],
+    deps = ["//drake/common"],
 )
 
 drake_cc_library(
@@ -297,6 +295,15 @@ drake_cc_googletest(
 drake_cc_googletest(
     name = "identifier_test",
     deps = [":identifier"],
+)
+
+drake_cc_googletest(
+    name = "shape_specification_test",
+    deps = [
+        ":shape_specification",
+        "//drake/common:eigen_matrix_compare",
+        "//drake/common:is_dynamic_castable",
+    ],
 )
 
 add_lint_tests()

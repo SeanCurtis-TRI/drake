@@ -143,7 +143,7 @@ _LIBDRAKE_COMPONENTS = [
     "//drake/multibody/rigid_body_plant:rigid_body_plant_that_publishes_xdot",
     "//drake/multibody:rigid_body_tree",
     "//drake/multibody:rigid_body_tree_construction",
-    "//drake/multibody/rigid_contact:rigid_contact",
+    "//drake/multibody/constraint:constraint",
     "//drake/multibody/shapes:shapes",
     "//drake/solvers:binding",
     "//drake/solvers:constraint",
@@ -299,7 +299,6 @@ install(
     targets = ["libdrake.so"],
     hdr_dest = "include/drake",
     guess_hdrs = "WORKSPACE",
-    deps = ["//drake/bindings:install"],
 )
 
 # Gather all of libdrake.so's dependent headers.
