@@ -367,7 +367,7 @@ class GeometryWorld {
                             registered frames, or includes frame ids that were
                             not registered with the associated source. */
   void SetFramePoses(GeometryContext<T>* context,
-                     const FrameIdVector& ids, const FramePoseSet<T>& poses);
+                     const FrameIdVector& ids, const FramePoseVector<T>& poses);
 
   /**
    Sets the velocities of the frames from the given velocity data. It is
@@ -395,7 +395,7 @@ class GeometryWorld {
                             not registered with the associated source. */
   void SetFrameVelocities(GeometryContext<T>* context,
                           const FrameIdVector& ids,
-                          const FrameVelocitySet<T>& velocities);
+                          const FrameVelocityVector<T>& velocities);
 
   /** @} */
 

@@ -83,10 +83,12 @@ class BouncingBallPlant : public systems::LeafSystem<T> {
                          BouncingBallVector<T>* state_output_vector) const;
 
   // Allocate the frame pose set output port value.
-  geometry::FramePoseSet<T> AllocateFramePoseOutput(const MyContext& context) const;
+  geometry::FramePoseVector<T> AllocateFramePoseOutput(
+      const MyContext& context) const;
+
   // Calculate the frame pose set output port value.
   void CalcFramePoseOutput(const MyContext& context,
-                            geometry::FramePoseSet<T>* pose_set) const;
+                            geometry::FramePoseVector<T>* pose_set) const;
 
   // Allocate the id output.
   geometry::FrameIdVector AllocateFrameIdOutput(const MyContext& context) const;

@@ -20,15 +20,16 @@ namespace geometry {
 
 /** Represents an _ordered_ set of frame identifiers. Instances of this class
  work in conjunction with instances of FramePoseSet and FrameVelocitySet
- to communicate frame kinematics to GeometryWorld and GeometrySystem. Taken in
- aggregate, the represent a "struct-of-arrays" paradigm. The iᵗʰ value in the
- %FrameIdVector represents the frame identifier whose position is specified by
+ to communicate frame kinematics to GeometryWorld and GeometrySystem. Considered
+ together, they represent a "struct-of-arrays" paradigm. The iᵗʰ value in the
+ %FrameIdVector is the frame identifier whose position is specified by
  the iᵗʰ value in the corresponding FramePoseVector (and analogously for the
  FrameVelocityVector).
 
- The order of the frame ids can be arbitrary. However, the geometry source is
- required to include *all* frame ids that have been registered with its source
- identifier. Omitting a registered frame id is considered an error.
+ The geometry source can use arbitrary logic to define the _order_ of the ids.
+ However, all frames registered by the source must be included. Omitting a
+ registered frame id is considered an error (and will cause an exception
+ when GeometryWorld/GeometrySystem evaluates the data.
 
  @internal In future iterations, this will be relaxed to allow only
  communicating kinematics for frames that have _changed_. But in the initial
@@ -40,14 +41,14 @@ class FrameIdVector {
 
   typedef std::vector<FrameId>::const_iterator Iterator;
 
-  /** Empty constructor.
+  /** Constructor for an _empty_ id vector.
    @param source_id   The id for the geometry source reporting frame kinematics.
    */
   explicit FrameIdVector(SourceId source_id);
 
-  /** Constructor which initializes the frame ids by _copying_ the given set.
-   In Debug builds, the input ids will be tested for duplicates; an exception is
-   thrown if duplicates are found.
+  /** Constructor which initializes the frame ids by _copying_ the given `ids`.
+   In Debug builds, the input `ids` will be tested for duplicates; an exception
+   is thrown if duplicates are found.
    @param source_id   The id for the geometry source reporting frame kinematics.
    @param ids         The vector of ids which are copied into this vector.
    @throws std::logic_error (in Debug) if any of the ids are duplicated. */
@@ -79,18 +80,6 @@ class FrameIdVector {
                             resultant set. */
   int AddFrameIds(const std::vector<FrameId>& ids);
 
-  /** Removes the given frame identifier from the set, reporting its former
-   position in the vector. This is an O(N) operation on the average because the
-   subsequent frames will be moved to maintain a compact representation.
-   @param frame_id  The frame identifier to remove.
-   @return The position of the frame id was previously occupying.
-   @throws std::logic_error if the given identifier is not present in the set.
-   */
-  int RemoveFrameId(FrameId frame_id);
-
-  /** Simply removes the frame id at position 'index'. */
-  void RemoveFrameIdByIndex(int index);
-
   /** @name  Support for range-based loop iteration */
   //@{
 
@@ -109,11 +98,13 @@ class FrameIdVector {
 
   // The id of the reporting geometry source.
   SourceId source_id_;
+
   // A mapping from frame_id to its index value. For N frames, the map should
   // span the range [0, N-1]. For a given frame id (f_id), the following should
   // hold:
   //   f_id == index_id_map_[id_index_map_[f_id]];
   std::unordered_map<FrameId, int> id_index_map_;
+
   // A mapping from index to frame id.
   std::vector<FrameId> index_id_map_;
 };

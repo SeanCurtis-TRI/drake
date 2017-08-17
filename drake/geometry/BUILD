@@ -12,7 +12,10 @@ package(default_visibility = ["//visibility:public"])
 
 drake_cc_library(
     name = "frame_kinematics",
-    srcs = ["frame_id_vector.cc"],
+    srcs = [
+        "frame_id_vector.cc",
+        "frame_kinematics_vector.cc",
+    ],
     hdrs = [
         "frame_id_vector.h",
         "frame_kinematics_vector.h",

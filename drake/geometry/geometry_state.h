@@ -325,7 +325,7 @@ class GeometryState {
    @param ids   The ids of the frames whose poses are being set.
    @param poses The frame pose values.
    @throws std::logic_error  if the poses don't "match" the ids. */
-  void SetFramePoses(const FrameIdVector& ids, const FramePoseSet<T>& poses);
+  void SetFramePoses(const FrameIdVector& ids, const FramePoseVector<T>& poses);
 
   /** Sets the kinematic velocities for the frames indicated by the given ids.
    This method assumes that the `ids` have already been validated by
@@ -334,7 +334,7 @@ class GeometryState {
    @param velocities The frame velocity values.
    @throws std::logic_error  if the velocities don't "match" the ids.  */
   void SetFrameVelocities(const FrameIdVector& ids,
-                          const FrameVelocitySet<T>& velocities);
+                          const FrameVelocityVector<T>& velocities);
 
   /** Method that performs any final book-keeping/updating on the state after
    _all_ of the stat's frames have had their poses updated. */
@@ -361,7 +361,7 @@ class GeometryState {
    @throws  std::logic_error if the two data sets don't have matching source ids
                              or matching size. */
   void ValidateFramePoses(const FrameIdVector& ids,
-                          const FramePoseSet<T>& poses) const;
+                          const FramePoseVector<T>& poses) const;
 
   /** Confirms that the velocity data is consistent with the set of ids.
    @param ids       The id set to test against.
@@ -369,7 +369,7 @@ class GeometryState {
    @throws  std::logic_error if the two data sets don't have matching source ids
                              or matching size. */
   void ValidateFrameVelocities(const FrameIdVector& ids,
-                               const FrameVelocitySet<T>& velocities) const;
+                               const FrameVelocityVector<T>& velocities) const;
 
   /** Informs the state that all kinematics data has been set (via calls to
    SetFrameKinematics()). Allows the state to update internal bookkeeping. */
@@ -494,7 +494,7 @@ class GeometryState {
   void UpdatePosesRecursively(const internal::InternalFrame& frame,
                               const Isometry3<T>& X_WP,
                               const FrameIdVector& ids,
-                              const FramePoseSet<T>& poses);
+                              const FramePoseVector<T>& poses);
 
   // Recursively updates the frame and geometry _velocity_ values for the tree
   // rooted at the given frame, whose parent's pose and velocity in the world
@@ -503,7 +503,7 @@ class GeometryState {
   void UpdateVelocitiesRecursively(const internal::InternalFrame& frame,
                                    const Isometry3<T>& X_WP,
                                    const FrameIdVector& ids,
-                                   const FrameVelocitySet<T>& poses) {
+                                   const FrameVelocityVector<T>& poses) {
     // TODO(SeanCurtis-TRI): THe interface on this needs to change. I need the
     // parent velocity as well.
     unused(frame);

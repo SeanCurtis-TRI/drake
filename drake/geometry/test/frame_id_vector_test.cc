@@ -23,10 +23,8 @@ GTEST_TEST(FrameIdVector, ConstructorSuccess) {
   EXPECT_EQ(ids1.size(), 0);
 
   // Case: Copy from vector.
-  vector<FrameId> frames{FrameId::get_new_id(),
-                         FrameId::get_new_id(),
-                         FrameId::get_new_id(),
-                         FrameId::get_new_id()};
+  vector<FrameId> frames{FrameId::get_new_id(), FrameId::get_new_id(),
+                         FrameId::get_new_id(), FrameId::get_new_id()};
   const int frame_count = static_cast<int>(frames.size());
   FrameIdVector ids2(source_id, frames);
   EXPECT_EQ(ids2.get_source_id(), source_id);
@@ -39,10 +37,8 @@ GTEST_TEST(FrameIdVector, ConstructorSuccess) {
 
 // Tests the range iterators.
 GTEST_TEST(FrameIdVector, RangeIteration) {
-  vector<FrameId> frames{FrameId::get_new_id(),
-                         FrameId::get_new_id(),
-                         FrameId::get_new_id(),
-                         FrameId::get_new_id()};
+  vector<FrameId> frames{FrameId::get_new_id(), FrameId::get_new_id(),
+                         FrameId::get_new_id(), FrameId::get_new_id()};
   FrameIdVector ids(SourceId::get_new_id(), frames);
   int i = 0;
   for (auto id : ids) {
@@ -53,10 +49,8 @@ GTEST_TEST(FrameIdVector, RangeIteration) {
 // Tests conditions where input vector of ids contain duplicates.
 GTEST_TEST(FrameIdVector, ConstructorWithDuplicates) {
   SourceId source_id = SourceId::get_new_id();
-  vector<FrameId> frames{FrameId::get_new_id(),
-                         FrameId::get_new_id(),
-                         FrameId::get_new_id(),
-                         FrameId::get_new_id()};
+  vector<FrameId> frames{FrameId::get_new_id(), FrameId::get_new_id(),
+                         FrameId::get_new_id(), FrameId::get_new_id()};
   frames.push_back(frames[0]);
 
   // Case: Construct by copying frames.
@@ -92,21 +86,16 @@ GTEST_TEST(FrameIdVector, AddingFramesSingle) {
   EXPECT_EQ(ids.get_frame_id(1), f1);
 
   // Case: Add single to non-empty (not unique).
-  EXPECT_ERROR_MESSAGE_IF_ARMED(ids.AddFrameId(f0),
-                                std::logic_error,
+  EXPECT_ERROR_MESSAGE_IF_ARMED(ids.AddFrameId(f0), std::logic_error,
                                 "Id vector already contains frame id: \\d+.");
 }
 
 // Tests the functionality for adding multiple frames to the set.
 GTEST_TEST(FrameIdVector, AddingFramesMultiple) {
-  vector<FrameId> unique1{FrameId::get_new_id(),
-                          FrameId::get_new_id(),
-                          FrameId::get_new_id(),
-                          FrameId::get_new_id()};
-  vector<FrameId> unique2{FrameId::get_new_id(),
-                          FrameId::get_new_id(),
-                          FrameId::get_new_id(),
-                          FrameId::get_new_id()};
+  vector<FrameId> unique1{FrameId::get_new_id(), FrameId::get_new_id(),
+                          FrameId::get_new_id(), FrameId::get_new_id()};
+  vector<FrameId> unique2{FrameId::get_new_id(), FrameId::get_new_id(),
+                          FrameId::get_new_id(), FrameId::get_new_id()};
   vector<FrameId> duplicate{unique1[0]};
   FrameIdVector ids(SourceId::get_new_id());
   // Do *not* re-order these tests; the logic depends on the sequence.
@@ -134,60 +123,23 @@ GTEST_TEST(FrameIdVector, AddingFramesMultiple) {
   }
 
   // Case: Add multiple to non-empty (non-unique result).
-  EXPECT_ERROR_MESSAGE_IF_ARMED(ids.AddFrameIds(duplicate),
-                                std::logic_error,
+  EXPECT_ERROR_MESSAGE_IF_ARMED(ids.AddFrameIds(duplicate), std::logic_error,
                                 "The frame id vector contains duplicate frame "
                                 "ids, including, at least, \\d+.");
 }
 
 // Tests the functionality that tries to report the index of the desired frame.
 GTEST_TEST(FrameIdVector, FrameLookup) {
-  vector<FrameId> frames{FrameId::get_new_id(),
-                         FrameId::get_new_id(),
-                         FrameId::get_new_id(),
-                         FrameId::get_new_id()};
+  vector<FrameId> frames{FrameId::get_new_id(), FrameId::get_new_id(),
+                         FrameId::get_new_id(), FrameId::get_new_id()};
   FrameIdVector ids(SourceId::get_new_id(), frames);
   int index = -1;
   int expected_index = 2;
   EXPECT_NO_THROW(index = ids.GetIndex(frames[expected_index]));
   EXPECT_EQ(index, expected_index);
 
-  EXPECT_ERROR_MESSAGE(ids.GetIndex(FrameId::get_new_id()),
-                       std::logic_error,
+  EXPECT_ERROR_MESSAGE(ids.GetIndex(FrameId::get_new_id()), std::logic_error,
                        "The given frame id \\(\\d+\\) is not in the set.");
-}
-
-// Tests frame removal from the set.
-GTEST_TEST(FrameIdVector, RemoveFrames) {
-  vector<FrameId> frames{FrameId::get_new_id(),
-                         FrameId::get_new_id(),
-                         FrameId::get_new_id(),
-                         FrameId::get_new_id()};
-  FrameIdVector ids(SourceId::get_new_id(), frames);
-  const int target_index = 1;
-  FrameId removed = frames[target_index];
-  frames.erase(frames.begin() + target_index);
-
-  // Case remove frame via valid frame identifier.
-  int report_index = -1;
-  EXPECT_NO_THROW(report_index = ids.RemoveFrameId(removed));
-  EXPECT_EQ(report_index, target_index);
-  EXPECT_EQ(ids.size(), static_cast<int>(frames.size()));
-  for (int i = 0; i < ids.size(); ++i) {
-    EXPECT_EQ(ids.get_frame_id(i), frames[i]);
-  }
-
-  // Case: remove invalid frame id.
-  EXPECT_ERROR_MESSAGE(ids.RemoveFrameId(FrameId::get_new_id()),
-                       std::logic_error,
-                       "Cannot remove frame identifier \\d+. "
-                       "It does not belong to the set.");
-
-  frames.erase(frames.begin());
-  EXPECT_NO_THROW(ids.RemoveFrameIdByIndex(0));
-  for (int i = 0; i < ids.size(); ++i) {
-    EXPECT_EQ(ids.get_frame_id(i), frames[i]);
-  }
 }
 
 }  // namespace

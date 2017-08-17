@@ -18,7 +18,7 @@ namespace bouncing_ball {
 
 using geometry::PenetrationAsPointPair;
 using geometry::FrameIdVector;
-using geometry::FramePoseSet;
+using geometry::FramePoseVector;
 using geometry::GeometryFrame;
 using geometry::GeometryInstance;
 using geometry::GeometrySystem;
@@ -102,22 +102,22 @@ void BouncingBallPlant<T>::CopyStateToOutput(
 }
 
 template <typename T>
-FramePoseSet<T> BouncingBallPlant<T>::AllocateFramePoseOutput(
+FramePoseVector<T> BouncingBallPlant<T>::AllocateFramePoseOutput(
     const Context<T>&) const {
-  FramePoseSet<T> poses(source_id_);
-  poses.AddValue(Isometry3<T>::Identity());
+  FramePoseVector<T> poses(source_id_);
+  poses.push_back(Isometry3<T>::Identity());
   return poses;
 }
 
 template <typename T>
 void BouncingBallPlant<T>::CalcFramePoseOutput(
-    const Context<T>& context, FramePoseSet<T>* pose_set) const {
+    const Context<T>& context, FramePoseVector<T>* pose_set) const {
   const BouncingBallVector<T>& state = get_state(context);
-  Isometry3<T> pose = Isometry3<T>::Identity();
-  pose.translation() << init_position_(0), init_position_(1), state.z();
-  FramePoseSet<T> poses(source_id_);
-  poses.AddValue(pose);
-  *pose_set = poses;
+  DRAKE_ASSERT(pose_set->size() == 1);
+  FramePoseVector<T>& pose_set_ref = *pose_set;
+  // This assumes *no* rotation, we only need to update the translation.
+  pose_set_ref[0].translation() << init_position_(0), init_position_(1),
+      state.z();
 }
 
 template <typename T>

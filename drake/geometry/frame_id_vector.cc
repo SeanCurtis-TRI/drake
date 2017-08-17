@@ -11,9 +11,8 @@ using std::vector;
 
 FrameIdVector::FrameIdVector(SourceId source_id) : source_id_(source_id) {}
 
-FrameIdVector::FrameIdVector(SourceId source_id,
-                             const vector<FrameId>& ids) :
-    source_id_(source_id) {
+FrameIdVector::FrameIdVector(SourceId source_id, const vector<FrameId>& ids)
+    : source_id_(source_id) {
   AddFrameIds(ids);
 }
 
@@ -44,26 +43,6 @@ int FrameIdVector::AddFrameIds(const vector<FrameId>& ids) {
     id_index_map_[id] = start_index++;
   }
   return start_index;
-}
-
-int FrameIdVector::RemoveFrameId(FrameId frame_id) {
-  auto itr = id_index_map_.find(frame_id);
-  if (itr != id_index_map_.end()) {
-    int i = itr->second;
-    index_id_map_.erase(index_id_map_.begin() + i);
-    id_index_map_.erase(itr);
-    return i;
-  }
-  using std::to_string;
-  throw std::logic_error("Cannot remove frame identifier " +
-                         to_string(frame_id) +
-                         ". It does not belong to the set.");
-}
-
-void FrameIdVector::RemoveFrameIdByIndex(int index) {
-  auto itr = index_id_map_.erase(index_id_map_.begin() + index);
-  FrameId f_id = *itr;
-  id_index_map_.erase(f_id);
 }
 
 void FrameIdVector::ThrowIfContains(const std::vector<FrameId>& frame_ids) {

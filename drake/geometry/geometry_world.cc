@@ -115,14 +115,14 @@ void GeometryWorld<T>::RemoveGeometry(GeometryContext<T>* context,
 template <typename T>
 void GeometryWorld<T>::SetFramePoses(GeometryContext<T>* context,
                                      const FrameIdVector& ids,
-                                     const FramePoseSet<T>& poses) {
+                                     const FramePoseVector<T>& poses) {
   context->get_mutable_geometry_state().SetFramePoses(ids, poses);
 }
 
 template <typename T>
 void GeometryWorld<T>::SetFrameVelocities(
     GeometryContext<T>* context, const FrameIdVector& ids,
-    const FrameVelocitySet<T>& velocities) {
+    const FrameVelocityVector<T>& velocities) {
   context->get_mutable_geometry_state().SetFrameVelocities(ids, velocities);
 }
 

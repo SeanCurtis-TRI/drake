@@ -1,5 +1,4 @@
 #include <memory>
-
 #include <utility>
 
 #include "drake/examples/geometry_world/bouncing_ball_plant.h"

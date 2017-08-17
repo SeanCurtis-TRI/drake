@@ -358,20 +358,20 @@ class GeometrySourceSystem : public systems::LeafSystem<double> {
   void CalcFrameIdOutput(const Context<double> &context,
                                                FrameIdVector *) const {}
   // Frame pose output allocation.
-  FramePoseSet<double> AllocateFramePoseOutput(
+  FramePoseVector<double> AllocateFramePoseOutput(
   const Context<double>& context) const {
-    FramePoseSet<double> poses(source_id_);
+    FramePoseVector<double> poses(source_id_);
     for (size_t i = 0; i < frame_ids_.size(); ++i) {
-      poses.AddValue(Isometry3<double>::Identity());
+      poses.push_back(Isometry3<double>::Identity());
     }
     for (const auto& extra_pose : extra_poses_) {
-      poses.AddValue(extra_pose);
+      poses.push_back(extra_pose);
     }
     return poses;
   }
   // For test purposes, no changes are required.
-  void CalcFramePoseOutput(
-      const Context<double>& context, FramePoseSet<double>* pose_set) const {}
+  void CalcFramePoseOutput(const Context<double>& context,
+                           FramePoseVector<double>* pose_set) const {}
 
   GeometrySystem<double>* geometry_system_{nullptr};
   SourceId source_id_;
@@ -517,14 +517,14 @@ class DummySourceSystem : public systems::LeafSystem<double> {
   void CalcFrameIdOutput(const Context<double> &context,
                          FrameIdVector*) const {}
   // Frame pose output allocation.
-  FramePoseSet<double> AllocateFramePoseOutput(
+  FramePoseVector<double> AllocateFramePoseOutput(
       const Context<double>& context) const {
-    return FramePoseSet<double> (source_id_, {pose_});
+    return FramePoseVector<double> (source_id_, {pose_});
   }
   // For test purposes, no changes are required.
   void CalcFramePoseOutput(
-      const Context<double>& context, FramePoseSet<double>* pose_set) const {
-    *pose_set = FramePoseSet<double> (source_id_, {pose_});
+      const Context<double>& context, FramePoseVector<double>* pose_set) const {
+    *pose_set = FramePoseVector<double> (source_id_, {pose_});
   }
 
   SourceId source_id_;

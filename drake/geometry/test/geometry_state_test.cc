@@ -1076,16 +1076,22 @@ TEST_F(GeometryStateTest, ValidateFrameIdVector) {
                        " and the given number of frames \\(\\d+\\).");
 
   // Case: Right number, wrong frames.
-  frame_set.RemoveFrameIdByIndex(0);
-  EXPECT_ERROR_MESSAGE(geometry_state_.ValidateFrameIds(frame_set),
+  FrameIdVector frame_set_2(s_id);
+  for (size_t i = 0; i < frames_.size(); ++i) {
+    frame_set_2.AddFrameId(FrameId::get_new_id());
+  }
+  EXPECT_ERROR_MESSAGE(geometry_state_.ValidateFrameIds(frame_set_2),
                        std::logic_error,
                        "Frame id provided in kinematics data \\(\\d+\\) does "
                        "not belong to the source \\(\\d+\\). At least one "
                        "required frame id is also missing.");
 
   // Case: Too few frames.
-  frame_set.RemoveFrameIdByIndex(0);
-  EXPECT_ERROR_MESSAGE(geometry_state_.ValidateFrameIds(frame_set),
+  FrameIdVector frame_set_3(s_id);
+  for (size_t i = 0; i < frames_.size() - 1; ++i) {
+    frame_set_3.AddFrameId(frames_[i]);
+  }
+  EXPECT_ERROR_MESSAGE(geometry_state_.ValidateFrameIds(frame_set_3),
                        std::logic_error,
                        "Disagreement in expected number of frames \\(\\d+\\)"
                        " and the given number of frames \\(\\d+\\).");
@@ -1102,26 +1108,26 @@ TEST_F(GeometryStateTest, ValidateFramePoses) {
   }
 
   // Case: validated.
-  FramePoseSet<double> pose_set(s_id, poses);
+  FramePoseVector<double> pose_set(s_id, poses);
   EXPECT_NO_THROW(geometry_state_.ValidateFramePoses(frame_set, pose_set));
 
   // Case: Too many pose values.
-  pose_set.AddValue(Isometry3<double>::Identity());
+  pose_set.push_back(Isometry3<double>::Identity());
   EXPECT_ERROR_MESSAGE(
       geometry_state_.ValidateFramePoses(frame_set, pose_set),
       std::logic_error,
       "Different number of ids and poses. \\d+ ids and \\d+ poses.");
 
   // Case: Too few pose values.
-  pose_set.RemoveByIndex(pose_set.size() - 1);
-  pose_set.RemoveByIndex(pose_set.size() - 1);
+  pose_set.pop_back();
+  pose_set.pop_back();
   EXPECT_ERROR_MESSAGE(
       geometry_state_.ValidateFramePoses(frame_set, pose_set),
       std::logic_error,
       "Different number of ids and poses. \\d+ ids and \\d+ poses.");
 
   // Case: mis-matched source ids.
-  FramePoseSet<double> pose_set2(SourceId::get_new_id(), poses);
+  FramePoseVector<double> pose_set2(SourceId::get_new_id(), poses);
   EXPECT_ERROR_MESSAGE(geometry_state_.ValidateFramePoses(frame_set, pose_set2),
                        std::logic_error,
                        "Error setting poses for given ids; the ids and poses "
@@ -1140,27 +1146,27 @@ TEST_F(GeometryStateTest, ValidateFrameVelocities) {
   }
 
   // Case: validated.
-  FrameVelocitySet<double> velocity_set(s_id, velocities);
+  FrameVelocityVector<double> velocity_set(s_id, velocities);
   EXPECT_NO_THROW(geometry_state_.ValidateFrameVelocities(frame_set,
                                                           velocity_set));
 
   // Case: Too many velocity values.
-  velocity_set.AddValue(SpatialVelocity<double>());
+  velocity_set.push_back(SpatialVelocity<double>());
   EXPECT_ERROR_MESSAGE(
       geometry_state_.ValidateFrameVelocities(frame_set, velocity_set),
       std::logic_error,
       "Different number of ids and velocities. \\d+ ids and \\d+ velocities.");
 
   // Case: Too few pose values.
-  velocity_set.RemoveByIndex(velocity_set.size() - 1);
-  velocity_set.RemoveByIndex(velocity_set.size() - 1);
+  velocity_set.pop_back();
+  velocity_set.pop_back();
   EXPECT_ERROR_MESSAGE(
       geometry_state_.ValidateFrameVelocities(frame_set, velocity_set),
       std::logic_error,
       "Different number of ids and velocities. \\d+ ids and \\d+ velocities.");
 
   // Case: mis-matched source ids.
-  FrameVelocitySet<double> velocity_set2(SourceId::get_new_id(), velocities);
+  FrameVelocityVector<double> velocity_set2(SourceId::get_new_id(), velocities);
   EXPECT_ERROR_MESSAGE(
       geometry_state_.ValidateFrameVelocities(frame_set, velocity_set2),
       std::logic_error,
@@ -1187,7 +1193,7 @@ TEST_F(GeometryStateTest, SetFramePoses) {
 
   // Case 1: Set all frames to identity poses. The world pose of all the
   // geometry should be that of the geometry in its frame.
-  FramePoseSet<double> poses1(s_id, frame_poses);
+  FramePoseVector<double> poses1(s_id, frame_poses);
   geometry_state_.SetFramePoses(ids, poses1);
   const auto& world_poses = gs_tester_.get_geometry_world_poses();
   for (int i = 0; i < kFrameCount * kGeometryCount; ++i) {
@@ -1202,7 +1208,7 @@ TEST_F(GeometryStateTest, SetFramePoses) {
   offset.translation() << 0, 1, 0;
   frame_poses[0] = offset;
   frame_poses[1] = offset;
-  FramePoseSet<double> poses2(s_id, frame_poses);
+  FramePoseVector<double> poses2(s_id, frame_poses);
   geometry_state_.SetFramePoses(ids, poses2);
   for (int i = 0; i < kFrameCount * kGeometryCount; ++i) {
     EXPECT_TRUE(
@@ -1213,7 +1219,7 @@ TEST_F(GeometryStateTest, SetFramePoses) {
   // Case 3: All frames get set to move up one unit. This will leave geometries
   // 0, 1, 2, & 3 moved up 1, and geometries 4 & 5 moved up two.
   frame_poses[2] = offset;
-  FramePoseSet<double> poses3(s_id, frame_poses);
+  FramePoseVector<double> poses3(s_id, frame_poses);
   geometry_state_.SetFramePoses(ids, poses3);
   for (int i = 0; i < (kFrameCount - 1) * kGeometryCount; ++i) {
     EXPECT_TRUE(
@@ -1234,9 +1240,9 @@ TEST_F(GeometryStateTest, SetFramePoses) {
 TEST_F(GeometryStateTest, SetFrameVelocities) {
   SourceId s_id = SetUpSingleSourceTree();
   FrameIdVector ids(s_id, frames_);
-  FrameVelocitySet<double> velocities(s_id);
+  FrameVelocityVector<double> velocities(s_id);
   for (size_t i = 0; i < frames_.size(); ++i) {
-    velocities.AddValue(SpatialVelocity<double>());
+    velocities.push_back(SpatialVelocity<double>());
   }
   EXPECT_ERROR_MESSAGE(geometry_state_.SetFrameVelocities(ids, velocities),
                        std::runtime_error,

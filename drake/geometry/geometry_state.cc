@@ -371,7 +371,7 @@ const FrameIdSet& GeometryState<T>::GetFramesForSource(
 
 template <typename T>
 void GeometryState<T>::SetFramePoses(const FrameIdVector& ids,
-                                    const FramePoseSet<T>& poses) {
+                                    const FramePoseVector<T>& poses) {
   ValidateFramePoses(ids, poses);
   const Isometry3<T> world_pose = Isometry3<T>::Identity();
   for (auto frame_id : source_root_frame_map_[ids.get_source_id()]) {
@@ -381,7 +381,7 @@ void GeometryState<T>::SetFramePoses(const FrameIdVector& ids,
 
 template <typename T>
 void GeometryState<T>::SetFrameVelocities(
-    const FrameIdVector& ids, const FrameVelocitySet<T>& velocities) {
+    const FrameIdVector& ids, const FrameVelocityVector<T>& velocities) {
   ValidateFrameVelocities(ids, velocities);
   const Isometry3<T> world_pose = Isometry3<T>::Identity();
   for (auto frame_id : source_root_frame_map_[ids.get_source_id()]) {
@@ -413,15 +413,15 @@ void GeometryState<T>::ValidateFrameIds(const FrameIdVector& ids) const {
 }
 
 template <typename T>
-void GeometryState<T>::ValidateFramePoses(const FrameIdVector& ids,
-                                          const FramePoseSet<T>& poses) const {
+void GeometryState<T>::ValidateFramePoses(
+    const FrameIdVector& ids, const FramePoseVector<T>& poses) const {
   if (ids.get_source_id() != poses.get_source_id()) {
     throw std::logic_error(
         "Error setting poses for given ids; the ids and poses belong to "
         "different geometry sources (" + to_string(ids.get_source_id()) +
         " and " + to_string(poses.get_source_id()) + ", respectively).");
   }
-  if (ids.size() != poses.size()) {
+  if (ids.size() != static_cast<int>(poses.size())) {
     throw std::logic_error("Different number of ids and poses. " +
         to_string(ids.size()) + " ids and " + to_string(poses.size()) +
         " poses.");
@@ -430,14 +430,14 @@ void GeometryState<T>::ValidateFramePoses(const FrameIdVector& ids,
 
 template <typename T>
 void GeometryState<T>::ValidateFrameVelocities(
-    const FrameIdVector& ids, const FrameVelocitySet<T>& velocities) const {
+    const FrameIdVector& ids, const FrameVelocityVector<T>& velocities) const {
   if (ids.get_source_id() != velocities.get_source_id()) {
     throw std::logic_error(
         "Error setting velocities for given ids; the ids and velocities belong "
         "to different geometry sources (" + to_string(ids.get_source_id()) +
         " and " + to_string(velocities.get_source_id()) + ", respectively).");
   }
-  if (ids.size() != velocities.size()) {
+  if (ids.size() != static_cast<int>(velocities.size())) {
     throw std::logic_error("Different number of ids and velocities. " +
         to_string(ids.size()) + " ids and " + to_string(velocities.size()) +
         " velocities.");
@@ -583,10 +583,10 @@ void GeometryState<T>::RemoveAnchoredGeometryUnchecked(GeometryId geometry_id) {
 template <typename T>
 void GeometryState<T>::UpdatePosesRecursively(
     const internal::InternalFrame& frame, const Isometry3<T>& X_WP,
-    const FrameIdVector& ids, const FramePoseSet<T>& poses) {
+    const FrameIdVector& ids, const FramePoseVector<T>& poses) {
   const auto frame_id = frame.get_id();
   int index = ids.GetIndex(frame_id);
-  const auto& X_PF = poses.get_value(index);
+  const auto& X_PF = poses.at(index);
   X_PF_[frame.get_pose_index()] = X_PF;  // Also cache this transform.
   Isometry3<T> X_WF = X_WP * X_PF;
 

@@ -258,18 +258,20 @@ const GeometryContext<T>& GeometrySystem<T>::FullPoseUpdate(
       const auto itr = input_source_ids_.find(source_id);
       DRAKE_ASSERT(itr != input_source_ids_.end());
       const int id_port = itr->second.id_port;
-      auto id_port_value = this->template EvalAbstractInput(g_context, id_port);
+      const auto id_port_value =
+          this->template EvalAbstractInput(g_context, id_port);
       if (id_port_value) {
         const FrameIdVector& ids =
             id_port_value->template GetValue<FrameIdVector>();
-        // TODO(SeanCurtis-TRI): Consider only doing this in debug builds.
+        // TODO(SeanCurtis-TRI): In future versions consider moving this to
+        // a DRAKE_ASSERT_VOID execution.
         state.ValidateFrameIds(ids);
         const int pose_port = itr->second.pose_port;
-        auto pose_port_value =
+        const auto pose_port_value =
             this->template EvalAbstractInput(g_context, pose_port);
         if (pose_port_value) {
-          const FramePoseSet<T>& poses =
-              pose_port_value->template GetValue<FramePoseSet<T>>();
+          const auto& poses =
+              pose_port_value->template GetValue<FramePoseVector<T>>();
           mutable_state.SetFramePoses(ids, poses);
         } else {
           throw std::logic_error(
@@ -332,10 +334,10 @@ size_t GeometrySystem<T>::CalcInputHash(
       auto pose_port_value =
           this->template EvalAbstractInput(context, pose_port);
       if (pose_port_value) {
-        const FramePoseSet<T>& poses =
-            pose_port_value->template GetValue<FramePoseSet<T>>();
-        for (int i = 0; i < poses.size(); ++i) {
-          const Isometry3<T>& pose = poses.get_value(i);
+        const FramePoseVector<T>& poses =
+            pose_port_value->template GetValue<FramePoseVector<T>>();
+        for (int i = 0; i < static_cast<int>(poses.size()); ++i) {
+          const Isometry3<T>& pose = poses.at(i);
           // Naive hashing to serve in as a stopgap.
           guard ^= HashIsometry(pose);
         }

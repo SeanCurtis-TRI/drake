@@ -11,94 +11,84 @@
 namespace drake {
 namespace geometry {
 
-/** A class representing an ordered collection of kinematics values. The values
- can ultimately be of different types (e.g., pose, velocity, etc.). This single
- class allows all of them to use the same functionality, but still be declared
- on the appropriately typed class to represent the kinematic quantity. This
- won't be invoked directly by other code. Instead, the aliased instantiations
- of FramePoseVector and FrameVelocityVector.
- @tparam KinematicsValue     The representation of the kinematics value. */
+/** A FrameKinematicsVector is a std::vector associated with a geometry source.
+ As such, it is constructed with a SourceId but has all std::vector operations
+ available to it. This class serves as the basis of FramePoseVector,
+ FrameVelocityVector, and FrameAccelerationVector.
+
+ When computing frame kinematics values for updating the state of GeometryWorld/
+ GeometrySystem, we recommend making full use of the std::vector functionality,
+ e.g.,
+
+   - Reserving space for the known number of frame ids (e.g.,
+     `pose_vector.reserve(n);`).
+   - Making use of `emplace_back()` or writing directly to mutable references
+     via `pose_vector[i] = KinematicsValue()`.
+
+ @tparam KinematicsValue  The underlying data type of for the order of
+                          kinematics data (e.g., pose, velocity, or
+                          acceleration).
+
+ Instantiated templates for the following kinds of kinematics values are
+ provided:
+ - Isometry3 (for poses),
+ - SpatialVelocity (for velocities),
+ - SpatialAcceleration (for accelerations).
+
+ They are already available to link against in the containing library. No other
+ values for KinematicsValue are supported. */
 template <class KinematicsValue>
-class FrameKinematicsVector {
+class FrameKinematicsVector : public std::vector<KinematicsValue> {
  public:
   DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(FrameKinematicsVector)
 
-  typedef typename std::vector<KinematicsValue>::const_iterator Iterator;
+  /** Constructs an empty vector. */
+  explicit FrameKinematicsVector(SourceId source_id);
 
-  /** Empty constructor.
-   @param source_id   The id for the geometry source reporting frame kinematics.
-   */
-  explicit FrameKinematicsVector(SourceId source_id) : source_id_(source_id) {}
-
-  /** Constructor which initializes the values by _copying_ the given data.
-   @param source_id   The id for the geometry source reporting frame kinematics.
-   @param data        The vector of values which are copied into this vector. */
+  /** Copy constructs from a std::vector of KinematicsValue type. */
   FrameKinematicsVector(SourceId source_id,
-                        const std::vector<KinematicsValue>& data)
-      : source_id_(source_id), data_(data) {}
+                        const std::vector<KinematicsValue>& values);
 
-  /** Constructor which initializes the values by _moving_ them from the
-   given set.
-   @param source_id   The id for the geometry source reporting frame kinematics.
-   @param data        The vector of values which are moved into this vector. */
+  /** Move constructs from a std::vector of KinematicsValue type. */
   FrameKinematicsVector(SourceId source_id,
-                        std::vector<KinematicsValue>&& data)
-  : source_id_(source_id), data_(std::move(data)) {}
+                        std::vector<KinematicsValue>&& values);
 
-  /** Reports the source id for this data. */
   SourceId get_source_id() const { return source_id_; }
 
-  /** Report the number of values stored in the set. */
-  int size() const { return static_cast<int>(data_.size()); }
-
-  /** Returns the iᵗʰ value */
-  const KinematicsValue& get_value(int i) const { return data_.at(i); }
-
-  /** Appends the given kinematics value to the set.
-   * @param value    The kinematics value to add.
-   * @return The total number of values in the set. */
-  int AddValue(const KinematicsValue& value) {
-    data_.push_back(value);
-    return this->size();
-  }
-
-  /** Appends the given set of kinematics values to the set.
-   @param values  The ordered set of values to append to the current set. */
-  int AddValues(const std::vector<KinematicsValue>& values) {
-    data_.insert(data_.begin(), values.begin(), values.end());
-    return this->size();
-  }
-
-  // TODO(SeanCurtis-TRI): I believe I need "set" methods; minimize copying/
-  // writing of pose values. This may ultimately depend on how things integrate
-  // with the cache.
-
-  /** Simply removes the value at position 'index'. */
-  void RemoveByIndex(int index) {
-    data_.erase(data_.begin() + index);
-  }
-
-  /** @name  Support for range-based loop iteration */
-  //@{
-
-  Iterator begin() const { return data_.cbegin(); }
-  Iterator end() const { return data_.cend(); }
-
-  // @}
-
  private:
-  // The id of the reporting geometry source.
+  // The source id this data is associated with.
   SourceId source_id_;
-  // The ordered set of moving frame kinematics values.
-  std::vector<KinematicsValue> data_;
 };
 
-template <typename T>
-using FramePoseSet = FrameKinematicsVector<Isometry3<T>>;
+/** Class for communicating ordered _pose_ information to GeometryWorld/
+ GeometrySystem for registered frames.
 
+ @tparam T The scalar type. Must be a valid Eigen scalar.
+
+ Instantiated templates for the following kinds of T's are provided:
+ - double
+
+ They are already available to link against in the containing library.
+ No other values for T are currently supported.
+ */
 template <typename T>
-using FrameVelocitySet =
-    FrameKinematicsVector<drake::multibody::SpatialVelocity<T>>;
+using FramePoseVector = FrameKinematicsVector<Isometry3<T>>;
+
+
+/** Class for communicating ordered _velocity_ information to GeometryWorld/
+ GeometrySystem for registered frames.
+
+ @tparam T The scalar type. Must be a valid Eigen scalar.
+
+ Instantiated templates for the following kinds of T's are provided:
+ - double
+
+ They are already available to link against in the containing library.
+ No other values for T are currently supported.
+ */
+template <typename T>
+using FrameVelocityVector =
+    FrameKinematicsVector<drake::multibody::SpatialVelocity<double>>;
 
 }  // namespace geometry
 }  // namespace drake
