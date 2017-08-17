@@ -5,11 +5,13 @@
 #include <unordered_set>
 #include <utility>
 
+#include "drake/common/copyable_unique_ptr.h"
 #include "drake/common/drake_copyable.h"
 #include "drake/common/drake_optional.h"
 #include "drake/geometry/geometry_ids.h"
 #include "drake/geometry/geometry_index.h"
 #include "drake/geometry/geometry_material.h"
+#include "drake/geometry/shape_specification.h"
 
 namespace drake {
 namespace geometry {
@@ -24,8 +26,8 @@ class InternalGeometryBase {
  public:
   DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(InternalGeometryBase)
 
-  /** Default constructor. The geometry id will be invalid, and the shape will
-   be nullptr. */
+  /** Default constructor. The geometry id will be invalid, the shape will
+   be nullptr, and the pose will be uninitialized. */
   InternalGeometryBase() {}
 
   /** Default material, full constructor.
@@ -40,7 +42,9 @@ class InternalGeometryBase {
       : shape_spec_(std::move(shape)),
         id_(geometry_id),
         name_(name),
+        X_PG_(X_PG),
         engine_index_(engine_index) {}
+
 
   /** Full constructor.
    @param shape         The shape specification for this instance.
@@ -111,9 +115,9 @@ class InternalGeometry : public InternalGeometryBase<GeometryIndex> {
  public:
   DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(InternalGeometry)
 
-  /** Default constructor. The parent identifier and pose index will be
-   invalid. */
-  InternalGeometry() : InternalGeometryBase() {}
+  /** Default constructor. The parent and frame id will be invalid as well as
+   the state documented in InternalGeometryBase(). */
+  InternalGeometry();
 
   /** Default material, full constructor.
    @param shape         The shape specification for this instance.
@@ -127,11 +131,7 @@ class InternalGeometry : public InternalGeometryBase<GeometryIndex> {
   InternalGeometry(std::unique_ptr<Shape> shape, FrameId frame_id,
                    GeometryId geometry_id, const std::string& name,
                    const Isometry3<double>& X_PG, GeometryIndex engine_index,
-                   const optional<GeometryId>& parent_id = {})
-      : InternalGeometryBase(std::move(shape), geometry_id, name, X_PG,
-                             engine_index),
-        frame_id_(frame_id),
-        parent_id_(parent_id) {}
+                   const optional<GeometryId>& parent_id = {});
 
   /** Full constructor.
    @param shape         The shape specification for this instance.
@@ -147,11 +147,7 @@ class InternalGeometry : public InternalGeometryBase<GeometryIndex> {
                    GeometryId geometry_id, const std::string& name,
                    const Isometry3<double>& X_PG, GeometryIndex engine_index,
                    const VisualMaterial& vis_material,
-                   const optional<GeometryId>& parent_id = {})
-      : InternalGeometryBase(std::move(shape), geometry_id, name, X_PG,
-                             engine_index, vis_material),
-        frame_id_(frame_id),
-        parent_id_(parent_id) {}
+                   const optional<GeometryId>& parent_id = {});
 
   FrameId get_frame_id() const { return frame_id_; }
   optional<GeometryId> get_parent_id() const { return parent_id_; }
@@ -213,9 +209,9 @@ class InternalAnchoredGeometry
  public:
   DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(InternalAnchoredGeometry)
 
-  /** Default constructor. The parent identifier and pose index will be
-   invalid. */
-  InternalAnchoredGeometry() : InternalGeometryBase() {}
+  /** Default constructor. State will be as documented in
+   InternalGeometryBase(). */
+  InternalAnchoredGeometry();
 
   /** Default material, full constructor.
    @param shape         The shape specification for this instance.
@@ -226,9 +222,7 @@ class InternalAnchoredGeometry
   InternalAnchoredGeometry(std::unique_ptr<Shape> shape, GeometryId geometry_id,
                            const std::string& name,
                            const Isometry3<double> X_WG,
-                           AnchoredGeometryIndex engine_index)
-      : InternalGeometryBase(std::move(shape), geometry_id, name, X_WG,
-                             engine_index) {}
+                           AnchoredGeometryIndex engine_index);
 
   /** Full constructor.
    @param shape         The shape specification for this instance.
@@ -241,9 +235,7 @@ class InternalAnchoredGeometry
                            const std::string& name,
                            const Isometry3<double> X_WG,
                            AnchoredGeometryIndex engine_index,
-                           const VisualMaterial& vis_material)
-      : InternalGeometryBase(std::move(shape), geometry_id, name, X_WG,
-                             engine_index, vis_material) {}
+                           const VisualMaterial& vis_material);
 };
 
 }  // namespace internal

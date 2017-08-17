@@ -45,18 +45,18 @@ class GeometryFrame {
   int get_frame_group() const { return frame_group_; }
 
  private:
-  /** The name of the frame. Must be unique across frames from the same
-   geometry source. */
+  // The name of the frame. Must be unique across frames from the same geometry
+  // source.
   std::string name_;
 
-  /** The initial pose of frame F, measured and expressed in the parent frame P.
-   */
+  // The initial pose of frame F, measured and expressed in the parent frame P.
   Isometry3<double> X_PF_;
 
   // TODO(SeanCurtis-TRI): Consider whether this should be an Identifier or
   // TypeSafeIndex type.
-  /** The frame group to which this frame belongs. */
+  // The frame group to which this frame belongs.
   int frame_group_;
 };
+
 }  // namespace geometry
 }  // namespace drake

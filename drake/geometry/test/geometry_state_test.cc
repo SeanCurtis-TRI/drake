@@ -161,9 +161,9 @@ class GeometryStateTest : public ::testing::Test {
     X_PF_.push_back(pose);
 
     // Add geometries to each frame.
+    const Vector3<double> x_axis(1, 0, 0);
     geometries_.resize(kFrameCount * kGeometryCount);
     int g_count = 0;
-    const Vector3<double> x_axis(1, 0, 0);
     for (auto frame_id : frames_) {
       for (int i = 0; i < kGeometryCount; ++i) {
         pose.translation() << g_count + 1, 0, 0;
@@ -210,8 +210,9 @@ class GeometryStateTest : public ::testing::Test {
     EXPECT_EQ(gs_tester_.get_source_root_frame_map().size(), 1);
     EXPECT_EQ(gs_tester_.get_frames().size(), 0);
     EXPECT_EQ(gs_tester_.get_geometries().size(), 0);
-    // TODO(SeanCurtis-TRI): After poses are removed/re-ordered confirm that the
-    // poses have been removed.
+    EXPECT_EQ(gs_tester_.get_geometry_frame_poses().size(), 0);
+    EXPECT_EQ(gs_tester_.get_frame_parent_poses().size(), 0);
+    EXPECT_EQ(gs_tester_.get_geometry_world_poses().size(), 0);
   }
 
   // Utility function for facilitating tests; confirms that the identified
@@ -228,8 +229,6 @@ class GeometryStateTest : public ::testing::Test {
     // Frame not in frames
     EXPECT_EQ(gs_tester_.get_frames().find(frame_id),
               gs_tester_.get_frames().end());
-    // TODO(SeanCurtis-TRI): After removing and reordering frame and geometry
-    // poses, check for a reduction in pose counts.
   }
 
   // Members owned by the test class.
@@ -381,15 +380,27 @@ TEST_F(GeometryStateTest, ValidateSingleSourceTree) {
       EXPECT_EQ(geometry.get_engine_index(), i);
       EXPECT_EQ(geometry.get_child_geometry_ids().size(), 0);
       EXPECT_FALSE(geometry.get_parent_id());
-      const auto& geo_in_frame = gs_tester_.get_geometry_frame_poses();
-      EXPECT_TRUE(
-          CompareMatrices(geo_in_frame[geometry.get_engine_index()].matrix(),
-                          X_FG_[i].matrix()));
+
+      // Note: There are no geometries parented to other geometries. The results
+      // of GetPoseInFrame() and GetPoseInParent() must be the identical (as
+      // the documentation for GeometryState::GetPoseInParent() indicates).
+      EXPECT_TRUE(CompareMatrices(
+          geometry_state_.GetPoseInFrame(geometry.get_id()).matrix(),
+          X_FG_[i].matrix()));
+      EXPECT_TRUE(CompareMatrices(
+          geometry_state_.GetPoseInParent(geometry.get_id()).matrix(),
+          X_FG_[i].matrix()));
+
       EXPECT_EQ(
           gs_tester_.get_geometry_index_id_map()[geometry.get_engine_index()],
           geometry.get_id());
     }
   }
+  EXPECT_EQ(gs_tester_.get_geometry_frame_poses().size(),
+            kFrameCount * kGeometryCount);
+  EXPECT_EQ(gs_tester_.get_geometry_world_poses().size(),
+            kFrameCount * kGeometryCount);
+  EXPECT_EQ(gs_tester_.get_frame_parent_poses().size(), kFrameCount);
 }
 
 // Tests that an attempt to add a frame to an invalid source throws an exception
@@ -475,12 +486,14 @@ TEST_F(GeometryStateTest, RemoveFrame) {
   SourceId s_id = SetUpSingleSourceTree();
   EXPECT_EQ(geometry_state_.get_num_frames(), kFrameCount);
   EXPECT_EQ(geometry_state_.get_num_geometries(), kFrameCount * kGeometryCount);
+
   geometry_state_.RemoveFrame(s_id, frames_[0]);
+
   EXPECT_EQ(geometry_state_.get_num_frames(), kFrameCount - 1);
   EXPECT_EQ(geometry_state_.get_num_geometries(),
             (kFrameCount -1)* kGeometryCount);
-
   ExpectSourceDoesNotHaveFrame(s_id, frames_[0]);
+  EXPECT_EQ(gs_tester_.get_frame_parent_poses().size(), frames_.size() - 1);
 }
 
 // Tests the frame iterator, confirming that it iterates through all frames.
@@ -499,12 +512,17 @@ TEST_F(GeometryStateTest, FrameIdIterator) {
 TEST_F(GeometryStateTest, RemoveFrameTree) {
   SourceId s_id = SetUpSingleSourceTree();
   FrameId fid = geometry_state_.RegisterFrame(s_id, frames_[0], *frame_);
+  EXPECT_EQ(gs_tester_.get_frame_parent_poses().size(), frames_.size() + 1);
   EXPECT_EQ(geometry_state_.get_num_frames(), kFrameCount + 1);
-  geometry_state_.RemoveFrame(s_id, frames_[0]);
-  EXPECT_EQ(geometry_state_.get_num_frames(), kFrameCount - 1);
 
+  geometry_state_.RemoveFrame(s_id, frames_[0]);
+
+  EXPECT_EQ(geometry_state_.get_num_frames(), kFrameCount - 1);
   ExpectSourceDoesNotHaveFrame(s_id, frames_[0]);
   ExpectSourceDoesNotHaveFrame(s_id, fid);
+  // We've deleted a newly added frame and a default frame, the total number of
+  // frame poses should be original - 1.
+  EXPECT_EQ(gs_tester_.get_frame_parent_poses().size(), frames_.size() - 1);
 }
 
 // Tests the removal of a frame whose parent is *not* the world frame.
@@ -513,10 +531,16 @@ TEST_F(GeometryStateTest, RemoveFrameLeaf) {
   FrameId fid = geometry_state_.RegisterFrame(s_id, frames_[0], *frame_.get());
   EXPECT_EQ(geometry_state_.get_num_frames(), kFrameCount + 1);
   EXPECT_TRUE(gs_tester_.get_frames().at(frames_[0]).has_child(fid));
+  EXPECT_EQ(gs_tester_.get_frame_parent_poses().size(), frames_.size() + 1);
+
   geometry_state_.RemoveFrame(s_id, fid);
+
   EXPECT_EQ(geometry_state_.get_num_frames(), kFrameCount);
   ExpectSourceDoesNotHaveFrame(s_id, fid);
   EXPECT_FALSE(gs_tester_.get_frames().at(frames_[0]).has_child(fid));
+  // We deleted the frame we just added. We should be back to the original
+  // number of frame poses.
+  EXPECT_EQ(gs_tester_.get_frame_parent_poses().size(), frames_.size());
 }
 
 // Tests the response to invalid invocations of RemoveFrame.
@@ -616,15 +640,16 @@ TEST_F(GeometryStateTest, RegisterGeometryonValidGeometry) {
                                                  parent_id,
                                                  move(instance));
 
-  // This relies on the gᵗʰ geometry having position [ g+1 0 0 ]ᵀ.
-  Isometry3<double> expected_pose = Isometry3<double>::Identity();
-  expected_pose.translation() << (parent_index + 1) + x, y, z;
-  EXPECT_EQ(frame_id,
-            geometry_state_.GetFrameId(g_id));
-  // TODO(SeanCurtis-TRI): Test that the pose of the registered geometry,
-  // collapsed down to the common frame, *is* the expected pose.
+  // This relies on the gᵗʰ geometry having position [ g+1 0 0 ]ᵀ. The parent
+  // geometry is at [parent_index + 1, 0, 0] and this is at [3, 2, 1]. They
+  // simply sum up. The parent has *no* rotation so the resultant transform is
+  // simply the sum of the translation vectors.
+  Isometry3<double> expected_pose_in_frame = Isometry3<double>::Identity();
+  expected_pose_in_frame.translation() << (parent_index + 1) + x, y, z;
+  EXPECT_EQ(frame_id, geometry_state_.GetFrameId(g_id));
+
   Isometry3<double> X_FG = geometry_state_.GetPoseInFrame(g_id);
-  EXPECT_TRUE(CompareMatrices(X_FG.matrix(), expected_pose.matrix(),
+  EXPECT_TRUE(CompareMatrices(X_FG.matrix(), expected_pose_in_frame.matrix(),
                   1e-14, MatrixCompareType::absolute));
   Isometry3<double> X_PG = geometry_state_.GetPoseInParent(g_id);
   EXPECT_TRUE(CompareMatrices(X_PG.matrix(), pose.matrix(),
@@ -665,35 +690,54 @@ TEST_F(GeometryStateTest, RegisterNullGeometryonGeometry) {
 // Tests the RemoveGeometry functionality.
 TEST_F(GeometryStateTest, RemoveGeometry) {
   SourceId s_id = SetUpSingleSourceTree();
-  // The geometry to remove, and the frame to which it belongs.
+  // The geometry to remove, its parent frame, and its engine index.
   GeometryId g_id = geometries_[0];
   FrameId f_id = frames_[0];
+  auto engine_index = gs_tester_.get_geometries().at(g_id).get_engine_index();
   // Confirm that the first geometry belongs to the first frame.
   ASSERT_EQ(geometry_state_.GetFrameId(g_id), f_id);
   EXPECT_EQ(geometry_state_.get_num_geometries(), kFrameCount * kGeometryCount);
+  EXPECT_TRUE(CompareMatrices(
+      gs_tester_.get_geometry_frame_poses().at(engine_index).matrix(),
+      X_FG_[0].matrix()));
+
   geometry_state_.RemoveGeometry(s_id, g_id);
+
   EXPECT_EQ(geometry_state_.get_num_geometries(),
             kFrameCount * kGeometryCount - 1);
+  EXPECT_EQ(gs_tester_.get_geometry_world_poses().size(),
+            geometries_.size() - 1);
+  EXPECT_EQ(gs_tester_.get_geometry_frame_poses().size(),
+            geometries_.size() - 1);
 
   EXPECT_FALSE(gs_tester_.get_frames().at(f_id).has_child(g_id));
   EXPECT_EQ(gs_tester_.get_geometries().find(g_id),
             gs_tester_.get_geometries().end());
+
   // Based on the logic of the geometry engine stub, the last geometry id should
-  // now be the first.
+  // now be the first. Also, values that are keyed on the engine index should
+  // also have moved, e.g., X_FG_. Technically also X_WG_
   GeometryId last_geometry_id = geometries_[geometries_.size() - 1];
   const auto& last_geometry =
       gs_tester_.get_geometries().at(last_geometry_id);
   EXPECT_EQ(last_geometry.get_engine_index(), 0);
   EXPECT_EQ(gs_tester_.get_geometry_index_id_map()[0], last_geometry_id);
+
+  // The pose in *frame* should also have moved.
+  EXPECT_TRUE(CompareMatrices(
+      gs_tester_.get_geometry_frame_poses().at(engine_index).matrix(),
+      X_FG_.back().matrix()));
 }
 
 // Tests the RemoveGeometry functionality in which the geometry removed has
 // geometry children.
-TEST_F(GeometryStateTest, RemoveGeometryRecursiveParent) {
+TEST_F(GeometryStateTest, RemoveGeometryTree) {
   SourceId s_id = SetUpSingleSourceTree();
-  // The geometry to remove, and the frame to which it belongs.
+  // The geometry to remove, its parent frame, and its engine index.
   GeometryId root_id = geometries_[0];
   FrameId f_id = frames_[0];
+  auto engine_index =
+      gs_tester_.get_geometries().at(root_id).get_engine_index();
   // Confirm that the first geometry belongs to the first frame.
   ASSERT_EQ(geometry_state_.GetFrameId(root_id), f_id);
   // Hang geometry from the first geometry.
@@ -710,6 +754,10 @@ TEST_F(GeometryStateTest, RemoveGeometryRecursiveParent) {
   geometry_state_.RemoveGeometry(s_id, root_id);
   EXPECT_EQ(geometry_state_.get_num_geometries(),
             kFrameCount * kGeometryCount - 1);
+  EXPECT_EQ(gs_tester_.get_geometry_world_poses().size(),
+            geometries_.size() - 1);
+  EXPECT_EQ(gs_tester_.get_geometry_frame_poses().size(),
+            geometries_.size() - 1);
 
   const auto& frame = gs_tester_.get_frames().at(f_id);
   EXPECT_FALSE(frame.has_child(root_id));
@@ -718,18 +766,30 @@ TEST_F(GeometryStateTest, RemoveGeometryRecursiveParent) {
             gs_tester_.get_geometries().end());
   EXPECT_EQ(gs_tester_.get_geometries().find(g_id),
             gs_tester_.get_geometries().end());
-  // Based on the logic of the geometry engine stub, the last geometry id should
-  // now be the first. The deleted child geometry was already last.
+
+  // The place-holder geometry engine moves geometries around to maintain a
+  // compact distribution of engine indices. It moves the last geometry into the
+  // newly cleared slot. GeometryState's RemoveGeometry algorithm does a bottom-
+  // up recursive removal. So, the leaf and then the parent gets deleted. In
+  // this case, the leaf (as the most recently added geometry) already has the
+  // largest engine index (it is last) and simply gets truncated. The parent
+  // however, has engine index 0. So, when it is removed, the current last
+  // geometry is moved into its slot -- that would be the last geometry added
+  // in SetUpSingleSourceTree(). So, check for correct engine index rewiring
+  // and correct X_FG_ value.
   GeometryId last_geometry_id = geometries_[geometries_.size() - 1];
   const auto& last_geometry =
       gs_tester_.get_geometries().at(last_geometry_id);
   EXPECT_EQ(last_geometry.get_engine_index(), 0);
   EXPECT_EQ(gs_tester_.get_geometry_index_id_map()[0], last_geometry_id);
+  EXPECT_TRUE(CompareMatrices(
+      gs_tester_.get_geometry_frame_poses().at(engine_index).matrix(),
+      X_FG_.back().matrix()));
 }
 
 // Tests the RemoveGeometry functionality in which the geometry is a child of
 // another geometry.
-TEST_F(GeometryStateTest, RemoveGeometryRecursiveChild) {
+TEST_F(GeometryStateTest, RemoveChildLeaf) {
   SourceId s_id = SetUpSingleSourceTree();
   // The geometry parent and frame to which it belongs.
   GeometryId parent_id = geometries_[0];
@@ -746,8 +806,11 @@ TEST_F(GeometryStateTest, RemoveGeometryRecursiveChild) {
   EXPECT_EQ(geometry_state_.GetFrameId(g_id), frame_id);
 
   geometry_state_.RemoveGeometry(s_id, g_id);
+
   EXPECT_EQ(geometry_state_.get_num_geometries(),
             kFrameCount * kGeometryCount);
+  EXPECT_EQ(gs_tester_.get_geometry_world_poses().size(), geometries_.size());
+  EXPECT_EQ(gs_tester_.get_geometry_frame_poses().size(), geometries_.size());
   EXPECT_EQ(geometry_state_.GetFrameId(parent_id), frame_id);
 
   EXPECT_FALSE(gs_tester_.get_frames().at(frame_id).has_child(g_id));

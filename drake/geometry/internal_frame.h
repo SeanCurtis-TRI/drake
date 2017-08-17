@@ -25,7 +25,7 @@ class InternalFrame {
 
   /** Default constructor. The parent identifier and pose index will be
    invalid. */
-  InternalFrame() {}
+  InternalFrame();
 
   /** Full constructor.
    @param source_id     The identifier of the source this belongs to.
@@ -37,31 +37,22 @@ class InternalFrame {
    @param parent_id     The id of the parent frame.
    */
   InternalFrame(SourceId source_id, FrameId frame_id, const std::string &name,
-                int frame_group, PoseIndex pose_index, FrameId parent_id) :
-      source_id_(source_id),
-      id_(frame_id),
-      name_(name),
-      frame_group_(frame_group),
-      pose_index_(pose_index),
-      parent_id_(parent_id) {}
+                int frame_group, PoseIndex pose_index, FrameId parent_id);
 
   /** Compares two %InternalFrame instances for "equality". Two internal frames
    are considered equal if they have the same frame identifier. */
-  bool operator==(const InternalFrame &other) const {
-    return id_ == other.id_;
-  }
+  bool operator==(const InternalFrame &other) const;
 
   /** Compares two %InternalFrame instances for inequality. See operator==()
    for the definition of equality. */
-  bool operator!=(const InternalFrame &other) const {
-    return !(*this == other);
-  }
+  bool operator!=(const InternalFrame &other) const;
 
   SourceId get_source_id() const { return source_id_; }
   FrameId get_id() const { return id_; }
   const std::string &get_name() const { return name_; }
   int get_frame_group() const { return frame_group_; }
   PoseIndex get_pose_index() const { return pose_index_; }
+  void set_pose_index(PoseIndex index) { pose_index_ = index; }
 
   /** Returns true if this frame is the child of the identified frame. */
   bool has_parent(FrameId parent) const { return parent_id_ == parent; }
@@ -143,7 +134,7 @@ class InternalFrame {
   // The identifiers of the frames, who have this frame as parent.
   std::unordered_set<FrameId> child_frames_;
 
-  // The identifiers of the geometries that are rigidly affixed to this frame.
+  // The identifiers for the geometries that are rigidly affixed to this frame.
   // This includes geometries that were hung directly on the frame and those
   // that were hung on geometries that were already rigidly affixed.
   // It does *not* include geometries hung on child frames.

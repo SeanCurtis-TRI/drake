@@ -571,22 +571,37 @@ class GeometryState {
   // _not_ the time-dependent frame kinematics.
   std::vector<Isometry3<double>> X_FG_;
 
+  // This *implicitly* maps each extant pose index to tis corresponding unique
+  // frame identifier. It assumes that the index in the vector *is* the pose
+  // index stored in the InternalFrame.
+  // It should be invariant that:
+  //  frames_.size() == pose_index_to_frame_map_.size();
+  //  pose_index_to_frame_map_.size() == biggest_index(frames_) + 1
+  //    i.e. the largest pose index associated with frames_ is the last valid
+  //    index of this vector.
+  std::vector<FrameId> pose_index_to_frame_map_;
+
   // ---------------------------------------------------------------------
   // These values depend on time-dependent input values (e.g., current frame
-  // poses.
+  // poses).
 
-  // TODO(SeanCurtis-TRI): This is currently conceptual. Ultimately, this needs
-  //  to appear in both the context (as an input) and the cache (as an output).
-  //  the discrete callback should allow me to swap a successful cache update
-  //  to the context for the next step.
+  // TODO(SeanCurtis-TRI): These values are place holders. Ultimately, they
+  // will live in the cache. Furthermore, they will be broken up by source
+  // so that inputs can be pulled independently. This work will be done when
+  // the cache PR lands. For now, they are big blobs of memory.
+
   // Map from the frame id to the *current* pose of the frame it identifies, F,
-  // relative to its parent frame, P: X_PF, where X_PF is measured and expressed
+  // relative to its parent frame, P: X_PF.
   std::vector<Isometry3<T>> X_PF_;
 
-  // The pose of each geometry relative to the *world* frame. The invariant
-  // X_FG_.size() == X_WG_.size() should always be true. This vector contains
-  // the values from the last update invocation and is the write target of the
-  // next invocation to update.
+  // The pose of each geometry relative to the *world* frame.
+  // X_FG_.size() == X_WG_.size() is an invariant. Furthermore, after
+  // a complete state update from input poses,
+  //   X_WG_[i] == X_WFₙ X_FₙFₙ₋₁ ... X_F₁F₀ X_FG_[i]
+  // Where F₀ is the parent frame of geometry i, Fₖ₊₁ is the parent frame of
+  // frame Fₖ, and the world frame W is the parent of frame Fₙ.
+  // In other words, it is the full evaluation of the kinematic chain from the
+  // geometry to the world frame.
   std::vector<Isometry3<T>> X_WG_;
 
   // The underlying geometry engine. The topology of the engine does *not*

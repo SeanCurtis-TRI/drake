@@ -181,13 +181,15 @@ drake_cc_library(
 
 drake_cc_library(
     name = "internal_geometry",
-    srcs = [],
+    srcs = ["internal_geometry.cc"],
     hdrs = ["internal_geometry.h"],
     deps = [
         ":geometry_ids",
         ":geometry_index",
         ":geometry_material",
+        ":shape_specification",
         "//drake/common",
+        "//drake/common:copyable_unique_ptr",
     ],
 )
 

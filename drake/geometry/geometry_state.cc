@@ -172,6 +172,8 @@ FrameId GeometryState<T>::RegisterFrame(SourceId source_id, FrameId parent_id,
   }
   PoseIndex pose_index(X_PF_.size());
   X_PF_.emplace_back(frame.get_pose());
+  DRAKE_ASSERT(pose_index == static_cast<int>(pose_index_to_frame_map_.size()));
+  pose_index_to_frame_map_.push_back(frame_id);
   f_set.insert(frame_id);
   frames_.emplace(
       frame_id, InternalFrame(source_id, frame_id, frame.get_name(),
@@ -251,7 +253,8 @@ GeometryId GeometryState<T>::RegisterGeometryWithParent(
   GeometryId new_id = RegisterGeometry(source_id, frame_id, move(geometry));
 
   // RegisterGeometry stores X_PG into X_FG_ (having assumed that it was the
-  // pose relative to *frame*. This concatenates X_FP with X_PG to get X_FG.
+  // parent was a frame). This replaces the stored X_PG value with the
+  // semantically correct value X_FG by concatenating X_FP with X_PG.
 
   // Transform pose relative to geometry, to pose relative to frame.
   const InternalGeometry& new_geometry = geometries_[new_id];
@@ -489,9 +492,21 @@ void GeometryState<T>::RemoveFrameUnchecked(FrameId frame_id,
     RemoveGeometryUnchecked(child_id, RemoveGeometryOrigin::kFrame);
   }
 
-  // TODO(SeanCurtis-TRI): Remove the pose should, ideally, coalesce the
-  // memory. This is place holder for that act.
-  X_PF_[frame.get_pose_index()].setIdentity();
+  // Don't leave holes in the pose vectors. Grab the last pose and move it to
+  // the newly freed up index. This is not *strictly* necessary because changes
+  // to the topology should require these values to be recomputed from input
+  // values. But this guarantees consistent behavior for use with GeometryWorld.
+  auto pose_index = frame.get_pose_index();
+  PoseIndex last_index(static_cast<int>(X_PF_.size()) - 1);
+  if (pose_index < last_index) {
+    // NOTE: we are not obliged to copy the value from last_index to pose_index.
+    // This is a computed value that will live in the cache. Changing the
+    // topology will dirty the cache so it will be recomputed before being
+    // provided next.
+    FrameId moved_id = pose_index_to_frame_map_[last_index];
+    frames_[moved_id].set_pose_index(pose_index);
+  }
+  X_PF_.pop_back();
 
   if (caller == RemoveFrameOrigin::kFrame) {
     // Only the root needs to explicitly remove itself from a possible parent
@@ -532,8 +547,21 @@ void GeometryState<T>::RemoveGeometryUnchecked(GeometryId geometry_id,
     // Update the state's knowledge of this.
     GeometryId moved_id = geometry_index_id_map_[*moved_index];
     geometries_[moved_id].set_engine_index(engine_index);
+
     geometry_index_id_map_[engine_index] = moved_id;
+
+    X_FG_[engine_index] = X_FG_[*moved_index];
   }
+  // Trim the vectors for these removed geometries.
+  X_FG_.pop_back();
+  // NOTE: we are not obliged to copy the value from moved_index to
+  // pose_index. This is a computed value that will live in the cache.
+  // Changing the topology will dirty the cache so it will be recomputed
+  // before being provided next.
+  X_WG_.pop_back();
+
+  // Always pop the last; we assume that either the geometry removed is already
+  // the last, or has been swapped into the last.
   geometry_index_id_map_.pop_back();
 
   if (caller == RemoveGeometryOrigin::kGeometry) {
