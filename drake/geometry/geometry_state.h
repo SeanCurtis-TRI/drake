@@ -478,11 +478,13 @@ class GeometryState {
   //    frame and, if it exists, its parent geometry.
   //   - RemoveGeometryUnchecked(): This is the recursive call; it's parent
   //    is already slated for removal, so parent references can be left alone.
+  // @throws std::logic_error if `geometry_id` is not in `geometries_`.
   void RemoveGeometryUnchecked(GeometryId geometry_id,
                                RemoveGeometryOrigin caller);
 
   // Removes anchored geometry indicated by the id. No checking of source is
   // required.
+  // @throws std::logic_error if `geometry_id` is not in `anchored_geometries_`.
   void RemoveAnchoredGeometryUnchecked(GeometryId geometry_id);
 
   // Recursively updates the frame and geometry _pose_ information for the tree
