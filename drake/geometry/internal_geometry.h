@@ -115,7 +115,7 @@ class InternalGeometry : public InternalGeometryBase<GeometryIndex> {
  public:
   DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(InternalGeometry)
 
-  /** Default constructor. The parent and frame id will be invalid as well as
+  /** Default constructor. The parent and frame ids will be invalid as well as
    the state documented in InternalGeometryBase(). */
   InternalGeometry();
 

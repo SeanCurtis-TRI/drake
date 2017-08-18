@@ -210,8 +210,8 @@ GeometryId GeometryState<T>::RegisterGeometry(
       InternalGeometry(geometry->release_shape(), frame_id, geometry_id,
                        "no_name", geometry->get_pose(), engine_index,
                        geometry->get_visual_material()));
-  // TODO(SeanCurtis-TRI): I expect my rigid poses are growing at the same
-  // rate as in my engine. This seems fragile.
+  // TODO(SeanCurtis-TRI): Enforcing the invariant that the indexes are
+  // compactly distributed. Is there a more robust way to do this?
   DRAKE_ASSERT(static_cast<int>(X_FG_.size()) == engine_index);
   DRAKE_ASSERT(static_cast<int>(geometry_index_id_map_.size()) - 1 ==
                engine_index);
@@ -248,7 +248,7 @@ GeometryId GeometryState<T>::RegisterGeometryWithParent(
   // belong to the same source as frame_id, so this tests  condition #3.
   GeometryId new_id = RegisterGeometry(source_id, frame_id, move(geometry));
 
-  // RegisterGeometry stores X_PG into X_FG_ (having assumed that it was the
+  // RegisterGeometry stores X_PG into X_FG_ (having assumed that  the
   // parent was a frame). This replaces the stored X_PG value with the
   // semantically correct value X_FG by concatenating X_FP with X_PG.
 
@@ -483,17 +483,13 @@ void GeometryState<T>::RemoveFrameUnchecked(FrameId frame_id,
     RemoveGeometryUnchecked(child_id, RemoveGeometryOrigin::kFrame);
   }
 
-  // Don't leave holes in the pose vectors. Grab the last pose and move it to
-  // the newly freed up index. This is not *strictly* necessary because changes
-  // to the topology should require these values to be recomputed from input
-  // values. But this guarantees consistent behavior for use with GeometryWorld.
+  // Don't leave holes in the pose vectors. Rewire pose indices by taking the
+  // frame with the last pose index and moving it to the newly vacated hold.
+  // We do *not* copy the values in X_PF_ because changes to the topology should
+  // require these values to be recomputed to be valid.
   auto pose_index = frame.get_pose_index();
   PoseIndex last_index(static_cast<int>(X_PF_.size()) - 1);
   if (pose_index < last_index) {
-    // NOTE: we are not obliged to copy the value from last_index to pose_index.
-    // This is a computed value that will live in the cache. Changing the
-    // topology will dirty the cache so it will be recomputed before being
-    // provided next.
     FrameId moved_id = pose_index_to_frame_map_[last_index];
     frames_[moved_id].set_pose_index(pose_index);
   }
@@ -546,7 +542,7 @@ void GeometryState<T>::RemoveGeometryUnchecked(GeometryId geometry_id,
   // Trim the vectors for these removed geometries.
   X_FG_.pop_back();
   // NOTE: we are not obliged to copy the value from moved_index to
-  // pose_index. This is a computed value that will live in the cache.
+  // pose_index in X_WG_. This is a computed value that will live in the cache.
   // Changing the topology will dirty the cache so it will be recomputed
   // before being provided next.
   X_WG_.pop_back();

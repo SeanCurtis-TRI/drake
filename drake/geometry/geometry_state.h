@@ -143,9 +143,9 @@ class GeometryState {
                              GeometryInstance. */
   const Isometry3<double>& GetPoseInFrame(GeometryId geometry_id) const;
 
-  /** Reports the pose of identified geometry, relative to its registered
-   parent. If the geometry was registered directly to a frame, this _must_
-   produce the same pose as GetPoseInFrame().
+  /** Reports the pose of identified dynamic geometry, relative to its
+   registered parent. If the geometry was registered directly to a frame, this
+   _must_ produce the same pose as GetPoseInFrame().
    @param geometry_id     The id of the queried geometry.
    @return The geometry's pose relative to its registered parent.
    @throws std::logic_error  If the `geometry_id` does _not_ map to a valid
@@ -563,24 +563,25 @@ class GeometryState {
   // corresponding unique geometry identifier. It assumes that the index in the
   // vector *is* the index in the engine.
   // It should be an invariant that:
-  // geometries_[geometry_index_id_map_[i]].get_engine_index() == i is true.
+  //   1. geometries_[geometry_index_id_map_[i]].get_engine_index() == i is
+  //      true.
   std::vector<GeometryId> anchored_geometry_index_id_map_;
 
   // The pose of each dynamic geometry relative to the frame to which it
   // belongs. Each geometry has an "engine index". That geometry's pose is
   // stored in this vector at that engine index. Because the geometries are
-  // rigidly fixed to frames, these values are a property of the topology and
+  // _rigidly_ fixed to frames, these values are a property of the topology and
   // _not_ the time-dependent frame kinematics.
   std::vector<Isometry3<double>> X_FG_;
 
-  // This *implicitly* maps each extant pose index to tis corresponding unique
+  // This *implicitly* maps each extant frame's pose index to its corresponding
   // frame identifier. It assumes that the index in the vector *is* the pose
   // index stored in the InternalFrame.
   // It should be invariant that:
-  //  frames_.size() == pose_index_to_frame_map_.size();
-  //  pose_index_to_frame_map_.size() == biggest_index(frames_) + 1
-  //    i.e. the largest pose index associated with frames_ is the last valid
-  //    index of this vector.
+  //   1. frames_.size() == pose_index_to_frame_map_.size();
+  //   2. pose_index_to_frame_map_.size() == biggest_index(frames_) + 1
+  //      i.e. the largest pose index associated with frames_ is the last valid
+  //      index of this vector.
   std::vector<FrameId> pose_index_to_frame_map_;
 
   // ---------------------------------------------------------------------
