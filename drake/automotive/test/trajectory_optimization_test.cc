@@ -39,19 +39,15 @@ GTEST_TEST(TrajectoryOptimizationTest, SimpleCarDircolTest) {
   const double kTrajectoryTimeLowerBound = 0.8 * initial_duration,
                kTrajectoryTimeUpperBound = 1.2 * initial_duration;
 
-  systems::DircolTrajectoryOptimization prog(&plant, *context, kNumTimeSamples,
-                                             kTrajectoryTimeLowerBound,
-                                             kTrajectoryTimeUpperBound);
+  systems::trajectory_optimization::DirectCollocation prog(
+      &plant, *context, kNumTimeSamples, kTrajectoryTimeLowerBound,
+      kTrajectoryTimeUpperBound);
 
   // Input limits (note that the steering limit imposed by SimpleCar is larger).
   DrivingCommand<symbolic::Expression> input;
   input.SetFromVector(prog.input().cast<symbolic::Expression>());
   prog.AddConstraintToAllKnotPoints(input.steering_angle() <= M_PI_2);
   prog.AddConstraintToAllKnotPoints(-M_PI_2 <= input.steering_angle());
-
-  // Ensure that time intervals are (relatively) evenly spaced.
-  prog.AddTimeIntervalBounds(kTrajectoryTimeLowerBound / (kNumTimeSamples - 1),
-                             kTrajectoryTimeUpperBound / (kNumTimeSamples - 1));
 
   // Fix initial conditions.
   prog.AddLinearConstraint(prog.initial_state() == x0.get_value());
@@ -66,18 +62,16 @@ GTEST_TEST(TrajectoryOptimizationTest, SimpleCarDircolTest) {
   auto initial_state_trajectory = PiecewisePolynomial<double>::FirstOrderHold(
       {0, initial_duration}, {x0.get_value(), xf.get_value()});
 
-  solvers::SolutionResult result =
-      prog.SolveTraj(initial_duration, PiecewisePolynomial<double>(),
-                     initial_state_trajectory);
+  prog.SetInitialTrajectory(PiecewisePolynomial<double>(),
+                            initial_state_trajectory);
+  solvers::SolutionResult result = prog.Solve();
 
   EXPECT_EQ(result, solvers::SolutionResult::kSolutionFound);
 
   // Plot the solution.
   // Note: see call_matlab.h for instructions on viewing the plot.
-  Eigen::MatrixXd inputs;
-  Eigen::MatrixXd states;
-  std::vector<double> times_out;
-  prog.GetResultSamples(&inputs, &states, &times_out);
+  Eigen::MatrixXd inputs = prog.GetInputSamples();
+  Eigen::MatrixXd states = prog.GetStateSamples();
   common::CallMatlab("plot", states.row(SimpleCarStateIndices::kX),
                      states.row(SimpleCarStateIndices::kY));
   common::CallMatlab("xlabel", "x (m)");

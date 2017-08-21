@@ -45,7 +45,6 @@ class InternalGeometryBase {
         X_PG_(X_PG),
         engine_index_(engine_index) {}
 
-
   /** Full constructor.
    @param shape         The shape specification for this instance.
    @param geometry_id   The identifier for _this_ geometry.

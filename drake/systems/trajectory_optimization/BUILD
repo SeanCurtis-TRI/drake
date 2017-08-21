@@ -7,6 +7,18 @@ load("//tools:lint.bzl", "add_lint_tests")
 package(default_visibility = ["//visibility:public"])
 
 drake_cc_library(
+    name = "multiple_shooting",
+    srcs = ["multiple_shooting.cc"],
+    hdrs = ["multiple_shooting.h"],
+    deps = [
+        "//drake/common",
+        "//drake/common/trajectories:piecewise_polynomial_trajectory",
+        "//drake/solvers:mathematical_program",
+        "//drake/systems/framework",
+    ],
+)
+
+drake_cc_library(
     name = "direct_collocation",
     srcs = [
         "direct_collocation.cc",
@@ -17,20 +29,8 @@ drake_cc_library(
         "direct_collocation_constraint.h",
     ],
     deps = [
-        ":direct_trajectory_optimization",
+        ":multiple_shooting",
         "//drake/math:autodiff",
-    ],
-)
-
-drake_cc_library(
-    name = "direct_trajectory_optimization",
-    srcs = ["direct_trajectory_optimization.cc"],
-    hdrs = ["direct_trajectory_optimization.h"],
-    deps = [
-        "//drake/common",
-        "//drake/common/trajectories:piecewise_polynomial_trajectory",
-        "//drake/solvers:mathematical_program",
-        "//drake/systems/framework",
     ],
 )
 
@@ -46,6 +46,16 @@ drake_cc_googletest(
 
 drake_cc_googletest(
     name = "trajectory_optimization_test",
+    size = "small",
+    deps = [
+        ":multiple_shooting",
+        "//drake/common:eigen_matrix_compare",
+        "//drake/common/trajectories:piecewise_polynomial",
+    ],
+)
+
+drake_cc_googletest(
+    name = "direct_collocation_test",
     # Test size increased to not timeout when run with Valgrind.
     size = "medium",
     deps = [

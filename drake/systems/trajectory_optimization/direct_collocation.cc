@@ -9,19 +9,29 @@
 
 namespace drake {
 namespace systems {
+namespace trajectory_optimization {
 
-DircolTrajectoryOptimization::DircolTrajectoryOptimization(
-    const systems::System<double>* system,
-    const systems::Context<double>& context, int num_time_samples,
-    double trajectory_time_lower_bound, double trajectory_time_upper_bound)
-    : systems::DirectTrajectoryOptimization(
-          system->get_num_total_inputs(),
-          context.get_continuous_state()->size(), num_time_samples,
-          trajectory_time_lower_bound, trajectory_time_upper_bound),
+DirectCollocation::DirectCollocation(const systems::System<double>* system,
+                                     const systems::Context<double>& context,
+                                     int num_time_samples,
+                                     double trajectory_time_lower_bound,
+                                     double trajectory_time_upper_bound)
+    : MultipleShooting(system->get_num_total_inputs(),
+                       context.get_continuous_state()->size(), num_time_samples,
+                       trajectory_time_lower_bound / (num_time_samples - 1),
+                       trajectory_time_upper_bound / (num_time_samples - 1)),
       system_(system),
       context_(system_->CreateDefaultContext()),
       continuous_state_(system_->AllocateTimeDerivatives()) {
   DRAKE_DEMAND(context.has_only_continuous_state());
+
+  // TODO(russt):  This should NOT be set automatically.
+  // Once it is removed, the proper constraint to be added will be
+  //   AddDurationBounds(trajectory_time_lower_bound,
+  //                     trajectory_time_upper_bound);
+  // but that constraint is currently implied already by the min/max
+  // timestep + all timesteps equal constraints.
+  AddEqualTimeIntervalsConstraints();
 
   context_->SetTimeStateAndParametersFrom(context);
 
@@ -35,8 +45,7 @@ DircolTrajectoryOptimization::DircolTrajectoryOptimization(
 
   // Add the dynamic constraints.
   auto constraint =
-      std::make_shared<systems::SystemDirectCollocationConstraint>(*system,
-                                                                   context);
+      std::make_shared<SystemDirectCollocationConstraint>(*system, context);
 
   DRAKE_ASSERT(static_cast<int>(constraint->num_constraints()) == num_states());
 
@@ -51,8 +60,7 @@ DircolTrajectoryOptimization::DircolTrajectoryOptimization(
   }
 }
 
-void DircolTrajectoryOptimization::DoAddRunningCost(
-    const symbolic::Expression& g) {
+void DirectCollocation::DoAddRunningCost(const symbolic::Expression& g) {
   // Trapezoidal integration:
   //    sum_{i=0...N-2} h_i/2.0 * (g_i + g_{i+1}), or
   // g_0*h_0/2.0 + [sum_{i=1...N-2} g_i*(h_{i-1} + h_i)/2.0] +
@@ -67,24 +75,42 @@ void DircolTrajectoryOptimization::DoAddRunningCost(
           SubstitutePlaceholderVariables(g * h_vars()(N() - 2) / 2, N() - 1));
 }
 
+PiecewisePolynomialTrajectory DirectCollocation::ReconstructInputTrajectory()
+    const {
+  Eigen::VectorXd times = GetSampleTimes();
+  std::vector<double> times_vec(N());
+  std::vector<Eigen::MatrixXd> inputs(N());
 
-PiecewisePolynomialTrajectory
-DircolTrajectoryOptimization::ReconstructStateTrajectory() const {
-  const std::vector<Eigen::MatrixXd> input_vec = GetInputVector();
-  const std::vector<Eigen::MatrixXd> state_vec = GetStateVector();
-  std::vector<Eigen::MatrixXd> derivatives;
-  derivatives.reserve(input_vec.size());
-
-  for (size_t i = 0; i < input_vec.size(); ++i) {
-    input_port_value_->GetMutableVectorData<double>()->SetFromVector(
-        input_vec[i]);
-    context_->get_mutable_continuous_state()->SetFromVector(state_vec[i]);
-    system_->CalcTimeDerivatives(*context_, continuous_state_.get());
-    derivatives.push_back(continuous_state_->CopyToVector());
+  for (int i = 0; i < N(); i++) {
+    times_vec[i] = times(i);
+    inputs[i] = GetSolution(input(i));
   }
-  return PiecewisePolynomialTrajectory(PiecewisePolynomial<double>::Cubic(
-      GetTimeVector(), state_vec, derivatives));
+  return PiecewisePolynomialTrajectory(
+      PiecewisePolynomial<double>::FirstOrderHold(times_vec, inputs));
 }
 
+PiecewisePolynomialTrajectory DirectCollocation::ReconstructStateTrajectory()
+    const {
+  // TODO(russt): Fix this!  It's not using the same interpolation scheme as the
+  // actual collocation method.
+  Eigen::VectorXd times = GetSampleTimes();
+  std::vector<double> times_vec(N());
+  std::vector<Eigen::MatrixXd> states(N());
+  std::vector<Eigen::MatrixXd> derivatives(N());
+
+  for (int i = 0; i < N(); i++) {
+    times_vec[i] = times(i);
+    states[i] = GetSolution(state(i));
+    input_port_value_->GetMutableVectorData<double>()->SetFromVector(
+        GetSolution(input(i)));
+    context_->get_mutable_continuous_state()->SetFromVector(states[i]);
+    system_->CalcTimeDerivatives(*context_, continuous_state_.get());
+    derivatives[i] = continuous_state_->CopyToVector();
+  }
+  return PiecewisePolynomialTrajectory(
+      PiecewisePolynomial<double>::Cubic(times_vec, states, derivatives));
+}
+
+}  // namespace trajectory_optimization
 }  // namespace systems
 }  // namespace drake
