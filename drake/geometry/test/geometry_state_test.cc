@@ -716,7 +716,7 @@ TEST_F(GeometryStateTest, RemoveGeometry) {
 
   // Based on the logic of the geometry engine stub, the last geometry id should
   // now be the first. Also, values that are keyed on the engine index should
-  // also have moved, e.g., X_FG_. Technically also X_WG_
+  // also have moved, e.g., X_FG_.
   GeometryId last_geometry_id = geometries_[geometries_.size() - 1];
   const auto& last_geometry =
       gs_tester_.get_geometries().at(last_geometry_id);
@@ -922,8 +922,8 @@ TEST_F(GeometryStateTest, RemoveAnchoredGeometry) {
 
   // Expected results: 1 remaining geometry. Geometry's engine index has moved
   // to zero. NOTE: These expectations are predicated on an underlying engine
-  // that is actually shuffling last geometry into the gap (vis a vis engine
-  // index values). If the engine changes behavior, this test may fail.
+  // that is actually shuffling last geometry into the gap (vis-à-vis engine
+  // index values). If the engine behavior changes, this test may fail.
   EXPECT_EQ(geometry_state_.get_num_anchored_geometries(), 1);
   EXPECT_EQ(index_to_id_map.size(), 1u);
   EXPECT_EQ(anchored_geometries.at(anchored_id_2).get_engine_index(), 0);

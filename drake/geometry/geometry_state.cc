@@ -254,9 +254,9 @@ GeometryId GeometryState<T>::RegisterGeometryWithParent(
 
   // Transform pose relative to geometry, to pose relative to frame.
   const InternalGeometry& new_geometry = geometries_[new_id];
-  Isometry3<T> X_GP = X_FG_[new_geometry.get_engine_index()];
+  Isometry3<T> X_PG = X_FG_[new_geometry.get_engine_index()];
   Isometry3<T> X_FG =
-      X_FG_[parent_geometry.get_engine_index()] * X_GP;
+      X_FG_[parent_geometry.get_engine_index()] * X_PG;
   X_FG_[new_geometry.get_engine_index()] = X_FG;
 
   geometries_[new_id].set_parent_id(geometry_id);
@@ -485,8 +485,8 @@ void GeometryState<T>::RemoveFrameUnchecked(FrameId frame_id,
 
   // Don't leave holes in the pose vectors. Rewire pose indices by taking the
   // frame with the last pose index and moving it to the newly vacated hold.
-  // We do *not* copy the values in X_PF_ because changes to the topology should
-  // require these values to be recomputed to be valid.
+  // We do *not* copy the values in X_PF_ because changes to the topology
+  // renders these values meaningless until recomputed.
   auto pose_index = frame.get_pose_index();
   PoseIndex last_index(static_cast<int>(X_PF_.size()) - 1);
   if (pose_index < last_index) {
