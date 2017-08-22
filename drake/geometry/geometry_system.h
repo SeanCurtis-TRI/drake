@@ -454,7 +454,7 @@ class GeometrySystem : public systems::LeafSystem<T> {
   friend class GeometrySystemTester;
 
   // Allow the load dispatch to peek into GeometrySystem.
-  friend void DispatchLoadMessage(const GeometrySystem<T>&);
+  friend void DispatchLoadMessage(const GeometrySystem<double>&);
 
   // Constructs a QueryHandle for OutputPort allocation.
   QueryHandle<T> MakeQueryHandle(const systems::Context<T>& context) const;

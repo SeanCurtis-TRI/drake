@@ -103,7 +103,7 @@ void BouncingBallPlant<T>::CopyStateToOutput(
 
 template <typename T>
 FramePoseSet<T> BouncingBallPlant<T>::AllocateFramePoseOutput(
-    const Context<T>& context) const {
+    const Context<T>&) const {
   FramePoseSet<T> poses(source_id_);
   poses.AddValue(Isometry3<T>::Identity());
   return poses;
@@ -122,14 +122,14 @@ void BouncingBallPlant<T>::CalcFramePoseOutput(
 
 template <typename T>
 FrameIdVector BouncingBallPlant<T>::AllocateFrameIdOutput(
-    const MyContext& context) const {
+    const MyContext&) const {
   FrameIdVector ids(source_id_);
   ids.AddFrameId(ball_frame_id_);
   return ids;
 }
 
 template <typename T>
-void BouncingBallPlant<T>::CalcFrameIdOutput(const MyContext &context,
+void BouncingBallPlant<T>::CalcFrameIdOutput(const MyContext &,
                                               FrameIdVector *) const {
   // TODO(SeanCurtis-TRI): Only take action if the topology has changed; this
   // system never changes the topology.

@@ -52,7 +52,7 @@ class ShapeToLcm : public ShapeReifier {
                                            sphere.get_radius()));
   }
 
-  void ImplementGeometry(const HalfSpace& half_space) override {
+  void ImplementGeometry(const HalfSpace&) override {
     // TODO(SeanCurtis-TRI): Modify visualization to support half spaces.
 
     // Currently representing a half space as a big box. This assumes that the
