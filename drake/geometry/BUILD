@@ -3,6 +3,7 @@
 
 load(
     "//tools:drake.bzl",
+    "drake_cc_binary",
     "drake_cc_googletest",
     "drake_cc_library",
 )
@@ -99,6 +100,28 @@ drake_cc_library(
     srcs = ["shape_specification.cc"],
     hdrs = ["shape_specification.h"],
     deps = ["//drake/common"],
+)
+
+drake_cc_binary(
+    name = "gcc_good",
+    srcs = ["gcc_good.cc"],
+    deps = [
+        ":geometry_ids",
+        ":shape_specification",
+        "//drake/common",
+        "//drake/common:copyable_unique_ptr",
+    ],
+)
+
+drake_cc_binary(
+    name = "gcc_bad",
+    srcs = ["gcc_bad.cc"],
+    deps = [
+        ":geometry_ids",
+        ":shape_specification",
+        "//drake/common",
+        "//drake/common:copyable_unique_ptr",
+    ],
 )
 
 # -----------------------------------------------------
