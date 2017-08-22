@@ -499,7 +499,7 @@ void GeometryEngineStub<T>::ImplementGeometry(const Sphere &sphere) {
 }
 
 template <typename T>
-void GeometryEngineStub<T>::ImplementGeometry(const HalfSpace &half_space) {
+void GeometryEngineStub<T>::ImplementGeometry(const HalfSpace &) {
   stub_shapes::OwnedIndex index(static_cast<int>(owned_geometries_.size()));
   owned_geometries_.emplace_back(make_unique<EngineHalfSpace<T>>(
       index, Vector3<T>{0, 0, 1}, Vector3<T>::Zero()));

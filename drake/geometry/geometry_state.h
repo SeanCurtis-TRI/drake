@@ -10,6 +10,7 @@
 #include "drake/common/drake_copyable.h"
 #include "drake/common/drake_optional.h"
 #include "drake/common/eigen_types.h"
+#include "drake/common/unused.h"
 #include "drake/geometry/frame_id_vector.h"
 #include "drake/geometry/frame_kinematics_vector.h"
 #include "drake/geometry/geometry_engine.h"
@@ -386,7 +387,7 @@ class GeometryState {
 
  private:
   // Allow geometry dispatch to peek into GeometryState.
-  friend void DispatchLoadMessage(const GeometryState<T>&);
+  friend void DispatchLoadMessage(const GeometryState<double>&);
 
   // Allow GeometryWorld unique access to the state members to perform queries.
   friend class GeometryWorld<T>;
@@ -505,6 +506,10 @@ class GeometryState {
                                    const FrameVelocitySet<T>& poses) {
     // TODO(SeanCurtis-TRI): THe interface on this needs to change. I need the
     // parent velocity as well.
+    unused(frame);
+    unused(X_WP);
+    unused(ids);
+    unused(poses);
     throw std::runtime_error("Not implemented");
   }
 
