@@ -21,7 +21,6 @@ namespace internal {
 // added to the declaration of GeometryInstance.
 /** Base class for the internal representation of registered geometry. It
  includes the data common to both anchored and dynamic geometry. */
-template <typename IndexType>
 class InternalGeometryBase {
  public:
   DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(InternalGeometryBase)
@@ -34,16 +33,13 @@ class InternalGeometryBase {
    @param shape         The shape specification for this instance.
    @param geometry_id   The identifier for _this_ geometry.
    @param name          The name of the geometry.
-   @param X_PG          The pose of the geometry G in the parent frame P.
-   @param engine_index  The position in the geometry engine of this geometry. */
+   @param X_PG          The pose of the geometry G in the parent frame P. */
   InternalGeometryBase(std::unique_ptr<Shape> shape, GeometryId geometry_id,
-                       const std::string& name, const Isometry3<double>& X_PG,
-                       IndexType engine_index)
+                       const std::string& name, const Isometry3<double>& X_PG)
       : shape_spec_(std::move(shape)),
         id_(geometry_id),
         name_(name),
-        X_PG_(X_PG),
-        engine_index_(engine_index) {}
+        X_PG_(X_PG) {}
 
   /** Full constructor.
    @param shape         The shape specification for this instance.
@@ -54,13 +50,11 @@ class InternalGeometryBase {
    @param vis_material  The visual material for this geometry. */
   InternalGeometryBase(std::unique_ptr<Shape> shape, GeometryId geometry_id,
                        const std::string& name, const Isometry3<double>& X_PG,
-                       IndexType engine_index,
                        const VisualMaterial& vis_material)
       : shape_spec_(std::move(shape)),
         id_(geometry_id),
         name_(name),
         X_PG_(X_PG),
-        engine_index_(engine_index),
         visual_material_(vis_material) {}
 
   /** Compares two %InternalGeometryBase instances for "equality". Two internal
@@ -79,8 +73,6 @@ class InternalGeometryBase {
   GeometryId get_id() const { return id_; }
   const std::string& get_name() const { return name_; }
   const Isometry3<double>& get_pose_in_parent() const { return X_PG_; }
-  IndexType get_engine_index() const { return engine_index_; }
-  void set_engine_index(IndexType index) { engine_index_ = index; }
   const VisualMaterial& get_visual_material() const { return visual_material_; }
 
  private:
@@ -98,9 +90,6 @@ class InternalGeometryBase {
   // another registered geometry.
   Isometry3<double> X_PG_;
 
-  // The index of the geometry in the engine.
-  IndexType engine_index_;
-
   // TODO(SeanCurtis-TRI): Consider making this "optional" so that the values
   // can be assigned at the frame level.
   // The "rendering" material -- e.g., OpenGl contexts and the like.
@@ -110,7 +99,7 @@ class InternalGeometryBase {
 /** This class represents the internal representation of registered _dynamic_
  geometry. It includes the user-specified meta data (e.g., name) and internal
  topology representations. */
-class InternalGeometry : public InternalGeometryBase<GeometryIndex> {
+class InternalGeometry : public InternalGeometryBase {
  public:
   DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(InternalGeometry)
 
@@ -151,6 +140,8 @@ class InternalGeometry : public InternalGeometryBase<GeometryIndex> {
   FrameId get_frame_id() const { return frame_id_; }
   optional<GeometryId> get_parent_id() const { return parent_id_; }
   void set_parent_id(GeometryId id) { parent_id_ = id; }
+  GeometryIndex get_engine_index() const { return engine_index_; }
+  void set_engine_index(GeometryIndex index) { engine_index_ = index; }
 
   /** Returns true if this geometry has a geometry parent and the parent has the
    given `geometry_id`. */
@@ -193,6 +184,9 @@ class InternalGeometry : public InternalGeometryBase<GeometryIndex> {
   // The identifier of the frame to which this geometry belongs.
   FrameId frame_id_;
 
+  // The index of the geometry in the engine.
+  GeometryIndex engine_index_;
+
   // The identifier for this frame's parent frame.
   optional<GeometryId> parent_id_;
 
@@ -203,8 +197,7 @@ class InternalGeometry : public InternalGeometryBase<GeometryIndex> {
 /** This class represents the internal representation of registered _anchored_
  geometry. It includes the user-specified meta data (e.g., name) and internal
  topology representations. */
-class InternalAnchoredGeometry
-    : public InternalGeometryBase<AnchoredGeometryIndex> {
+class InternalAnchoredGeometry : public InternalGeometryBase {
  public:
   DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(InternalAnchoredGeometry)
 
@@ -235,6 +228,13 @@ class InternalAnchoredGeometry
                            const Isometry3<double> X_WG,
                            AnchoredGeometryIndex engine_index,
                            const VisualMaterial& vis_material);
+
+  AnchoredGeometryIndex get_engine_index() const { return engine_index_; }
+  void set_engine_index(AnchoredGeometryIndex index) { engine_index_ = index; }
+
+ private:
+  // The index of the geometry in the engine.
+  AnchoredGeometryIndex engine_index_;
 };
 
 }  // namespace internal
