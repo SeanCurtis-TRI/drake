@@ -171,7 +171,8 @@ std::vector<PenetrationAsPointPair<T>> GeometrySystem<T>::ComputePenetration(
     const QueryHandle<T>& handle) const {
   DRAKE_DEMAND(handle.context_);
   ThrowIfStale(handle.guard_, *handle.context_);
-  const GeometryContext<T>& g_context = FullPoseUpdate(handle);
+  const GeometryContext<T>& g_context = *handle.context_;
+  FullPoseUpdate(g_context);
   return geometry_world_.ComputePenetration(g_context);
 }
 
@@ -225,7 +226,11 @@ void GeometrySystem<T>::CalcPoseBundle(const Context<T>& context,
   // explicitly test this. It is assumed the discrete update will also be
   // responsible for updating the bundle in the output port.
   int i = 0;
+
   const auto& g_context = static_cast<const GeometryContext<T>&>(context);
+  // TODO(SeanCurtis-TRI): Modify this when the cache is available to use the
+  // cache instead of this heavy-handed update.
+  FullPoseUpdate(g_context);
   const auto& g_state = g_context.get_geometry_state();
   for (FrameId f_id : g_state.get_frame_ids()) {
     output->set_pose(i, g_state.get_pose_in_parent(f_id));
@@ -235,18 +240,16 @@ void GeometrySystem<T>::CalcPoseBundle(const Context<T>& context,
 }
 
 template <typename T>
-const GeometryContext<T>& GeometrySystem<T>::FullPoseUpdate(
-    const QueryHandle<T>& handle) const {
+void GeometrySystem<T>::FullPoseUpdate(
+    const GeometryContext<T>& context) const {
   // TODO(SeanCurtis-TRI): Update this when the cache is available.
-  // This method is const, the handle is const and the context that is contained
-  // in the handle is const. Ultimately, this will pull cached entities to do
-  // the query work. For now, we have to const cast the thing so that we can
-  // update the geometry engine contained.
+  // This method is const and the context is const. Ultimately, this will pull
+  // cached entities to do the query work. For now, we have to const cast the
+  // thing so that we can update the geometry engine contained.
 
   using std::to_string;
 
-  const GeometryContext<T>& g_context = *handle.context_;
-  const GeometryState<T>& state = g_context.get_geometry_state();
+  const GeometryState<T>& state = context.get_geometry_state();
   GeometryState<T>& mutable_state = const_cast<GeometryState<T>&>(state);
 
   for (const auto& pair : state.source_frame_id_map_) {
@@ -256,7 +259,7 @@ const GeometryContext<T>& GeometrySystem<T>::FullPoseUpdate(
       DRAKE_ASSERT(itr != input_source_ids_.end());
       const int id_port = itr->second.id_port;
       const auto id_port_value =
-          this->template EvalAbstractInput(g_context, id_port);
+          this->template EvalAbstractInput(context, id_port);
       if (id_port_value) {
         const FrameIdVector& ids =
             id_port_value->template GetValue<FrameIdVector>();
@@ -265,7 +268,7 @@ const GeometryContext<T>& GeometrySystem<T>::FullPoseUpdate(
         state.ValidateFrameIds(ids);
         const int pose_port = itr->second.pose_port;
         const auto pose_port_value =
-            this->template EvalAbstractInput(g_context, pose_port);
+            this->template EvalAbstractInput(context, pose_port);
         if (pose_port_value) {
           const auto& poses =
               pose_port_value->template GetValue<FramePoseVector<T>>();
@@ -287,7 +290,6 @@ const GeometryContext<T>& GeometrySystem<T>::FullPoseUpdate(
   // inputs.
   mutable_state.FinalizePoseUpdate();
   // TODO(SeanCurtis-TRI): Add velocity as appropriate.
-  return g_context;
 }
 
 template <typename T>

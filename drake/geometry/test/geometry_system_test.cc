@@ -58,8 +58,8 @@ class GeometrySystemTester {
     return system.DoHasDirectFeedthrough(nullptr, input_port, output_port);
   }
   static void FullPoseUpdate(const GeometrySystem<double>& system,
-                             const QueryHandle<double>& handle) {
-    system.FullPoseUpdate(handle);
+                             const GeometryContext<double>& context) {
+    system.FullPoseUpdate(context);
   }
   static std::vector<PenetrationAsPointPair<double>> ComputePenetration(
       const GeometrySystem<double>& system, const QueryHandle<double>& handle) {
@@ -295,7 +295,7 @@ TEST_F(GeometrySystemTest, DirectFeedThrough) {
 TEST_F(GeometrySystemTest, FullPoseUpdateEmpty) {
   AllocateContext();
   EXPECT_NO_THROW(GeometrySystemTester::FullPoseUpdate(system_,
-                                                       get_query_handle()));
+                                                       *geom_context_));
 }
 
 // Test case where there are only anchored geometries -- same as the empty case;
@@ -305,7 +305,7 @@ TEST_F(GeometrySystemTest, FullPoseUpdateAnchoredOnly) {
   system_.RegisterAnchoredGeometry(s_id, make_sphere_instance());
   AllocateContext();
   EXPECT_NO_THROW(GeometrySystemTester::FullPoseUpdate(system_,
-                                                       get_query_handle()));
+                                                       *geom_context_));
 }
 
 // Dummy system to serve as geometry source.
@@ -400,9 +400,8 @@ GTEST_TEST(GeometrySystemConnectionTest, FullPoseUpdateUnconnectedId) {
   auto& geometry_context = dynamic_cast<GeometryContext<double>&>(
       diagram->GetMutableSubsystemContext(*geometry_system,
                                           diagram_context.get()));
-  auto query_handle = QueryHandleTester::MakeQueryHandle(&geometry_context);
   EXPECT_NO_THROW(
-      GeometrySystemTester::FullPoseUpdate(*geometry_system, query_handle));
+      GeometrySystemTester::FullPoseUpdate(*geometry_system, geometry_context));
 }
 
 // Adversarial test case: Missing id port connection.
@@ -422,9 +421,8 @@ GTEST_TEST(GeometrySystemConnectionTest, FullPoseUpdateNoIdConnection) {
   auto& geometry_context = dynamic_cast<GeometryContext<double>&>(
       diagram->GetMutableSubsystemContext(*geometry_system,
                                           diagram_context.get()));
-  auto query_handle = QueryHandleTester::MakeQueryHandle(&geometry_context);
   EXPECT_ERROR_MESSAGE(
-      GeometrySystemTester::FullPoseUpdate(*geometry_system, query_handle),
+      GeometrySystemTester::FullPoseUpdate(*geometry_system, geometry_context),
       std::logic_error,
       "Source \\d+ has registered frames but does not provide id values on "
           "the input port.");
@@ -447,9 +445,8 @@ GTEST_TEST(GeometrySystemConnectionTest, FullPoseUpdateNoPoseConnection) {
   auto& geometry_context = dynamic_cast<GeometryContext<double>&>(
       diagram->GetMutableSubsystemContext(*geometry_system,
                                           diagram_context.get()));
-  auto query_handle = QueryHandleTester::MakeQueryHandle(&geometry_context);
   EXPECT_ERROR_MESSAGE(
-      GeometrySystemTester::FullPoseUpdate(*geometry_system, query_handle),
+      GeometrySystemTester::FullPoseUpdate(*geometry_system, geometry_context),
       std::logic_error,
       "Source \\d+ has registered frames but does not provide pose values on "
           "the input port.");
@@ -469,9 +466,8 @@ GTEST_TEST(GeometrySystemConnectionTest, FullPoseUpdateNoConnections) {
   auto& geometry_context = dynamic_cast<GeometryContext<double>&>(
       diagram->GetMutableSubsystemContext(*geometry_system,
                                           diagram_context.get()));
-  auto query_handle = QueryHandleTester::MakeQueryHandle(&geometry_context);
   EXPECT_ERROR_MESSAGE(
-      GeometrySystemTester::FullPoseUpdate(*geometry_system, query_handle),
+      GeometrySystemTester::FullPoseUpdate(*geometry_system, geometry_context),
       std::logic_error,
       "Source \\d+ has registered frames but does not provide id values on "
           "the input port.");
