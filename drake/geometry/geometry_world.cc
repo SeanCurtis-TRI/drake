@@ -23,11 +23,14 @@ using std::vector;
 
 template <typename T>
 unique_ptr<GeometryContext<T>> GeometryWorld<T>::MakeContext() const {
-  auto context = make_unique<GeometryContext<T>>();
   vector<unique_ptr<AbstractValue>> values;
   values.emplace_back(
       make_unique<Value<GeometryState<T>>>(move(CreateState())));
+
+  int kStateIndex = static_cast<int>(values.size()) - 1;
+  auto context = make_unique<GeometryContext<T>>(kStateIndex);
   context->set_abstract_state(make_unique<AbstractValues>(move(values)));
+
   return context;
 }
 

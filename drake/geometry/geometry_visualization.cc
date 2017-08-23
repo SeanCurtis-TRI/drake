@@ -17,24 +17,27 @@ namespace geometry {
 
 namespace {
 
+// Simple class for converting shape specifications into LCM-compatible shapes.
 class ShapeToLcm : public ShapeReifier {
  public:
   ShapeToLcm() {}
 
   lcmt_viewer_geometry_data Convert(const Shape& shape,
-                                    const Isometry3<double>& X_GP,
+                                    const Isometry3<double>& X_PG,
                                     const Eigen::Vector4d& in_color) {
-    X_GP_ = X_GP;
-    // NOTE: Reify *may* change X_GP_ based on the shape.
+    X_PG_ = X_PG;
+    // NOTE: Reify *may* change X_PG_ based on the shape. For example, the
+    // half-space requires an additional offset to shift the box representing
+    // the plane *to* the plane.
     shape.Reify(this);
 
     // Saves the location and orientation of the visualization geometry in the
     // `lcmt_viewer_geometry_data` object. The location and orientation are
     // specified in the body's frame.
     Eigen::Map<Eigen::Vector3f> position(geometry_data_.position);
-    position = X_GP_.translation().cast<float>();
+    position = X_PG_.translation().cast<float>();
     // LCM quaternion must be w, x, y, z.
-    Eigen::Quaternion<double> q(X_GP_.rotation());
+    Eigen::Quaternion<double> q(X_PG_.rotation());
     geometry_data_.quaternion[0] = q.w();
     geometry_data_.quaternion[1] = q.x();
     geometry_data_.quaternion[2] = q.y();
@@ -53,8 +56,6 @@ class ShapeToLcm : public ShapeReifier {
   }
 
   void ImplementGeometry(const HalfSpace&) override {
-    // TODO(SeanCurtis-TRI): Modify visualization to support half spaces.
-
     // Currently representing a half space as a big box. This assumes that the
     // underlying box representation is centered on the origin.
     geometry_data_.type = geometry_data_.BOX;
@@ -71,19 +72,20 @@ class ShapeToLcm : public ShapeReifier {
     Isometry3<double> box_xform = Isometry3<double>::Identity();
     // Shift it down so that the origin lies on the top surface.
     box_xform.translation() << 0, 0, -thickness / 2;
-    X_GP_ = X_GP_ * box_xform;
+    X_PG_ = X_PG_ * box_xform;
   }
 
  private:
   lcmt_viewer_geometry_data geometry_data_{};
-  Eigen::Isometry3d X_GP_;
+  // The transform from the geometry frame to its parent frame.
+  Eigen::Isometry3d X_PG_;
 };
 
 lcmt_viewer_geometry_data MakeGeometryData(const Shape& shape,
-                                           const Isometry3<double>& X_GP,
+                                           const Isometry3<double>& X_PG,
                                            const Eigen::Vector4d& in_color) {
   ShapeToLcm converter;
-  return converter.Convert(shape, X_GP, in_color);
+  return converter.Convert(shape, X_PG, in_color);
 }
 
 }  // namespace
@@ -119,9 +121,8 @@ void DispatchLoadMessage(const GeometryState<double>& state) {
       for (const auto &pair : state.anchored_geometries_) {
         const InternalAnchoredGeometry& geometry = pair.second;
         const Shape &shape = geometry.get_shape();
-        // TODO(SeanCurtis-TRI): Fix this when anchored geometry has pose.
         message.link[0].geom[geom_index] = MakeGeometryData(
-            shape, Isometry3<double>::Identity(), default_color);
+            shape, geometry.get_pose_in_parent(), default_color);
         ++geom_index;
       }
       link_index = 1;
@@ -131,11 +132,11 @@ void DispatchLoadMessage(const GeometryState<double>& state) {
   // Load dynamic geometry into their own frames.
   for (const auto& pair : state.frames_) {
     const internal::InternalFrame& frame = pair.second;
-    // TODO(SeanCurtis-TRI): This frame has to have the same name as when
-    // loaded.
     SourceId s_id = state.get_source_id(frame.get_id());
     const std::string& src_name = state.get_source_name(s_id);
-    // This name should be well correlated with the GeometrySystem output.
+    // TODO(SeanCurtis-TRI): The name in the load message *must* match the name
+    // in the update message. Make sure this code and the GeometrySystem output
+    // use a common code-base to translate (source_id, frame) -> name.
     message.link[link_index].name = src_name + "::" + frame.get_name();
     message.link[link_index].robot_num = frame.get_frame_group();
     const int geom_count = static_cast<int>(
@@ -147,11 +148,11 @@ void DispatchLoadMessage(const GeometryState<double>& state) {
       const InternalGeometry& geometry = state.geometries_.at(geom_id);
       GeometryIndex index = state.geometries_.at(geom_id).get_engine_index();
       const Shape& shape = geometry.get_shape();
-      const Isometry3<double> X_WG = state.X_FG_.at(index);
+      const Isometry3<double> X_FG = state.X_FG_.at(index);
       const Eigen::Vector4d& color =
           state.geometries_.at(geom_id).get_visual_material().get_diffuse();
       message.link[link_index].geom[geom_index] =
-          MakeGeometryData(shape, X_WG, color);
+          MakeGeometryData(shape, X_FG, color);
       ++geom_index;
     }
     ++link_index;

@@ -541,6 +541,9 @@ class GeometrySystem : public systems::LeafSystem<T> {
   // This is mutable so that it can be cleared in the const method
   // AllocateContext().
   mutable GeometryState<T>* initial_state_;
+
+  // The index of the geometry state in the context's abstract state.
+  int geometry_state_index_{-1};
 };
 
 }  // namespace geometry

@@ -34,7 +34,7 @@ GeometrySystem<T>::GeometrySystem() : LeafSystem<T>() {
   std::unique_ptr<GeometryState<T>> state = geometry_world_.CreateState();
   auto state_value = AbstractValue::Make<GeometryState<T>>(*state.get());
   initial_state_ = &state_value->template GetMutableValue<GeometryState<T>>();
-  this->DeclareAbstractState(std::move(state_value));
+  geometry_state_index_ = this->DeclareAbstractState(std::move(state_value));
 
   bundle_port_index_ =
       this->DeclareAbstractOutputPort(&GeometrySystem::MakePoseBundle,
@@ -201,7 +201,7 @@ PoseBundle<T> GeometrySystem<T>::MakePoseBundle(
     const Context<T>& context) const {
   const auto& g_context = static_cast<const GeometryContext<T>&>(context);
   const auto& g_state = g_context.get_geometry_state();
-  PoseBundle<T> bundle(g_context.get_geometry_state().get_num_frames());
+  PoseBundle<T> bundle(g_state.get_num_frames());
   int i = 0;
   for (FrameId f_id : g_state.get_frame_ids()) {
     int frame_group = g_state.get_frame_group(f_id);
@@ -220,13 +220,10 @@ PoseBundle<T> GeometrySystem<T>::MakePoseBundle(
 template <typename T>
 void GeometrySystem<T>::CalcPoseBundle(const Context<T>& context,
                                        PoseBundle<T>* output) const {
-  // TODO(SeanCurtis-TRI): Adding/removing frames during discrete updates will
-  // change the size/composition of the pose bundle. This output port will *not*
-  // be updated to reflect that. I must test the output port to confirm that it
-  // is up to date w.r.t. the current state of the world.
-  //  Add serial number to GeometryState and PoseBundle. If serial numbers match
-  //  everything is good. Otherwise, I need to modify the pose bundle.
-  //  This *also* requires modification of PoseBundle to make it mutable.
+  // NOTE: Adding/removing frames during discrete updates will
+  // change the size/composition of the pose bundle. This calculation will *not*
+  // explicitly test this. It is assumed the discrete update will also be
+  // responsible for updating the bundle in the output port.
   int i = 0;
   const auto& g_context = static_cast<const GeometryContext<T>&>(context);
   const auto& g_state = g_context.get_geometry_state();
@@ -297,7 +294,9 @@ template <typename T>
 std::unique_ptr<LeafContext<T>> GeometrySystem<T>::DoMakeContext() const {
   // Disallow further geometry source additions.
   initial_state_ = nullptr;
-  return std::unique_ptr<LeafContext<T>>(new GeometryContext<T>());
+  DRAKE_ASSERT(geometry_state_index_ >= 0);
+  return std::unique_ptr<LeafContext<T>>(
+      new GeometryContext<T>(geometry_state_index_));
 }
 
 template <typename T>
