@@ -469,9 +469,9 @@ class GeometrySystem : public systems::LeafSystem<T> {
   systems::rendering::PoseBundle<T> MakePoseBundle(
       const systems::Context<T>& context) const;
 
-  // Aggregates the input poses into the output PoseBundle, in the order
-  // the input ports were added. Aborts if any inputs have an unexpected
-  // dimension.
+  // Aggregates the input poses into the output PoseBundle, in the same order as
+  // was used in allocation. Aborts if any inputs have a _different_ size than
+  // expected.
   void CalcPoseBundle(const systems::Context<T>& context,
                       systems::rendering::PoseBundle<T>* output) const;
 

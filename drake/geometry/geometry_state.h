@@ -92,7 +92,7 @@ class GeometryState {
   /** The set of all dynamic geometries registered to the world. The order is
    _not_ guaranteed to have any particular semantic meaning. But the order is
    guaranteed to remain fixed between topological changes (e.g., removal or
-   addition of geometry/frames. */
+   addition of geometry/frames). */
   const std::vector<GeometryId>& get_geometry_ids() const {
     return geometry_index_id_map_;
   }
