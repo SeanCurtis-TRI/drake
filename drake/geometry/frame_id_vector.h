@@ -89,6 +89,10 @@ class FrameIdVector {
   // @}
 
  private:
+  // Throws an exception if the given vector contains duplicates values. This
+  // does not consider the contents of index_id_map_.
+  void ThrowIfContainsDuplicates(const std::vector<FrameId>& frame_ids);
+
   // Throws an exception if any of the given frame ids is already in
   // id_index_map_.
   void ThrowIfContains(const std::vector<FrameId>& frame_ids);

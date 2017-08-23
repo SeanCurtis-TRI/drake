@@ -45,7 +45,8 @@ GTEST_TEST(FrameKinematicsVector, CopyConstructor) {
   EXPECT_EQ(poses.size(), kPoseCount);
   EXPECT_EQ(pose_set.size(), kPoseCount);
   for (int i = 0; i < kPoseCount; ++i) {
-    Vector3<double> pose{i, i, i};
+    const double kValue = i;
+    Vector3<double> pose{kValue, kValue, kValue};
     EXPECT_EQ(pose_set[i].translation(), pose);
   }
 }
@@ -66,7 +67,8 @@ GTEST_TEST(FrameKinematicsVector, MoveConstructor) {
   EXPECT_EQ(poses.size(), 0);
   EXPECT_EQ(pose_set.size(), kPoseCount);
   for (int i = 0; i < kPoseCount; ++i) {
-    Vector3<double> pose{i, i, i};
+    const double kValue = i;
+    Vector3<double> pose{kValue, kValue, kValue};
     EXPECT_EQ(pose_set[i].translation(), pose);
   }
 }

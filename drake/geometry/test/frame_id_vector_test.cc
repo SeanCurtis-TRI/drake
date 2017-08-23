@@ -54,16 +54,14 @@ GTEST_TEST(FrameIdVector, ConstructorWithDuplicates) {
   frames.push_back(frames[0]);
 
   // Case: Construct by copying frames.
-  EXPECT_ERROR_MESSAGE_IF_ARMED(FrameIdVector(source_id, frames),
-                                std::logic_error,
-                                "The frame id vector contains duplicate frame "
-                                "ids, including, at least, \\d+.");
+  EXPECT_ERROR_MESSAGE_IF_ARMED(
+      FrameIdVector(source_id, frames), std::logic_error,
+      "Input vector of frame ids contains duplicates.");
 
   // Case: Construct by moving frames.
-  EXPECT_ERROR_MESSAGE_IF_ARMED(FrameIdVector(source_id, move(frames)),
-                                std::logic_error,
-                                "The frame id vector contains duplicate frame "
-                                "ids, including, at least, \\d+.");
+  EXPECT_ERROR_MESSAGE_IF_ARMED(
+      FrameIdVector(source_id, move(frames)), std::logic_error,
+      "Input vector of frame ids contains duplicates.");
 }
 
 // Tests the functionality for adding single frames to the set.
@@ -126,6 +124,14 @@ GTEST_TEST(FrameIdVector, AddingFramesMultiple) {
   EXPECT_ERROR_MESSAGE_IF_ARMED(ids.AddFrameIds(duplicate), std::logic_error,
                                 "The frame id vector contains duplicate frame "
                                 "ids, including, at least, \\d+.");
+
+  // Case: Add vector of ids that do not duplicate previous contents but
+  // contains duplicate values.
+  FrameId new_id = FrameId::get_new_id();
+  vector<FrameId> redundant{new_id, new_id};
+  EXPECT_ERROR_MESSAGE_IF_ARMED(
+      ids.AddFrameIds(redundant), std::logic_error,
+      "Input vector of frame ids contains duplicates.");
 }
 
 // Tests the functionality that tries to report the index of the desired frame.

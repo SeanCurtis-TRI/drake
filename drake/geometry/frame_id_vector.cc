@@ -1,6 +1,7 @@
 #include "drake/geometry/frame_id_vector.h"
 
 #include <string>
+#include <unordered_set>
 #include <utility>
 
 namespace drake {
@@ -35,6 +36,7 @@ int FrameIdVector::AddFrameId(FrameId frame_id) {
 }
 
 int FrameIdVector::AddFrameIds(const vector<FrameId>& ids) {
+  DRAKE_ASSERT_VOID(ThrowIfContainsDuplicates(ids));
   DRAKE_ASSERT_VOID(ThrowIfContains(ids));
   int start_index = static_cast<int>(id_index_map_.size());
   index_id_map_.resize(start_index + ids.size());
@@ -43,6 +45,14 @@ int FrameIdVector::AddFrameIds(const vector<FrameId>& ids) {
     id_index_map_[id] = start_index++;
   }
   return start_index;
+}
+
+void FrameIdVector::ThrowIfContainsDuplicates(
+    const std::vector<FrameId>& frame_ids) {
+  std::unordered_set<FrameId> unique_ids{frame_ids.begin(), frame_ids.end()};
+  if (unique_ids.size() != frame_ids.size()) {
+    throw std::logic_error("Input vector of frame ids contains duplicates.");
+  }
 }
 
 void FrameIdVector::ThrowIfContains(const std::vector<FrameId>& frame_ids) {
