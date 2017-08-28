@@ -107,8 +107,6 @@ void DispatchLoadMessage(const GeometryState<double>& state) {
   message.num_links = total_link_count;
   message.link.resize(total_link_count);
 
-  Eigen::Vector4d default_color(0.8, 0.8, 0.8, 1.0);
-
   int link_index = 0;
   // Load anchored geometry into the world frame.
   {
@@ -121,8 +119,10 @@ void DispatchLoadMessage(const GeometryState<double>& state) {
       for (const auto &pair : state.anchored_geometries_) {
         const InternalAnchoredGeometry& geometry = pair.second;
         const Shape &shape = geometry.get_shape();
+        const Eigen::Vector4d& color =
+            geometry.get_visual_material().get_diffuse();
         message.link[0].geom[geom_index] = MakeGeometryData(
-            shape, geometry.get_pose_in_parent(), default_color);
+            shape, geometry.get_pose_in_parent(), color);
         ++geom_index;
       }
       link_index = 1;
@@ -146,11 +146,11 @@ void DispatchLoadMessage(const GeometryState<double>& state) {
     int geom_index = 0;
     for (GeometryId geom_id : frame.get_child_geometries()) {
       const InternalGeometry& geometry = state.geometries_.at(geom_id);
-      GeometryIndex index = state.geometries_.at(geom_id).get_engine_index();
-      const Shape& shape = geometry.get_shape();
+      GeometryIndex index = geometry.get_engine_index();
       const Isometry3<double> X_FG = state.X_FG_.at(index);
+      const Shape& shape = geometry.get_shape();
       const Eigen::Vector4d& color =
-          state.geometries_.at(geom_id).get_visual_material().get_diffuse();
+          geometry.get_visual_material().get_diffuse();
       message.link[link_index].geom[geom_index] =
           MakeGeometryData(shape, X_FG, color);
       ++geom_index;

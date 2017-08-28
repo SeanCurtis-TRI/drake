@@ -233,7 +233,7 @@ void GeometrySystem<T>::CalcPoseBundle(const Context<T>& context,
   FullPoseUpdate(g_context);
   const auto& g_state = g_context.get_geometry_state();
   for (FrameId f_id : g_state.get_frame_ids()) {
-    output->set_pose(i, g_state.get_pose_in_parent(f_id));
+    output->set_pose(i, g_state.get_pose_in_world(f_id));
     // TODO(SeanCurtis-TRI): Handle velocity.
     ++i;
   }

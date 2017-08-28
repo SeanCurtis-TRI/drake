@@ -118,6 +118,11 @@ class GeometryState {
     return frames_.at(frame_id).get_name();
   }
 
+  /** Reports the pose of the frame with the given id. */
+  const Isometry3<T>& get_pose_in_world(FrameId frame_id) const {
+    return X_WF_[frames_.at(frame_id).get_pose_index()];
+  }
+
   /** Reports the pose of the geometry with the given id. */
   const Isometry3<T>& get_pose_in_world(GeometryId geometry_id) const {
     return X_WG_[geometries_.at(geometry_id).get_engine_index()];
@@ -596,6 +601,16 @@ class GeometryState {
   // In other words, it is the full evaluation of the kinematic chain from the
   // geometry to the world frame.
   std::vector<Isometry3<T>> X_WG_;
+
+  // The pose of each frame relative to the *world* frame.
+  // frames_.size() == X_WF_.size() is an invariant. Furthermore, after a
+  // complete state update from input poses,
+  //   X_WF_[i] == X_WFₙ X_FₙFₙ₋₁ ... X_Fᵢ₊₂Fᵢ₊₁ X_PF_[i]
+  // Where Fᵢ₊₁ is the parent frame of frame i, Fₖ₊₁ is the parent frame of
+  // frame Fₖ, and the world frame W is the parent of frame Fₙ.
+  // In other words, it is the full evaluation of the kinematic chain from
+  // frame i to the world frame.
+  std::vector<Isometry3<T>> X_WF_;
 
   // The underlying geometry engine. The topology of the engine does *not*
   // change with respect to time. But its values do. This straddles the two
