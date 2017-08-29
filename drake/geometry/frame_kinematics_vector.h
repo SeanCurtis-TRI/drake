@@ -40,10 +40,10 @@ namespace geometry {
  Currently, the following data types with the following scalar types are
  supported:
 
-  Alias               | Instantiation                                 | Scalar types
- ---------------------|-----------------------------------------------|--------------
-  FramePoseVector     | FrameKinematicsVector<Isometry3<Scalar>       | double
-  FrameVelocityVector | FrameKinematicsVector<SpatialVelocity<Scalar> | double
+  Alias               | Instantiation                                  | Scalar types
+ ---------------------|------------------------------------------------|--------------
+  FramePoseVector     | FrameKinematicsVector<Isometry3<Scalar>>       | double
+  FrameVelocityVector | FrameKinematicsVector<SpatialVelocity<Scalar>> | double
  */
 template <class KinematicsValue>
 class FrameKinematicsVector : public std::vector<KinematicsValue> {

@@ -125,6 +125,10 @@ class GeometryState {
 
   /** Reports the pose of the frame with the given id. */
   const Isometry3<T>& get_pose_in_parent(FrameId frame_id) const {
+    // TODO(SeanCurtis-TRI): After implementing a *real* geometry engine,
+    // determine if the frame kinematics should live in the engine and eliminate
+    // it from here in the state. Simply implement this method by reading the
+    // value from the engine.
     return X_PF_[frames_.at(frame_id).get_pose_index()];
   }
 
