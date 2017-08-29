@@ -22,8 +22,6 @@
 namespace drake {
 namespace geometry {
 
-class FrameIdVector;
-
 class GeometryFrame;
 
 class GeometryInstance;
@@ -319,72 +317,6 @@ class GeometryState {
 
   //@}
 
-  /** Sets the kinematic poses for the frames indicated by the given ids. This
-   method assumes that the `ids` have already been validated by
-   ValidateFrameIds().
-   @param ids   The ids of the frames whose poses are being set.
-   @param poses The frame pose values.
-   @throws std::logic_error  if the poses don't "match" the ids. */
-  void SetFramePoses(const FrameIdVector& ids, const FramePoseVector<T>& poses);
-
-  /** Sets the kinematic velocities for the frames indicated by the given ids.
-   This method assumes that the `ids` have already been validated by
-   ValidateFrameIds().
-   @param ids        The ids of the frames whose poses are being set.
-   @param velocities The frame velocity values.
-   @throws std::logic_error  if the velocities don't "match" the ids.  */
-  void SetFrameVelocities(const FrameIdVector& ids,
-                          const FrameVelocityVector<T>& velocities);
-
-  /** Method that performs any final book-keeping/updating on the state after
-   _all_ of the stat's frames have had their poses updated. */
-  void FinalizePoseUpdate() { geometry_engine_->UpdateWorldPoses(X_WG_); }
-
-  /** Method that performs any final book-keeping/updating on the state after
-   _all_ of the stat's frames have had their poses updated. */
-  void FinalizeVelocityUpdate() {
-    throw std::runtime_error("Not implemented.");
-  }
-
-  // TODO(SeanCurtis-TRI): Why are these public?  Testing?
-
-  // TODO(SeanCurtis-TRI): When *does* this get invoked?
-  /** Confirms that the set of ids provided include _all_ of the frames
-   registered to the set's source id and that no extra frames are included.
-   @param ids The id set to validate.
-   @throws std::logic_error if the set is inconsistent with known topology. */
-  void ValidateFrameIds(const FrameIdVector& ids) const;
-
-  /** Confirms that the pose data is consistent with the set of ids.
-   @param ids       The id set to test against.
-   @param poses     The poses to test.
-   @throws  std::logic_error if the two data sets don't have matching source ids
-                             or matching size. */
-  void ValidateFramePoses(const FrameIdVector& ids,
-                          const FramePoseVector<T>& poses) const;
-
-  /** Confirms that the velocity data is consistent with the set of ids.
-   @param ids       The id set to test against.
-   @param poses     The velocities to test.
-   @throws  std::logic_error if the two data sets don't have matching source ids
-                             or matching size. */
-  void ValidateFrameVelocities(const FrameIdVector& ids,
-                               const FrameVelocityVector<T>& velocities) const;
-
-  /** Informs the state that all kinematics data has been set (via calls to
-   SetFrameKinematics()). Allows the state to update internal bookkeeping. */
-  void FinalizeKinematicsUpdate() { geometry_engine_->UpdateWorldPoses(X_WG_); }
-
-  /** Finds the identifier for parent geometry of the given geometry_id. The
-   optional will be invalid if geometry_id's parent is the frame itself.
-   @param geometry_id   The identifier for the geometry whose parent is to be
-                        found.
-   @returns The _optional_ parent of the queried geometry_id. Will be valid if
-            `geometry_id` has a geometry parent, invalid if it has a frame
-            parent.
-   @throws std::logic_error If geometry_id is _not_ a valid geometry id. */
-  optional<GeometryId> FindParentGeometry(GeometryId geometry_id) const;
-
  private:
   // Allow geometry dispatch to peek into GeometryState.
   friend void DispatchLoadMessage(const GeometryState<double>&);
@@ -428,6 +360,55 @@ class GeometryState {
    private:
     std::unordered_map<K, V> map_;
   };
+
+  // Sets the kinematic poses for the frames indicated by the given ids. This
+  // method assumes that the `ids` have already been validated by
+  // ValidateFrameIds().
+  // @param ids   The ids of the frames whose poses are being set.
+  // @param poses The frame pose values.
+  // @throws std::logic_error  if the poses don't "match" the ids.
+  void SetFramePoses(const FrameIdVector& ids, const FramePoseVector<T>& poses);
+
+  // Sets the kinematic velocities for the frames indicated by the given ids.
+  // This method assumes that the `ids` have already been validated by
+  // ValidateFrameIds().
+  // @param ids        The ids of the frames whose poses are being set.
+  // @param velocities The frame velocity values.
+  // @throws std::logic_error  if the velocities don't "match" the ids.
+  void SetFrameVelocities(const FrameIdVector& ids,
+                          const FrameVelocityVector<T>& velocities);
+
+  // Confirms that the set of ids provided include _all_ of the frames
+  // registered to the set's source id and that no extra frames are included.
+  // @param ids The id set to validate.
+  // @throws std::logic_error if the set is inconsistent with known topology.
+  void ValidateFrameIds(const FrameIdVector& ids) const;
+
+  // Confirms that the pose data is consistent with the set of ids.
+  // @param ids       The id set to test against.
+  // @param poses     The poses to test.
+  // @throws  std::logic_error if the two data sets don't have matching source
+  //                           ids or matching size.
+  void ValidateFramePoses(const FrameIdVector& ids,
+                          const FramePoseVector<T>& poses) const;
+
+  // Confirms that the velocity data is consistent with the set of ids.
+  // @param ids       The id set to test against.
+  // @param poses     The velocities to test.
+  // @throws  std::logic_error if the two data sets don't have matching source
+  //                           ids or matching size.
+  void ValidateFrameVelocities(const FrameIdVector& ids,
+                               const FrameVelocityVector<T>& velocities) const;
+
+  // Method that performs any final book-keeping/updating on the state after
+  // _all_ of the stat's frames have had their poses updated.
+  void FinalizePoseUpdate() { geometry_engine_->UpdateWorldPoses(X_WG_); }
+
+  // Method that performs any final book-keeping/updating on the state after
+  // _all_ of the stat's frames have had their poses updated.
+  void FinalizeVelocityUpdate() {
+    throw std::runtime_error("Not implemented.");
+  }
 
   // Gets the source id for the given frame id. Throws std::logic_error if the
   // frame belongs to no registered source.

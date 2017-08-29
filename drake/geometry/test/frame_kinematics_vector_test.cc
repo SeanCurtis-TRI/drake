@@ -16,8 +16,8 @@ using std::move;
 using std::vector;
 
 // Because FrameKinematicsVector inherits from std::vector, we assume that class
-// has been propertly tested. We limit the testing to the public constructors
-// and singel additional field.
+// has been properly tested. We limit the testing to the public constructors
+// and single additional field.
 
 GTEST_TEST(FrameKinematicsVector, DefaultConstructor) {
   SourceId source_id = SourceId::get_new_id();

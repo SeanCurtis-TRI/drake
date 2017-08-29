@@ -371,7 +371,7 @@ const FrameIdSet& GeometryState<T>::GetFramesForSource(
 
 template <typename T>
 void GeometryState<T>::SetFramePoses(const FrameIdVector& ids,
-                                    const FramePoseVector<T>& poses) {
+                                     const FramePoseVector<T>& poses) {
   ValidateFramePoses(ids, poses);
   const Isometry3<T> world_pose = Isometry3<T>::Identity();
   for (auto frame_id : source_root_frame_map_[ids.get_source_id()]) {
@@ -442,13 +442,6 @@ void GeometryState<T>::ValidateFrameVelocities(
         to_string(ids.size()) + " ids and " + to_string(velocities.size()) +
         " velocities.");
   }
-}
-
-template <typename T>
-optional<GeometryId> GeometryState<T>::FindParentGeometry(
-    GeometryId geometry_id) const {
-  const auto& geometry = GetValueOrThrow(geometry_id, geometries_);
-  return geometry.get_parent_id();
 }
 
 template <typename T>

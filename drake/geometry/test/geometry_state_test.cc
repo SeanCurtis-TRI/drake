@@ -31,7 +31,7 @@ class GeometryStateTester {
   using State = GeometryState<T>;
 
  public:
-  void set_state(const State* state) { state_ = state; }
+  void set_state(State* state) { state_ = state; }
 
   FrameId get_world_frame() {
     return internal::InternalFrame::get_world_frame_id();
@@ -79,8 +79,32 @@ class GeometryStateTester {
     return state_->X_PF_;
   }
 
+  void SetFramePoses(const FrameIdVector& ids,
+                     const FramePoseVector<T>& poses) {
+    state_->SetFramePoses(ids, poses);
+  }
+
+  void SetFrameVelocities(const FrameIdVector& ids,
+                          const FrameVelocityVector<T>& poses) {
+    state_->SetFrameVelocities(ids, poses);
+  }
+
+  void ValidateFrameIds(const FrameIdVector& ids) const {
+    state_->ValidateFrameIds(ids);
+  }
+
+  void ValidateFramePoses(const FrameIdVector& ids,
+                          const FramePoseVector<T>& poses) const {
+    state_->ValidateFramePoses(ids, poses);
+  }
+
+  void ValidateFrameVelocities(const FrameIdVector& ids,
+                               const FrameVelocityVector<T>& velocities) const {
+    state_->ValidateFrameVelocities(ids, velocities);
+  }
+
  private:
-  const State* state_;
+  State* state_;
 };
 
 namespace {
@@ -1033,44 +1057,17 @@ TEST_F(GeometryStateTest, ClearSourceData) {
   AssertSingleTreeCleared();
 }
 
-// Tests the functionality for acquiring the parent geometry for a given
-// geometry.
-TEST_F(GeometryStateTest, GetParentGeometry) {
-  SourceId s_id = SetUpSingleSourceTree();
-
-  // Case: Attempt to query non-existant geometry id.
-  EXPECT_ERROR_MESSAGE(
-      geometry_state_.FindParentGeometry(GeometryId::get_new_id()),
-      std::logic_error,
-      "Referenced geometry \\d+ has not been registered.");
-
-  // Case: Query geometry id directly registered to the frame. The optional must
-  // be false.
-  auto frame_result = geometry_state_.FindParentGeometry(geometries_[0]);
-  EXPECT_FALSE(frame_result);
-
-  // Case: Query geometry registered to another geometry.
-  auto instance = make_unique<GeometryInstance>(
-      Isometry3<double>::Identity(), unique_ptr<Shape>(new Sphere(1)));
-  GeometryId g_id = geometry_state_.RegisterGeometryWithParent(s_id,
-                                                               geometries_[0],
-                                                               move(instance));
-  auto geo_result = geometry_state_.FindParentGeometry(g_id);
-  EXPECT_TRUE(geo_result);
-  EXPECT_EQ(*geo_result, geometries_[0]);
-}
-
 // Tests the validation of the set of ids provided.
 TEST_F(GeometryStateTest, ValidateFrameIdVector) {
   SourceId s_id = SetUpSingleSourceTree();
   FrameIdVector frame_set(s_id, frames_);
 
   // Case: frame ids are valid.
-  EXPECT_NO_THROW(geometry_state_.ValidateFrameIds(frame_set));
+  EXPECT_NO_THROW(gs_tester_.ValidateFrameIds(frame_set));
 
   // Case: Set has *extra* frame.
   frame_set.AddFrameId(FrameId::get_new_id());
-  EXPECT_ERROR_MESSAGE(geometry_state_.ValidateFrameIds(frame_set),
+  EXPECT_ERROR_MESSAGE(gs_tester_.ValidateFrameIds(frame_set),
                        std::logic_error,
                        "Disagreement in expected number of frames \\(\\d+\\)"
                        " and the given number of frames \\(\\d+\\).");
@@ -1080,7 +1077,7 @@ TEST_F(GeometryStateTest, ValidateFrameIdVector) {
   for (size_t i = 0; i < frames_.size(); ++i) {
     frame_set_2.AddFrameId(FrameId::get_new_id());
   }
-  EXPECT_ERROR_MESSAGE(geometry_state_.ValidateFrameIds(frame_set_2),
+  EXPECT_ERROR_MESSAGE(gs_tester_.ValidateFrameIds(frame_set_2),
                        std::logic_error,
                        "Frame id provided in kinematics data \\(\\d+\\) does "
                        "not belong to the source \\(\\d+\\). At least one "
@@ -1091,7 +1088,7 @@ TEST_F(GeometryStateTest, ValidateFrameIdVector) {
   for (size_t i = 0; i < frames_.size() - 1; ++i) {
     frame_set_3.AddFrameId(frames_[i]);
   }
-  EXPECT_ERROR_MESSAGE(geometry_state_.ValidateFrameIds(frame_set_3),
+  EXPECT_ERROR_MESSAGE(gs_tester_.ValidateFrameIds(frame_set_3),
                        std::logic_error,
                        "Disagreement in expected number of frames \\(\\d+\\)"
                        " and the given number of frames \\(\\d+\\).");
@@ -1109,12 +1106,12 @@ TEST_F(GeometryStateTest, ValidateFramePoses) {
 
   // Case: validated.
   FramePoseVector<double> pose_set(s_id, poses);
-  EXPECT_NO_THROW(geometry_state_.ValidateFramePoses(frame_set, pose_set));
+  EXPECT_NO_THROW(gs_tester_.ValidateFramePoses(frame_set, pose_set));
 
   // Case: Too many pose values.
   pose_set.push_back(Isometry3<double>::Identity());
   EXPECT_ERROR_MESSAGE(
-      geometry_state_.ValidateFramePoses(frame_set, pose_set),
+      gs_tester_.ValidateFramePoses(frame_set, pose_set),
       std::logic_error,
       "Different number of ids and poses. \\d+ ids and \\d+ poses.");
 
@@ -1122,13 +1119,13 @@ TEST_F(GeometryStateTest, ValidateFramePoses) {
   pose_set.pop_back();
   pose_set.pop_back();
   EXPECT_ERROR_MESSAGE(
-      geometry_state_.ValidateFramePoses(frame_set, pose_set),
+      gs_tester_.ValidateFramePoses(frame_set, pose_set),
       std::logic_error,
       "Different number of ids and poses. \\d+ ids and \\d+ poses.");
 
   // Case: mis-matched source ids.
   FramePoseVector<double> pose_set2(SourceId::get_new_id(), poses);
-  EXPECT_ERROR_MESSAGE(geometry_state_.ValidateFramePoses(frame_set, pose_set2),
+  EXPECT_ERROR_MESSAGE(gs_tester_.ValidateFramePoses(frame_set, pose_set2),
                        std::logic_error,
                        "Error setting poses for given ids; the ids and poses "
                            "belong to different geometry sources \\(\\d+ and "
@@ -1147,13 +1144,13 @@ TEST_F(GeometryStateTest, ValidateFrameVelocities) {
 
   // Case: validated.
   FrameVelocityVector<double> velocity_set(s_id, velocities);
-  EXPECT_NO_THROW(geometry_state_.ValidateFrameVelocities(frame_set,
-                                                          velocity_set));
+  EXPECT_NO_THROW(gs_tester_.ValidateFrameVelocities(frame_set,
+                                                     velocity_set));
 
   // Case: Too many velocity values.
   velocity_set.push_back(SpatialVelocity<double>());
   EXPECT_ERROR_MESSAGE(
-      geometry_state_.ValidateFrameVelocities(frame_set, velocity_set),
+      gs_tester_.ValidateFrameVelocities(frame_set, velocity_set),
       std::logic_error,
       "Different number of ids and velocities. \\d+ ids and \\d+ velocities.");
 
@@ -1161,14 +1158,14 @@ TEST_F(GeometryStateTest, ValidateFrameVelocities) {
   velocity_set.pop_back();
   velocity_set.pop_back();
   EXPECT_ERROR_MESSAGE(
-      geometry_state_.ValidateFrameVelocities(frame_set, velocity_set),
+      gs_tester_.ValidateFrameVelocities(frame_set, velocity_set),
       std::logic_error,
       "Different number of ids and velocities. \\d+ ids and \\d+ velocities.");
 
   // Case: mis-matched source ids.
   FrameVelocityVector<double> velocity_set2(SourceId::get_new_id(), velocities);
   EXPECT_ERROR_MESSAGE(
-      geometry_state_.ValidateFrameVelocities(frame_set, velocity_set2),
+      gs_tester_.ValidateFrameVelocities(frame_set, velocity_set2),
       std::logic_error,
       "Error setting velocities for given ids; the ids and velocities belong to"
       " different geometry sources \\(\\d+ and \\d+, respectively\\).");
@@ -1194,7 +1191,7 @@ TEST_F(GeometryStateTest, SetFramePoses) {
   // Case 1: Set all frames to identity poses. The world pose of all the
   // geometry should be that of the geometry in its frame.
   FramePoseVector<double> poses1(s_id, frame_poses);
-  geometry_state_.SetFramePoses(ids, poses1);
+  gs_tester_.SetFramePoses(ids, poses1);
   const auto& world_poses = gs_tester_.get_geometry_world_poses();
   for (int i = 0; i < kFrameCount * kGeometryCount; ++i) {
     EXPECT_TRUE(CompareMatrices(world_poses[i].matrix().block<3, 4>(0, 0),
@@ -1209,7 +1206,7 @@ TEST_F(GeometryStateTest, SetFramePoses) {
   frame_poses[0] = offset;
   frame_poses[1] = offset;
   FramePoseVector<double> poses2(s_id, frame_poses);
-  geometry_state_.SetFramePoses(ids, poses2);
+  gs_tester_.SetFramePoses(ids, poses2);
   for (int i = 0; i < kFrameCount * kGeometryCount; ++i) {
     EXPECT_TRUE(
         CompareMatrices(world_poses[i].matrix().block<3, 4>(0, 0),
@@ -1220,7 +1217,7 @@ TEST_F(GeometryStateTest, SetFramePoses) {
   // 0, 1, 2, & 3 moved up 1, and geometries 4 & 5 moved up two.
   frame_poses[2] = offset;
   FramePoseVector<double> poses3(s_id, frame_poses);
-  geometry_state_.SetFramePoses(ids, poses3);
+  gs_tester_.SetFramePoses(ids, poses3);
   for (int i = 0; i < (kFrameCount - 1) * kGeometryCount; ++i) {
     EXPECT_TRUE(
         CompareMatrices(world_poses[i].matrix().block<3, 4>(0, 0),
@@ -1244,7 +1241,7 @@ TEST_F(GeometryStateTest, SetFrameVelocities) {
   for (size_t i = 0; i < frames_.size(); ++i) {
     velocities.push_back(SpatialVelocity<double>());
   }
-  EXPECT_ERROR_MESSAGE(geometry_state_.SetFrameVelocities(ids, velocities),
+  EXPECT_ERROR_MESSAGE(gs_tester_.SetFrameVelocities(ids, velocities),
                        std::runtime_error,
                        "Not implemented");
 }

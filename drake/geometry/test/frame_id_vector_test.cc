@@ -44,6 +44,7 @@ GTEST_TEST(FrameIdVector, RangeIteration) {
   for (auto id : ids) {
     EXPECT_EQ(id, frames[i++]);
   }
+  EXPECT_EQ(i, static_cast<int>(frames.size()));
 }
 
 // Tests conditions where input vector of ids contain duplicates.
@@ -54,12 +55,12 @@ GTEST_TEST(FrameIdVector, ConstructorWithDuplicates) {
   frames.push_back(frames[0]);
 
   // Case: Construct by copying frames.
-  EXPECT_ERROR_MESSAGE_IF_ARMED(
+  EXPECT_ERROR_MESSAGE(
       FrameIdVector(source_id, frames), std::logic_error,
       "Input vector of frame ids contains duplicates.");
 
   // Case: Construct by moving frames.
-  EXPECT_ERROR_MESSAGE_IF_ARMED(
+  EXPECT_ERROR_MESSAGE(
       FrameIdVector(source_id, move(frames)), std::logic_error,
       "Input vector of frame ids contains duplicates.");
 }
@@ -70,22 +71,19 @@ GTEST_TEST(FrameIdVector, AddingFramesSingle) {
   // Do *not* re-order these tests; the logic depends on the sequence.
   // Case: Add single to empty.
   FrameId f0 = FrameId::get_new_id();
-  int report_count = -1;
-  EXPECT_NO_THROW(report_count = ids.AddFrameId(f0));
-  EXPECT_EQ(report_count, 1);
+  EXPECT_NO_THROW(ids.AddFrameId(f0));
   EXPECT_EQ(ids.size(), 1);
   EXPECT_EQ(ids.get_frame_id(0), f0);
 
   // Case: Add single to non-empty (unique).
   FrameId f1 = FrameId::get_new_id();
-  EXPECT_NO_THROW(report_count = ids.AddFrameId(f1));
-  EXPECT_EQ(report_count, 2);
+  EXPECT_NO_THROW(ids.AddFrameId(f1));
   EXPECT_EQ(ids.size(), 2);
   EXPECT_EQ(ids.get_frame_id(1), f1);
 
   // Case: Add single to non-empty (not unique).
-  EXPECT_ERROR_MESSAGE_IF_ARMED(ids.AddFrameId(f0), std::logic_error,
-                                "Id vector already contains frame id: \\d+.");
+  EXPECT_ERROR_MESSAGE(ids.AddFrameId(f0), std::logic_error,
+                       "Id vector already contains frame id: \\d+.");
 }
 
 // Tests the functionality for adding multiple frames to the set.
@@ -99,18 +97,13 @@ GTEST_TEST(FrameIdVector, AddingFramesMultiple) {
   // Do *not* re-order these tests; the logic depends on the sequence.
 
   // Case: Add multiple to empty (all unique).
-  int report_count = -1;
-  EXPECT_NO_THROW(report_count = ids.AddFrameIds(unique1));
-  EXPECT_EQ(report_count, static_cast<int>(unique1.size()));
-  EXPECT_EQ(ids.size(), report_count);
+  EXPECT_NO_THROW(ids.AddFrameIds(unique1));
   for (int i = 0; i < static_cast<int>(unique1.size()); ++i) {
     EXPECT_EQ(ids.get_frame_id(i), unique1[i]);
   }
 
   // Case: Add multiple to non-empty (unique result).
-  EXPECT_NO_THROW(report_count = ids.AddFrameIds(unique2));
-  EXPECT_EQ(report_count, static_cast<int>(unique1.size() + unique2.size()));
-  EXPECT_EQ(ids.size(), report_count);
+  EXPECT_NO_THROW(ids.AddFrameIds(unique2));
   int i = 0;
   for (; i < static_cast<int>(unique1.size()); ++i) {
     EXPECT_EQ(ids.get_frame_id(i), unique1[i]);
@@ -121,15 +114,14 @@ GTEST_TEST(FrameIdVector, AddingFramesMultiple) {
   }
 
   // Case: Add multiple to non-empty (non-unique result).
-  EXPECT_ERROR_MESSAGE_IF_ARMED(ids.AddFrameIds(duplicate), std::logic_error,
-                                "The frame id vector contains duplicate frame "
-                                "ids, including, at least, \\d+.");
+  EXPECT_ERROR_MESSAGE(ids.AddFrameIds(duplicate), std::logic_error,
+                       "Id vector already contains frame id: \\d+.");
 
   // Case: Add vector of ids that do not duplicate previous contents but
   // contains duplicate values.
   FrameId new_id = FrameId::get_new_id();
   vector<FrameId> redundant{new_id, new_id};
-  EXPECT_ERROR_MESSAGE_IF_ARMED(
+  EXPECT_ERROR_MESSAGE(
       ids.AddFrameIds(redundant), std::logic_error,
       "Input vector of frame ids contains duplicates.");
 }

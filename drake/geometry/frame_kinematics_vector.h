@@ -11,7 +11,7 @@
 namespace drake {
 namespace geometry {
 
-/** A FrameKinematicsVector is a std::vector associated with a geometry source.
+/** A %FrameKinematicsVector is a std::vector associated with a geometry source.
  As such, it is constructed with a SourceId but has all std::vector operations
  available to it. This class serves as the basis of FramePoseVector,
  FrameVelocityVector, and FrameAccelerationVector.
@@ -29,14 +29,22 @@ namespace geometry {
                           kinematics data (e.g., pose, velocity, or
                           acceleration).
 
- Instantiated templates for the following kinds of kinematics values are
- provided:
- - Isometry3 (for poses),
- - SpatialVelocity (for velocities),
- - SpatialAcceleration (for accelerations).
+ One should never interact with the %FrameKinematicsVector class directly.
+ Instead, the FramePoseVector, FrameVelocityVector, and FrameAccelerationVector
+ classes are aliases of the %FrameKinematicsVector instantiated on specific
+ data types (Isometry3, SpatialVector, and SpatialAcceleration, respectively).
+ Each of these data types are templated on Eigen scalars. All supported
+ combinations of data type and scalar type are already available to link against
+ in the containing library. No other values for KinematicsValue are supported.
 
- They are already available to link against in the containing library. No other
- values for KinematicsValue are supported. */
+ Currently, the following data types with the following scalar types are
+ supported:
+
+  Alias               | Instantiation                                 | Scalar types
+ ---------------------|-----------------------------------------------|--------------
+  FramePoseVector     | FrameKinematicsVector<Isometry3<Scalar>       | double
+  FrameVelocityVector | FrameKinematicsVector<SpatialVelocity<Scalar> | double
+ */
 template <class KinematicsValue>
 class FrameKinematicsVector : public std::vector<KinematicsValue> {
  public:
@@ -88,7 +96,7 @@ using FramePoseVector = FrameKinematicsVector<Isometry3<T>>;
  */
 template <typename T>
 using FrameVelocityVector =
-    FrameKinematicsVector<drake::multibody::SpatialVelocity<double>>;
+    FrameKinematicsVector<drake::multibody::SpatialVelocity<T>>;
 
 }  // namespace geometry
 }  // namespace drake

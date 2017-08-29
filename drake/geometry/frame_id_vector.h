@@ -4,7 +4,6 @@
 #include <vector>
 
 #include "drake/common/drake_copyable.h"
-#include "drake/common/eigen_types.h"
 #include "drake/geometry/geometry_ids.h"
 
 namespace drake {
@@ -19,7 +18,7 @@ namespace geometry {
 //    1. Expectation of constructing once and updating as you go.
 
 /** Represents an _ordered_ set of frame identifiers. Instances of this class
- work in conjunction with instances of FramePoseSet and FrameVelocitySet
+ work in conjunction with instances of FramePoseVector and FrameVelocityVector
  to communicate frame kinematics to GeometryWorld and GeometrySystem. Considered
  together, they represent a "struct-of-arrays" paradigm. The iᵗʰ value in the
  %FrameIdVector is the frame identifier whose position is specified by
@@ -39,7 +38,7 @@ class FrameIdVector {
  public:
   DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(FrameIdVector)
 
-  typedef std::vector<FrameId>::const_iterator Iterator;
+  typedef std::vector<FrameId>::const_iterator ConstIterator;
 
   /** Constructor for an _empty_ id vector.
    @param source_id   The id for the geometry source reporting frame kinematics.
@@ -57,7 +56,7 @@ class FrameIdVector {
   /** Reports the source id for this data. */
   SourceId get_source_id() const { return source_id_; }
 
-  /** Report the number of ids stored in the vector. */
+  /** Reports the number of ids stored in the vector. */
   int size() const { return static_cast<int>(id_index_map_.size()); }
 
   /** Returns the iᵗʰ frame id. */
@@ -67,35 +66,29 @@ class FrameIdVector {
    @throws std::logic_error if the frame id is not in the set. */
   int GetIndex(FrameId frame_id) const;
 
-  /** Appends the given frame identifier to the set. In Debug build, the added
-   identifier is confirmed to be unique and an exception is thrown if not.
-   * @param frame_id    The frame identifier to add.
-   * @return The total number of frame identifiers in the set.  */
-  int AddFrameId(FrameId frame_id);
+  /** Appends the given frame identifier to the set.
+   @param frame_id    The frame identifier to add.
+   @throws std::logic_error if the frame_id already exists in the vector.  */
+  void AddFrameId(FrameId frame_id);
 
   /** Appends the given set of frame `ids` to the set. In Debug build, the
    resultant set is tested for duplicate frame ids.
    @param ids  The ordered set of frame ids to append to the current set.
-   @throws std::logic_error (in Debug) if there are duplicate ids in the
-                            resultant set. */
-  int AddFrameIds(const std::vector<FrameId>& ids);
+   @throws std::logic_error if there are duplicate ids in the resultant set. */
+  void AddFrameIds(const std::vector<FrameId>& ids);
 
   /** @name  Support for range-based loop iteration */
   //@{
 
-  Iterator begin() const { return index_id_map_.cbegin(); }
-  Iterator end() const { return index_id_map_.cend(); }
+  ConstIterator begin() const { return index_id_map_.cbegin(); }
+  ConstIterator end() const { return index_id_map_.cend(); }
 
-  // @}
+  //@}
 
  private:
   // Throws an exception if the given vector contains duplicates values. This
   // does not consider the contents of index_id_map_.
-  void ThrowIfContainsDuplicates(const std::vector<FrameId>& frame_ids);
-
-  // Throws an exception if any of the given frame ids is already in
-  // id_index_map_.
-  void ThrowIfContains(const std::vector<FrameId>& frame_ids);
+  static void ThrowIfContainsDuplicates(const std::vector<FrameId>& frame_ids);
 
   // Throws an exception if the given frame_id is already in id_index_map_.
   void ThrowIfContains(FrameId frame_id);
