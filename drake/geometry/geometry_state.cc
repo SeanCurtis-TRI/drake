@@ -421,9 +421,9 @@ void GeometryState<T>::ValidateFramePoses(
         "different geometry sources (" + to_string(ids.get_source_id()) +
         " and " + to_string(poses.get_source_id()) + ", respectively).");
   }
-  if (ids.size() != static_cast<int>(poses.size())) {
+  if (ids.size() != static_cast<int>(poses.vector().size())) {
     throw std::logic_error("Different number of ids and poses. " +
-        to_string(ids.size()) + " ids and " + to_string(poses.size()) +
+        to_string(ids.size()) + " ids and " + to_string(poses.vector().size()) +
         " poses.");
   }
 }
@@ -437,10 +437,10 @@ void GeometryState<T>::ValidateFrameVelocities(
         "to different geometry sources (" + to_string(ids.get_source_id()) +
         " and " + to_string(velocities.get_source_id()) + ", respectively).");
   }
-  if (ids.size() != static_cast<int>(velocities.size())) {
+  if (ids.size() != static_cast<int>(velocities.vector().size())) {
     throw std::logic_error("Different number of ids and velocities. " +
-        to_string(ids.size()) + " ids and " + to_string(velocities.size()) +
-        " velocities.");
+        to_string(ids.size()) + " ids and " +
+        to_string(velocities.vector().size()) + " velocities.");
   }
 }
 
@@ -579,8 +579,9 @@ void GeometryState<T>::UpdatePosesRecursively(
     const FrameIdVector& ids, const FramePoseVector<T>& poses) {
   const auto frame_id = frame.get_id();
   int index = ids.GetIndex(frame_id);
-  const auto& X_PF = poses.at(index);
-  X_PF_[frame.get_pose_index()] = X_PF;  // Also cache this transform.
+  const auto& X_PF = poses.vector().at(index);
+  // Cache this transform for later use.
+  X_PF_[frame.get_pose_index()] = X_PF;
   Isometry3<T> X_WF = X_WP * X_PF;
 
   // Update the geometry which belong to *this* frame.

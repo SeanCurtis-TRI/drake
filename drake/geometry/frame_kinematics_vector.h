@@ -11,19 +11,28 @@
 namespace drake {
 namespace geometry {
 
-/** A %FrameKinematicsVector is a std::vector associated with a geometry source.
- As such, it is constructed with a SourceId but has all std::vector operations
- available to it. This class serves as the basis of FramePoseVector,
- FrameVelocityVector, and FrameAccelerationVector.
+/** A %FrameKinematicsVector associates a std::vector with a geometry source.
+ It serves as the basis of FramePoseVector, FrameVelocityVector, and
+ FrameAccelerationVector. Geometry sources report the kinematics values for
+ their registered frame through these classes.
 
- When computing frame kinematics values for updating the state of GeometryWorld/
- GeometrySystem, we recommend making full use of the std::vector functionality,
- e.g.,
+ The %FrameKinematicsVector must be constructed with the source's SourceId
+ and then one kinematics value (e.g., pose) must be added to the underlying
+ vector for each registered frame. The values are interpreted by the order of
+ FrameId values in the corresponding FrameIdVector; the iᵗʰ value is attributed
+ to the frame identified by the iᵗʰ FrameId in the FrameIdVector.
 
-   - Reserving space for the known number of frame ids (e.g.,
-     `pose_vector.reserve(n);`).
+ @internal The FrameVelocityVector and FrameAccelerationVector are still to
+ come.
+
+ The intent is for the vector to be manipulated directly. Access the vector
+ through a call to mutable_vector() and operate directly on the vector to
+ improve performance. For example, for a FramePoseVector `poses`:
+
+   - Reserving space for `n` frame poses (e.g.,
+     `poses.mutable_vector().reserve(n);`).
    - Making use of `emplace_back()` or writing directly to mutable references
-     via `pose_vector[i] = KinematicsValue()`.
+     via `poses.mutable_vector()[i] = KinematicsValue()`.
 
  @tparam KinematicsValue  The underlying data type of for the order of
                           kinematics data (e.g., pose, velocity, or
@@ -44,9 +53,10 @@ namespace geometry {
  ---------------------|------------------------------------------------|--------------
   FramePoseVector     | FrameKinematicsVector<Isometry3<Scalar>>       | double
   FrameVelocityVector | FrameKinematicsVector<SpatialVelocity<Scalar>> | double
- */
+
+  @see FrameIdVector */
 template <class KinematicsValue>
-class FrameKinematicsVector : public std::vector<KinematicsValue> {
+class FrameKinematicsVector {
  public:
   DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(FrameKinematicsVector)
 
@@ -62,8 +72,13 @@ class FrameKinematicsVector : public std::vector<KinematicsValue> {
                         std::vector<KinematicsValue>&& values);
 
   SourceId get_source_id() const { return source_id_; }
+  const std::vector<KinematicsValue>& vector() const { return vector_; }
+  std::vector<KinematicsValue>& mutable_vector() { return vector_; }
 
  private:
+  // The underlying data.
+  std::vector<KinematicsValue> vector_;
+
   // The source id this data is associated with.
   SourceId source_id_;
 };

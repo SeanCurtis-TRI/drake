@@ -337,8 +337,8 @@ size_t GeometrySystem<T>::CalcInputHash(
       if (pose_port_value) {
         const FramePoseVector<T>& poses =
             pose_port_value->template GetValue<FramePoseVector<T>>();
-        for (int i = 0; i < static_cast<int>(poses.size()); ++i) {
-          const Isometry3<T>& pose = poses.at(i);
+        for (int i = 0; i < static_cast<int>(poses.vector().size()); ++i) {
+          const Isometry3<T>& pose = poses.vector().at(i);
           // Naive hashing to serve in as a stopgap.
           guard ^= HashIsometry(pose);
         }

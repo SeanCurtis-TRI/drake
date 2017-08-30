@@ -362,10 +362,10 @@ class GeometrySourceSystem : public systems::LeafSystem<double> {
   const Context<double>& context) const {
     FramePoseVector<double> poses(source_id_);
     for (size_t i = 0; i < frame_ids_.size(); ++i) {
-      poses.push_back(Isometry3<double>::Identity());
+      poses.mutable_vector().push_back(Isometry3<double>::Identity());
     }
     for (const auto& extra_pose : extra_poses_) {
-      poses.push_back(extra_pose);
+      poses.mutable_vector().push_back(extra_pose);
     }
     return poses;
   }

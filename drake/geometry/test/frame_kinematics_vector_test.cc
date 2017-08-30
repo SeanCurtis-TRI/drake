@@ -22,54 +22,54 @@ using std::vector;
 GTEST_TEST(FrameKinematicsVector, DefaultConstructor) {
   SourceId source_id = SourceId::get_new_id();
 
-  FramePoseVector<double> pose_set(source_id);
+  FramePoseVector<double> poses(source_id);
 
-  EXPECT_EQ(pose_set.get_source_id(), source_id);
-  EXPECT_EQ(pose_set.size(), 0);
-  EXPECT_EQ(pose_set.begin(), pose_set.end());
+  EXPECT_EQ(poses.get_source_id(), source_id);
+  EXPECT_EQ(poses.vector().size(), 0);
+  EXPECT_EQ(poses.vector().begin(), poses.vector().end());
 }
 
 GTEST_TEST(FrameKinematicsVector, CopyConstructor) {
   SourceId source_id = SourceId::get_new_id();
-  std::vector<Isometry3<double>> poses;
+  std::vector<Isometry3<double>> pose_source;
   int kPoseCount = 5;
   for (int i = 0; i < kPoseCount; ++i) {
     Isometry3<double> pose = Isometry3<double>::Identity();
     pose.translation() << i, i, i;
-    poses.push_back(pose);
+    pose_source.push_back(pose);
   }
 
-  FramePoseVector<double> pose_set(source_id, poses);
+  FramePoseVector<double> poses(source_id, pose_source);
 
-  EXPECT_EQ(pose_set.get_source_id(), source_id);
-  EXPECT_EQ(poses.size(), kPoseCount);
-  EXPECT_EQ(pose_set.size(), kPoseCount);
+  EXPECT_EQ(poses.get_source_id(), source_id);
+  EXPECT_EQ(pose_source.size(), kPoseCount);
+  EXPECT_EQ(poses.vector().size(), kPoseCount);
   for (int i = 0; i < kPoseCount; ++i) {
     const double kValue = i;
     Vector3<double> pose{kValue, kValue, kValue};
-    EXPECT_EQ(pose_set[i].translation(), pose);
+    EXPECT_EQ(poses.mutable_vector()[i].translation(), pose);
   }
 }
 
 GTEST_TEST(FrameKinematicsVector, MoveConstructor) {
   SourceId source_id = SourceId::get_new_id();
-  std::vector<Isometry3<double>> poses;
+  std::vector<Isometry3<double>> pose_source;
   int kPoseCount = 5;
   for (int i = 0; i < kPoseCount; ++i) {
     Isometry3<double> pose = Isometry3<double>::Identity();
     pose.translation() << i, i, i;
-    poses.push_back(pose);
+    pose_source.push_back(pose);
   }
 
-  FramePoseVector<double> pose_set(source_id, move(poses));
+  FramePoseVector<double> poses(source_id, move(pose_source));
 
-  EXPECT_EQ(pose_set.get_source_id(), source_id);
-  EXPECT_EQ(poses.size(), 0);
-  EXPECT_EQ(pose_set.size(), kPoseCount);
+  EXPECT_EQ(poses.get_source_id(), source_id);
+  EXPECT_EQ(pose_source.size(), 0);
+  EXPECT_EQ(poses.vector().size(), kPoseCount);
   for (int i = 0; i < kPoseCount; ++i) {
     const double kValue = i;
     Vector3<double> pose{kValue, kValue, kValue};
-    EXPECT_EQ(pose_set[i].translation(), pose);
+    EXPECT_EQ(poses.mutable_vector()[i].translation(), pose);
   }
 }
 

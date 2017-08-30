@@ -1099,33 +1099,33 @@ TEST_F(GeometryStateTest, ValidateFramePoses) {
   SourceId s_id = SetUpSingleSourceTree();
   // These tests are only meaningful for *valid* frame_set.
   FrameIdVector frame_set(s_id, frames_);
-  vector<Isometry3<double>> poses;
+  vector<Isometry3<double>> pose_source;
   for (size_t i = 0; i < frames_.size(); ++i) {
-    poses.push_back(Isometry3<double>::Identity());
+    pose_source.push_back(Isometry3<double>::Identity());
   }
 
   // Case: validated.
-  FramePoseVector<double> pose_set(s_id, poses);
-  EXPECT_NO_THROW(gs_tester_.ValidateFramePoses(frame_set, pose_set));
+  FramePoseVector<double> poses(s_id, pose_source);
+  EXPECT_NO_THROW(gs_tester_.ValidateFramePoses(frame_set, poses));
 
   // Case: Too many pose values.
-  pose_set.push_back(Isometry3<double>::Identity());
+  poses.mutable_vector().push_back(Isometry3<double>::Identity());
   EXPECT_ERROR_MESSAGE(
-      gs_tester_.ValidateFramePoses(frame_set, pose_set),
+      gs_tester_.ValidateFramePoses(frame_set, poses),
       std::logic_error,
       "Different number of ids and poses. \\d+ ids and \\d+ poses.");
 
   // Case: Too few pose values.
-  pose_set.pop_back();
-  pose_set.pop_back();
+  poses.mutable_vector().pop_back();
+  poses.mutable_vector().pop_back();
   EXPECT_ERROR_MESSAGE(
-      gs_tester_.ValidateFramePoses(frame_set, pose_set),
+      gs_tester_.ValidateFramePoses(frame_set, poses),
       std::logic_error,
       "Different number of ids and poses. \\d+ ids and \\d+ poses.");
 
   // Case: mis-matched source ids.
-  FramePoseVector<double> pose_set2(SourceId::get_new_id(), poses);
-  EXPECT_ERROR_MESSAGE(gs_tester_.ValidateFramePoses(frame_set, pose_set2),
+  FramePoseVector<double> poses2(SourceId::get_new_id(), pose_source);
+  EXPECT_ERROR_MESSAGE(gs_tester_.ValidateFramePoses(frame_set, poses2),
                        std::logic_error,
                        "Error setting poses for given ids; the ids and poses "
                            "belong to different geometry sources \\(\\d+ and "
@@ -1137,35 +1137,36 @@ TEST_F(GeometryStateTest, ValidateFrameVelocities) {
   SourceId s_id = SetUpSingleSourceTree();
   // These tests are only meaningful for *valid* frame_set.
   FrameIdVector frame_set(s_id, frames_);
-  vector<SpatialVelocity<double>> velocities;
+  vector<SpatialVelocity<double>> velocity_source;
   for (size_t i = 0; i < frames_.size(); ++i) {
-    velocities.emplace_back();
+    velocity_source.emplace_back();
   }
 
   // Case: validated.
-  FrameVelocityVector<double> velocity_set(s_id, velocities);
+  FrameVelocityVector<double> velocities(s_id, velocity_source);
   EXPECT_NO_THROW(gs_tester_.ValidateFrameVelocities(frame_set,
-                                                     velocity_set));
+                                                     velocities));
 
   // Case: Too many velocity values.
-  velocity_set.push_back(SpatialVelocity<double>());
+  velocities.mutable_vector().push_back(SpatialVelocity<double>());
   EXPECT_ERROR_MESSAGE(
-      gs_tester_.ValidateFrameVelocities(frame_set, velocity_set),
+      gs_tester_.ValidateFrameVelocities(frame_set, velocities),
       std::logic_error,
       "Different number of ids and velocities. \\d+ ids and \\d+ velocities.");
 
   // Case: Too few pose values.
-  velocity_set.pop_back();
-  velocity_set.pop_back();
+  velocities.mutable_vector().pop_back();
+  velocities.mutable_vector().pop_back();
   EXPECT_ERROR_MESSAGE(
-      gs_tester_.ValidateFrameVelocities(frame_set, velocity_set),
+      gs_tester_.ValidateFrameVelocities(frame_set, velocities),
       std::logic_error,
       "Different number of ids and velocities. \\d+ ids and \\d+ velocities.");
 
   // Case: mis-matched source ids.
-  FrameVelocityVector<double> velocity_set2(SourceId::get_new_id(), velocities);
+  FrameVelocityVector<double> velocities2(SourceId::get_new_id(),
+                                          velocity_source);
   EXPECT_ERROR_MESSAGE(
-      gs_tester_.ValidateFrameVelocities(frame_set, velocity_set2),
+      gs_tester_.ValidateFrameVelocities(frame_set, velocities2),
       std::logic_error,
       "Error setting velocities for given ids; the ids and velocities belong to"
       " different geometry sources \\(\\d+ and \\d+, respectively\\).");
@@ -1239,7 +1240,7 @@ TEST_F(GeometryStateTest, SetFrameVelocities) {
   FrameIdVector ids(s_id, frames_);
   FrameVelocityVector<double> velocities(s_id);
   for (size_t i = 0; i < frames_.size(); ++i) {
-    velocities.push_back(SpatialVelocity<double>());
+    velocities.mutable_vector().push_back(SpatialVelocity<double>());
   }
   EXPECT_ERROR_MESSAGE(gs_tester_.SetFrameVelocities(ids, velocities),
                        std::runtime_error,
