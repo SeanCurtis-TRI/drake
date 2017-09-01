@@ -20,7 +20,7 @@ using systems::Context;
 using systems::InputPortDescriptor;
 using systems::LeafContext;
 using systems::LeafSystem;
-using systems::SparsityMatrix;
+using systems::SystemSymbolicInspector;
 using systems::SystemOutput;
 using systems::rendering::PoseBundle;
 using std::vector;

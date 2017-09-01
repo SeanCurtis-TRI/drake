@@ -105,19 +105,18 @@ template <typename T>
 FramePoseVector<T> BouncingBallPlant<T>::AllocateFramePoseOutput(
     const Context<T>&) const {
   FramePoseVector<T> poses(source_id_);
-  poses.push_back(Isometry3<T>::Identity());
+  poses.mutable_vector().push_back(Isometry3<T>::Identity());
   return poses;
 }
 
 template <typename T>
 void BouncingBallPlant<T>::CalcFramePoseOutput(
-    const Context<T>& context, FramePoseVector<T>* pose_set) const {
+    const Context<T>& context, FramePoseVector<T>* poses) const {
   const BouncingBallVector<T>& state = get_state(context);
-  DRAKE_ASSERT(pose_set->size() == 1);
-  FramePoseVector<T>& pose_set_ref = *pose_set;
+  DRAKE_ASSERT(poses->vector().size() == 1);
   // This assumes *no* rotation, we only need to update the translation.
-  pose_set_ref[0].translation() << init_position_(0), init_position_(1),
-      state.z();
+  poses->mutable_vector()[0].translation() << init_position_(0),
+      init_position_(1), state.z();
 }
 
 template <typename T>

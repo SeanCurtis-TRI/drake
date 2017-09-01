@@ -14,7 +14,7 @@
 namespace drake {
 
 namespace systems {
-class SparsityMatrix;
+class SystemSymbolicInspector;
 }  // namespace systems
 
 namespace examples {
@@ -69,7 +69,7 @@ class BouncingBallPlant : public systems::LeafSystem<T> {
  protected:
   // The single input (geometry query) only impacts time derivatives and does
   // not affect any output port. So, there are no direct feedthrouhgs.
-  bool DoHasDirectFeedthrough(const systems::SparsityMatrix*,
+  bool DoHasDirectFeedthrough(const systems::SystemSymbolicInspector*,
                               int, int) const override {
     return false;
   }
@@ -88,7 +88,7 @@ class BouncingBallPlant : public systems::LeafSystem<T> {
 
   // Calculate the frame pose set output port value.
   void CalcFramePoseOutput(const MyContext& context,
-                            geometry::FramePoseVector<T>* pose_set) const;
+                            geometry::FramePoseVector<T>* poses) const;
 
   // Allocate the id output.
   geometry::FrameIdVector AllocateFrameIdOutput(const MyContext& context) const;

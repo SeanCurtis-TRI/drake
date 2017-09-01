@@ -97,7 +97,6 @@ class FrameKinematicsVector {
 template <typename T>
 using FramePoseVector = FrameKinematicsVector<Isometry3<T>>;
 
-
 /** Class for communicating ordered _velocity_ information to GeometryWorld/
  GeometrySystem for registered frames.
 
