@@ -1,5 +1,9 @@
 #include "drake/examples/geometry_world/solar_system.h"
 
+#include <memory>
+#include <vector>
+
+#include "drake/geometry/geometry_frame.h"
 #include "drake/geometry/geometry_instance.h"
 #include "drake/math/axis_angle.h"
 
@@ -28,23 +32,25 @@ SolarSystem<T>::SolarSystem(GeometrySystem<T>* geometry_system) {
                                       &SolarSystem::CalcFrameIdOutput)
           .get_index();
   geometry_pose_port_ =
-      this->DeclareAbstractOutputPort(
-          &SolarSystem::AllocateFramePoseOutput,
-          &SolarSystem::CalcFramePoseOutput).get_index();
+      this->DeclareAbstractOutputPort(&SolarSystem::AllocateFramePoseOutput,
+                                      &SolarSystem::CalcFramePoseOutput)
+          .get_index();
 
   VectorX<T> initial_state;
   initial_state.resize(kBodyCount * 2);
-  initial_state << 0,
-                   M_PI / 2,
-                   -M_PI / 2,
-                   0,
-                   2 * M_PI / 5,   // earth revolution in 5 seconds.
-                   2 * M_PI,       // moon revolution in 1 second.
-                   2 * M_PI / 6,   // mars revolution in 6 seconds.
-                   2 * M_PI * 0.9; // phobos revolution in 0.9 seconds.
-  this->DeclareContinuousState(
-      BasicVector<T>(initial_state),
-      kBodyCount /* num_q */, kBodyCount /* num_v */, 0 /* num_z */);
+  // clang-format off
+  initial_state << 0,               // earth initial position
+                   M_PI / 2,        // moon initial position
+                   -M_PI / 2,       // mars initial position
+                   0,               // phobos initial position
+                   2 * M_PI / 5,    // earth revolution lasts 5 seconds.
+                   2 * M_PI,        // moon revolution lasts 1 second.
+                   2 * M_PI / 6,    // mars revolution lasts 6 seconds.
+                   2 * M_PI * 0.9;  // phobos revolution lasts 0.9 seconds.
+  // clang-format on
+  this->DeclareContinuousState(BasicVector<T>(initial_state),
+                               kBodyCount /* num_q */, kBodyCount /* num_v */,
+                               0 /* num_z */);
 
   AllocateGeometry(geometry_system);
 }
@@ -53,14 +59,14 @@ template <typename T>
 SolarSystem<T>::~SolarSystem() {}
 
 template <typename T>
-const systems::OutputPort<T>&
-SolarSystem<T>::get_geometry_id_output_port() const {
+const systems::OutputPort<T>& SolarSystem<T>::get_geometry_id_output_port()
+    const {
   return systems::System<T>::get_output_port(geometry_id_port_);
 }
 
 template <typename T>
-const systems::OutputPort<T>&
-SolarSystem<T>::get_geometry_pose_output_port() const {
+const systems::OutputPort<T>& SolarSystem<T>::get_geometry_pose_output_port()
+    const {
   return systems::System<T>::get_output_port(geometry_pose_port_);
 }
 
@@ -95,8 +101,7 @@ void SolarSystem<T>::AllocateGeometry(GeometrySystem<T>* geometry_system) {
                                          VisualMaterial(Vector4d(0, 0, 1, 1))));
   // Earth Moon
   FrameId moon_id = geometry_system->RegisterFrame(
-      source_id_, planet_id,
-      GeometryFrame("moon", earth_pose));
+      source_id_, planet_id, GeometryFrame("moon", earth_pose));
   body_ids_.push_back(moon_id);
   initial_poses_.push_back(earth_pose);
   Vector3<double> plane_normal;
@@ -116,7 +121,7 @@ void SolarSystem<T>::AllocateGeometry(GeometrySystem<T>* geometry_system) {
 
   // Mars
   planet_id = geometry_system->RegisterFrame(
-  source_id_, GeometryFrame("mars", Isometry3<double>::Identity()));
+      source_id_, GeometryFrame("mars", Isometry3<double>::Identity()));
   body_ids_.push_back(planet_id);
   initial_poses_.push_back(Isometry3<double>::Identity());
   plane_normal << .1, .1, 1;
@@ -148,8 +153,8 @@ void SolarSystem<T>::AllocateGeometry(GeometrySystem<T>* geometry_system) {
   phobos_pose.translation() << kPhobosOrbitRadius, 0, 0;
   geometry_system->RegisterGeometry(
       source_id_, moon_id, std::make_unique<GeometryInstance>(
-          phobos_pose, make_unique<Sphere>(0.06f),
-          VisualMaterial(Vector4d(0.65, 0.6, 0.8, 1))));
+                               phobos_pose, make_unique<Sphere>(0.06f),
+                               VisualMaterial(Vector4d(0.65, 0.6, 0.8, 1))));
 
   DRAKE_DEMAND(static_cast<int>(body_ids_.size()) == kBodyCount);
 }
@@ -157,12 +162,12 @@ void SolarSystem<T>::AllocateGeometry(GeometrySystem<T>* geometry_system) {
 template <typename T>
 FramePoseVector<T> SolarSystem<T>::AllocateFramePoseOutput(
     const Context<T>&) const {
-  return FramePoseVector<T> (source_id_, initial_poses_);
+  return FramePoseVector<T>(source_id_, initial_poses_);
 }
 
 template <typename T>
-void SolarSystem<T>::CalcFramePoseOutput(
-    const Context<T>& context, FramePoseVector<T>* poses) const {
+void SolarSystem<T>::CalcFramePoseOutput(const Context<T>& context,
+                                         FramePoseVector<T>* poses) const {
   const BasicVector<T>& state = get_state(context);
   DRAKE_ASSERT(poses->vector().size() == body_ids_.size());
   std::vector<Isometry3<T>>& pose_data = poses->mutable_vector();
@@ -175,16 +180,14 @@ void SolarSystem<T>::CalcFramePoseOutput(
 }
 
 template <typename T>
-FrameIdVector SolarSystem<T>::AllocateFrameIdOutput(
-    const MyContext&) const {
+FrameIdVector SolarSystem<T>::AllocateFrameIdOutput(const MyContext&) const {
   FrameIdVector ids(source_id_);
   ids.AddFrameIds(body_ids_);
   return ids;
 }
 
 template <typename T>
-void SolarSystem<T>::CalcFrameIdOutput(const MyContext &,
-                                             FrameIdVector *) const {
+void SolarSystem<T>::CalcFrameIdOutput(const MyContext&, FrameIdVector*) const {
   // NOTE: This only needs to do work if the topology changes. This system makes
   // no topology changes.
 }
@@ -198,7 +201,6 @@ void SolarSystem<T>::DoCalcTimeDerivatives(
   derivative_vector->get_mutable_value().head(kBodyCount) =
       state.get_value().tail(kBodyCount);
 }
-
 
 template class SolarSystem<double>;
 

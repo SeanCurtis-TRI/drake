@@ -1,9 +1,11 @@
 #pragma once
 
+#include <vector>
+
 #include "drake/common/drake_copyable.h"
 #include "drake/geometry/geometry_system.h"
-#include "drake/systems/framework/context.h"
 #include "drake/systems/framework/basic_vector.h"
+#include "drake/systems/framework/context.h"
 #include "drake/systems/framework/leaf_system.h"
 
 namespace drake {
@@ -15,9 +17,27 @@ class SystemSymbolicInspector;
 namespace examples {
 namespace solar_system {
 
-/** A model of an orrey -- a simple mechanical model of the solar system. It
- represents systems that drive frames in GeometryWorld but don't perform
- queries.
+/** A model of an orrey -- a simple mechanical model of the solar system.
+
+ The orrey contains one sun and four orbiting bodies: two planets (Earth and
+ Mars) each with one moon. The orrey is articulated by placing the _frame_ for
+ each body at its parent's origin, and then displacing the geometry from that
+ origin to its orbital distance. Then each orbiting frame has a single degree of
+ freedom: its angular position around its axis of rotation.
+
+ - The sun is stationary -- an anchored geometry.
+ - Earth orbits on the xy-plane. Its moon revolves around the earth on an
+ different arbitrary plane (illustrating transform compositions).
+ - Mars orbits the sun at a farther distance on a plane that is tilted off of
+ the xy-plane. Its moon (Phobos) orbits around Mars on a plane parallel to
+ Mars's orbital plane.
+
+ This system illustrates the following features:
+
+ 1. Registering anchored geometry.
+ 2. Registering frames as children of other frames.
+ 3. Creating a fixed FrameIdVector output.
+ 4. Updating the context-dependent FramePoseVector output.
 
  @tparam T The vector element type, which must be a valid Eigen scalar.
 
@@ -28,7 +48,7 @@ class SolarSystem : public systems::LeafSystem<T> {
  public:
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(SolarSystem)
 
-  SolarSystem(geometry::GeometrySystem<T>* geometry_system);
+  explicit SolarSystem(geometry::GeometrySystem<T>* geometry_system);
   ~SolarSystem() override;
 
   using MyContext = systems::Context<T>;
@@ -50,8 +70,8 @@ class SolarSystem : public systems::LeafSystem<T> {
 
  protected:
   // No inputs implies no feedthrough; this makes it explicit.
-  bool DoHasDirectFeedthrough(const systems::SystemSymbolicInspector*,
-                              int, int) const override {
+  bool DoHasDirectFeedthrough(const systems::SystemSymbolicInspector*, int,
+                              int) const override {
     return false;
   }
 
@@ -81,8 +101,7 @@ class SolarSystem : public systems::LeafSystem<T> {
     return dynamic_cast<const systems::BasicVector<T>&>(cstate.get_vector());
   }
 
-  static systems::BasicVector<T>* get_mutable_state(
-      MyContinuousState* cstate) {
+  static systems::BasicVector<T>* get_mutable_state(MyContinuousState* cstate) {
     return dynamic_cast<systems::BasicVector<T>*>(cstate->get_mutable_vector());
   }
 

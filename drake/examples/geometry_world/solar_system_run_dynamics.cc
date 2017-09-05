@@ -1,37 +1,25 @@
-//#include <memory>
-//#include <utility>
-
 #include "drake/examples/geometry_world/solar_system.h"
-//#include "drake/geometry/geometry_instance.h"
 #include "drake/geometry/geometry_system.h"
 #include "drake/geometry/geometry_visualization.h"
-//#include "drake/geometry/shape_specification.h"
 #include "drake/lcm/drake_lcm.h"
 #include "drake/lcmt_viewer_draw.hpp"
 #include "drake/systems/analysis/simulator.h"
-//#include "drake/systems/framework/diagram.h"
 #include "drake/systems/framework/diagram_builder.h"
 #include "drake/systems/lcm/lcm_publisher_system.h"
 #include "drake/systems/lcm/serializer.h"
-//#include "drake/systems/primitives/constant_vector_source.h"
-//#include "drake/systems/primitives/signal_logger.h"
 #include "drake/systems/rendering/pose_bundle_to_draw_message.h"
 
 namespace drake {
 namespace examples {
 namespace solar_system {
 namespace {
-//
-//using geometry::GeometryInstance;
+
 using geometry::GeometrySystem;
-//using geometry::HalfSpace;
 using geometry::SourceId;
 using lcm::DrakeLcm;
-//using systems::InputPortDescriptor;
 using systems::rendering::PoseBundleToDrawMessage;
 using systems::lcm::LcmPublisherSystem;
 using systems::lcm::Serializer;
-//using std::make_unique;
 
 int do_main() {
   systems::DiagramBuilder<double> builder;
@@ -49,7 +37,7 @@ int do_main() {
       builder.template AddSystem<LcmPublisherSystem>(
           "DRAKE_VIEWER_DRAW",
           std::make_unique<Serializer<drake::lcmt_viewer_draw>>(), &lcm);
-  publisher->set_publish_period(1/60.0);
+  publisher->set_publish_period(1 / 60.0);
 
   builder.Connect(
       solar_system->get_geometry_id_output_port(),
@@ -82,6 +70,4 @@ int do_main() {
 }  // namespace examples
 }  // namespace drake
 
-int main() {
-  return drake::examples::solar_system::do_main();
-}
+int main() { return drake::examples::solar_system::do_main(); }
