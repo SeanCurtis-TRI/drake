@@ -97,9 +97,9 @@ template <typename T> class GeometryContext;
 
  __lcm visualization port__: An abstract-valued port containing an instance of
  PoseBundle. This is a convenience port designed to feed LCM update messages to
- director for the purpose of visualizing the state of the world's geometry.
- Additional uses of this port are strongly discouraged; instead, use an
- appropriate geometric query to obtain the state of the world's geometry.
+ drake_visualizer for the purpose of visualizing the state of the world's
+ geometry. Additional uses of this port are strongly discouraged; instead, use
+ an appropriate geometric query to obtain the state of the world's geometry.
 
  @section geom_sys_workflow Working with GeometrySystem
 

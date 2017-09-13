@@ -252,6 +252,12 @@ void GeometrySystem<T>::FullPoseUpdate(
   const GeometryState<T>& state = context.get_geometry_state();
   GeometryState<T>& mutable_state = const_cast<GeometryState<T>&>(state);
 
+  auto throw_error = [](SourceId source_id, const std::string& origin) {
+    throw std::logic_error(
+        "Source " + to_string(source_id) + " has registered frames "
+            "but does not provide " + origin + " values on the input port.");
+  };
+
   for (const auto& pair : state.source_frame_id_map_) {
     if (pair.second.size() > 0) {
       SourceId source_id = pair.first;
@@ -274,14 +280,10 @@ void GeometrySystem<T>::FullPoseUpdate(
               pose_port_value->template GetValue<FramePoseVector<T>>();
           mutable_state.SetFramePoses(ids, poses);
         } else {
-          throw std::logic_error(
-              "Source " + to_string(source_id) + " has registered frames "
-              "but does not provide pose values on the input port.");
+          throw_error(source_id, "pose");
         }
       } else {
-        throw std::logic_error(
-            "Source " + to_string(source_id) + " has registered frames "
-            "but does not provide id values on the input port.");
+        throw_error(source_id, "id");
       }
     }
   }

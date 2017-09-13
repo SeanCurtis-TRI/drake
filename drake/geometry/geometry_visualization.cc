@@ -67,7 +67,7 @@ class ShapeToLcm : public ShapeReifier {
     geometry_data_.float_data.push_back(thickness);
 
     // The final pose of the box is the half-space's pose pre-multiplied by
-    // an offset sufficient o move the box down so it's top face lies on the
+    // an offset sufficient to move the box down so it's top face lies on the
     // z = 0 plane.
     Isometry3<double> box_xform = Isometry3<double>::Identity();
     // Shift it down so that the origin lies on the top surface.

@@ -104,7 +104,7 @@ class GeometryState {
    }
    @endcode  */
   FrameIdIterator get_frame_ids() const {
-    return FrameIdIterator(frames_);
+    return FrameIdIterator(&frames_);
   }
 
   /** Reports the frame group for the given frame.
@@ -128,7 +128,9 @@ class GeometryState {
     return X_WG_[geometries_.at(geometry_id).get_engine_index()];
   }
 
-  /** Reports the pose of the frame with the given id. */
+  /** Reports the pose of the frame with the given id relative to its parent
+   frame. If the frame's parent is the world, the value should be the same as
+   a call to get_pose_in_world().*/
   const Isometry3<T>& get_pose_in_parent(FrameId frame_id) const {
     // TODO(SeanCurtis-TRI): After implementing a *real* geometry engine,
     // determine if the frame kinematics should live in the engine and eliminate
@@ -340,7 +342,29 @@ class GeometryState {
   // unit tests.
   template <class U> friend class GeometryStateTester;
 
-  /** Iterator through the keys of an unordered map. */
+  // Sets the kinematic poses for the frames indicated by the given ids. This
+  // method assumes that the `ids` have already been validated by
+  // ValidateFrameIds().
+  // @param ids   The ids of the frames whose poses are being set.
+  // @param poses The frame pose values.
+  // @throws std::logic_error  if the poses don't "match" the ids.
+  void SetFramePoses(const FrameIdVector& ids, const FramePoseVector<T>& poses);
+
+  // Confirms that the set of ids provided include _all_ of the frames
+  // registered to the set's source id and that no extra frames are included.
+  // @param ids The id set to validate.
+  // @throws std::logic_error if the set is inconsistent with known topology.
+  void ValidateFrameIds(const FrameIdVector& ids) const;
+
+  // Confirms that the pose data is consistent with the set of ids.
+  // @param ids       The id set to test against.
+  // @param poses     The poses to test.
+  // @throws  std::logic_error if the two data sets don't have matching source
+  //                           ids or matching size.
+  void ValidateFramePoses(const FrameIdVector& ids,
+                          const FramePoseVector<T>& poses) const;
+
+  /** A const iterator through the keys of an unordered map. */
   template <typename K, typename V>
   class MapKeyIterator {
    public:
@@ -362,12 +386,12 @@ class GeometryState {
       friend class MapKeyIterator;
     };
 
-    explicit MapKeyIterator(std::unordered_map<K, V> map) : map_(map) {}
-    iterator begin() const { return iterator(map_.begin()); }
-    iterator end() const { return iterator(map_.end()); }
+    explicit MapKeyIterator(const std::unordered_map<K, V>* map) : map_(map) {}
+    iterator begin() const { return iterator(map_->begin()); }
+    iterator end() const { return iterator(map_->end()); }
 
    private:
-    std::unordered_map<K, V> map_;
+    const std::unordered_map<K, V>* map_;
   };
 
   // Sets the kinematic poses for the frames indicated by the given ids. This

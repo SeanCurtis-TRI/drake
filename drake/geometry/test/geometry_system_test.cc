@@ -111,7 +111,7 @@ class GeometrySystemTest : public ::testing::Test {
   GeometrySystem<double> system_;
   // Ownership of context.
   unique_ptr<Context<double>> context_;
-  // Direct access to a pre-cast geometry context-typed version of context_.
+  // Direct access to a pre-cast, geometry-context-typed version of context_.
   GeometryContext<double>* geom_context_{nullptr};
 
  private:
@@ -452,7 +452,7 @@ GTEST_TEST(GeometrySystemConnectionTest, FullPoseUpdateNoPoseConnection) {
           "the input port.");
 }
 
-// Adversarial test case: Missing all port connection.
+// Adversarial test case: Missing all port connections.
 GTEST_TEST(GeometrySystemConnectionTest, FullPoseUpdateNoConnections) {
   // Build a fully connected system.
   systems::DiagramBuilder<double> builder;
