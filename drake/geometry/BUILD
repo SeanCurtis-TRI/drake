@@ -144,6 +144,19 @@ drake_cc_library(
 )
 
 drake_cc_library(
+    name = "geometry_tree",
+    srcs = [],
+    hdrs = ["geometry_tree.h"],
+    deps = [
+        ":geometry_frame",
+        ":geometry_ids",
+        ":geometry_instance",
+        "//drake/common",
+        "//drake/common:type_safe_index",
+    ],
+)
+
+drake_cc_library(
     name = "geometry_visualization",
     srcs = ["geometry_visualization.cc"],
     hdrs = ["geometry_visualization.h"],
@@ -285,6 +298,11 @@ drake_cc_googletest(
         ":geometry_system",
         ":geometry_visualization",
     ],
+)
+
+drake_cc_googletest(
+    name = "geometry_tree_test",
+    deps = [":geometry_tree"],
 )
 
 drake_cc_googletest(

@@ -2,6 +2,7 @@
 
 #include <string>
 
+#include "drake/common/eigen_types.h"
 #include "drake/common/drake_copyable.h"
 
 namespace drake {

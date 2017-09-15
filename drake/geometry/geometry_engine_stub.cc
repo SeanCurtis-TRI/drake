@@ -301,6 +301,8 @@ class ExplicitPairSet {
   explicit ExplicitPairSet(const std::vector<GeometryIndex>& values)
       : values_(values) {}
   iterator begin() const { return iterator(0, values_); }
+  // TODO(SeanCurtis-TRI): I suspect this end iterator is *broken*. Confirm that
+  // it works.
   iterator end() const {
     return iterator(static_cast<int>(values_.size()) - 1, values_);
   }
