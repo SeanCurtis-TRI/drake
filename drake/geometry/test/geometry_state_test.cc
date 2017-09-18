@@ -1172,6 +1172,21 @@ TEST_F(GeometryStateTest, ValidateFrameVelocities) {
       " different geometry sources \\(\\d+ and \\d+, respectively\\).");
 }
 
+// Place holder for testing the SetFrameVelocities. It currently has a not-
+// implemented exception. When implemented, this will remind the developer to
+// test.
+TEST_F(GeometryStateTest, SetFrameVelocities) {
+  SourceId s_id = SetUpSingleSourceTree();
+  FrameIdVector ids(s_id, frames_);
+  FrameVelocityVector<double> velocities(s_id);
+  for (size_t i = 0; i < frames_.size(); ++i) {
+    velocities.mutable_vector().push_back(SpatialVelocity<double>());
+  }
+  EXPECT_ERROR_MESSAGE(gs_tester_.SetFrameVelocities(ids, velocities),
+                       std::runtime_error,
+                       "Not implemented");
+}
+
 // Tests the GeometryState::SetFramePoses() method. This doesn't test
 // invalid kinematics sets (as that has been tested already). It simply confirms
 // that for valid values, the geometries are posed as expected in the world
@@ -1230,21 +1245,6 @@ TEST_F(GeometryStateTest, SetFramePoses) {
         world_poses[i].matrix().block<3, 4>(0, 0),
         (offset * offset * X_FG_[i].matrix()).block<3, 4>(0, 0)));
   }
-}
-
-// Place holder for testing the SetFrameVelocities. It currently has a not-
-// implemented exception. When implemented, this will remind the developer to
-// test.
-TEST_F(GeometryStateTest, SetFrameVelocities) {
-  SourceId s_id = SetUpSingleSourceTree();
-  FrameIdVector ids(s_id, frames_);
-  FrameVelocityVector<double> velocities(s_id);
-  for (size_t i = 0; i < frames_.size(); ++i) {
-    velocities.mutable_vector().push_back(SpatialVelocity<double>());
-  }
-  EXPECT_ERROR_MESSAGE(gs_tester_.SetFrameVelocities(ids, velocities),
-                       std::runtime_error,
-                       "Not implemented");
 }
 
 }  // namespace

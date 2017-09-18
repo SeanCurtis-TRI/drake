@@ -260,6 +260,22 @@ drake_cc_googletest(
 )
 
 drake_cc_googletest(
+    name = "frame_id_vector_test",
+    deps = [
+        ":expect_error_message",
+        ":frame_kinematics",
+    ],
+)
+
+drake_cc_googletest(
+    name = "frame_kinematics_vector_test",
+    deps = [
+        ":frame_kinematics",
+        "//drake/common:eigen_matrix_compare",
+    ],
+)
+
+drake_cc_googletest(
     name = "geometry_instance_test",
     deps = [
         ":geometry_instance",
