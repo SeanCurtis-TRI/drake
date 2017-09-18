@@ -52,10 +52,10 @@ class GeometryState {
   DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(GeometryState)
 
  private:
-  template <typename K, typename V> class MapKeyIterator;
+  template <typename K, typename V> class MapKeyRangeIterator;
 
  public:
-  using FrameIdIterator = MapKeyIterator<FrameId, internal::InternalFrame>;
+  using FrameIdIterator = MapKeyRangeIterator<FrameId, internal::InternalFrame>;
 
   /** Default constructor. */
   GeometryState();
@@ -107,37 +107,28 @@ class GeometryState {
     return FrameIdIterator(&frames_);
   }
 
-  /** Reports the frame group for the given frame.
+  /** Reports the frame group for the given frame. Throws an exception if the
+   frame id is not valid.
    @internal This is equivalent to the old "model instance id". */
-  int get_frame_group(FrameId frame_id) const {
-    return frames_.at(frame_id).get_frame_group();
-  }
+  int get_frame_group(FrameId frame_id) const;
 
-  /** Reports the name of the frame. */
-  const std::string& get_frame_name(FrameId frame_id) const {
-    return frames_.at(frame_id).get_name();
-  }
+  /** Reports the name of the frame. Throws an exception if the frame id is not
+   valid. */
+  const std::string& get_frame_name(FrameId frame_id) const;
 
-  /** Reports the pose of the frame with the given id. */
-  const Isometry3<T>& get_pose_in_world(FrameId frame_id) const {
-    return X_WF_[frames_.at(frame_id).get_pose_index()];
-  }
+  /** Reports the pose of the frame with the given id. Throws an exception if
+   the frame id is not valid. */
+  const Isometry3<T>& get_pose_in_world(FrameId frame_id) const;
 
-  /** Reports the pose of the geometry with the given id. */
-  const Isometry3<T>& get_pose_in_world(GeometryId geometry_id) const {
-    return X_WG_[geometries_.at(geometry_id).get_engine_index()];
-  }
+  /** Reports the pose of the geometry with the given id. Throws an exception if
+   the geoemtry id is not valid. */
+  const Isometry3<T>& get_pose_in_world(GeometryId geometry_id) const;
 
   /** Reports the pose of the frame with the given id relative to its parent
    frame. If the frame's parent is the world, the value should be the same as
-   a call to get_pose_in_world().*/
-  const Isometry3<T>& get_pose_in_parent(FrameId frame_id) const {
-    // TODO(SeanCurtis-TRI): After implementing a *real* geometry engine,
-    // determine if the frame kinematics should live in the engine and eliminate
-    // it from here in the state. Simply implement this method by reading the
-    // value from the engine.
-    return X_PF_[frames_.at(frame_id).get_pose_index()];
-  }
+   a call to get_pose_in_world(). Throws an exception if the frame id is not
+   valid. */
+  const Isometry3<T>& get_pose_in_parent(FrameId frame_id) const;
 
   /** Reports the source name for the given source id.
    @param id  The identifier of the source.
@@ -364,31 +355,39 @@ class GeometryState {
   void ValidateFramePoses(const FrameIdVector& ids,
                           const FramePoseVector<T>& poses) const;
 
-  /** A const iterator through the keys of an unordered map. */
+  // A const range iterator through the keys of an unordered map.
   template <typename K, typename V>
-  class MapKeyIterator {
+  class MapKeyRangeIterator {
    public:
-    class iterator {
+    DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(MapKeyRangeIterator)
+
+    class ConstIterator {
      public:
+      DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(ConstIterator)
+
       const K& operator*() const { return itr_->first; }
-      const iterator& operator++() {
+      const ConstIterator& operator++() {
         ++itr_;
         return *this;
       }
-      bool operator!=(const iterator& other) { return itr_ != other.itr_; }
+      bool operator!=(const ConstIterator& other) { return itr_ != other.itr_; }
 
-     protected:
-      explicit iterator(typename std::unordered_map<K, V>::const_iterator itr)
+     private:
+      explicit ConstIterator(
+          typename std::unordered_map<K, V>::const_iterator itr)
           : itr_(itr) {}
 
      private:
       typename std::unordered_map<K, V>::const_iterator itr_;
-      friend class MapKeyIterator;
+      friend class MapKeyRangeIterator;
     };
 
-    explicit MapKeyIterator(const std::unordered_map<K, V>* map) : map_(map) {}
-    iterator begin() const { return iterator(map_->begin()); }
-    iterator end() const { return iterator(map_->end()); }
+    explicit MapKeyRangeIterator(const std::unordered_map<K, V>* map)
+        : map_(map) {
+      DRAKE_DEMAND(map);
+    }
+    ConstIterator begin() const { return ConstIterator(map_->cbegin()); }
+    ConstIterator end() const { return ConstIterator(map_->cend()); }
 
    private:
     const std::unordered_map<K, V>* map_;

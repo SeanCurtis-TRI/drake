@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 
+#include "drake/common/drake_copyable.h"
 #include "drake/geometry/geometry_state.h"
 #include "drake/geometry/geometry_system.h"
 #include "drake/geometry/internal_geometry.h"
@@ -20,7 +21,10 @@ namespace {
 // Simple class for converting shape specifications into LCM-compatible shapes.
 class ShapeToLcm : public ShapeReifier {
  public:
-  ShapeToLcm() {}
+  DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(ShapeToLcm)
+
+  ShapeToLcm() = default;
+  ~ShapeToLcm() override = default;
 
   lcmt_viewer_geometry_data Convert(const Shape& shape,
                                     const Isometry3<double>& X_PG,
@@ -44,7 +48,7 @@ class ShapeToLcm : public ShapeReifier {
     geometry_data_.quaternion[3] = q.z();
 
     Eigen::Map<Eigen::Vector4f> color(geometry_data_.color);
-    color = in_color.template cast<float>();
+    color = in_color.cast<float>();
     return geometry_data_;
   }
 
@@ -116,9 +120,9 @@ void DispatchLoadMessage(const GeometryState<double>& state) {
       message.link[0].num_geom = anchored_count;
       message.link[0].geom.resize(anchored_count);
       int geom_index = 0;
-      for (const auto &pair : state.anchored_geometries_) {
+      for (const auto& pair : state.anchored_geometries_) {
         const InternalAnchoredGeometry& geometry = pair.second;
-        const Shape &shape = geometry.get_shape();
+        const Shape& shape = geometry.get_shape();
         const Eigen::Vector4d& color =
             geometry.get_visual_material().get_diffuse();
         message.link[0].geom[geom_index] = MakeGeometryData(

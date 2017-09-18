@@ -1247,6 +1247,67 @@ TEST_F(GeometryStateTest, SetFramePoses) {
   }
 }
 
+// Place holder for testing the SetFrameVelocities. It currently has a not-
+// implemented exception. When implemented, this will remind the developer to
+// test.
+TEST_F(GeometryStateTest, SetFrameVelocities) {
+  SourceId s_id = SetUpSingleSourceTree();
+  FrameIdVector ids(s_id, frames_);
+  FrameVelocityVector<double> velocities(s_id);
+  for (size_t i = 0; i < frames_.size(); ++i) {
+    velocities.mutable_vector().push_back(SpatialVelocity<double>());
+  }
+  EXPECT_ERROR_MESSAGE(gs_tester_.SetFrameVelocities(ids, velocities),
+                       std::runtime_error,
+                       "Not implemented");
+}
+
+// Test various frame property queries.
+TEST_F(GeometryStateTest, QueryFrameProperties) {
+  SourceId s_id = SetUpSingleSourceTree();
+
+  // Query frame group.
+  EXPECT_EQ(geometry_state_.get_frame_group(frames_[0]), 0);
+  EXPECT_ERROR_MESSAGE(geometry_state_.get_frame_group(FrameId::get_new_id()),
+                       std::logic_error,
+                       "No frame group available for invalid frame id: \\d+");
+
+  // Query frame name.
+  EXPECT_EQ(geometry_state_.get_frame_name(frames_[0]), "f0");
+  EXPECT_ERROR_MESSAGE(geometry_state_.get_frame_name(FrameId::get_new_id()),
+                       std::logic_error,
+                       "No frame name available for invalid frame id: \\d+");
+
+  // Set the frame poses to query geometry and frame poses.
+  FrameIdVector ids(s_id, frames_);
+  FramePoseVector<double> poses(s_id, X_PF_);
+  gs_tester_.SetFramePoses(ids, poses);
+
+  EXPECT_TRUE(
+      CompareMatrices(geometry_state_.get_pose_in_world(frames_[0]).matrix(),
+                      X_WF_[0].matrix()));
+  EXPECT_ERROR_MESSAGE(geometry_state_.get_pose_in_world(FrameId::get_new_id()),
+                       std::logic_error,
+                       "No world pose available for invalid frame id: \\d+");
+
+  // This assumes that geometry parent belongs to frame 0.
+  Isometry3<double> geometry_pose = X_WF_[0] * X_FG_[0];
+  EXPECT_TRUE(CompareMatrices(
+      geometry_state_.get_pose_in_world(geometries_[0]).matrix(),
+      geometry_pose.matrix()));
+  EXPECT_ERROR_MESSAGE(
+      geometry_state_.get_pose_in_world(GeometryId::get_new_id()),
+      std::logic_error,
+      "No world pose available for invalid geometry id: \\d+");
+
+  EXPECT_TRUE(CompareMatrices(
+      geometry_state_.get_pose_in_parent(frames_[0]).matrix(),
+      X_PF_[0].matrix()));
+  EXPECT_ERROR_MESSAGE(
+      geometry_state_.get_pose_in_parent(FrameId::get_new_id()),
+      std::logic_error, "No pose available for invalid frame id: \\d+");
+}
+
 }  // namespace
 }  // namespace geometry
 }  // namespace drake

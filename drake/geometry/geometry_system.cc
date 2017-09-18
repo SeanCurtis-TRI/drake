@@ -25,7 +25,7 @@ using systems::SystemOutput;
 using systems::rendering::PoseBundle;
 using std::vector;
 
-#define THROW_IF_CONTEXT_ALLOCATED ThrowIfContextAllocated(__FUNCTION__);
+#define GS_THROW_IF_CONTEXT_ALLOCATED ThrowIfContextAllocated(__FUNCTION__);
 
 template <typename T>
 GeometrySystem<T>::GeometrySystem() : LeafSystem<T>() {
@@ -49,7 +49,7 @@ GeometrySystem<T>::GeometrySystem() : LeafSystem<T>() {
 
 template <typename T>
 SourceId GeometrySystem<T>::RegisterSource(const std::string &name) {
-  THROW_IF_CONTEXT_ALLOCATED
+  GS_THROW_IF_CONTEXT_ALLOCATED
   SourceId source_id = initial_state_->RegisterNewSource(name);
   // This will fail only if the source generator starts recycling source ids.
   DRAKE_ASSERT(input_source_ids_.count(source_id) == 0);
@@ -88,14 +88,14 @@ GeometrySystem<T>::get_source_velocity_port(SourceId id) {
 template <typename T>
 FrameId GeometrySystem<T>::RegisterFrame(SourceId source_id,
                                          const GeometryFrame& frame) {
-  THROW_IF_CONTEXT_ALLOCATED
+  GS_THROW_IF_CONTEXT_ALLOCATED
   return initial_state_->RegisterFrame(source_id, frame);
 }
 
 template <typename T>
 FrameId GeometrySystem<T>::RegisterFrame(SourceId source_id, FrameId parent_id,
                                          const GeometryFrame& frame) {
-  THROW_IF_CONTEXT_ALLOCATED
+  GS_THROW_IF_CONTEXT_ALLOCATED
   return initial_state_->RegisterFrame(source_id, parent_id, frame);
 }
 
@@ -103,7 +103,7 @@ template <typename T>
 GeometryId GeometrySystem<T>::RegisterGeometry(
     SourceId source_id, FrameId frame_id,
     std::unique_ptr<GeometryInstance> geometry) {
-  THROW_IF_CONTEXT_ALLOCATED
+  GS_THROW_IF_CONTEXT_ALLOCATED
   return initial_state_->RegisterGeometry(source_id, frame_id,
                                           std::move(geometry));
 }
@@ -112,7 +112,7 @@ template <typename T>
 GeometryId GeometrySystem<T>::RegisterGeometry(
     SourceId source_id, GeometryId geometry_id,
     std::unique_ptr<GeometryInstance> geometry) {
-  THROW_IF_CONTEXT_ALLOCATED
+  GS_THROW_IF_CONTEXT_ALLOCATED
   return initial_state_->RegisterGeometryWithParent(source_id, geometry_id,
                                                     std::move(geometry));
 }
@@ -121,27 +121,27 @@ template <typename T>
 GeometryId GeometrySystem<T>::RegisterAnchoredGeometry(
     SourceId source_id,
     std::unique_ptr<GeometryInstance> geometry) {
-  THROW_IF_CONTEXT_ALLOCATED
+  GS_THROW_IF_CONTEXT_ALLOCATED
   return initial_state_->RegisterAnchoredGeometry(source_id,
                                                   std::move(geometry));
 }
 
 template <typename T>
 void GeometrySystem<T>::ClearSource(SourceId source_id) {
-  THROW_IF_CONTEXT_ALLOCATED
+  GS_THROW_IF_CONTEXT_ALLOCATED
   initial_state_->ClearSource(source_id);
 }
 
 template <typename T>
 void GeometrySystem<T>::RemoveFrame(SourceId source_id, FrameId frame_id) {
-  THROW_IF_CONTEXT_ALLOCATED
+  GS_THROW_IF_CONTEXT_ALLOCATED
   initial_state_->RemoveFrame(source_id, frame_id);
 }
 
 template <typename T>
 void GeometrySystem<T>::RemoveGeometry(SourceId source_id,
                                        GeometryId geometry_id) {
-  THROW_IF_CONTEXT_ALLOCATED
+  GS_THROW_IF_CONTEXT_ALLOCATED
   initial_state_->RemoveGeometry(source_id, geometry_id);
 }
 
@@ -299,8 +299,7 @@ std::unique_ptr<LeafContext<T>> GeometrySystem<T>::DoMakeContext() const {
   // Disallow further geometry source additions.
   initial_state_ = nullptr;
   DRAKE_ASSERT(geometry_state_index_ >= 0);
-  return std::unique_ptr<LeafContext<T>>(
-      new GeometryContext<T>(geometry_state_index_));
+  return make_unique<GeometryContext<T>>(geometry_state_index_);
 }
 
 template <typename T>
@@ -378,6 +377,9 @@ size_t GeometrySystem<T>::HashIsometry(const Isometry3<T>& iso) {
 
 // Explicitly instantiates on the most common scalar types.
 template class GeometrySystem<double>;
+
+// Don't leave the macro defined.
+#undef GS_THROW_IF_CONTEXT_ALLOCATED
 
 }  // namespace geometry
 }  // namespace drake

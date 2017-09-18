@@ -1,5 +1,6 @@
 #pragma once
 
+#include "drake/common/drake_copyable.h"
 #include "drake/geometry/geometry_state.h"
 #include "drake/systems/framework/leaf_context.h"
 
@@ -16,8 +17,10 @@ namespace geometry {
  They are already available to link against in the containing library.
  No other values for T are currently supported. */
 template <typename T>
-class GeometryContext : public drake::systems::LeafContext<T> {
+class GeometryContext final : public systems::LeafContext<T> {
  public:
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(GeometryContext)
+
   /** Constructs the context with the given index for the geometry state. */
   explicit GeometryContext(int geometry_state_index);
 
@@ -29,7 +32,7 @@ class GeometryContext : public drake::systems::LeafContext<T> {
 
  private:
   // The index of the geometry state abstract state.
-  int geometry_state_index_;
+  const int geometry_state_index_{-1};
 };
 
 }  // namespace geometry
