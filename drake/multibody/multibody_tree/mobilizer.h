@@ -477,18 +477,6 @@ class Mobilizer : public MultibodyTreeElement<Mobilizer<T>, MobilizerIndex> {
     return DoCloneToScalar(cloned_tree);
   }
 
-  /// NVI to DoCloneToScalar() templated on the scalar type of the new clone to
-  /// be created. This method is mostly intended to be called by
-  /// MultibodyTree::CloneToScalar(). Most users should not call this clone
-  /// method directly but rather clone the entire parent MultibodyTree if
-  /// needed.
-  /// @sa MultibodyTree::CloneToScalar()
-  template <typename ToScalar>
-  std::unique_ptr<Mobilizer<ToScalar>> CloneToScalar(
-      const MultibodyTree<ToScalar>& cloned_tree) const {
-    return DoCloneToScalar(cloned_tree);
-  }
-
   /// For MultibodyTree internal use only.
   virtual std::unique_ptr<internal::BodyNode<T>> CreateBodyNode(
       const internal::BodyNode<T>* parent_node,

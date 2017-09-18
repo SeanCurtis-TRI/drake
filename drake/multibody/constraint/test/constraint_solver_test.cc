@@ -333,6 +333,7 @@ class Constraint2DSolverTest : public ::testing::Test {
     EXPECT_EQ(data.kL.size(), data.num_limit_constraints);
     EXPECT_EQ(data.mu_non_sliding.size(), data.non_sliding_contacts.size());
     EXPECT_EQ(data.mu_sliding.size(), data.sliding_contacts.size());
+    EXPECT_EQ(data.r.size(), data.non_sliding_contacts.size());
     EXPECT_TRUE(data.solve_inertia);
     EXPECT_TRUE(std::is_sorted(data.sliding_contacts.begin(),
                                data.sliding_contacts.end()));
