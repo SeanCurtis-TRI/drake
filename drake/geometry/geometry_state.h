@@ -52,10 +52,12 @@ class GeometryState {
   DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(GeometryState)
 
  private:
-  template <typename K, typename V> class MapKeyRangeIterator;
+  template <typename K, typename V> class MapKeyRange;
 
  public:
-  using FrameIdIterator = MapKeyRangeIterator<FrameId, internal::InternalFrame>;
+  /** An object that represents the range of FrameId values in the state. It
+   is used in range-based for loops to iterate through registered frames. */
+  using FrameIdRange = MapKeyRange<FrameId, internal::InternalFrame>;
 
   /** Default constructor. */
   GeometryState();
@@ -95,7 +97,7 @@ class GeometryState {
     return geometry_index_id_map_;
   }
 
-  /** Provides a const range iterator for all of the frame ids in the world. The
+  /** Provides a range object for all of the frame ids in the world. The
    order is not generally guaranteed; but it will be consistent as long as there
    are no changes to the topology. This is intended to be used as:
    @code
@@ -103,8 +105,8 @@ class GeometryState {
     ...
    }
    @endcode  */
-  FrameIdIterator get_frame_ids() const {
-    return FrameIdIterator(&frames_);
+  FrameIdRange get_frame_ids() const {
+    return FrameIdRange(&frames_);
   }
 
   /** Reports the frame group for the given frame.
@@ -367,9 +369,9 @@ class GeometryState {
 
   // A const range iterator through the keys of an unordered map.
   template <typename K, typename V>
-  class MapKeyRangeIterator {
+  class MapKeyRange {
    public:
-    DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(MapKeyRangeIterator)
+    DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(MapKeyRange)
 
     class ConstIterator {
      public:
@@ -389,10 +391,10 @@ class GeometryState {
 
      private:
       typename std::unordered_map<K, V>::const_iterator itr_;
-      friend class MapKeyRangeIterator;
+      friend class MapKeyRange;
     };
 
-    explicit MapKeyRangeIterator(const std::unordered_map<K, V>* map)
+    explicit MapKeyRange(const std::unordered_map<K, V>* map)
         : map_(map) {
       DRAKE_DEMAND(map);
     }

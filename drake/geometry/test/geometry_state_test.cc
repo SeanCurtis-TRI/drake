@@ -521,7 +521,7 @@ TEST_F(GeometryStateTest, RemoveFrame) {
 }
 
 // Tests the frame iterator, confirming that it iterates through all frames.
-TEST_F(GeometryStateTest, FrameIdIterator) {
+TEST_F(GeometryStateTest, FrameIdRange) {
   SetUpSingleSourceTree();
   std::unordered_set<FrameId> all_frames(frames_.begin(), frames_.end());
   for (FrameId id : geometry_state_.get_frame_ids()) {
