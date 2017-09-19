@@ -107,27 +107,37 @@ class GeometryState {
     return FrameIdIterator(&frames_);
   }
 
-  /** Reports the frame group for the given frame. Throws an exception if the
-   frame id is not valid.
+  /** Reports the frame group for the given frame.
+   @param frame_id  The identifier of the queried frame.
+   @returns The frame group of the identified frame.
+   @throws std::logic_error if the frame id is not valid.
    @internal This is equivalent to the old "model instance id". */
   int get_frame_group(FrameId frame_id) const;
 
-  /** Reports the name of the frame. Throws an exception if the frame id is not
-   valid. */
+  /** Reports the name of the frame.
+   @param frame_id  The identifier of the queried frame.
+   @returns The name of the identified frame.
+   @throws std::logic_error if the frame id is not valid. */
   const std::string& get_frame_name(FrameId frame_id) const;
 
-  /** Reports the pose of the frame with the given id. Throws an exception if
-   the frame id is not valid. */
+  /** Reports the pose of the frame with the given id.
+   @param frame_id  The identifier of the queried frame.
+   @returns The pose in the world (X_WF) of the identified frame.
+   @throws std::logic_error if the frame id is not valid. */
   const Isometry3<T>& get_pose_in_world(FrameId frame_id) const;
 
-  /** Reports the pose of the geometry with the given id. Throws an exception if
-   the geoemtry id is not valid. */
+  /** Reports the pose of the geometry with the given id.
+   @param geometry_id  The identifier of the queried geometry.
+   @returns The pose in the world (X_WG) of the identified geometry.
+   @throws std::logic_error if the geometry id is not valid. */
   const Isometry3<T>& get_pose_in_world(GeometryId geometry_id) const;
 
   /** Reports the pose of the frame with the given id relative to its parent
    frame. If the frame's parent is the world, the value should be the same as
-   a call to get_pose_in_world(). Throws an exception if the frame id is not
-   valid. */
+   a call to get_pose_in_world().
+   @param frame_id  The identifier of the queried frame.
+   @returns The pose in the _parent_ frame (X_PF) of the identified frame.
+   @throws std::logic_error if the frame id is not valid. */
   const Isometry3<T>& get_pose_in_parent(FrameId frame_id) const;
 
   /** Reports the source name for the given source id.
