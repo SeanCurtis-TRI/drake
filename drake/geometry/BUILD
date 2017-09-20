@@ -22,7 +22,7 @@ drake_cc_library(
     ],
     deps = [
         ":geometry_ids",
-        "//drake/common",
+        "//drake/common:essential",
         "//drake/multibody/multibody_tree/math:spatial_velocity",
     ],
 )
@@ -62,7 +62,7 @@ drake_cc_library(
     name = "geometry_frame",
     srcs = [],
     hdrs = ["geometry_frame.h"],
-    deps = ["//drake/common"],
+    deps = ["//drake/common:essential"],
 )
 
 drake_cc_library(
@@ -86,8 +86,8 @@ drake_cc_library(
     deps = [
         ":geometry_material",
         ":shape_specification",
-        "//drake/common",
         "//drake/common:copyable_unique_ptr",
+        "//drake/common:essential",
     ],
 )
 
@@ -137,7 +137,7 @@ drake_cc_library(
         ":geometry_context",
         ":geometry_state",
         ":geometry_world",
-        "//drake/common",
+        "//drake/common:essential",
         "//drake/systems/framework",
         "//drake/systems/rendering:pose_bundle",
     ],
@@ -167,7 +167,7 @@ drake_cc_library(
         ":geometry_instance",
         ":geometry_query_inputs",
         ":geometry_state",
-        "//drake/common",
+        "//drake/common:essential",
         "//drake/geometry/query_results:penetration_as_point_pair",
     ],
 )
@@ -179,7 +179,7 @@ drake_cc_library(
     deps = [
         ":geometry_ids",
         ":geometry_index",
-        "//drake/common",
+        "//drake/common:essential",
     ],
 )
 
@@ -192,8 +192,8 @@ drake_cc_library(
         ":geometry_index",
         ":geometry_material",
         ":shape_specification",
-        "//drake/common",
         "//drake/common:copyable_unique_ptr",
+        "//drake/common:essential",
     ],
 )
 
@@ -201,14 +201,14 @@ drake_cc_library(
     name = "identifier",
     srcs = [],
     hdrs = ["identifier.h"],
-    deps = ["//drake/common"],
+    deps = ["//drake/common:essential"],
 )
 
 drake_cc_library(
     name = "shape_specification",
     srcs = ["shape_specification.cc"],
     hdrs = ["shape_specification.h"],
-    deps = ["//drake/common"],
+    deps = ["//drake/common:essential"],
 )
 
 # -----------------------------------------------------
@@ -256,22 +256,6 @@ drake_cc_googletest(
     deps = [
         ":geometry_engine",
         ":query_test_utility",
-    ],
-)
-
-drake_cc_googletest(
-    name = "frame_id_vector_test",
-    deps = [
-        ":expect_error_message",
-        ":frame_kinematics",
-    ],
-)
-
-drake_cc_googletest(
-    name = "frame_kinematics_vector_test",
-    deps = [
-        ":frame_kinematics",
-        "//drake/common:eigen_matrix_compare",
     ],
 )
 

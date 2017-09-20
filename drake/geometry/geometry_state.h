@@ -353,66 +353,6 @@ class GeometryState {
   // @throws std::logic_error  if the poses don't "match" the ids.
   void SetFramePoses(const FrameIdVector& ids, const FramePoseVector<T>& poses);
 
-  // Confirms that the set of ids provided include _all_ of the frames
-  // registered to the set's source id and that no extra frames are included.
-  // @param ids The id set to validate.
-  // @throws std::logic_error if the set is inconsistent with known topology.
-  void ValidateFrameIds(const FrameIdVector& ids) const;
-
-  // Confirms that the pose data is consistent with the set of ids.
-  // @param ids       The id set to test against.
-  // @param poses     The poses to test.
-  // @throws  std::logic_error if the two data sets don't have matching source
-  //                           ids or matching size.
-  void ValidateFramePoses(const FrameIdVector& ids,
-                          const FramePoseVector<T>& poses) const;
-
-  // A const range iterator through the keys of an unordered map.
-  template <typename K, typename V>
-  class MapKeyRange {
-   public:
-    DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(MapKeyRange)
-
-    class ConstIterator {
-     public:
-      DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(ConstIterator)
-
-      const K& operator*() const { return itr_->first; }
-      const ConstIterator& operator++() {
-        ++itr_;
-        return *this;
-      }
-      bool operator!=(const ConstIterator& other) { return itr_ != other.itr_; }
-
-     private:
-      explicit ConstIterator(
-          typename std::unordered_map<K, V>::const_iterator itr)
-          : itr_(itr) {}
-
-     private:
-      typename std::unordered_map<K, V>::const_iterator itr_;
-      friend class MapKeyRange;
-    };
-
-    explicit MapKeyRange(const std::unordered_map<K, V>* map)
-        : map_(map) {
-      DRAKE_DEMAND(map);
-    }
-    ConstIterator begin() const { return ConstIterator(map_->cbegin()); }
-    ConstIterator end() const { return ConstIterator(map_->cend()); }
-
-   private:
-    const std::unordered_map<K, V>* map_;
-  };
-
-  // Sets the kinematic poses for the frames indicated by the given ids. This
-  // method assumes that the `ids` have already been validated by
-  // ValidateFrameIds().
-  // @param ids   The ids of the frames whose poses are being set.
-  // @param poses The frame pose values.
-  // @throws std::logic_error  if the poses don't "match" the ids.
-  void SetFramePoses(const FrameIdVector& ids, const FramePoseVector<T>& poses);
-
   // Sets the kinematic velocities for the frames indicated by the given ids.
   // This method assumes that the `ids` have already been validated by
   // ValidateFrameIds().
@@ -453,6 +393,44 @@ class GeometryState {
   void FinalizeVelocityUpdate() {
     throw std::runtime_error("Not implemented.");
   }
+
+  // A const range iterator through the keys of an unordered map.
+  template <typename K, typename V>
+  class MapKeyRange {
+   public:
+    DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(MapKeyRange)
+
+    class ConstIterator {
+     public:
+      DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(ConstIterator)
+
+      const K& operator*() const { return itr_->first; }
+      const ConstIterator& operator++() {
+        ++itr_;
+        return *this;
+      }
+      bool operator!=(const ConstIterator& other) { return itr_ != other.itr_; }
+
+     private:
+      explicit ConstIterator(
+          typename std::unordered_map<K, V>::const_iterator itr)
+          : itr_(itr) {}
+
+     private:
+      typename std::unordered_map<K, V>::const_iterator itr_;
+      friend class MapKeyRange;
+    };
+
+    explicit MapKeyRange(const std::unordered_map<K, V>* map)
+        : map_(map) {
+      DRAKE_DEMAND(map);
+    }
+    ConstIterator begin() const { return ConstIterator(map_->cbegin()); }
+    ConstIterator end() const { return ConstIterator(map_->cend()); }
+
+   private:
+    const std::unordered_map<K, V>* map_;
+  };
 
   // Gets the source id for the given frame id. Throws std::logic_error if the
   // frame belongs to no registered source.

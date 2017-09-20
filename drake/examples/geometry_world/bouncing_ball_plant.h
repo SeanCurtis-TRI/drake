@@ -69,8 +69,7 @@ class BouncingBallPlant : public systems::LeafSystem<T> {
  protected:
   // The single input (geometry query) only impacts time derivatives and does
   // not affect any output port. So, there are no direct feedthrouhgs.
-  bool DoHasDirectFeedthrough(const systems::SystemSymbolicInspector*,
-                              int, int) const override {
+  optional<bool> DoHasDirectFeedthrough(int, int) const override {
     return false;
   }
   // System<T> override.

@@ -9,7 +9,6 @@
 #include "drake/geometry/geometry_instance.h"
 #include "drake/geometry/geometry_state.h"
 #include "drake/systems/framework/context.h"
-#include "drake/systems/framework/diagram_context.h"
 #include "drake/systems/rendering/pose_bundle.h"
 
 namespace drake {
@@ -23,6 +22,7 @@ using systems::LeafSystem;
 using systems::SystemSymbolicInspector;
 using systems::SystemOutput;
 using systems::rendering::PoseBundle;
+using std::make_unique;
 using std::vector;
 
 #define GS_THROW_IF_CONTEXT_ALLOCATED ThrowIfContextAllocated(__FUNCTION__);

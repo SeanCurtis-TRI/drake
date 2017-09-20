@@ -14,7 +14,6 @@
 #include "drake/systems/lcm/lcm_publisher_system.h"
 #include "drake/systems/lcm/serializer.h"
 #include "drake/systems/primitives/constant_vector_source.h"
-#include "drake/systems/primitives/signal_logger.h"
 #include "drake/systems/rendering/pose_bundle_to_draw_message.h"
 
 namespace drake {
@@ -83,13 +82,6 @@ int do_main() {
   builder.Connect(geometry_system->get_pose_bundle_output_port(),
                   converter->get_input_port(0));
   builder.Connect(*converter, *publisher);
-
-  // Log the state.
-  auto x_logger = builder.AddSystem<systems::SignalLogger<double>>(
-      BouncingBallVectorIndices::kNumCoordinates);
-  x_logger->set_name("x_logger");
-  builder.Connect(bouncing_ball->get_state_output_port(),
-                  x_logger->get_input_port(0));
 
   // Last thing before building the diagram; dispatch the message to load
   // geometry.

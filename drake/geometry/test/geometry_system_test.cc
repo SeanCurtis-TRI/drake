@@ -6,6 +6,7 @@
 #include <gtest/gtest.h>
 
 #include "drake/geometry/geometry_context.h"
+#include "drake/geometry/geometry_frame.h"
 #include "drake/geometry/geometry_instance.h"
 #include "drake/geometry/geometry_visualization.h"
 #include "drake/geometry/query_handle.h"
