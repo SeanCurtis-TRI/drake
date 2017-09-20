@@ -10,10 +10,6 @@
 
 namespace drake {
 
-namespace systems {
-class SystemSymbolicInspector;
-}  // namespace systems
-
 namespace examples {
 namespace solar_system {
 
@@ -70,8 +66,7 @@ class SolarSystem : public systems::LeafSystem<T> {
 
  protected:
   // No inputs implies no feedthrough; this makes it explicit.
-  bool DoHasDirectFeedthrough(const systems::SystemSymbolicInspector*, int,
-                              int) const override {
+  optional<bool> DoHasDirectFeedthrough(int, int) const override {
     return false;
   }
 
