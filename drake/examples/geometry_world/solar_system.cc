@@ -3,6 +3,8 @@
 #include <memory>
 #include <vector>
 
+#include "drake/geometry/frame_id_vector.h"
+#include "drake/geometry/frame_kinematics_vector.h"
 #include "drake/geometry/geometry_frame.h"
 #include "drake/geometry/geometry_instance.h"
 #include "drake/math/axis_angle.h"
@@ -73,11 +75,12 @@ const systems::OutputPort<T>& SolarSystem<T>::get_geometry_pose_output_port()
 template <typename T>
 void SolarSystem<T>::AllocateGeometry(GeometrySystem<T>* geometry_system) {
   body_ids_.reserve(kBodyCount);
-  initial_poses_.reserve(kBodyCount);
+  body_offset_.reserve(kBodyCount);
   axes_.reserve(kBodyCount);
 
-  // Define the axes of rotation
   // Allocate the sun.
+  // NOTE: we don't store the id of the sun geometry because we have no need
+  // for subsequent access (the same is also true for dynamic geometries).
   geometry_system->RegisterAnchoredGeometry(
       source_id_, std::make_unique<GeometryInstance>(
                       Isometry3<double>::Identity(), make_unique<Sphere>(1.f),
@@ -89,7 +92,7 @@ void SolarSystem<T>::AllocateGeometry(GeometrySystem<T>* geometry_system) {
   FrameId planet_id = geometry_system->RegisterFrame(
       source_id_, GeometryFrame("earth", Isometry3<double>::Identity()));
   body_ids_.push_back(planet_id);
-  initial_poses_.push_back(Isometry3<double>::Identity());
+  body_offset_.push_back(Isometry3<double>::Identity());
   axes_.push_back(Vector3<double>::UnitZ());
 
   const double kEarthOrbitRadius = 3.0;
@@ -103,7 +106,7 @@ void SolarSystem<T>::AllocateGeometry(GeometrySystem<T>* geometry_system) {
   FrameId moon_id = geometry_system->RegisterFrame(
       source_id_, planet_id, GeometryFrame("moon", earth_pose));
   body_ids_.push_back(moon_id);
-  initial_poses_.push_back(earth_pose);
+  body_offset_.push_back(earth_pose);
   Vector3<double> plane_normal;
   plane_normal << 1, 1, 1;
   axes_.push_back(plane_normal.normalized());
@@ -123,7 +126,7 @@ void SolarSystem<T>::AllocateGeometry(GeometrySystem<T>* geometry_system) {
   planet_id = geometry_system->RegisterFrame(
       source_id_, GeometryFrame("mars", Isometry3<double>::Identity()));
   body_ids_.push_back(planet_id);
-  initial_poses_.push_back(Isometry3<double>::Identity());
+  body_offset_.push_back(Isometry3<double>::Identity());
   plane_normal << .1, .1, 1;
   axes_.push_back(plane_normal.normalized());
 
@@ -144,7 +147,7 @@ void SolarSystem<T>::AllocateGeometry(GeometrySystem<T>* geometry_system) {
   moon_id = geometry_system->RegisterFrame(
       source_id_, planet_id, GeometryFrame("phobos", phobos_rotation_pose));
   body_ids_.push_back(moon_id);
-  initial_poses_.push_back(mars_pose);
+  body_offset_.push_back(mars_pose);
   plane_normal << 0, 0, 1;
   axes_.push_back(plane_normal.normalized());
 
@@ -162,7 +165,9 @@ void SolarSystem<T>::AllocateGeometry(GeometrySystem<T>* geometry_system) {
 template <typename T>
 FramePoseVector<T> SolarSystem<T>::AllocateFramePoseOutput(
     const Context<T>&) const {
-  return FramePoseVector<T>(source_id_, initial_poses_);
+  // NOTE: We initialize with the translational offset during allocation so that
+  // the `CalcFramePoseOutput` need only update the rotational component.
+  return FramePoseVector<T>(source_id_, body_offset_);
 }
 
 template <typename T>

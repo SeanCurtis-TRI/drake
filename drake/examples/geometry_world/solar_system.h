@@ -13,6 +13,8 @@ namespace drake {
 namespace examples {
 namespace solar_system {
 
+// TODO(SeanCurtis-TRI): When textures are available, modify this so that planet
+// rotations become apparent as well (and not just revolutions).
 /** A model of an orrey -- a simple mechanical model of the solar system.
 
  The orrey contains one sun and four orbiting bodies: two planets (Earth and
@@ -104,7 +106,7 @@ class SolarSystem : public systems::LeafSystem<T> {
     return get_state(*context.get_continuous_state());
   }
 
-  // Interaction with geometry world
+  // Geometry source identifier for this system to interact with geometry system
   geometry::SourceId source_id_{};
 
   // Port handles
@@ -113,9 +115,12 @@ class SolarSystem : public systems::LeafSystem<T> {
 
   // Solar system specification
   const int kBodyCount = 4;
+  // The ids for each celestial body frame
   std::vector<geometry::FrameId> body_ids_;
+  // The axes around each body revolves (expressed in its parent's frame)
   std::vector<Vector3<double>> axes_;
-  std::vector<Isometry3<double>> initial_poses_;
+  // The translational offset of each body from its parent frame
+  std::vector<Isometry3<double>> body_offset_;
 };
 
 }  // namespace solar_system
