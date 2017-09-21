@@ -51,8 +51,6 @@ class CompliantContactModelTest : public ContactResultTestCommon {
     // Populate the CompliantContactModel.
     compliant_contact_model_ =
         make_unique<CompliantContactModel<double>>();
-    CompliantContactParameters parameters = MakeDefaultMaterialParameters();
-    compliant_contact_model_->set_default_parameters(parameters);
     compliant_contact_model_->set_velocity_stiction_tolerance(
         kVStictionTolerance);
 

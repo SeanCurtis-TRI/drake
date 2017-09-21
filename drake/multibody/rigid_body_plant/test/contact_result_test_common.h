@@ -6,6 +6,7 @@
 #include <Eigen/Geometry>
 #include <gtest/gtest.h>
 
+#include "drake/common/drake_optional.h"
 #include "drake/common/eigen_matrix_compare.h"
 #include "drake/multibody/joints/quaternion_floating_joint.h"
 #include "drake/multibody/rigid_body.h"
@@ -74,14 +75,18 @@ class ContactResultTestCommon : public ::testing::Test {
   // Places two spheres on the x-y plane mirrored across the x_anchor_ from
   // each other such there is 2 * `distance` units gap between them.  Negative
   // numbers imply collision.
-  std::unique_ptr<RigidBodyTree<double>> GenerateTestTree(double distance) {
+  std::unique_ptr<RigidBodyTree<double>> GenerateTestTree(
+      double distance,
+      const optional<CompliantContactParameters>& parameters = nullopt) {
     auto unique_tree = std::make_unique<RigidBodyTree<double>>();
 
+    CompliantContactParameters contact_parameteters =
+        parameters ? *parameters : MakeDefaultMaterialParameters();
     x_anchor_ = 1.5;
     Eigen::Vector3d pos(x_anchor_ - (kRadius + distance), 0, 0);
-    body1_ = AddSphere(unique_tree.get(), pos, "sphere1");
+    body1_ = AddSphere(unique_tree.get(), pos, "sphere1", contact_parameteters);
     pos << x_anchor_ + (kRadius + distance), 0, 0;
-    body2_ = AddSphere(unique_tree.get(), pos, "sphere2");
+    body2_ = AddSphere(unique_tree.get(), pos, "sphere2", contact_parameteters);
 
     unique_tree->compile();
     DoGenerateTestTree(unique_tree.get());
@@ -93,8 +98,10 @@ class ContactResultTestCommon : public ::testing::Test {
 
   // Add a sphere with default radius, placed at the given position.
   //  Returns a raw pointer so that tests can use it for result validation.
-  RigidBody<double>* AddSphere(RigidBodyTree<double> *tree,
-      const Eigen::Vector3d& pos, const std::string& name) {
+  RigidBody<double>* AddSphere(
+      RigidBodyTree<double>* tree, const Eigen::Vector3d& pos,
+      const std::string& name,
+      const CompliantContactParameters& contact_parameters) {
     RigidBody<double>* body;
     tree->add_rigid_body(
         std::unique_ptr<RigidBody<double>>(body = new RigidBody<double>()));
@@ -107,6 +114,7 @@ class ContactResultTestCommon : public ::testing::Test {
                     std::make_unique<QuaternionFloatingJoint>("base", pose));
     DrakeShapes::Sphere sphere(kRadius);
     drake::multibody::collision::Element collision_element(sphere);
+    collision_element.set_compliant_parameters(contact_parameters);
     collision_element.set_body(body);
     tree->addCollisionElement(collision_element, *body, "group1");
     return body;

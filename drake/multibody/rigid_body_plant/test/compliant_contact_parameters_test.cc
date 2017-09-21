@@ -56,51 +56,17 @@ GTEST_TEST(CompliantContactParameters, SetInvalidValues) {
   EXPECT_THROW(params.set_friction(1, 2), std::runtime_error);
 }
 
-// Tests the value evaluation of the parameter set:
-//   1. Confirms that a newly constructed instance merely echoes the default
-//      values.
-//   2. Confirms that the default values can be successfully changed.
-//   3. Confirms that unspecified values change with default values (whether
-//      they were instantiated before or after the default values are set).
-//   4. Confirms specified values don't change with default values.
-GTEST_TEST(CompliantContactParameters, DefaultValues) {
-  // Pick ridiculous values that *cannot* be actual defaults.
-  double kStiffness = 1.111;
-  double kDissipation = 17;
-  double kFriction = 13;
-
-  CompliantContactParameters param_change;
-  param_change.set_dissipation(kDissipation);
-  param_change.set_stiffness(kStiffness);
-  param_change.set_friction(kFriction);
-
-  // Parameter set created *before* changing default values -- however, no
-  // values set, so it should echo the original defaults.
-  CompliantContactParameters param_1;
-
-  // The default values (represented by param_1) should not match the arbitrary
-  // values set in param_change.
-  EXPECT_NE(param_change.stiffness(), param_1.stiffness());
-  EXPECT_NE(param_change.dissipation(), param_1.dissipation());
-  EXPECT_NE(param_change.static_friction(), param_1.static_friction());
-  EXPECT_NE(param_change.dynamic_friction(), param_1.dynamic_friction());
-
-  // Change the defaults
-  CompliantContactParameters::SetDefaultValues(param_change);
-
-  // Parameter set created *after* changing default values -- no values set
-  // means it should echo the defaults.
-  CompliantContactParameters param_2;
-
-  // Now all default values should echo the newly changed default values.
-  EXPECT_EQ(param_2.stiffness(), kStiffness);
-  EXPECT_EQ(param_2.dissipation(), kDissipation);
-  EXPECT_EQ(param_2.static_friction(), kFriction);
-  EXPECT_EQ(param_2.dynamic_friction(), kFriction);
-  EXPECT_EQ(param_1.stiffness(), kStiffness);
-  EXPECT_EQ(param_1.dissipation(), kDissipation);
-  EXPECT_EQ(param_1.static_friction(), kFriction);
-  EXPECT_EQ(param_1.dynamic_friction(), kFriction);
+// Simply tests that the hard-coded default values haven't changed. This is
+// obviously brittle, these literal values should appear in both the initializer
+// list for each parameter as well as the doxygen for
+// CompliantContactParameters.
+GTEST_TEST(CompliantContactParamters, DefaultValues) {
+  CompliantContactParameters defaults;
+  EXPECT_EQ(defaults.stiffness(), 1e5) << "Have you changed the doxygen?";
+  EXPECT_EQ(defaults.dissipation(), 0.32) << "Have you changed the doxygen?";
+  EXPECT_EQ(defaults.static_friction(), 0.9) << "Have you changed the doxygen?";
+  EXPECT_EQ(defaults.dynamic_friction(), 0.5)
+            << "Have you changed the doxygen?";
 }
 
 }  // namespace

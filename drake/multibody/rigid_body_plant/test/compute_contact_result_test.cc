@@ -46,14 +46,10 @@ class ContactResultTest : public ContactResultTestCommon {
   // Runs the test on the RigidBodyPlant.
   const ContactResults<double>& RunTest(double distance) {
     // Populate the plant.
+    // Allow the testing class to use its built-in compliant material
+    // parameters.
     plant_ = make_unique<RigidBodyPlant<double>>(GenerateTestTree(distance));
 
-    CompliantContactParameters parameters = MakeDefaultMaterialParameters();
-    plant_->set_normal_contact_parameters(parameters.stiffness(),
-                                          parameters.dissipation());
-    plant_->set_friction_contact_parameters(parameters.static_friction(),
-                                            parameters.dynamic_friction(),
-                                            kVStictionTolerance);
     context_ = plant_->CreateDefaultContext();
     output_ = plant_->AllocateOutput(*context_);
     plant_->CalcOutput(*context_.get(), output_.get());

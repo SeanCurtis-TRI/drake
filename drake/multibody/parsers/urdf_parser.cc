@@ -45,6 +45,7 @@ using tinyxml2::XMLElement;
 using drake::parsers::ModelInstanceIdTable;
 using drake::multibody::joints::FloatingBaseType;
 using drake::multibody::joints::kRollPitchYaw;
+using drake::systems::CompliantContactParameters;
 
 namespace {
 
@@ -445,9 +446,10 @@ void ParseVisual(RigidBody<double>* body, XMLElement* node,
   if (element.hasGeometry()) body->AddVisualElement(element);
 }
 
-void ParseCollision(RigidBody<double>* body, XMLElement* node,
-                    RigidBodyTree<double>* tree,
-                    const PackageMap& package_map, const string& root_dir) {
+void ParseCollision(
+    RigidBody<double>* body, XMLElement* node, RigidBodyTree<double>* tree,
+    const PackageMap& package_map, const string& root_dir,
+    const systems::CompliantContactParameters& default_contact_params ) {
   Isometry3d T_element_to_link = Isometry3d::Identity();
   XMLElement* origin = node->FirstChildElement("origin");
   if (origin) originAttributesToTransform(origin, T_element_to_link);
@@ -474,16 +476,20 @@ void ParseCollision(RigidBody<double>* body, XMLElement* node,
         "to parse collision element in link " + body->get_name() + ".");
   }
 
-  element.set_compliant_parameters(ParseCollisionCompliance(node));
+  element.set_compliant_parameters(
+      ParseCollisionCompliance(node, default_contact_params));
 
   if (element.hasGeometry()) {
     tree->addCollisionElement(element, *body, group_name);
   }
 }
 
-bool ParseBody(RigidBodyTree<double>* tree, string robot_name, XMLElement* node,
-               MaterialMap* materials, const PackageMap& package_map,
-               const string& root_dir, int model_instance_id, int* index) {
+bool ParseBody(
+    RigidBodyTree<double>* tree, string robot_name, XMLElement* node,
+    MaterialMap* materials, const PackageMap& package_map,
+    const string& root_dir, int model_instance_id,
+    const systems::CompliantContactParameters& default_contact_params,
+    int* index) {
   const char* attr = node->Attribute("drake_ignore");
   if (attr && (std::strcmp(attr, "true") == 0)) return false;
 
@@ -514,7 +520,8 @@ bool ParseBody(RigidBodyTree<double>* tree, string robot_name, XMLElement* node,
   for (XMLElement* collision_node = node->FirstChildElement("collision");
        collision_node;
        collision_node = collision_node->NextSiblingElement("collision")) {
-    ParseCollision(body, collision_node, tree, package_map, root_dir);
+    ParseCollision(body, collision_node, tree, package_map, root_dir,
+                   default_contact_params);
   }
 
   tree->add_rigid_body(std::move(owned_body));
@@ -1029,12 +1036,12 @@ void ParseWorldJoint(XMLElement* node,
   }
 }
 
-ModelInstanceIdTable ParseModel(RigidBodyTree<double>* tree, XMLElement* node,
-                                const PackageMap& package_map,
-                                const string& root_dir,
-                                const FloatingBaseType floating_base_type,
-                                std::shared_ptr<RigidBodyFrame<double>>
-                                    weld_to_frame) {
+ModelInstanceIdTable ParseModel(
+    RigidBodyTree<double>* tree, XMLElement* node,
+    const PackageMap& package_map, const string& root_dir,
+    const FloatingBaseType floating_base_type,
+    std::shared_ptr<RigidBodyFrame<double>> weld_to_frame,
+    const systems::CompliantContactParameters& default_contact_params) {
   if (!node->Attribute("name")) {
     throw runtime_error(string(__FILE__) + ": " + __func__ + ": ERROR: Your "
         "robot must have a name attribute.");
@@ -1078,7 +1085,8 @@ ModelInstanceIdTable ParseModel(RigidBodyTree<double>* tree, XMLElement* node,
        link_node = link_node->NextSiblingElement("link")) {
     int index;
     if (ParseBody(tree, model_name, link_node, &materials, package_map,
-                  root_dir, model_instance_id, &index)) {
+                  root_dir, model_instance_id, default_contact_params,
+                  &index)) {
       link_indices.push_back(index);
     } else {
       // Determines whether the link was not parsed because it is a world link.
@@ -1147,10 +1155,11 @@ ModelInstanceIdTable ParseModel(RigidBodyTree<double>* tree, XMLElement* node,
   return model_instance_id_table;
 }
 
-ModelInstanceIdTable ParseUrdf(XMLDocument* xml_doc,
-    const PackageMap& package_map, const string& root_dir,
+ModelInstanceIdTable ParseUrdf(
+    XMLDocument* xml_doc, const PackageMap& package_map, const string& root_dir,
     const FloatingBaseType floating_base_type,
     std::shared_ptr<RigidBodyFrame<double>> weld_to_frame,
+    const systems::CompliantContactParameters& default_contact_params,
     RigidBodyTree<double>* tree) {
   XMLElement* node = xml_doc->FirstChildElement("robot");
   if (!node) {
@@ -1158,8 +1167,9 @@ ModelInstanceIdTable ParseUrdf(XMLDocument* xml_doc,
         "URDF does not contain a robot tag.");
   }
 
-  ModelInstanceIdTable model_instance_id_table = ParseModel(
-      tree, node, package_map, root_dir, floating_base_type, weld_to_frame);
+  ModelInstanceIdTable model_instance_id_table =
+      ParseModel(tree, node, package_map, root_dir, floating_base_type,
+                 weld_to_frame, default_contact_params);
 
   tree->compile();
 
@@ -1169,11 +1179,20 @@ ModelInstanceIdTable ParseUrdf(XMLDocument* xml_doc,
 }  // namespace
 
 ModelInstanceIdTable AddModelInstanceFromUrdfStringWithRpyJointToWorld(
-    const string& urdf_string, RigidBodyTree<double>* tree) {
+    const string& urdf_string,
+    const systems::CompliantContactParameters& default_contact_params,
+    RigidBodyTree<double>* tree) {
   const PackageMap package_map;
   return
       AddModelInstanceFromUrdfStringWithRpyJointToWorldSearchingInRosPackages(
-          urdf_string, package_map, tree);
+          urdf_string, package_map, default_contact_params, tree);
+}
+
+ModelInstanceIdTable AddModelInstanceFromUrdfStringWithRpyJointToWorld(
+    const string& urdf_string, RigidBodyTree<double>* tree) {
+  CompliantContactParameters default_values;
+  return AddModelInstanceFromUrdfStringWithRpyJointToWorld(
+      urdf_string, default_values, tree);
 }
 
 // TODO(liang.fok) Remove this deprecated method prior to Release 1.0.
@@ -1185,11 +1204,22 @@ ModelInstanceIdTable AddModelInstanceFromUrdfString(
 ModelInstanceIdTable
 AddModelInstanceFromUrdfStringWithRpyJointToWorldSearchingInRosPackages(
     const string& urdf_string, const PackageMap& package_map,
+    const systems::CompliantContactParameters& default_contact_params,
     RigidBodyTree<double>* tree) {
   const string root_dir = ".";
   return AddModelInstanceFromUrdfStringSearchingInRosPackages(
       urdf_string, package_map, root_dir, kRollPitchYaw,
-      nullptr /* weld_to_frame */, tree);
+      nullptr /* weld_to_frame */, default_contact_params, tree);
+}
+
+ModelInstanceIdTable
+AddModelInstanceFromUrdfStringWithRpyJointToWorldSearchingInRosPackages(
+    const string& urdf_string, const PackageMap& package_map,
+    RigidBodyTree<double>* tree) {
+  CompliantContactParameters default_values;
+  return
+      AddModelInstanceFromUrdfStringWithRpyJointToWorldSearchingInRosPackages(
+          urdf_string, package_map, default_values, tree);
 }
 
 // TODO(liang.fok) Remove this deprecated method prior to Release 1.0.
@@ -1207,10 +1237,35 @@ ModelInstanceIdTable AddModelInstanceFromUrdfString(
     const string& root_dir,
     const drake::multibody::joints::FloatingBaseType floating_base_type,
     std::shared_ptr<RigidBodyFrame<double>> weld_to_frame,
+    const systems::CompliantContactParameters& default_contact_params,
     RigidBodyTree<double>* tree) {
   return AddModelInstanceFromUrdfStringSearchingInRosPackages(
       urdf_string, package_map, root_dir, floating_base_type,
-      weld_to_frame, tree);
+      weld_to_frame, default_contact_params, tree);
+}
+
+ModelInstanceIdTable AddModelInstanceFromUrdfString(
+    const string& urdf_string, const PackageMap& package_map,
+    const string& root_dir,
+    const drake::multibody::joints::FloatingBaseType floating_base_type,
+    std::shared_ptr<RigidBodyFrame<double>> weld_to_frame,
+    RigidBodyTree<double>* tree) {
+  CompliantContactParameters default_values;
+  return AddModelInstanceFromUrdfString(urdf_string, package_map, root_dir,
+                                        floating_base_type, weld_to_frame,
+                                        default_values, tree);
+}
+
+ModelInstanceIdTable AddModelInstanceFromUrdfString(
+    const string& urdf_string, const string& root_dir,
+    const FloatingBaseType floating_base_type,
+    std::shared_ptr<RigidBodyFrame<double>> weld_to_frame,
+    const systems::CompliantContactParameters& default_contact_params,
+    RigidBodyTree<double>* tree) {
+  const PackageMap package_map;
+  return AddModelInstanceFromUrdfStringSearchingInRosPackages(
+      urdf_string, package_map, root_dir, floating_base_type,
+      weld_to_frame, default_contact_params, tree);
 }
 
 ModelInstanceIdTable AddModelInstanceFromUrdfString(
@@ -1218,10 +1273,22 @@ ModelInstanceIdTable AddModelInstanceFromUrdfString(
     const FloatingBaseType floating_base_type,
     std::shared_ptr<RigidBodyFrame<double>> weld_to_frame,
     RigidBodyTree<double>* tree) {
-  const PackageMap package_map;
-  return AddModelInstanceFromUrdfStringSearchingInRosPackages(
-      urdf_string, package_map, root_dir, floating_base_type,
-      weld_to_frame, tree);
+  CompliantContactParameters default_values;
+  return AddModelInstanceFromUrdfString(urdf_string, root_dir,
+                                        floating_base_type, weld_to_frame,
+                                        default_values, tree);
+}
+
+ModelInstanceIdTable AddModelInstanceFromUrdfStringSearchingInRosPackages(
+    const string& urdf_string, const PackageMap& package_map,
+    const string& root_dir, const FloatingBaseType floating_base_type,
+    std::shared_ptr<RigidBodyFrame<double>> weld_to_frame,
+    const systems::CompliantContactParameters& default_contact_params,
+    RigidBodyTree<double>* tree) {
+  XMLDocument xml_doc;
+  xml_doc.Parse(urdf_string.c_str());
+  return ParseUrdf(&xml_doc, package_map, root_dir, floating_base_type,
+                   weld_to_frame, default_contact_params, tree);
 }
 
 ModelInstanceIdTable AddModelInstanceFromUrdfStringSearchingInRosPackages(
@@ -1229,21 +1296,30 @@ ModelInstanceIdTable AddModelInstanceFromUrdfStringSearchingInRosPackages(
     const string& root_dir, const FloatingBaseType floating_base_type,
     std::shared_ptr<RigidBodyFrame<double>> weld_to_frame,
     RigidBodyTree<double>* tree) {
-  XMLDocument xml_doc;
-  xml_doc.Parse(urdf_string.c_str());
-  return ParseUrdf(&xml_doc, package_map, root_dir, floating_base_type,
-                   weld_to_frame, tree);
+  CompliantContactParameters default_values;
+  return AddModelInstanceFromUrdfStringSearchingInRosPackages(
+      urdf_string, package_map, root_dir, floating_base_type, weld_to_frame,
+      default_values, tree);
 }
 
 ModelInstanceIdTable AddModelInstanceFromUrdfFileWithRpyJointToWorld(
-    const string& filename, RigidBodyTree<double>* tree) {
+    const string& filename,
+    const systems::CompliantContactParameters& default_contact_params,
+    RigidBodyTree<double>* tree) {
   DRAKE_DEMAND(tree && "You must provide a valid RigidBodyTree pointer.");
   const string full_path_filename = GetFullPath(filename);
   PackageMap package_map;
   package_map.PopulateUpstreamToDrake(full_path_filename);
   return AddModelInstanceFromUrdfFileSearchingInRosPackages(
       full_path_filename, package_map, kRollPitchYaw,
-      nullptr /* weld_to_frame */, tree);
+      nullptr /* weld_to_frame */, default_contact_params, tree);
+}
+
+ModelInstanceIdTable AddModelInstanceFromUrdfFileWithRpyJointToWorld(
+    const string& filename, RigidBodyTree<double>* tree) {
+  CompliantContactParameters default_values;
+  return AddModelInstanceFromUrdfFileWithRpyJointToWorld(filename,
+                                                         default_values, tree);
 }
 
 // TODO(liang.fok) Remove this deprecated method prior to Release 1.0.
@@ -1254,6 +1330,7 @@ ModelInstanceIdTable AddModelInstanceFromUrdfFile(const string& filename,
 
 ModelInstanceIdTable AddModelInstanceFromUrdfFileToWorld(
     const string& filename, const FloatingBaseType floating_base_type,
+    const systems::CompliantContactParameters& default_contact_params,
     RigidBodyTree<double>* tree) {
   DRAKE_DEMAND(tree && "You must provide a valid RigidBodyTree pointer.");
   const string full_path_filename = GetFullPath(filename);
@@ -1261,7 +1338,15 @@ ModelInstanceIdTable AddModelInstanceFromUrdfFileToWorld(
   package_map.PopulateUpstreamToDrake(full_path_filename);
   return AddModelInstanceFromUrdfFileSearchingInRosPackages(
       full_path_filename, package_map, floating_base_type,
-      nullptr /*weld_to_frame*/, tree);
+      nullptr /*weld_to_frame*/, default_contact_params, tree);
+}
+
+ModelInstanceIdTable AddModelInstanceFromUrdfFileToWorld(
+    const string& filename, const FloatingBaseType floating_base_type,
+    RigidBodyTree<double>* tree) {
+  CompliantContactParameters default_values;
+  return AddModelInstanceFromUrdfFileToWorld(filename, floating_base_type,
+                                             default_values, tree);
 }
 
 // TODO(liang.fok) Remove this deprecated method prior to Release 1.0.
@@ -1275,19 +1360,31 @@ ModelInstanceIdTable AddModelInstanceFromUrdfFile(
 ModelInstanceIdTable AddModelInstanceFromUrdfFile(
     const string& filename, const FloatingBaseType floating_base_type,
     std::shared_ptr<RigidBodyFrame<double>> weld_to_frame,
+    const systems::CompliantContactParameters& default_contact_params,
     RigidBodyTree<double>* tree) {
   DRAKE_DEMAND(tree && "You must provide a valid RigidBodyTree pointer.");
   const string full_path_filename = GetFullPath(filename);
   PackageMap package_map;
   package_map.PopulateUpstreamToDrake(full_path_filename);
   return AddModelInstanceFromUrdfFileSearchingInRosPackages(
-      full_path_filename, package_map, floating_base_type, weld_to_frame, tree);
+      full_path_filename, package_map, floating_base_type, weld_to_frame,
+      default_contact_params, tree);
+}
+
+ModelInstanceIdTable AddModelInstanceFromUrdfFile(
+    const string& filename, const FloatingBaseType floating_base_type,
+    std::shared_ptr<RigidBodyFrame<double>> weld_to_frame,
+    RigidBodyTree<double>* tree) {
+  CompliantContactParameters default_values;
+  return AddModelInstanceFromUrdfFile(filename, floating_base_type,
+                                      weld_to_frame, default_values, tree);
 }
 
 ModelInstanceIdTable AddModelInstanceFromUrdfFileSearchingInRosPackages(
     const string& filename, const PackageMap& package_map,
     const FloatingBaseType floating_base_type,
     std::shared_ptr<RigidBodyFrame<double>> weld_to_frame,
+    const systems::CompliantContactParameters& default_contact_params,
     RigidBodyTree<double>* tree) {
   DRAKE_DEMAND(tree && "You must provide a valid RigidBodyTree pointer.");
 
@@ -1308,7 +1405,18 @@ ModelInstanceIdTable AddModelInstanceFromUrdfFileSearchingInRosPackages(
   }
 
   return ParseUrdf(&xml_doc, package_map, root_dir, floating_base_type,
-                   weld_to_frame, tree);
+                   weld_to_frame, default_contact_params, tree);
+}
+
+ModelInstanceIdTable AddModelInstanceFromUrdfFileSearchingInRosPackages(
+    const string& filename, const PackageMap& package_map,
+    const FloatingBaseType floating_base_type,
+    std::shared_ptr<RigidBodyFrame<double>> weld_to_frame,
+    RigidBodyTree<double>* tree) {
+  CompliantContactParameters default_values;
+  return AddModelInstanceFromUrdfFileSearchingInRosPackages(
+      filename, package_map, floating_base_type, weld_to_frame, default_values,
+      tree);
 }
 
 // TODO(liang.fok) Remove this deprecated method prior to Release 1.0.

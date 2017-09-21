@@ -35,14 +35,6 @@ class CompliantContactModel {
       const KinematicsCache<T>& kinsol,
       ContactResults<T>* contacts = nullptr) const;
 
-  /// Defines the default parameter values for the model (and all elements with
-  /// default-configured values). This can be invoked before or after parsing
-  /// SDF/URDF files; all fields that were left unspecified will default to
-  /// these values.
-  /// See @ref drake_contact and CompliantContactParameters for elaboration on
-  /// these values.
-  void set_default_parameters(const CompliantContactParameters& parameters);
-
   /// Configures the velocity stiction tolerance for the model. See @ref
   /// drake_contact for discussion of this value.
   void set_velocity_stiction_tolerance(double tolerance);

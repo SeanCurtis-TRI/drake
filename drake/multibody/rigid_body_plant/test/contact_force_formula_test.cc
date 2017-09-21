@@ -63,30 +63,27 @@ class ContactFormulaTest : public ::testing::Test {
         v_WS2[3], v_WS2[4], v_WS2[5];  // sphere 2 linear velocity
     velocities->SetFromVector(target_velocities);
 
-    SetContactParameters();
-    // This sets default *material* properties. However, for *contact*
-    // properties for objects with identical material parameters, the resultant
-    // contact stiffness is half the material value. All other values are the
-    // same for homogeneous materials. See contact_model_doxygen.h
-    // @ref per_object_contact for details.
-    plant_->set_normal_contact_parameters(2.0 * stiffness_, dissipation_);
-    plant_->set_friction_contact_parameters(static_friction_, dynamic_friction_,
-                                            v_stiction_tolerance_);
+    plant_->set_contact_model_parameters(GetContactModelParameters());
 
     plant_->CalcOutput(*context_.get(), output_.get());
     contacts_ =
         output_->get_data(port_index)->GetValue<ContactResults<double>>();
   }
 
-  // Specifies the values to use as the rigid body plant's global _contact_
-  // parameters.
-  // TODO(SeanCurtis-TRI): Modify this as materials come into play.
-  virtual void SetContactParameters() {
-    stiffness_ = 10000;
-    static_friction_ = 0.7;
-    dynamic_friction_ = 0.5;
-    v_stiction_tolerance_ = 0.01;
-    dissipation_ = 0.5;
+  // Returns the values to configure the compliant contact model.
+  virtual double GetContactModelParameters() {
+    // TODO(SeanCurtis-TRI): Replace double with struct when I grow the model
+    // parameters.
+    return 0.01;  // v_stiction_tolerance_
+  }
+
+  // Returns the default compliant contact materials.
+  virtual CompliantContactParameters GetContactParameters() {
+    CompliantContactParameters parameters;
+    parameters.set_stiffness(20000);
+    parameters.set_dissipation(0.5);
+    parameters.set_friction(0.7, 0.5);
+    return parameters;
   }
 
   // Interprets the velocity of sphere 2 as the rate of change of penetration.
@@ -125,6 +122,7 @@ class ContactFormulaTest : public ::testing::Test {
     DrakeShapes::Sphere sphere(kRadius);
     drake::multibody::collision::Element collision_element(sphere);
     collision_element.set_body(body);
+    collision_element.set_compliant_parameters(GetContactParameters());
     tree_->addCollisionElement(collision_element, *body, "group1");
     return body;
   }

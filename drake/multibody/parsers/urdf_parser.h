@@ -11,6 +11,7 @@
 #include "drake/multibody/parsers/parser_common.h"
 #include "drake/multibody/parsers/xml_util.h"
 #include "drake/multibody/rigid_body_frame.h"
+#include "drake/multibody/rigid_body_plant/compliant_contact_parameters.h"
 #include "drake/multibody/rigid_body_tree.h"
 #include "drake/thirdParty/zlib/tinyxml2/tinyxml2.h"
 
@@ -66,11 +67,25 @@ std::shared_ptr<RigidBodyFrame<double>> MakeRigidBodyFrameFromUrdfNode(
  * A new model instance is created based on this URDF text and added to
  * @p tree.
  *
+ * @param[in] default_contact_params The default contact parameters to be
+ * applied to all collision elements which don't explicit specify contact
+ * parameters in the file.
+ *
  * @param[out] tree The `RigidBodyTree` to which to add the model instance.
  * This parameter must not be `nullptr`.
  *
  * @return A table mapping the names of the models whose instances were just
  * added to @p tree to their instance IDs, which are unique within @p tree.
+ */
+ModelInstanceIdTable AddModelInstanceFromUrdfStringWithRpyJointToWorld(
+    const std::string& urdf_string,
+    const systems::CompliantContactParameters& default_contact_params,
+    RigidBodyTree<double>* tree);
+
+/**
+ * Overloaded version of AddModelInstanceFromUrdfStringWithRpyJointToWorld()
+ * which uses the hard-coded default contact parameter values for collision
+ * elements in the urdf which do not explicitly specify contact parameters.
  */
 ModelInstanceIdTable AddModelInstanceFromUrdfStringWithRpyJointToWorld(
     const std::string& urdf_string, RigidBodyTree<double>* tree);
@@ -104,12 +119,28 @@ ModelInstanceIdTable AddModelInstanceFromUrdfString(
  * are the packages to search through when searching for files referenced in the
  * URDF.
  *
+ * @param[in] default_contact_params The default contact parameters to be
+ * applied to all collision elements which don't explicit specify contact
+ * parameters in the file.
+ *
  * @param[out] tree The `RigidBodyTree` to which to add the model instance.
  * This parameter must not be `nullptr`.
  *
  * @return A table mapping the names of the models whose instances were just
  * added to the `RigidBodyTree` to their instance IDs, which are unique within
  * the `RigidBodyTree`.
+ */
+ModelInstanceIdTable
+AddModelInstanceFromUrdfStringWithRpyJointToWorldSearchingInRosPackages(
+    const std::string& urdf_string, const PackageMap& package_map,
+    const systems::CompliantContactParameters& default_contact_params,
+    RigidBodyTree<double>* tree);
+
+/**
+ * Overloaded version of
+ * AddModelInstanceFromUrdfStringWithRpyJointToWorldSearchingInRosPackages()
+ * which uses the hard-coded default contact parameter values for collision
+ * elements in the urdf which do not explicitly specify contact parameters.
  */
 ModelInstanceIdTable
 AddModelInstanceFromUrdfStringWithRpyJointToWorldSearchingInRosPackages(
@@ -146,12 +177,31 @@ ModelInstanceIdTable AddModelInstanceFromUrdfString(
  * @param[in] floating_base_type The type of joint that connects the model
  * instance's root to @p tree.
  *
+ * @param[in] weld_to_frame The frame to which to connect the new model
+ * instance.
+ *
+ * @param[in] default_contact_params The default contact parameters to be
+ * applied to all collision elements which don't explicit specify contact
+ * parameters in the file.
+ *
  * @param[out] tree The `RigidBodyTree` to which to add the model instance.
  * This parameter must not be `nullptr`.
  *
  * @return A table mapping the names of the models whose instances were just
  * added to the `RigidBodyTree` to their instance IDs, which are unique within
  * the `RigidBodyTree`.
+ */
+ModelInstanceIdTable AddModelInstanceFromUrdfString(
+    const std::string& urdf_string, const std::string& root_dir,
+    const drake::multibody::joints::FloatingBaseType floating_base_type,
+    std::shared_ptr<RigidBodyFrame<double>> weld_to_frame,
+    const systems::CompliantContactParameters& default_contact_params,
+    RigidBodyTree<double>* tree);
+
+/**
+ * Overloaded version of AddModelInstanceFromUrdfString() which uses the
+ * hard-coded default contact parameter values for collision elements in the
+ * urdf which do not explicitly specify contact parameters.
  */
 ModelInstanceIdTable AddModelInstanceFromUrdfString(
     const std::string& urdf_string, const std::string& root_dir,
@@ -190,12 +240,29 @@ ModelInstanceIdTable AddModelInstanceFromUrdfString(
  * @param[in] weld_to_frame The frame to which to connect the new model
  * instance.
  *
+ * @param[in] default_contact_params The default contact parameters to be
+ * applied to all collision elements which don't explicit specify contact
+ * parameters in the file.
+ *
  * @param[out] tree The `RigidBodyTree` to which to add the model instance.
  * This parameter must not be `nullptr`.
  *
  * @return A table mapping the names of the models whose instances were just
  * added to the `RigidBodyTree` to their instance IDs, which are unique within
  * the `RigidBodyTree`.
+ */
+ModelInstanceIdTable AddModelInstanceFromUrdfStringSearchingInRosPackages(
+    const std::string& urdf_string, const PackageMap& package_map,
+    const std::string& root_dir,
+    const drake::multibody::joints::FloatingBaseType floating_base_type,
+    std::shared_ptr<RigidBodyFrame<double>> weld_to_frame,
+    const systems::CompliantContactParameters& default_contact_params,
+    RigidBodyTree<double>* tree);
+
+/**
+ * Overloaded version of AddModelInstanceFromUrdfStringSearchingInRosPackages()
+ * which uses the hard-coded default contact parameter values for collision
+ * elements in the urdf which do not explicitly specify contact parameters.
  */
 ModelInstanceIdTable AddModelInstanceFromUrdfStringSearchingInRosPackages(
     const std::string& urdf_string, const PackageMap& package_map,
@@ -229,11 +296,25 @@ ModelInstanceIdTable AddModelInstanceFromUrdfString(
  *
  * @param[in] urdf_filename The name of the file containing the URDF model.
  *
+ * @param[in] default_contact_params The default contact parameters to be
+ * applied to all collision elements which don't explicit specify contact
+ * parameters in the file.
+ *
  * @param[out] tree The `RigidBodyTree` to which to add the model instance.
  * This parameter must not be `nullptr`.
  *
  * @return A table mapping the names of the models whose instances were just
  * added to @p tree to their instance IDs, which are unique within @p tree.
+ */
+ModelInstanceIdTable AddModelInstanceFromUrdfFileWithRpyJointToWorld(
+    const std::string& urdf_filename,
+    const systems::CompliantContactParameters& default_contact_params,
+    RigidBodyTree<double>* tree);
+
+/**
+ * Overloaded version of AddModelInstanceFromUrdfStringSearchingInRosPackages()
+ * which uses the hard-coded default contact parameter values for collision
+ * elements in the urdf which do not explicitly specify contact parameters.
  */
 ModelInstanceIdTable AddModelInstanceFromUrdfFileWithRpyJointToWorld(
     const std::string& urdf_filename, RigidBodyTree<double>* tree);
@@ -264,12 +345,27 @@ ModelInstanceIdTable AddModelInstanceFromUrdfFile(
  * @param[in] floating_base_type The type of joint that connects the model
  * instance's root to @p tree.
  *
+ * @param[in] default_contact_params The default contact parameters to be
+ * applied to all collision elements which don't explicit specify contact
+ * parameters in the file.
+ *
  * @param[out] tree The `RigidBodyTree` to which to add the model instance.
  * This parameter must not be `nullptr`.
  *
  * @return A table mapping the names of the models whose instances were just
  * added to the `RigidBodyTree` to their instance IDs, which are unique within
  * the `RigidBodyTree`.
+ */
+ModelInstanceIdTable AddModelInstanceFromUrdfFileToWorld(
+    const std::string& urdf_filename,
+    const drake::multibody::joints::FloatingBaseType floating_base_type,
+    const systems::CompliantContactParameters& default_contact_params,
+    RigidBodyTree<double>* tree);
+
+/**
+ * Overloaded version of AddModelInstanceFromUrdfFileToWorld() which uses the
+ * hard-coded default contact parameter values for collision elements in the
+ * urdf which do not explicitly specify contact parameters.
  */
 ModelInstanceIdTable AddModelInstanceFromUrdfFileToWorld(
     const std::string& urdf_filename,
@@ -307,12 +403,28 @@ ModelInstanceIdTable AddModelInstanceFromUrdfFile(
  * @param[in] weld_to_frame The frame to which to connect the new model
  * instance.
  *
+ * @param[in] default_contact_params The default contact parameters to be
+ * applied to all collision elements which don't explicit specify contact
+ * parameters in the file.
+ *
  * @param[out] tree The `RigidBodyTree` to which to add the model instance.
  * This parameter must not be `nullptr`.
  *
  * @return A table mapping the names of the models whose instances were just
  * added to the `RigidBodyTree` to their instance IDs, which are unique within
  * the `RigidBodyTree`.
+ */
+ModelInstanceIdTable AddModelInstanceFromUrdfFile(
+    const std::string& urdf_filename,
+    const drake::multibody::joints::FloatingBaseType floating_base_type,
+    std::shared_ptr<RigidBodyFrame<double>> weld_to_frame,
+    const systems::CompliantContactParameters& default_contact_params,
+    RigidBodyTree<double>* tree);
+
+/**
+ * Overloaded version of AddModelInstanceFromUrdfFile() which uses the
+ * hard-coded default contact parameter values for collision elements in the
+ * urdf which do not explicitly specify contact parameters.
  */
 ModelInstanceIdTable AddModelInstanceFromUrdfFile(
     const std::string& urdf_filename,
@@ -346,12 +458,28 @@ ModelInstanceIdTable AddModelInstanceFromUrdfFile(
  * @param[in] weld_to_frame The frame to which to connect the new model
  * instance.
  *
+ * @param[in] default_contact_params The default contact parameters to be
+ * applied to all collision elements which don't explicit specify contact
+ * parameters in the file.
+ *
  * @param[out] tree The `RigidBodyTree` to which to add the model instance.
  * This parameter must not be `nullptr`.
  *
  * @return A table mapping the names of the models whose instances were just
  * added to the `RigidBodyTree` to their instance IDs, which are unique within
  * the `RigidBodyTree`.
+ */
+ModelInstanceIdTable AddModelInstanceFromUrdfFileSearchingInRosPackages(
+    const std::string& urdf_filename, const PackageMap& package_map,
+    const drake::multibody::joints::FloatingBaseType floating_base_type,
+    std::shared_ptr<RigidBodyFrame<double>> weld_to_frame,
+    const systems::CompliantContactParameters& default_contact_params,
+    RigidBodyTree<double>* tree);
+
+/**
+ * Overloaded version of AddModelInstanceFromUrdfFileSearchingInRosPackages()
+ * which uses the hard-coded default contact parameter values for collision
+ * elements in the urdf which do not explicitly specify contact parameters.
  */
 ModelInstanceIdTable AddModelInstanceFromUrdfFileSearchingInRosPackages(
     const std::string& urdf_filename, const PackageMap& package_map,

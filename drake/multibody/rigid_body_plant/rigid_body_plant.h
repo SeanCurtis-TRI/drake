@@ -130,18 +130,11 @@ class RigidBodyPlant : public LeafSystem<T> {
 
   ~RigidBodyPlant() override;
 
-  // TODO(SeanCurtis-TRI): Link to documentation explaining these parameters
-  // in detail.  To come in a subsequent PR.
-  /// Sets only the parameters for *normal* contact.  This is a convenience
-  /// function to allow for more targeted parameter tuning.
-  void set_normal_contact_parameters(double penetration_stiffness,
-                                     double dissipation);
-
-  /// Sets only the parameters for *friction* contact.  This is a convenience
-  /// function to allow for more targeted parameter tuning.
-  void set_friction_contact_parameters(double static_friction_coef,
-                                       double dynamic_friction_coef,
-                                       double v_stiction_tolerance);
+  // TODO(SeanCurtis-TRI): Change the parameter to a struct instead of a double.
+  /// Sets the parameters of the compliance _model_. To set material parameters,
+  /// use the CompliantContactParameter class associated with the collision
+  /// element.
+  void set_contact_model_parameters(double v_stiction_tolerance);
 
   /// Returns a constant reference to the multibody dynamics model
   /// of the world.

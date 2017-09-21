@@ -15,12 +15,6 @@ namespace drake {
 namespace systems {
 
 template <typename T>
-void CompliantContactModel<T>::set_default_parameters(
-    const CompliantContactParameters &parameters) {
-  CompliantContactParameters::SetDefaultValues(parameters);
-}
-
-template <typename T>
 void CompliantContactModel<T>::set_velocity_stiction_tolerance(
     double tolerance) {
   DRAKE_DEMAND(tolerance > 0);

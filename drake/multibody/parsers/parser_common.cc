@@ -235,8 +235,9 @@ int AddFloatingJoint(
   return num_floating_joints_added;
 }
 
-CompliantContactParameters ParseCollisionCompliance(XMLElement* node) {
-  CompliantContactParameters parameters;
+CompliantContactParameters ParseCollisionCompliance(
+    XMLElement* node, const CompliantContactParameters& default_values) {
+  CompliantContactParameters parameters(default_values);
   // TODO(SeanCurtis-TRI): Incomplete validation. This parsing allows redundant
   // declarations of parameters. Confirm proper validation via an XSD.
   XMLElement* compliant_node = node->FirstChildElement("drake_compliance");

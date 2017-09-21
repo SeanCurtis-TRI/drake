@@ -8,6 +8,7 @@
 #include "drake/multibody/parsers/package_map.h"
 #include "drake/multibody/parsers/parser_common.h"
 #include "drake/multibody/rigid_body_frame.h"
+#include "drake/multibody/rigid_body_plant/compliant_contact_parameters.h"
 #include "drake/multibody/rigid_body_tree.h"
 
 namespace drake {
@@ -32,6 +33,10 @@ namespace sdf {
  * @param[in] floating_base_type The type of joint that connects the model's
  * root to the existing rigid body tree.
  *
+ * @param[in] default_contact_params The default contact parameters to be
+ * applied to all collision elements which don't explicit specify contact
+ * parameters in the file.
+ *
  * @param[out] tree The rigid body tree to which to add the model.
  *
  * @return A table mapping the names of the models whose instances were just
@@ -42,7 +47,20 @@ ModelInstanceIdTable
 AddModelInstancesFromSdfFileToWorld(
     const std::string& filename,
     const drake::multibody::joints::FloatingBaseType floating_base_type,
+    const systems::CompliantContactParameters& default_contact_params,
     RigidBodyTree<double>* tree);
+
+/**
+ * Overloaded version of AddModelInstancesFromSdfFileToWorld() which uses the
+ * hard-coded default contact parameter values for collision elements in the sdf
+ * which do not explicitly specify contact parameters.
+ */
+ModelInstanceIdTable
+AddModelInstancesFromSdfFileToWorld(
+    const std::string& filename,
+    const drake::multibody::joints::FloatingBaseType floating_base_type,
+    RigidBodyTree<double>* tree);
+
 
 /**
  * Adds the model or models defined within an SDF file to a rigid body tree.
@@ -65,11 +83,28 @@ AddModelInstancesFromSdfFileToWorld(
  * @param[in] floating_base_type The type of joint that connects the model's
  * root to the existing rigid body tree.
  *
+ * @param[in] default_contact_params The default contact parameters to be
+ * applied to all collision elements which don't explicit specify contact
+ * parameters in the file.
+ *
  * @param[out] tree The rigid body tree to which to add the model.
  *
  * @return A table mapping the names of the models whose instances were just
  * added to the `RigidBodyTree` to their instance IDs, which are unique within
  * the `RigidBodyTree`.
+ */
+ModelInstanceIdTable
+AddModelInstancesFromSdfFileToWorldSearchingInRosPackages(
+    const std::string& filename, const PackageMap& package_map,
+    const drake::multibody::joints::FloatingBaseType floating_base_type,
+    const systems::CompliantContactParameters& default_contact_params,
+    RigidBodyTree<double>* tree);
+
+/**
+ * Overloaded version of
+ * AddModelInstancesFromSdfFileToWorldSearchingInRosPackages() which uses the
+ * hard-coded default contact parameter values for collision elements in the sdf
+ * which do not explicitly specify contact parameters.
  */
 ModelInstanceIdTable
 AddModelInstancesFromSdfFileToWorldSearchingInRosPackages(
@@ -96,11 +131,27 @@ AddModelInstancesFromSdfFileToWorldSearchingInRosPackages(
  *
  * @param[in] weld_to_frame The frame to which to connect the new model.
  *
+ * @param[in] default_contact_params The default contact parameters to be
+ * applied to all collision elements which don't explicit specify contact
+ * parameters in the file.
+ *
  * @param[out] tree The rigid body tree to which to add the model.
  *
  * @return A table mapping the names of the models whose instances were just
  * added to the `RigidBodyTree` to their instance IDs, which are unique within
  * the `RigidBodyTree`.
+ */
+ModelInstanceIdTable AddModelInstancesFromSdfFile(
+    const std::string& filename,
+    const drake::multibody::joints::FloatingBaseType floating_base_type,
+    std::shared_ptr<RigidBodyFrame<double>> weld_to_frame,
+    const systems::CompliantContactParameters& default_contact_params,
+    RigidBodyTree<double>* tree);
+
+/**
+ * Overloaded version of AddModelInstancesFromSdfFile() which uses the
+ * hard-coded default contact parameter values for collision elements in the sdf
+ * which do not explicitly specify contact parameters.
  */
 ModelInstanceIdTable AddModelInstancesFromSdfFile(
     const std::string& filename,
@@ -130,6 +181,10 @@ ModelInstanceIdTable AddModelInstancesFromSdfFile(
  *
  * @param[in] weld_to_frame The frame to which to connect the new model.
  *
+ * @param[in] default_contact_params The default contact parameters to be
+ * applied to all collision elements which don't explicit specify contact
+ * parameters in the file.
+ *
  * @param[out] tree The rigid body tree to which to add the model.
  *
  * @return A table mapping the names of the models whose instances were just
@@ -140,8 +195,19 @@ ModelInstanceIdTable AddModelInstancesFromSdfFileSearchingInRosPackages(
     const std::string& filename, const PackageMap& package_map,
     const drake::multibody::joints::FloatingBaseType floating_base_type,
     std::shared_ptr<RigidBodyFrame<double>> weld_to_frame,
+    const systems::CompliantContactParameters& default_contact_params,
     RigidBodyTree<double>* tree);
 
+/**
+ * Overloaded version of AddModelInstancesFromSdfFileSearchingInRosPackages()
+ * which uses the hard-coded default contact parameter values for collision
+ * elements in the sdf which do not explicitly specify contact parameters.
+ */
+ModelInstanceIdTable AddModelInstancesFromSdfFileSearchingInRosPackages(
+    const std::string& filename, const PackageMap& package_map,
+    const drake::multibody::joints::FloatingBaseType floating_base_type,
+    std::shared_ptr<RigidBodyFrame<double>> weld_to_frame,
+    RigidBodyTree<double>* tree);
 
 /**
  * Adds the model or models defined within an SDF description to @p tree. One
@@ -161,11 +227,27 @@ ModelInstanceIdTable AddModelInstancesFromSdfFileSearchingInRosPackages(
  *
  * @param[in] weld_to_frame The frame to which to connect the new model.
  *
+ * @param[in] default_contact_params The default contact parameters to be
+ * applied to all collision elements which don't explicit specify contact
+ * parameters in the file.
+ *
  * @param[out] tree The rigid body tree to which to add the model.
  *
  * @return A table mapping the names of the models whose instances were just
  * added to the `RigidBodyTree` to their instance IDs, which are unique within
  * the `RigidBodyTree`.
+ */
+ModelInstanceIdTable AddModelInstancesFromSdfString(
+    const std::string& sdf_string,
+    const drake::multibody::joints::FloatingBaseType floating_base_type,
+    std::shared_ptr<RigidBodyFrame<double>> weld_to_frame,
+    const systems::CompliantContactParameters& default_contact_params,
+    RigidBodyTree<double>* tree);
+
+/**
+ * Overloaded version of AddModelInstancesFromSdfString() which uses the
+ * hard-coded default contact parameter values for collision elements in the sdf
+ * which do not explicitly specify contact parameters.
  */
 ModelInstanceIdTable AddModelInstancesFromSdfString(
     const std::string& sdf_string,
@@ -194,11 +276,27 @@ ModelInstanceIdTable AddModelInstancesFromSdfString(
  *
  * @param[in] weld_to_frame The frame to which to connect the new model.
  *
+ * @param[in] default_contact_params The default contact parameters to be
+ * applied to all collision elements which don't explicit specify contact
+ * parameters in the file.
+ *
  * @param[out] tree The rigid body tree to which to add the model.
  *
  * @return A table mapping the names of the models whose instances were just
  * added to the `RigidBodyTree` to their instance IDs, which are unique within
  * the `RigidBodyTree`.
+ */
+ModelInstanceIdTable AddModelInstancesFromSdfStringSearchingInRosPackages(
+    const std::string& sdf_string, const PackageMap& package_map,
+    const drake::multibody::joints::FloatingBaseType floating_base_type,
+    std::shared_ptr<RigidBodyFrame<double>> weld_to_frame,
+    const systems::CompliantContactParameters& default_contact_params,
+    RigidBodyTree<double>* tree);
+
+/**
+ * Overloaded version of AddModelInstancesFromSdfStringSearchingInRosPackages()
+ * which uses the hard-coded default contact parameter values for collision
+ * elements in the sdf which do not explicitly specify contact parameters.
  */
 ModelInstanceIdTable AddModelInstancesFromSdfStringSearchingInRosPackages(
     const std::string& sdf_string, const PackageMap& package_map,

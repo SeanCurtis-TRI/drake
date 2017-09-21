@@ -164,28 +164,9 @@ void RigidBodyPlant<T>::ExportModelInstanceCentricPorts() {
 template <typename T>
 RigidBodyPlant<T>::~RigidBodyPlant() {}
 
-// TODO(liang.fok) Remove these methods once a more advanced contact modeling
-// framework is available.
 template <typename T>
-void RigidBodyPlant<T>::set_normal_contact_parameters(
-    double penetration_stiffness, double dissipation) {
-  DRAKE_DEMAND(penetration_stiffness >= 0);
-  DRAKE_DEMAND(dissipation >= 0);
-  CompliantContactParameters parameters;
-  parameters.set_stiffness(penetration_stiffness);
-  parameters.set_dissipation(dissipation);
-  compliant_contact_model_->set_default_parameters(parameters);
-}
-
-template <typename T>
-void RigidBodyPlant<T>::set_friction_contact_parameters(
-    double static_friction_coef, double dynamic_friction_coef,
+void RigidBodyPlant<T>::set_contact_model_parameters(
     double v_stiction_tolerance) {
-  // NOTE: The parameter values are validated in the model.
-  CompliantContactParameters parameters;
-  parameters.set_friction(static_friction_coef, dynamic_friction_coef);
-  compliant_contact_model_->set_default_parameters(parameters);
-
   compliant_contact_model_->set_velocity_stiction_tolerance(
       v_stiction_tolerance);
 }

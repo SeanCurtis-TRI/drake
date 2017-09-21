@@ -123,7 +123,8 @@ int AddFloatingJoint(
 /// @param[in] node The *parent* node which ostensibly contains a declaration of
 /// drake compliance.
 systems::CompliantContactParameters ParseCollisionCompliance(
-    tinyxml2::XMLElement* node);
+    tinyxml2::XMLElement* node,
+    const systems::CompliantContactParameters& default_values);
 
 }  // namespace parsers
 }  // namespace drake
