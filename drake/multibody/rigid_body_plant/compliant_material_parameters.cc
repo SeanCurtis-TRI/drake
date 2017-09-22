@@ -14,7 +14,7 @@ void CompliantMaterialParameters::set_stiffness(double value) {
     throw runtime_error(
         "Stiffness value must be non-negative. Given " + to_string(value));
   }
-  stiffness_ = value;
+  youngs_modulus_ = value;
 }
 
 void CompliantMaterialParameters::set_dissipation(double value) {

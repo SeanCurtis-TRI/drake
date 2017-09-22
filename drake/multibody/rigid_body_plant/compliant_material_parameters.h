@@ -5,9 +5,11 @@
 namespace drake {
 namespace systems {
 
-/** The set of per-object compliant contact parameters. It attempts to model
- the material properties of a single object. The material properties include:
-   - stiffness with units of pascals (i.e.,N/m²). Its default value is 1e5.
+/** The set of per-object compliant material parameters. The material properties
+ include:
+   - stiffness with units of pascals (i.e.,N/m²). This should be thought of as
+     the Young's modulus of the material. The default value is that of a soft
+     rubber: 1e7 pascals.
    - dissipation with units of s/m. Its default value is 0.32, drawn from
      the Hunt-Crossly 1975 paper representing the dissipation for ivory.
    - coefficients of friction (static and dynamic). Unitless values with
@@ -22,7 +24,7 @@ class CompliantMaterialParameters {
   CompliantMaterialParameters() = default;
 
   void set_stiffness(double value);
-  double stiffness() const { return stiffness_; }
+  double stiffness() const { return youngs_modulus_; }
   void set_dissipation(double value);
   double dissipation() const { return dissipation_; }
 
@@ -51,7 +53,7 @@ class CompliantMaterialParameters {
   // the new values as well as modifying the corresponding unit test.
   // Stiffness
   // TODO(SeanCurtis-TRI): Convert this to Young's modulus in follow-up PR.
-  double stiffness_{1e5};
+  double youngs_modulus_{1e7};
   // Dissipation in s/m from [Hunt 1975] -- dissipation for ivory.
   double dissipation_{0.32};
   double static_friction_{0.9};

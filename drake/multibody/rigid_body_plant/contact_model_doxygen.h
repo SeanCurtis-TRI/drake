@@ -161,7 +161,7 @@
    plane.
  - Vertical cylinder of radius R and a plane:
    `m = 1`, `k = 2 E R x`, or `fₙ = 2 E R² (x/R)`.
- - Two cylinders of radii R₁ and R₂, length L and with parallel axes:
+ - Two cylinders of radii R₁ and R₂, length L aknd with parallel axes:
    `m = 1`, `k = π/4 E L`, or `fₙ = π/4 E R² (R/L) (x/R)`.
 
  These few examples with analytical solution lead us to generalize to an

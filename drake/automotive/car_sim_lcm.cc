@@ -34,6 +34,7 @@ namespace drake {
 
 using lcm::DrakeLcm;
 using parsers::sdf::AddModelInstancesFromSdfFile;
+using systems::CompliantMaterialParameters;
 using systems::Diagram;
 using systems::SemiExplicitEulerIntegrator;
 using systems::Simulator;
@@ -91,18 +92,29 @@ int main(int argc, char* argv[]) {
 
   DRAKE_DEMAND(FLAGS_simulation_sec > 0);
   auto rigid_body_tree = make_unique<RigidBodyTreed>();
+
+  // Contact parameters
+  const double kStiffness = 500000;
+  const double kDissipation = 2;
+  const double kStaticFriction = 10;
+  const double kDynamicFriction = 5;
+  CompliantMaterialParameters contact_default_values;
+  contact_default_values.set_stiffness(kStiffness);
+  contact_default_values.set_dissipation(kDissipation);
+  contact_default_values.set_friction(kStaticFriction, kDynamicFriction);
+
   AddModelInstancesFromSdfFile(
       drake::FindResourceOrThrow(
           "drake/automotive/models/prius/prius_with_lidar.sdf"),
       multibody::joints::kQuaternion, nullptr /* weld to frame */,
-      rigid_body_tree.get());
+      contact_default_values, rigid_body_tree.get());
   multibody::AddFlatTerrainToWorld(rigid_body_tree.get());
   if (FLAGS_with_speed_bump) {
     AddModelInstancesFromSdfFile(
         drake::FindResourceOrThrow(
             "drake/automotive/models/speed_bump/speed_bump.sdf"),
         multibody::joints::kFixed, nullptr /* weld to frame */,
-        rigid_body_tree.get());
+        contact_default_values, rigid_body_tree.get());
     VerifyCarSimLcmTree(*rigid_body_tree, 19);
   } else {
     VerifyCarSimLcmTree(*rigid_body_tree, 18);
