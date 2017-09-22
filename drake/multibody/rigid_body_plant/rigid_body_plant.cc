@@ -10,7 +10,7 @@
 #include "drake/common/eigen_types.h"
 #include "drake/multibody/kinematics_cache.h"
 #include "drake/multibody/rigid_body_plant/compliant_contact_model.h"
-#include "drake/multibody/rigid_body_plant/compliant_contact_parameters.h"
+#include "drake/multibody/rigid_body_plant/compliant_material_parameters.h"
 #include "drake/solvers/mathematical_program.h"
 
 using std::make_unique;

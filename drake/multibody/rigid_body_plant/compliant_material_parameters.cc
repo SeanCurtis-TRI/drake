@@ -1,4 +1,4 @@
-#include "drake/multibody/rigid_body_plant/compliant_contact_parameters.h"
+#include "drake/multibody/rigid_body_plant/compliant_material_parameters.h"
 
 #include <stdexcept>
 #include <string>
@@ -9,7 +9,7 @@ namespace systems {
 using std::to_string;
 using std::runtime_error;
 
-void CompliantContactParameters::set_stiffness(double value) {
+void CompliantMaterialParameters::set_stiffness(double value) {
   if (value <= 0) {
     throw runtime_error(
         "Stiffness value must be non-negative. Given " + to_string(value));
@@ -17,7 +17,7 @@ void CompliantContactParameters::set_stiffness(double value) {
   stiffness_ = value;
 }
 
-void CompliantContactParameters::set_dissipation(double value) {
+void CompliantMaterialParameters::set_dissipation(double value) {
   if (value < 0) {
     throw runtime_error(
         "Dissipation value must be non-negative. Given " + to_string(value));
@@ -25,19 +25,19 @@ void CompliantContactParameters::set_dissipation(double value) {
   dissipation_ = value;
 }
 
-void CompliantContactParameters::set_friction(double value) {
+void CompliantMaterialParameters::set_friction(double value) {
   ThrowForBadFriction(value, value);
   static_friction_ = dynamic_friction_ = value;
 }
 
-void CompliantContactParameters::set_friction(double static_friction,
+void CompliantMaterialParameters::set_friction(double static_friction,
                                               double dynamic_friction) {
   ThrowForBadFriction(static_friction, dynamic_friction);
   static_friction_ = static_friction;
   dynamic_friction_ = dynamic_friction;
 }
 
-void CompliantContactParameters::ThrowForBadFriction(double static_friction,
+void CompliantMaterialParameters::ThrowForBadFriction(double static_friction,
                                                      double dynamic_friction) {
   if (dynamic_friction < 0) {
     throw runtime_error("Given dynamic friction is negative: " +

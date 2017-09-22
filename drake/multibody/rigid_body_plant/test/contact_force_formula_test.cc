@@ -78,8 +78,8 @@ class ContactFormulaTest : public ::testing::Test {
   }
 
   // Returns the default compliant contact materials.
-  virtual CompliantContactParameters GetContactParameters() {
-    CompliantContactParameters parameters;
+  virtual CompliantMaterialParameters GetContactParameters() {
+    CompliantMaterialParameters parameters;
     parameters.set_stiffness(20000);
     parameters.set_dissipation(0.5);
     parameters.set_friction(0.7, 0.5);

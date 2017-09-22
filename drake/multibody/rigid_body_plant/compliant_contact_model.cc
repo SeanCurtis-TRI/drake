@@ -6,7 +6,7 @@
 
 #include "drake/math/orthonormal_basis.h"
 #include "drake/multibody/collision/element.h"
-#include "drake/multibody/rigid_body_plant/compliant_contact_parameters.h"
+#include "drake/multibody/rigid_body_plant/compliant_material_parameters.h"
 #include "drake/multibody/rigid_body_plant/contact_resultant_force_calculator.h"
 #include "drake/multibody/rigid_body_plant/contact_results.h"
 #include "drake/multibody/rigid_body_tree.h"
@@ -42,7 +42,7 @@ VectorX<T> CompliantContactModel<T>::ComputeContactForce(
   //  as a zero-force contact.
   for (const auto& pair : pairs) {
     if (pair.distance < 0.0) {  // There is contact.
-      CompliantContactParameters parameters;
+      CompliantMaterialParameters parameters;
       const double s_a =
           CalcContactParameters(*pair.elementA, *pair.elementB, &parameters);
 
@@ -180,7 +180,7 @@ VectorX<T> CompliantContactModel<T>::ComputeContactForce(
 template <typename T>
 T CompliantContactModel<T>::ComputeFrictionCoefficient(
     const T& v_tangent_BAc,
-    const CompliantContactParameters& parameters) const {
+    const CompliantMaterialParameters& parameters) const {
   DRAKE_ASSERT(v_tangent_BAc >= 0);
   const double mu_s = parameters.static_friction();
   const double mu_d = parameters.dynamic_friction();
@@ -205,7 +205,7 @@ template <typename T>
 double CompliantContactModel<T>::CalcContactParameters(
     const multibody::collision::Element& a,
     const multibody::collision::Element& b,
-    CompliantContactParameters* parameters) const {
+    CompliantMaterialParameters* parameters) const {
   DRAKE_DEMAND(parameters);
 
   // For the details on these relationships, see contact_model_doxygen.h at

@@ -34,9 +34,9 @@ drake_cc_library(
 )
 
 drake_cc_library(
-    name = "compliant_contact_parameters",
-    srcs = ["compliant_contact_parameters.cc"],
-    hdrs = ["compliant_contact_parameters.h"],
+    name = "compliant_material_parameters",
+    srcs = ["compliant_material_parameters.cc"],
+    hdrs = ["compliant_material_parameters.h"],
     deps = [
         "//drake/common",
     ],
@@ -47,7 +47,7 @@ drake_cc_library(
     srcs = ["compliant_contact_model.cc"],
     hdrs = ["compliant_contact_model.h"],
     deps = [
-        ":compliant_contact_parameters",
+        ":compliant_material_parameters",
         ":contact_results",
         "//drake/common",
         "//drake/common:copyable_unique_ptr",
@@ -214,8 +214,8 @@ drake_cc_googletest(
 )
 
 drake_cc_googletest(
-    name = "compliant_contact_parameters_test",
-    deps = [":compliant_contact_parameters"],
+    name = "compliant_material_parameters_test",
+    deps = [":compliant_material_parameters"],
 )
 
 drake_cc_googletest(

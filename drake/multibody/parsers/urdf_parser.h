@@ -11,7 +11,7 @@
 #include "drake/multibody/parsers/parser_common.h"
 #include "drake/multibody/parsers/xml_util.h"
 #include "drake/multibody/rigid_body_frame.h"
-#include "drake/multibody/rigid_body_plant/compliant_contact_parameters.h"
+#include "drake/multibody/rigid_body_plant/compliant_material_parameters.h"
 #include "drake/multibody/rigid_body_tree.h"
 #include "drake/thirdParty/zlib/tinyxml2/tinyxml2.h"
 
@@ -79,7 +79,7 @@ std::shared_ptr<RigidBodyFrame<double>> MakeRigidBodyFrameFromUrdfNode(
  */
 ModelInstanceIdTable AddModelInstanceFromUrdfStringWithRpyJointToWorld(
     const std::string& urdf_string,
-    const systems::CompliantContactParameters& default_contact_params,
+    const systems::CompliantMaterialParameters& default_contact_params,
     RigidBodyTree<double>* tree);
 
 /**
@@ -133,7 +133,7 @@ ModelInstanceIdTable AddModelInstanceFromUrdfString(
 ModelInstanceIdTable
 AddModelInstanceFromUrdfStringWithRpyJointToWorldSearchingInRosPackages(
     const std::string& urdf_string, const PackageMap& package_map,
-    const systems::CompliantContactParameters& default_contact_params,
+    const systems::CompliantMaterialParameters& default_contact_params,
     RigidBodyTree<double>* tree);
 
 /**
@@ -195,7 +195,7 @@ ModelInstanceIdTable AddModelInstanceFromUrdfString(
     const std::string& urdf_string, const std::string& root_dir,
     const drake::multibody::joints::FloatingBaseType floating_base_type,
     std::shared_ptr<RigidBodyFrame<double>> weld_to_frame,
-    const systems::CompliantContactParameters& default_contact_params,
+    const systems::CompliantMaterialParameters& default_contact_params,
     RigidBodyTree<double>* tree);
 
 /**
@@ -256,7 +256,7 @@ ModelInstanceIdTable AddModelInstanceFromUrdfStringSearchingInRosPackages(
     const std::string& root_dir,
     const drake::multibody::joints::FloatingBaseType floating_base_type,
     std::shared_ptr<RigidBodyFrame<double>> weld_to_frame,
-    const systems::CompliantContactParameters& default_contact_params,
+    const systems::CompliantMaterialParameters& default_contact_params,
     RigidBodyTree<double>* tree);
 
 /**
@@ -308,7 +308,7 @@ ModelInstanceIdTable AddModelInstanceFromUrdfString(
  */
 ModelInstanceIdTable AddModelInstanceFromUrdfFileWithRpyJointToWorld(
     const std::string& urdf_filename,
-    const systems::CompliantContactParameters& default_contact_params,
+    const systems::CompliantMaterialParameters& default_contact_params,
     RigidBodyTree<double>* tree);
 
 /**
@@ -359,7 +359,7 @@ ModelInstanceIdTable AddModelInstanceFromUrdfFile(
 ModelInstanceIdTable AddModelInstanceFromUrdfFileToWorld(
     const std::string& urdf_filename,
     const drake::multibody::joints::FloatingBaseType floating_base_type,
-    const systems::CompliantContactParameters& default_contact_params,
+    const systems::CompliantMaterialParameters& default_contact_params,
     RigidBodyTree<double>* tree);
 
 /**
@@ -418,7 +418,7 @@ ModelInstanceIdTable AddModelInstanceFromUrdfFile(
     const std::string& urdf_filename,
     const drake::multibody::joints::FloatingBaseType floating_base_type,
     std::shared_ptr<RigidBodyFrame<double>> weld_to_frame,
-    const systems::CompliantContactParameters& default_contact_params,
+    const systems::CompliantMaterialParameters& default_contact_params,
     RigidBodyTree<double>* tree);
 
 /**
@@ -473,7 +473,7 @@ ModelInstanceIdTable AddModelInstanceFromUrdfFileSearchingInRosPackages(
     const std::string& urdf_filename, const PackageMap& package_map,
     const drake::multibody::joints::FloatingBaseType floating_base_type,
     std::shared_ptr<RigidBodyFrame<double>> weld_to_frame,
-    const systems::CompliantContactParameters& default_contact_params,
+    const systems::CompliantMaterialParameters& default_contact_params,
     RigidBodyTree<double>* tree);
 
 /**

@@ -442,19 +442,19 @@
  between instantiating collision elements which use default values and setting
  default values is irrelevant.
 
- To set the default values, use CompliantContactParameters::SetDefaultValues().
+ To set the default values, use CompliantMaterialParameters::SetDefaultValues().
 
  __A word of warning__
 
  It might be tempting to write code akin to this pseudo-code:
 
  ```C++
- CompliantContactParameters my_defaults;
+ CompliantMaterialParameters my_defaults;
  my_defaults.set_stiffness(10);
- CompliantContactParameters::SetDefaultValues(my_defaults);
+ CompliantMaterialParameters::SetDefaultValues(my_defaults);
  ParseUrdf("my_robot.urdf");
  my_defaults.set_stiffness(15);
- CompliantContactParameters::SetDefaultValues(my_defaults);
+ CompliantMaterialParameters::SetDefaultValues(my_defaults);
  ParseUrdf("other_robot.urdf");
  ```
 

@@ -8,7 +8,7 @@
 #include "drake/multibody/parsers/model_instance_id_table.h"
 #include "drake/multibody/parsers/package_map.h"
 #include "drake/multibody/rigid_body_frame.h"
-#include "drake/multibody/rigid_body_plant/compliant_contact_parameters.h"
+#include "drake/multibody/rigid_body_plant/compliant_material_parameters.h"
 #include "drake/multibody/rigid_body_tree.h"
 #include "drake/thirdParty/zlib/tinyxml2/tinyxml2.h"
 
@@ -94,7 +94,7 @@ int AddFloatingJoint(
     const PoseMap* pose_map,
     RigidBodyTree<double>* tree);
 
-/// Instantiates a CompliantContactParameters instance from an XMLNode.
+/// Instantiates a CompliantMaterialParameters instance from an XMLNode.
 /// It ignores unrecognized elements, but throws an exception if a recognized
 /// element's contents cannot be converted to a double. Omitted property
 /// elements remain tied to the default parameter value.
@@ -122,9 +122,9 @@ int AddFloatingJoint(
 /// ```
 /// @param[in] node The *parent* node which ostensibly contains a declaration of
 /// drake compliance.
-systems::CompliantContactParameters ParseCollisionCompliance(
+systems::CompliantMaterialParameters ParseCollisionCompliance(
     tinyxml2::XMLElement* node,
-    const systems::CompliantContactParameters& default_values);
+    const systems::CompliantMaterialParameters& default_values);
 
 }  // namespace parsers
 }  // namespace drake

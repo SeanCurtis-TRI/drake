@@ -46,7 +46,7 @@ class CompliantContactModel {
   // See contact_model_doxygen.h @section tangent_force for details.
   T ComputeFrictionCoefficient(
       const T& v_tangent_BAc,
-      const CompliantContactParameters& parameters) const;
+      const CompliantMaterialParameters& parameters) const;
 
   // Evaluates an S-shaped quintic curve, f(x), mapping the domain [0, 1] to the
   // range [0, 1] where the f''(0) = f''(1) = f'(0) = f'(1) = 0.
@@ -64,7 +64,7 @@ class CompliantContactModel {
   double CalcContactParameters(
       const multibody::collision::Element& a,
       const multibody::collision::Element& b,
-      CompliantContactParameters* parameters) const;
+      CompliantMaterialParameters* parameters) const;
 
   // Note: this is the *inverse* of the v_stiction_tolerance parameter to
   // optimize for the division.

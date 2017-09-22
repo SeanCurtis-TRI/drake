@@ -23,7 +23,7 @@ drake_cc_library(
         "//drake/common",
         "//drake/common:autodiff",
         "//drake/common:sorted_vectors_have_intersection",
-        "//drake/multibody/rigid_body_plant:compliant_contact_parameters",
+        "//drake/multibody/rigid_body_plant:compliant_material_parameters",
         "//drake/multibody/shapes",
     ],
 )

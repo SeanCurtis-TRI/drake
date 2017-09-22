@@ -14,12 +14,12 @@ namespace systems {
      default values of 0.9 for the static coefficient of friction and 0.5 for
      the dynamic coefficient.
  See @ref drake_contacts for details on these parameters. */
-class CompliantContactParameters {
+class CompliantMaterialParameters {
  public:
-  DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(CompliantContactParameters)
+  DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(CompliantMaterialParameters)
 
   /** Constructs instance with the documented, hard-coded default values. */
-  CompliantContactParameters() = default;
+  CompliantMaterialParameters() = default;
 
   void set_stiffness(double value);
   double stiffness() const { return stiffness_; }

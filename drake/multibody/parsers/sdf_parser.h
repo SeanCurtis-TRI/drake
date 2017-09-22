@@ -8,7 +8,7 @@
 #include "drake/multibody/parsers/package_map.h"
 #include "drake/multibody/parsers/parser_common.h"
 #include "drake/multibody/rigid_body_frame.h"
-#include "drake/multibody/rigid_body_plant/compliant_contact_parameters.h"
+#include "drake/multibody/rigid_body_plant/compliant_material_parameters.h"
 #include "drake/multibody/rigid_body_tree.h"
 
 namespace drake {
@@ -47,7 +47,7 @@ ModelInstanceIdTable
 AddModelInstancesFromSdfFileToWorld(
     const std::string& filename,
     const drake::multibody::joints::FloatingBaseType floating_base_type,
-    const systems::CompliantContactParameters& default_contact_params,
+    const systems::CompliantMaterialParameters& default_contact_params,
     RigidBodyTree<double>* tree);
 
 /**
@@ -97,7 +97,7 @@ ModelInstanceIdTable
 AddModelInstancesFromSdfFileToWorldSearchingInRosPackages(
     const std::string& filename, const PackageMap& package_map,
     const drake::multibody::joints::FloatingBaseType floating_base_type,
-    const systems::CompliantContactParameters& default_contact_params,
+    const systems::CompliantMaterialParameters& default_contact_params,
     RigidBodyTree<double>* tree);
 
 /**
@@ -145,7 +145,7 @@ ModelInstanceIdTable AddModelInstancesFromSdfFile(
     const std::string& filename,
     const drake::multibody::joints::FloatingBaseType floating_base_type,
     std::shared_ptr<RigidBodyFrame<double>> weld_to_frame,
-    const systems::CompliantContactParameters& default_contact_params,
+    const systems::CompliantMaterialParameters& default_contact_params,
     RigidBodyTree<double>* tree);
 
 /**
@@ -195,7 +195,7 @@ ModelInstanceIdTable AddModelInstancesFromSdfFileSearchingInRosPackages(
     const std::string& filename, const PackageMap& package_map,
     const drake::multibody::joints::FloatingBaseType floating_base_type,
     std::shared_ptr<RigidBodyFrame<double>> weld_to_frame,
-    const systems::CompliantContactParameters& default_contact_params,
+    const systems::CompliantMaterialParameters& default_contact_params,
     RigidBodyTree<double>* tree);
 
 /**
@@ -241,7 +241,7 @@ ModelInstanceIdTable AddModelInstancesFromSdfString(
     const std::string& sdf_string,
     const drake::multibody::joints::FloatingBaseType floating_base_type,
     std::shared_ptr<RigidBodyFrame<double>> weld_to_frame,
-    const systems::CompliantContactParameters& default_contact_params,
+    const systems::CompliantMaterialParameters& default_contact_params,
     RigidBodyTree<double>* tree);
 
 /**
@@ -290,7 +290,7 @@ ModelInstanceIdTable AddModelInstancesFromSdfStringSearchingInRosPackages(
     const std::string& sdf_string, const PackageMap& package_map,
     const drake::multibody::joints::FloatingBaseType floating_base_type,
     std::shared_ptr<RigidBodyFrame<double>> weld_to_frame,
-    const systems::CompliantContactParameters& default_contact_params,
+    const systems::CompliantMaterialParameters& default_contact_params,
     RigidBodyTree<double>* tree);
 
 /**

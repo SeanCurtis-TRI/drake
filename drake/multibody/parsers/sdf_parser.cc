@@ -17,7 +17,7 @@
 #include "drake/multibody/parsers/model_instance_id_table.h"
 #include "drake/multibody/parsers/parser_common.h"
 #include "drake/multibody/parsers/xml_util.h"
-#include "drake/multibody/rigid_body_plant/compliant_contact_parameters.h"
+#include "drake/multibody/rigid_body_plant/compliant_material_parameters.h"
 #include "drake/multibody/rigid_body_tree.h"
 #include "drake/thirdParty/zlib/tinyxml2/tinyxml2.h"
 
@@ -57,7 +57,7 @@ using tinyxml2::XMLElement;
 using tinyxml2::XMLDocument;
 
 using drake::multibody::joints::FloatingBaseType;
-using drake::systems::CompliantContactParameters;
+using drake::systems::CompliantMaterialParameters;
 
 void ParseSdfInertial(
     RigidBody<double>* body, XMLElement* node,
@@ -241,14 +241,13 @@ void ParseSdfVisual(RigidBody<double>* body, XMLElement* node,
   }
 }
 
-void ParseSdfCollision(RigidBody<double>* body, XMLElement* node,
-                       RigidBodyTree<double>* model,
-                       const PackageMap& package_map,
-                       const CompliantContactParameters& default_contact_params,
-                       const string& root_dir,
-                       // TODO(#2274) Fix NOLINTNEXTLINE(runtime/references).
-                       PoseMap& pose_map,
-                       const Isometry3d& transform_parent_to_model) {
+void ParseSdfCollision(
+    RigidBody<double>* body, XMLElement* node, RigidBodyTree<double>* model,
+    const PackageMap& package_map,
+    const CompliantMaterialParameters& default_contact_params,
+    const string& root_dir,
+    // TODO(#2274) Fix NOLINTNEXTLINE(runtime/references).
+    PoseMap& pose_map, const Isometry3d& transform_parent_to_model) {
   Isometry3d transform_to_model = transform_parent_to_model;
   XMLElement* pose = node->FirstChildElement("pose");
   if (pose)
@@ -288,7 +287,7 @@ void ParseSdfCollision(RigidBody<double>* body, XMLElement* node,
 
 bool ParseSdfLink(RigidBodyTree<double>* model, string model_name,
                   XMLElement* node, const PackageMap& package_map,
-                  const CompliantContactParameters& default_contact_params,
+                  const CompliantMaterialParameters& default_contact_params,
                   // TODO(#2274) Fix NOLINTNEXTLINE(runtime/references).
                   PoseMap& pose_map,
                   const string& root_dir, int* index,
@@ -708,7 +707,7 @@ void ParseModel(RigidBodyTree<double>* tree, XMLElement* node,
                 const PackageMap& package_map, const string& root_dir,
                 const FloatingBaseType floating_base_type,
                 std::shared_ptr<RigidBodyFrame<double>> weld_to_frame,
-                const CompliantContactParameters& default_contact_params,
+                const CompliantMaterialParameters& default_contact_params,
                 ModelInstanceIdTable* model_instance_id_table) {
   // Aborts if any of the output parameter pointers are invalid.
   DRAKE_DEMAND(tree && "You must provide a valid RigidBodyTree pointer.");
@@ -802,7 +801,7 @@ void ParseWorld(RigidBodyTree<double>* model, XMLElement* node,
                 const PackageMap& package_map, const string& root_dir,
                 const FloatingBaseType floating_base_type,
                 std::shared_ptr<RigidBodyFrame<double>> weld_to_frame,
-                const CompliantContactParameters& default_contact_params,
+                const CompliantMaterialParameters& default_contact_params,
                 ModelInstanceIdTable* model_instance_id_table) {
   for (XMLElement* model_node = node->FirstChildElement("model"); model_node;
        model_node = model_node->NextSiblingElement("model")) {
@@ -815,7 +814,7 @@ ModelInstanceIdTable ParseSdf(
     XMLDocument* xml_doc, const PackageMap& package_map, const string& root_dir,
     const FloatingBaseType floating_base_type,
     std::shared_ptr<RigidBodyFrame<double>> weld_to_frame,
-    const CompliantContactParameters& default_contact_params,
+    const CompliantMaterialParameters& default_contact_params,
     RigidBodyTree<double>* model) {
   XMLElement* node = xml_doc->FirstChildElement("sdf");
   if (!node) {
@@ -857,14 +856,14 @@ ModelInstanceIdTable ParseSdf(
 ModelInstanceIdTable AddModelInstancesFromSdfFileToWorld(
     const string& filename, const FloatingBaseType floating_base_type,
     RigidBodyTree<double>* tree) {
-  CompliantContactParameters default_values;
+  CompliantMaterialParameters default_values;
   return AddModelInstancesFromSdfFileToWorld(filename, floating_base_type,
                                              default_values, tree);
 }
 
 ModelInstanceIdTable AddModelInstancesFromSdfFileToWorld(
     const string& filename, const FloatingBaseType floating_base_type,
-    const CompliantContactParameters& default_contact_params,
+    const CompliantMaterialParameters& default_contact_params,
     RigidBodyTree<double>* tree) {
   DRAKE_DEMAND(tree && "You must provide a valid RigidBodyTree pointer.");
   const string full_path_filename = GetFullPath(filename);
@@ -878,7 +877,7 @@ ModelInstanceIdTable AddModelInstancesFromSdfFileToWorld(
 ModelInstanceIdTable AddModelInstancesFromSdfFileToWorldSearchingInRosPackages(
     const string& filename, const PackageMap& package_map,
     const FloatingBaseType floating_base_type, RigidBodyTree<double>* tree) {
-  CompliantContactParameters default_values;
+  CompliantMaterialParameters default_values;
   return AddModelInstancesFromSdfFileToWorldSearchingInRosPackages(
       filename, package_map, floating_base_type, default_values, tree);
 }
@@ -886,7 +885,7 @@ ModelInstanceIdTable AddModelInstancesFromSdfFileToWorldSearchingInRosPackages(
 ModelInstanceIdTable AddModelInstancesFromSdfFileToWorldSearchingInRosPackages(
     const string& filename, const PackageMap& package_map,
     const FloatingBaseType floating_base_type,
-    const CompliantContactParameters& default_contact_params,
+    const CompliantMaterialParameters& default_contact_params,
     RigidBodyTree<double>* tree) {
   DRAKE_DEMAND(tree && "You must provide a valid RigidBodyTree pointer.");
   return AddModelInstancesFromSdfFileSearchingInRosPackages(
@@ -898,7 +897,7 @@ ModelInstanceIdTable AddModelInstancesFromSdfFile(
     const string& filename, const FloatingBaseType floating_base_type,
     std::shared_ptr<RigidBodyFrame<double>> weld_to_frame,
     RigidBodyTree<double>* tree) {
-  CompliantContactParameters default_values;
+  CompliantMaterialParameters default_values;
   return AddModelInstancesFromSdfFile(filename, floating_base_type,
                                       weld_to_frame, default_values, tree);
 }
@@ -906,7 +905,7 @@ ModelInstanceIdTable AddModelInstancesFromSdfFile(
 ModelInstanceIdTable AddModelInstancesFromSdfFile(
     const string& filename, const FloatingBaseType floating_base_type,
     std::shared_ptr<RigidBodyFrame<double>> weld_to_frame,
-    const CompliantContactParameters& default_contact_params,
+    const CompliantMaterialParameters& default_contact_params,
     RigidBodyTree<double>* tree) {
   DRAKE_DEMAND(tree && "You must provide a valid RigidBodyTree pointer.");
   const string full_path_filename = GetFullPath(filename);
@@ -922,7 +921,7 @@ ModelInstanceIdTable AddModelInstancesFromSdfFileSearchingInRosPackages(
     const FloatingBaseType floating_base_type,
     std::shared_ptr<RigidBodyFrame<double>> weld_to_frame,
     RigidBodyTree<double>* tree) {
-  CompliantContactParameters default_values;
+  CompliantMaterialParameters default_values;
   return AddModelInstancesFromSdfFileSearchingInRosPackages(
       filename, package_map, floating_base_type, weld_to_frame, default_values,
       tree);
@@ -932,7 +931,7 @@ ModelInstanceIdTable AddModelInstancesFromSdfFileSearchingInRosPackages(
     const string& filename, const PackageMap& package_map,
     const FloatingBaseType floating_base_type,
     std::shared_ptr<RigidBodyFrame<double>> weld_to_frame,
-    const CompliantContactParameters& default_contact_params,
+    const CompliantMaterialParameters& default_contact_params,
     RigidBodyTree<double>* tree) {
   DRAKE_DEMAND(tree && "You must provide a valid RigidBodyTree pointer.");
 
@@ -958,7 +957,7 @@ ModelInstanceIdTable AddModelInstancesFromSdfString(
     const string& sdf_string, const FloatingBaseType floating_base_type,
     std::shared_ptr<RigidBodyFrame<double>> weld_to_frame,
     RigidBodyTree<double>* tree) {
-  CompliantContactParameters default_values;
+  CompliantMaterialParameters default_values;
   return AddModelInstancesFromSdfString(sdf_string, floating_base_type,
                                         weld_to_frame, default_values, tree);
 }
@@ -966,7 +965,7 @@ ModelInstanceIdTable AddModelInstancesFromSdfString(
 ModelInstanceIdTable AddModelInstancesFromSdfString(
     const string& sdf_string, const FloatingBaseType floating_base_type,
     std::shared_ptr<RigidBodyFrame<double>> weld_to_frame,
-    const CompliantContactParameters& default_contact_params,
+    const CompliantMaterialParameters& default_contact_params,
     RigidBodyTree<double>* tree) {
   DRAKE_DEMAND(tree && "You must provide a valid RigidBodyTree pointer.");
   const PackageMap package_map;
@@ -980,7 +979,7 @@ ModelInstanceIdTable AddModelInstancesFromSdfStringSearchingInRosPackages(
     const FloatingBaseType floating_base_type,
     std::shared_ptr<RigidBodyFrame<double>> weld_to_frame,
     RigidBodyTree<double>* tree) {
-  CompliantContactParameters default_values;
+  CompliantMaterialParameters default_values;
   return AddModelInstancesFromSdfStringSearchingInRosPackages(
       sdf_string, package_map, floating_base_type, weld_to_frame,
       default_values, tree);
@@ -990,7 +989,7 @@ ModelInstanceIdTable AddModelInstancesFromSdfStringSearchingInRosPackages(
     const string& sdf_string, const PackageMap& package_map,
     const FloatingBaseType floating_base_type,
     std::shared_ptr<RigidBodyFrame<double>> weld_to_frame,
-    const CompliantContactParameters& default_contact_params,
+    const CompliantMaterialParameters& default_contact_params,
     RigidBodyTree<double>* tree) {
   DRAKE_DEMAND(tree && "You must provide a valid RigidBodyTree pointer.");
 

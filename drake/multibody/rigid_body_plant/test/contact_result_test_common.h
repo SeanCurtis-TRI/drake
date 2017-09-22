@@ -37,8 +37,8 @@ class ContactResultTestCommon : public ::testing::Test {
   ContactResultTestCommon() {}
 
   /// Computes the default material properties for derived classes to set.
-  CompliantContactParameters MakeDefaultMaterialParameters() {
-    CompliantContactParameters parameters;
+  CompliantMaterialParameters MakeDefaultMaterialParameters() {
+    CompliantMaterialParameters parameters;
     parameters.set_stiffness(kStiffness);
     parameters.set_dissipation(kDissipation);
     parameters.set_friction(kStaticFriction, kDynamicFriction);
@@ -77,10 +77,10 @@ class ContactResultTestCommon : public ::testing::Test {
   // numbers imply collision.
   std::unique_ptr<RigidBodyTree<double>> GenerateTestTree(
       double distance,
-      const optional<CompliantContactParameters>& parameters = nullopt) {
+      const optional<CompliantMaterialParameters>& parameters = nullopt) {
     auto unique_tree = std::make_unique<RigidBodyTree<double>>();
 
-    CompliantContactParameters contact_parameteters =
+    CompliantMaterialParameters contact_parameteters =
         parameters ? *parameters : MakeDefaultMaterialParameters();
     x_anchor_ = 1.5;
     Eigen::Vector3d pos(x_anchor_ - (kRadius + distance), 0, 0);
@@ -101,7 +101,7 @@ class ContactResultTestCommon : public ::testing::Test {
   RigidBody<double>* AddSphere(
       RigidBodyTree<double>* tree, const Eigen::Vector3d& pos,
       const std::string& name,
-      const CompliantContactParameters& contact_parameters) {
+      const CompliantMaterialParameters& contact_parameters) {
     RigidBody<double>* body;
     tree->add_rigid_body(
         std::unique_ptr<RigidBody<double>>(body = new RigidBody<double>()));

@@ -31,7 +31,7 @@ drake_cc_library(
     ],
     deps = [
         "//drake/multibody:rigid_body_tree",
-        "//drake/multibody/rigid_body_plant:compliant_contact_parameters",
+        "//drake/multibody/rigid_body_plant:compliant_material_parameters",
         "//drake/thirdParty:spruce",
         "//drake/thirdParty:tinydir",
         "//drake/thirdParty:tinyxml2",

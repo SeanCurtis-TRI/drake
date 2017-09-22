@@ -26,7 +26,7 @@ using drake::multibody::joints::FloatingBaseType;
 using drake::multibody::joints::kFixed;
 using drake::multibody::joints::kRollPitchYaw;
 using drake::multibody::joints::kQuaternion;
-using drake::systems::CompliantContactParameters;
+using drake::systems::CompliantMaterialParameters;
 using tinyxml2::XMLElement;
 
 const char* const FloatingJointConstants::kFloatingJointName = "base";
@@ -235,9 +235,9 @@ int AddFloatingJoint(
   return num_floating_joints_added;
 }
 
-CompliantContactParameters ParseCollisionCompliance(
-    XMLElement* node, const CompliantContactParameters& default_values) {
-  CompliantContactParameters parameters(default_values);
+CompliantMaterialParameters ParseCollisionCompliance(
+    XMLElement* node, const CompliantMaterialParameters& default_values) {
+  CompliantMaterialParameters parameters(default_values);
   // TODO(SeanCurtis-TRI): Incomplete validation. This parsing allows redundant
   // declarations of parameters. Confirm proper validation via an XSD.
   XMLElement* compliant_node = node->FirstChildElement("drake_compliance");
