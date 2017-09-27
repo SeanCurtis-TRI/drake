@@ -24,7 +24,7 @@ namespace solar_system {
  freedom: its angular position around its axis of rotation.
 
  - The sun is stationary -- an anchored geometry.
- - Earth orbits on the xy-plane. Its moon revolves around the earth on an
+ - Earth orbits on the xy-plane. Its moon (Luna) revolves around the earth on an
  different arbitrary plane (illustrating transform compositions).
  - Mars orbits the sun at a farther distance on a plane that is tilted off of
  the xy-plane. Its moon (Phobos) orbits around Mars on a plane parallel to
@@ -36,6 +36,41 @@ namespace solar_system {
  2. Registering frames as children of other frames.
  3. Creating a fixed FrameIdVector output.
  4. Updating the context-dependent FramePoseVector output.
+
+ Illustration of the orrey:
+
+ Legend:
+     Body Symbol | Meaning
+    :-----------:|:--------------------
+        E - ◯    | Earth
+        L - ◑    | Luna (Earth's moon)
+        M - ◍    | Mars
+        P - ●    | Phobos (Mars's moon)
+
+    Frame Symbol | Meaning
+    :-----------:|:--------------------
+        X_SE     | Earth's frame (centered on the sun) (X_SE == X_SM)
+        X_SM     | Mar's frame (centered on the sun)
+        X_EL     | Luna's frame (centered on the Earth)
+        X_MP     | Phobos's frame (centered on Mars)
+        X_EG     | The fixed offset of Earth's geometry from X_SE (at Earth's orbit radius).
+        X_LG     | The fixed offset of Luna's geometry from X_EL (at Luna's orbit radius).
+        X_MG     | The fixed offset of Mars's geometry from X_SM (at Mars's orbit radius).
+        X_PG     | The fixed offset of Phobos's geometry from X_MP (at Phobos's orbit radius).
+
+
+    X_EG X_LG                            X_MG X_PG
+      ↓   ↓                                ↓   ↓
+      E   L         ▁▁▁                    M   p
+      ◯   ◑        ╱   ╲                   ◍   ●
+X_EL →├───┘       │  S  │           X_MP → ├───┘
+      │            ╲▁▁▁╱                   │
+      │              │                     │
+      └──────────────┴─────────────────────┘
+                     ↑
+                     X_SE, X_SM
+
+
 
  @tparam T The vector element type, which must be a valid Eigen scalar.
 
@@ -64,7 +99,7 @@ class SolarSystem : public systems::LeafSystem<T> {
   // TODO(SeanCurtis-TRI): Kill this override when LeafSystem::SetDefaultState()
   // pulls from the models instead of simply zeroing things out.
   void SetDefaultState(const systems::Context<T>&,
-                       systems::State<T>*) const override {}
+                       systems::State<T>*) const override;
 
  protected:
   // No inputs implies no feedthrough; this makes it explicit.

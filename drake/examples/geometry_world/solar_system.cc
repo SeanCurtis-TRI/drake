@@ -8,6 +8,8 @@
 #include "drake/geometry/geometry_frame.h"
 #include "drake/geometry/geometry_instance.h"
 #include "drake/math/axis_angle.h"
+#include "drake/systems/framework/continuous_state.h"
+#include "drake/systems/framework/discrete_values.h"
 
 namespace drake {
 namespace examples {
@@ -22,8 +24,10 @@ using geometry::GeometryInstance;
 using geometry::GeometrySystem;
 using geometry::VisualMaterial;
 using geometry::Sphere;
-using systems::Context;
 using systems::BasicVector;
+using systems::Context;
+using systems::ContinuousState;
+using systems::DiscreteValues;
 using std::make_unique;
 
 template <typename T>
@@ -38,20 +42,7 @@ SolarSystem<T>::SolarSystem(GeometrySystem<T>* geometry_system) {
                                       &SolarSystem::CalcFramePoseOutput)
           .get_index();
 
-  VectorX<T> initial_state;
-  initial_state.resize(kBodyCount * 2);
-  // clang-format off
-  initial_state << 0,               // earth initial position
-                   M_PI / 2,        // moon initial position
-                   -M_PI / 2,       // mars initial position
-                   0,               // phobos initial position
-                   2 * M_PI / 5,    // earth revolution lasts 5 seconds.
-                   2 * M_PI,        // moon revolution lasts 1 second.
-                   2 * M_PI / 6,    // mars revolution lasts 6 seconds.
-                   2 * M_PI * 0.9;  // phobos revolution lasts 0.9 seconds.
-  // clang-format on
-  this->DeclareContinuousState(BasicVector<T>(initial_state),
-                               kBodyCount /* num_q */, kBodyCount /* num_v */,
+  this->DeclareContinuousState(kBodyCount /* num_q */, kBodyCount /* num_v */,
                                0 /* num_z */);
 
   AllocateGeometry(geometry_system);
@@ -73,6 +64,32 @@ const systems::OutputPort<T>& SolarSystem<T>::get_geometry_pose_output_port()
 }
 
 template <typename T>
+void SolarSystem<T>::SetDefaultState(const systems::Context<T>&,
+                     systems::State<T>* state) const {
+  DRAKE_DEMAND(state != nullptr);
+  ContinuousState<T>* xc = state->get_mutable_continuous_state();
+  VectorX<T> initial_state;
+  initial_state.resize(kBodyCount * 2);
+  // clang-format off
+  initial_state << 0,               // Earth initial position
+                   M_PI / 2,        // moon initial position
+                   -M_PI / 2,       // Mars initial position
+                   0,               // phobos initial position
+                   2 * M_PI / 5,    // Earth revolution lasts 5 seconds.
+                   2 * M_PI,        // moon revolution lasts 1 second.
+                   2 * M_PI / 6,    // Mars revolution lasts 6 seconds.
+                   2 * M_PI * 0.9;  // phobos revolution lasts 0.9 seconds.
+  // clang-format on
+  DRAKE_DEMAND(xc->size() == initial_state.size());
+  xc->SetFromVector(initial_state);
+  DiscreteValues<T>* xd = state->get_mutable_discrete_state();
+  for (int i = 0; i < xd->num_groups(); i++) {
+    BasicVector<T>* s = xd->get_mutable_vector(i);
+    s->SetFromVector(VectorX<T>::Zero(s->size()));
+  }
+}
+
+template <typename T>
 void SolarSystem<T>::AllocateGeometry(GeometrySystem<T>* geometry_system) {
   body_ids_.reserve(kBodyCount);
   body_offset_.reserve(kBodyCount);
@@ -88,13 +105,15 @@ void SolarSystem<T>::AllocateGeometry(GeometrySystem<T>* geometry_system) {
 
   // Allocate the "celestial bodies": two planets orbiting on different planes,
   // each with a moon.
-  // Earth
+
+  // Earth - Earth's frame is at the center of the sun.
   FrameId planet_id = geometry_system->RegisterFrame(
-      source_id_, GeometryFrame("earth", Isometry3<double>::Identity()));
+      source_id_, GeometryFrame("Earth", Isometry3<double>::Identity()));
   body_ids_.push_back(planet_id);
   body_offset_.push_back(Isometry3<double>::Identity());
   axes_.push_back(Vector3<double>::UnitZ());
 
+  // The geometry is displaced from the Earth _frame_ so that it orbits.
   const double kEarthOrbitRadius = 3.0;
   Isometry3<double> earth_pose = Isometry3<double>::Identity();
   earth_pose.translation() << kEarthOrbitRadius, 0, 0;
@@ -102,62 +121,68 @@ void SolarSystem<T>::AllocateGeometry(GeometrySystem<T>* geometry_system) {
       source_id_, planet_id,
       std::make_unique<GeometryInstance>(earth_pose, make_unique<Sphere>(0.25f),
                                          VisualMaterial(Vector4d(0, 0, 1, 1))));
-  // Earth Moon
-  FrameId moon_id = geometry_system->RegisterFrame(
-      source_id_, planet_id, GeometryFrame("moon", earth_pose));
-  body_ids_.push_back(moon_id);
+
+  // Luna - Luna's frame is at the center of the Earth.
+  FrameId luna_id = geometry_system->RegisterFrame(
+      source_id_, planet_id, GeometryFrame("Luna", earth_pose));
+  body_ids_.push_back(luna_id);
   body_offset_.push_back(earth_pose);
   Vector3<double> plane_normal;
   plane_normal << 1, 1, 1;
   axes_.push_back(plane_normal.normalized());
 
-  const double kMoonOrbitRadius = 0.35;
-  Isometry3<double> moon_pose = Isometry3<double>::Identity();
-  // Pick a position at kMoonOrbitRadius distance from the earth's origin on
+  // The geometry is displaced from Luna's frame so that it orbits.
+  const double kLunaOrbitRadius = 0.35;
+  Isometry3<double> luna_pose = Isometry3<double>::Identity();
+  // Pick a position at kLunaOrbitRadius distance from the Earth's origin on
   // the plane _perpendicular_ to the moon's normal (axes_.back()).
-  Vector3<double> moon_position(-1, 0.5, 0.5);
-  moon_pose.translation() = moon_position.normalized() * kMoonOrbitRadius;
+  Vector3<double> luna_position(-1, 0.5, 0.5);
+  luna_pose.translation() = luna_position.normalized() * kLunaOrbitRadius;
   geometry_system->RegisterGeometry(
-      source_id_, moon_id, std::make_unique<GeometryInstance>(
-                               moon_pose, make_unique<Sphere>(0.075f),
+      source_id_, luna_id, std::make_unique<GeometryInstance>(
+                               luna_pose, make_unique<Sphere>(0.075f),
                                VisualMaterial(Vector4d(0.5, 0.5, 0.35, 1))));
 
-  // Mars
+  // Mars - Mars's frame is at the center of the sun.
   planet_id = geometry_system->RegisterFrame(
-      source_id_, GeometryFrame("mars", Isometry3<double>::Identity()));
+      source_id_, GeometryFrame("Mars", Isometry3<double>::Identity()));
   body_ids_.push_back(planet_id);
   body_offset_.push_back(Isometry3<double>::Identity());
   plane_normal << .1, .1, 1;
   axes_.push_back(plane_normal.normalized());
 
+  // The geometry is displaced from the Mars _frame_ so that it orbits.
   const double kMarsOrbitRadius = 5.0;
   Isometry3<double> mars_pose = Isometry3<double>::Identity();
   // Pick a position at kMarsOrbitRadius distance from the sun's origin on
-  // the plane _perpendicular_ to mars's normal (axes_.back()).
+  // the plane _perpendicular_ to Mars's normal (axes_.back()).
   Vector3<double> mars_position(1, 1, -.2);
   mars_pose.translation() = mars_position.normalized() * kMarsOrbitRadius;
   geometry_system->RegisterGeometry(
       source_id_, planet_id, std::make_unique<GeometryInstance>(
                                  mars_pose, make_unique<Sphere>(0.24f),
-                                 VisualMaterial(Vector4d(0.9, 0.1, 0, 1))));
-  // Mars moon - have it rotate in the opposite direction
+                                     VisualMaterial(Vector4d(0.9, 0.1, 0, 1))));
+
+  // Mars moon - Phobos's frame is centered on Mars, but its orientation is
+  // reversed so that it revolves in the opposite direction
   Isometry3<T> phobos_rotation_pose = Isometry3<double>::Identity();
   phobos_rotation_pose.linear() =
       AngleAxis<T>(M_PI / 2, Vector3<T>::UnitX()).matrix();
-  moon_id = geometry_system->RegisterFrame(
+  FrameId phobos_id = geometry_system->RegisterFrame(
       source_id_, planet_id, GeometryFrame("phobos", phobos_rotation_pose));
-  body_ids_.push_back(moon_id);
+  body_ids_.push_back(phobos_id);
   body_offset_.push_back(mars_pose);
   plane_normal << 0, 0, 1;
   axes_.push_back(plane_normal.normalized());
 
+  // The geometry is displaced from the Phobos's _frame_ so that it orbits.
   const double kPhobosOrbitRadius = 0.34;
   Isometry3<double> phobos_pose = Isometry3<double>::Identity();
   phobos_pose.translation() << kPhobosOrbitRadius, 0, 0;
   geometry_system->RegisterGeometry(
-      source_id_, moon_id, std::make_unique<GeometryInstance>(
-                               phobos_pose, make_unique<Sphere>(0.06f),
-                               VisualMaterial(Vector4d(0.65, 0.6, 0.8, 1))));
+      source_id_, phobos_id, std::make_unique<GeometryInstance>(
+                                 phobos_pose, make_unique<Sphere>(0.06f),
+                                 VisualMaterial(Vector4d(0.65, 0.6, 0.8, 1))));
 
   DRAKE_DEMAND(static_cast<int>(body_ids_.size()) == kBodyCount);
 }
@@ -165,6 +190,8 @@ void SolarSystem<T>::AllocateGeometry(GeometrySystem<T>* geometry_system) {
 template <typename T>
 FramePoseVector<T> SolarSystem<T>::AllocateFramePoseOutput(
     const Context<T>&) const {
+  DRAKE_DEMAND(source_id_.is_valid());
+  DRAKE_DEMAND(static_cast<int>(body_offset_.size()) == kBodyCount);
   // NOTE: We initialize with the translational offset during allocation so that
   // the `CalcFramePoseOutput` need only update the rotational component.
   return FramePoseVector<T>(source_id_, body_offset_);
@@ -186,6 +213,8 @@ void SolarSystem<T>::CalcFramePoseOutput(const Context<T>& context,
 
 template <typename T>
 FrameIdVector SolarSystem<T>::AllocateFrameIdOutput(const MyContext&) const {
+  DRAKE_DEMAND(source_id_.is_valid());
+  DRAKE_DEMAND(static_cast<int>(body_offset_.size()) == kBodyCount);
   FrameIdVector ids(source_id_);
   ids.AddFrameIds(body_ids_);
   return ids;

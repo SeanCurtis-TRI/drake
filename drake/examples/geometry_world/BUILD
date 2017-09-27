@@ -32,9 +32,7 @@ drake_cc_library(
 
 drake_cc_binary(
     name = "bouncing_ball_run_dynamics",
-    testonly = 1,
     srcs = ["bouncing_ball_run_dynamics.cc"],
-    add_test_rule = 1,
     deps = [
         ":bouncing_ball_plant",
         "//drake/geometry:geometry_system",
@@ -62,9 +60,7 @@ drake_cc_library(
 
 drake_cc_binary(
     name = "solar_system_run_dynamics",
-    testonly = 1,
     srcs = ["solar_system_run_dynamics.cc"],
-    add_test_rule = 1,
     deps = [
         ":solar_system",
         "//drake/geometry:geometry_system",
