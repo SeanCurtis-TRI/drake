@@ -142,7 +142,7 @@ void SolarSystem<T>::AllocateGeometry(GeometrySystem<T>* geometry_system) {
                       Isometry3<double>::Identity(), make_unique<Sphere>(1.f),
                       VisualMaterial(Vector4d(1, 1, 0, 1))));
 
-  // The fixed pose on which Earth sits and around which all planets rotate.
+  // The fixed pose on which Sun sits and around which all planets rotate.
   const double post_height = 1;
   Isometry3<double> post_pose = Isometry3<double>::Identity();
   post_pose.translation() << 0, 0, (orrery_bottom + post_height / 2);
@@ -174,7 +174,7 @@ void SolarSystem<T>::AllocateGeometry(GeometrySystem<T>* geometry_system) {
       source_id_, planet_id,
       make_unique<GeometryInstance>(earth_pose, make_unique<Sphere>(0.25f),
                                     VisualMaterial(Vector4d(0, 0, 1, 1))));
-  // The supporting post for the earth.
+  // Earth's orrery arm.
   MakeArm(source_id_, planet_id, kEarthOrbitRadius, -kEarthBottom, pipe_radius,
           post_material, geometry_system);
 
@@ -217,8 +217,7 @@ void SolarSystem<T>::AllocateGeometry(GeometrySystem<T>* geometry_system) {
       source_id_, planet_id,
       make_unique<GeometryInstance>(mars_pose, make_unique<Sphere>(0.24f),
                                     VisualMaterial(Vector4d(0.9, 0.1, 0, 1))));
-  // The supporting post for Mars.
-  // TODO(SeanCurtis-TRI): Mars's arm needs special posing.
+  // Mars's orrery arm.
   MakeArm(source_id_, planet_id, kMarsOrbitRadius, -orrery_bottom, pipe_radius,
           post_material, geometry_system);
 
