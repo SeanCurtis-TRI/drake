@@ -15,10 +15,10 @@ namespace solar_system {
 
 // TODO(SeanCurtis-TRI): When textures are available, modify this so that planet
 // rotations become apparent as well (and not just revolutions).
-/** A model of an orrey -- a simple mechanical model of the solar system.
+/** A model of an orrery -- a simple mechanical model of the solar system.
 
- The orrey contains one sun and four orbiting bodies: two planets (Earth and
- Mars) each with one moon. The orrey is articulated by placing the _frame_ for
+ The orrery contains one sun and four orbiting bodies: two planets (Earth and
+ Mars) each with one moon. The orrery is articulated by placing the _frame_ for
  each body at its parent's origin, and then displacing the geometry from that
  origin to its orbital distance. Then each orbiting frame has a single degree of
  freedom: its angular position around its axis of rotation.
@@ -37,7 +37,7 @@ namespace solar_system {
  3. Creating a fixed FrameIdVector output.
  4. Updating the context-dependent FramePoseVector output.
 
- Illustration of the orrey:
+ Illustration of the orrery:
 
  Legend:
      Body Symbol | Meaning
@@ -58,7 +58,7 @@ namespace solar_system {
         X_MG     | The fixed offset of Mars's geometry from X_SM (at Mars's orbit radius).
         X_PG     | The fixed offset of Phobos's geometry from X_MP (at Phobos's orbit radius).
 
-
+```
     X_EG X_LG                            X_MG X_PG
       ↓   ↓                                ↓   ↓
       E   L         ▁▁▁                    M   p
@@ -69,8 +69,7 @@ X_EL →├───┘       │  S  │           X_MP → ├───┘
       └──────────────┴─────────────────────┘
                      ↑
                      X_SE, X_SM
-
-
+```
 
  @tparam T The vector element type, which must be a valid Eigen scalar.
 
@@ -82,7 +81,7 @@ class SolarSystem : public systems::LeafSystem<T> {
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(SolarSystem)
 
   explicit SolarSystem(geometry::GeometrySystem<T>* geometry_system);
-  ~SolarSystem() override;
+  ~SolarSystem() override = default;
 
   using MyContext = systems::Context<T>;
   using MyContinuousState = systems::ContinuousState<T>;

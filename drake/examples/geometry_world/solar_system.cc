@@ -32,6 +32,7 @@ using std::make_unique;
 
 template <typename T>
 SolarSystem<T>::SolarSystem(GeometrySystem<T>* geometry_system) {
+  DRAKE_DEMAND(geometry_system);
   source_id_ = geometry_system->RegisterSource("solar_system");
   geometry_id_port_ =
       this->DeclareAbstractOutputPort(&SolarSystem::AllocateFrameIdOutput,
@@ -47,9 +48,6 @@ SolarSystem<T>::SolarSystem(GeometrySystem<T>* geometry_system) {
 
   AllocateGeometry(geometry_system);
 }
-
-template <typename T>
-SolarSystem<T>::~SolarSystem() {}
 
 template <typename T>
 const systems::OutputPort<T>& SolarSystem<T>::get_geometry_id_output_port()
@@ -78,7 +76,7 @@ void SolarSystem<T>::SetDefaultState(const systems::Context<T>&,
                    2 * M_PI / 5,    // Earth revolution lasts 5 seconds.
                    2 * M_PI,        // moon revolution lasts 1 second.
                    2 * M_PI / 6,    // Mars revolution lasts 6 seconds.
-                   2 * M_PI * 0.9;  // phobos revolution lasts 0.9 seconds.
+                   2 * M_PI / 1.1;  // phobos revolution lasts 1.1 seconds.
   // clang-format on
   DRAKE_DEMAND(xc->size() == initial_state.size());
   xc->SetFromVector(initial_state);
@@ -99,7 +97,7 @@ void SolarSystem<T>::AllocateGeometry(GeometrySystem<T>* geometry_system) {
   // NOTE: we don't store the id of the sun geometry because we have no need
   // for subsequent access (the same is also true for dynamic geometries).
   geometry_system->RegisterAnchoredGeometry(
-      source_id_, std::make_unique<GeometryInstance>(
+      source_id_, make_unique<GeometryInstance>(
                       Isometry3<double>::Identity(), make_unique<Sphere>(1.f),
                       VisualMaterial(Vector4d(1, 1, 0, 1))));
 
@@ -119,8 +117,8 @@ void SolarSystem<T>::AllocateGeometry(GeometrySystem<T>* geometry_system) {
   earth_pose.translation() << kEarthOrbitRadius, 0, 0;
   geometry_system->RegisterGeometry(
       source_id_, planet_id,
-      std::make_unique<GeometryInstance>(earth_pose, make_unique<Sphere>(0.25f),
-                                         VisualMaterial(Vector4d(0, 0, 1, 1))));
+      make_unique<GeometryInstance>(earth_pose, make_unique<Sphere>(0.25f),
+                                    VisualMaterial(Vector4d(0, 0, 1, 1))));
 
   // Luna - Luna's frame is at the center of the Earth.
   FrameId luna_id = geometry_system->RegisterFrame(
@@ -139,7 +137,7 @@ void SolarSystem<T>::AllocateGeometry(GeometrySystem<T>* geometry_system) {
   Vector3<double> luna_position(-1, 0.5, 0.5);
   luna_pose.translation() = luna_position.normalized() * kLunaOrbitRadius;
   geometry_system->RegisterGeometry(
-      source_id_, luna_id, std::make_unique<GeometryInstance>(
+      source_id_, luna_id, make_unique<GeometryInstance>(
                                luna_pose, make_unique<Sphere>(0.075f),
                                VisualMaterial(Vector4d(0.5, 0.5, 0.35, 1))));
 
@@ -159,9 +157,9 @@ void SolarSystem<T>::AllocateGeometry(GeometrySystem<T>* geometry_system) {
   Vector3<double> mars_position(1, 1, -.2);
   mars_pose.translation() = mars_position.normalized() * kMarsOrbitRadius;
   geometry_system->RegisterGeometry(
-      source_id_, planet_id, std::make_unique<GeometryInstance>(
-                                 mars_pose, make_unique<Sphere>(0.24f),
-                                     VisualMaterial(Vector4d(0.9, 0.1, 0, 1))));
+      source_id_, planet_id,
+      make_unique<GeometryInstance>(mars_pose, make_unique<Sphere>(0.24f),
+                                    VisualMaterial(Vector4d(0.9, 0.1, 0, 1))));
 
   // Mars moon - Phobos's frame is centered on Mars, but its orientation is
   // reversed so that it revolves in the opposite direction
@@ -180,9 +178,10 @@ void SolarSystem<T>::AllocateGeometry(GeometrySystem<T>* geometry_system) {
   Isometry3<double> phobos_pose = Isometry3<double>::Identity();
   phobos_pose.translation() << kPhobosOrbitRadius, 0, 0;
   geometry_system->RegisterGeometry(
-      source_id_, phobos_id, std::make_unique<GeometryInstance>(
-                                 phobos_pose, make_unique<Sphere>(0.06f),
-                                 VisualMaterial(Vector4d(0.65, 0.6, 0.8, 1))));
+      source_id_, phobos_id,
+      make_unique<GeometryInstance>(
+          phobos_pose, make_unique<Sphere>(0.06f),
+          VisualMaterial(Vector4d(0.65, 0.6, 0.8, 1))));
 
   DRAKE_DEMAND(static_cast<int>(body_ids_.size()) == kBodyCount);
 }
