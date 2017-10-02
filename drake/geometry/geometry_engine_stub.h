@@ -113,6 +113,7 @@ class GeometryEngineStub : public GeometryEngine<T>, public ShapeReifier {
 
   // ShapeReifier interface implementation.
   void ImplementGeometry(const Sphere& sphere) override;
+  void ImplementGeometry(const Cylinder& cylinder) override;
   void ImplementGeometry(const HalfSpace& half_space) override;
 
  protected:

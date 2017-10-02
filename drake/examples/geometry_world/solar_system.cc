@@ -16,12 +16,14 @@ namespace examples {
 namespace solar_system {
 
 using Eigen::Vector4d;
+using geometry::Cylinder;
 using geometry::FrameId;
 using geometry::FrameIdVector;
 using geometry::FramePoseVector;
 using geometry::GeometryFrame;
 using geometry::GeometryInstance;
 using geometry::GeometrySystem;
+using geometry::SourceId;
 using geometry::Sphere;
 using geometry::VisualMaterial;
 using systems::BasicVector;
@@ -71,7 +73,7 @@ void SolarSystem<T>::SetDefaultState(const systems::Context<T>&,
   // clang-format off
   initial_state << 0,               // Earth initial position
                    M_PI / 2,        // moon initial position
-                   -M_PI / 2,       // Mars initial position
+                   M_PI / 2,        // Mars initial position
                    0,               // phobos initial position
                    2 * M_PI / 5,    // Earth revolution lasts 5 seconds.
                    2 * M_PI,        // moon revolution lasts 1 second.
@@ -87,11 +89,51 @@ void SolarSystem<T>::SetDefaultState(const systems::Context<T>&,
   }
 }
 
+// Registers geometry to form an L-shaped arm onto the given frame. The arm is
+//
+//   x = 0                O          <- z = height
+//   |                    |
+//   V                    | height
+//   ---------------------           <- z = 0
+//                        ^
+//                        |
+//                        x = length
+//
+// The arm's horizontal length is oriented with the x-axis. The vertical length
+// is oriented with the z-axis. The origin of the arm is defined at the local
+// origin, and the top of the arm is positioned at the given height.
+template <class ParentId>
+void MakeArm(SourceId source_id, ParentId parent_id, double length,
+             double height, double radius, const VisualMaterial& material,
+             GeometrySystem<double>* geometry_system) {
+  // The posts for the orrery a horizontal post and a vertical post.
+  Isometry3<double> arm_pose = Isometry3<double>::Identity();
+  // tilt it horizontally
+  arm_pose.linear() =
+      Eigen::AngleAxis<double>(M_PI / 2, Vector3<double>::UnitY()).matrix();
+  arm_pose.translation() << length / 2, 0, 0;
+  geometry_system->RegisterGeometry(
+      source_id, parent_id,
+      make_unique<GeometryInstance>(
+          arm_pose, make_unique<Cylinder>(radius, length), material));
+
+  Isometry3<double> post_pose = Isometry3<double>::Identity();
+  post_pose.translation() << length, 0, height/2;
+  geometry_system->RegisterGeometry(
+      source_id, parent_id,
+      make_unique<GeometryInstance>(
+          post_pose, make_unique<Cylinder>(radius, height), material));
+}
+
 template <typename T>
 void SolarSystem<T>::AllocateGeometry(GeometrySystem<T>* geometry_system) {
   body_ids_.reserve(kBodyCount);
   body_offset_.reserve(kBodyCount);
   axes_.reserve(kBodyCount);
+
+  VisualMaterial post_material{Vector4d(0.3, 0.15, 0.05, 1)};
+  const double orrery_bottom = -1.5;
+  const double pipe_radius = 0.05;
 
   // Allocate the sun.
   // NOTE: we don't store the id of the sun geometry because we have no need
@@ -101,24 +143,41 @@ void SolarSystem<T>::AllocateGeometry(GeometrySystem<T>* geometry_system) {
                       Isometry3<double>::Identity(), make_unique<Sphere>(1.f),
                       VisualMaterial(Vector4d(1, 1, 0, 1))));
 
+  // The fixed pose on which Earth sits and around which all planets rotate.
+  const double post_height = 1;
+  Isometry3<double> post_pose = Isometry3<double>::Identity();
+  post_pose.translation() << 0, 0, (orrery_bottom + post_height / 2);
+  geometry_system->RegisterAnchoredGeometry(
+      source_id_, make_unique<GeometryInstance>(
+                      post_pose,
+                      make_unique<Cylinder>(pipe_radius, post_height),
+                      post_material));
+
   // Allocate the "celestial bodies": two planets orbiting on different planes,
   // each with a moon.
 
-  // Earth - Earth's frame is at the center of the sun.
+  // Earth - Earth's frame lies directly *below* the sun (to account for the
+  // orrery arm).
+  const double kEarthBottom = orrery_bottom + 0.25;
+  Isometry3<double> planet_pose = Isometry3<double>::Identity();
+  planet_pose.translation() << 0, 0, kEarthBottom;
   FrameId planet_id = geometry_system->RegisterFrame(
-      source_id_, GeometryFrame("Earth", Isometry3<double>::Identity()));
+      source_id_, GeometryFrame("Earth", planet_pose));
   body_ids_.push_back(planet_id);
-  body_offset_.push_back(Isometry3<double>::Identity());
+  body_offset_.push_back(planet_pose);
   axes_.push_back(Vector3<double>::UnitZ());
 
   // The geometry is displaced from the Earth _frame_ so that it orbits.
   const double kEarthOrbitRadius = 3.0;
   Isometry3<double> earth_pose = Isometry3<double>::Identity();
-  earth_pose.translation() << kEarthOrbitRadius, 0, 0;
+  earth_pose.translation() << kEarthOrbitRadius, 0, -kEarthBottom;
   geometry_system->RegisterGeometry(
       source_id_, planet_id,
       make_unique<GeometryInstance>(earth_pose, make_unique<Sphere>(0.25f),
                                     VisualMaterial(Vector4d(0, 0, 1, 1))));
+  // The supporting post for the earth.
+  MakeArm(source_id_, planet_id, kEarthOrbitRadius, -kEarthBottom, pipe_radius,
+          post_material, geometry_system);
 
   // Luna - Luna's frame is at the center of the Earth.
   FrameId luna_id = geometry_system->RegisterFrame(
@@ -141,25 +200,28 @@ void SolarSystem<T>::AllocateGeometry(GeometrySystem<T>* geometry_system) {
                                luna_pose, make_unique<Sphere>(0.075f),
                                VisualMaterial(Vector4d(0.5, 0.5, 0.35, 1))));
 
-  // Mars - Mars's frame is at the center of the sun.
+  // Mars - Mars's frame lies directly *below* the sun (to account for the
+  // orrery arm).
+  planet_pose.translation() << 0, 0, orrery_bottom;
   planet_id = geometry_system->RegisterFrame(
-      source_id_, GeometryFrame("Mars", Isometry3<double>::Identity()));
+      source_id_, GeometryFrame("Mars", planet_pose));
   body_ids_.push_back(planet_id);
-  body_offset_.push_back(Isometry3<double>::Identity());
-  plane_normal << .1, .1, 1;
+  body_offset_.push_back(planet_pose);
+  plane_normal << 0, 0.1, 1;
   axes_.push_back(plane_normal.normalized());
 
   // The geometry is displaced from the Mars _frame_ so that it orbits.
   const double kMarsOrbitRadius = 5.0;
   Isometry3<double> mars_pose = Isometry3<double>::Identity();
-  // Pick a position at kMarsOrbitRadius distance from the sun's origin on
-  // the plane _perpendicular_ to Mars's normal (axes_.back()).
-  Vector3<double> mars_position(1, 1, -.2);
-  mars_pose.translation() = mars_position.normalized() * kMarsOrbitRadius;
+  mars_pose.translation() << kMarsOrbitRadius, 0, -orrery_bottom;
   geometry_system->RegisterGeometry(
       source_id_, planet_id,
       make_unique<GeometryInstance>(mars_pose, make_unique<Sphere>(0.24f),
                                     VisualMaterial(Vector4d(0.9, 0.1, 0, 1))));
+  // The supporting post for Mars.
+  // TODO(SeanCurtis-TRI): Mars's arm needs special posing.
+  MakeArm(source_id_, planet_id, kMarsOrbitRadius, -orrery_bottom, pipe_radius,
+          post_material, geometry_system);
 
   // Mars moon - Phobos's frame is centered on Mars, but its orientation is
   // reversed so that it revolves in the opposite direction
