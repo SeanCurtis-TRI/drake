@@ -91,12 +91,11 @@ void SolarSystem<T>::SetDefaultState(const systems::Context<T>&,
 
 // Registers geometry to form an L-shaped arm onto the given frame. The arm is
 //
-//   x = 0                O          <- z = height
-//   |                    |
-//   V                    | height
-//   ---------------------           <- z = 0
-//                        ^
-//                        |
+//                        ◯          ← z = height
+//   x = 0                │
+//   ↓                    │ height
+//   ─────────────────────┘          ← z = 0
+//                        ↑
 //                        x = length
 //
 // The arm's horizontal length is oriented with the x-axis. The vertical length
