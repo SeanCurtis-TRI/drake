@@ -22,9 +22,7 @@ class RandomState {
       : generator_(seed) {}
 
   /// Generate the next random value with the given distribution.
-  double GetNextValue() {
-    return distribution_(generator_);
-  }
+  double GetNextValue() { return distribution_(generator_); }
 
  private:
   // TODO(russt): Obtain consistent results across multiple platforms (#4361).
@@ -74,7 +72,8 @@ class RandomSource : public LeafSystem<double> {
 
  private:
   // Computes a random number and stores it in the discrete state.
-  void DoCalcUnrestrictedUpdate(const Context<double>& context,
+  void DoCalcUnrestrictedUpdate(
+      const Context<double>& context,
       const std::vector<const UnrestrictedUpdateEvent<double>*>& events,
       State<double>* state) const override {
     auto& random_state =
@@ -100,30 +99,24 @@ class RandomSource : public LeafSystem<double> {
   Seed seed_{RandomState::default_seed};
 };
 
-namespace internal {
-/// Defines a version of the std::uniform_real_distribution that uses the
-/// interval [-1,1] with the default parameters.  This is a more natural
-/// distribution for random signals.
-class mean_zero_uniform_real_distribution
-    : public std::uniform_real_distribution<double> {
- public:
-  mean_zero_uniform_real_distribution()
-      : std::uniform_real_distribution<double>(-1.0, 1.0) {}
-};
-
-}  // namespace internal
-
-/// Generates uniformly distributed random numbers in the interval [-1,1].
+/// Generates uniformly distributed random numbers in the interval [0,1].
 ///
 /// @ingroup primitive_systems
-typedef RandomSource<internal::mean_zero_uniform_real_distribution>
+typedef RandomSource<std::uniform_real_distribution<double>>
     UniformRandomSource;
 
-/// Generates uniformly distributed random numbers with mean zero and unit
+/// Generates normally distributed random numbers with mean zero and unit
 /// covariance.
 ///
 /// @ingroup primitive_systems
 typedef RandomSource<std::normal_distribution<double>> GaussianRandomSource;
+
+/// Generates exponentially distributed random numbers with mean, standard
+/// deviation, and scale parameter (aka 1/λ) set to one.
+///
+/// @ingroup primitive_systems
+typedef RandomSource<std::exponential_distribution<double>>
+    ExponentialRandomSource;
 
 }  // namespace systems
 }  // namespace drake

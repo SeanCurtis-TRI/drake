@@ -29,6 +29,7 @@ drake_cc_library(
     srcs = ["luenberger_observer.cc"],
     hdrs = ["luenberger_observer.h"],
     deps = [
+        "//drake/common:default_scalars",
         "//drake/systems/framework",
     ],
 )
@@ -39,7 +40,7 @@ drake_cc_googletest(
     name = "kalman_filter_test",
     deps = [
         ":kalman_filter",
-        "//drake/common:eigen_matrix_compare",
+        "//drake/common/test_utilities:eigen_matrix_compare",
     ],
 )
 
@@ -47,8 +48,8 @@ drake_cc_googletest(
     name = "luenberger_observer_test",
     deps = [
         ":luenberger_observer",
-        "//drake/common:eigen_matrix_compare",
-        "//drake/common:is_dynamic_castable",
+        "//drake/common/test_utilities:eigen_matrix_compare",
+        "//drake/common/test_utilities:is_dynamic_castable",
         "//drake/examples/pendulum:pendulum_plant",
         "//drake/systems/primitives:linear_system",
     ],

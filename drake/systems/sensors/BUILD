@@ -210,6 +210,7 @@ drake_cc_binary(
 
 drake_cc_library(
     name = "accelerometer_example_diagram",
+    testonly = 1,
     srcs = [
         "test/accelerometer_test/accelerometer_example_diagram.cc",
         "test/accelerometer_test/accelerometer_test_logger.cc",
@@ -223,6 +224,7 @@ drake_cc_library(
     data = [
         "//drake/examples/pendulum:models",
     ],
+    visibility = ["//visibility:private"],
     deps = [
         ":accelerometer",
         "//drake/common:essential",
@@ -238,6 +240,7 @@ drake_cc_library(
 
 drake_cc_binary(
     name = "accelerometer_example",
+    testonly = 1,
     srcs = [
         "test/accelerometer_test/accelerometer_example.cc",
     ],
@@ -256,7 +259,7 @@ drake_cc_googletest(
     name = "camera_info_test",
     deps = [
         ":camera_info",
-        "//drake/common:eigen_matrix_compare",
+        "//drake/common/test_utilities:eigen_matrix_compare",
     ],
 )
 
@@ -271,8 +274,8 @@ drake_cc_googletest(
     name = "rotary_encoders_test",
     deps = [
         ":rotary_encoders",
-        "//drake/common:eigen_matrix_compare",
-        "//drake/common:symbolic_test_util",
+        "//drake/common/test_utilities:eigen_matrix_compare",
+        "//drake/common/test_utilities:symbolic_test_util",
         "//drake/systems/framework/test_utilities",
     ],
 )
@@ -287,8 +290,8 @@ drake_cc_googletest(
     ],
     deps = [
         ":accelerometer_example_diagram",
-        "//drake/common:eigen_matrix_compare",
         "//drake/common:find_resource",
+        "//drake/common/test_utilities:eigen_matrix_compare",
         "//drake/lcm:mock",
         "//drake/systems/analysis:simulator",
     ],
@@ -299,7 +302,7 @@ drake_cc_googletest(
     srcs = ["test/depth_sensor_test.cc"],
     deps = [
         ":depth_sensor",
-        "//drake/common:eigen_matrix_compare",
+        "//drake/common/test_utilities:eigen_matrix_compare",
     ],
 )
 
@@ -320,8 +323,8 @@ drake_cc_googletest(
     ],
     deps = [
         ":gyroscope",
-        "//drake/common:eigen_matrix_compare",
         "//drake/common:find_resource",
+        "//drake/common/test_utilities:eigen_matrix_compare",
         "//drake/multibody/parsers",
     ],
 )
@@ -354,8 +357,8 @@ drake_cc_googletest(
     tags = ["manual"],
     deps = [
         ":rgbd_camera",
-        "//drake/common:eigen_matrix_compare",
         "//drake/common:find_resource",
+        "//drake/common/test_utilities:eigen_matrix_compare",
         "//drake/multibody:rigid_body_tree_construction",
         "//drake/multibody/parsers",
         "//drake/multibody/rigid_body_plant",

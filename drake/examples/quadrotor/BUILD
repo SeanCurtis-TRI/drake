@@ -10,11 +10,18 @@ load(
 load("//tools:install_data.bzl", "install_data")
 load("//tools:lint.bzl", "add_lint_tests")
 
+package(
+    default_visibility = [
+        "//visibility:public",
+    ],
+)
+
 drake_cc_library(
     name = "quadrotor_plant",
     srcs = ["quadrotor_plant.cc"],
     hdrs = ["quadrotor_plant.h"],
     deps = [
+        "//drake/common:default_scalars",
         "//drake/math:geometric_transform",
         "//drake/math:gradient",
         "//drake/systems/controllers:linear_quadratic_regulator",
@@ -77,8 +84,8 @@ drake_cc_googletest(
     data = [":models"],
     deps = [
         ":quadrotor_plant",
-        "//drake/common:eigen_matrix_compare",
         "//drake/common:find_resource",
+        "//drake/common/test_utilities:eigen_matrix_compare",
         "//drake/multibody:rigid_body_tree_construction",
         "//drake/multibody/parsers",
         "//drake/multibody/rigid_body_plant",

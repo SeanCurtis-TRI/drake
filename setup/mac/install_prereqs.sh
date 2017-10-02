@@ -29,9 +29,10 @@ bazel
 boost
 clang-format
 doxygen
-gcc
 glew
 glib
+graphviz
+ipopt
 libyaml
 lz4
 numpy

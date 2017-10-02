@@ -7,8 +7,8 @@
 
 #include <gtest/gtest.h>
 
-#include "drake/common/eigen_matrix_compare.h"
 #include "drake/common/eigen_types.h"
+#include "drake/common/test_utilities/eigen_matrix_compare.h"
 #include "drake/geometry/geometry_frame.h"
 #include "drake/geometry/geometry_instance.h"
 #include "drake/geometry/geometry_world.h"

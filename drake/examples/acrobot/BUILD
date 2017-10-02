@@ -37,6 +37,7 @@ drake_cc_library(
     hdrs = ["acrobot_plant.h"],
     deps = [
         ":acrobot_state_vector",
+        "//drake/common:default_scalars",
         "//drake/systems/controllers:linear_quadratic_regulator",
         "//drake/systems/framework",
         "//drake/systems/sensors:rotary_encoders",
@@ -204,8 +205,8 @@ drake_cc_googletest(
     data = [":models"],
     deps = [
         ":acrobot_plant",
-        "//drake/common:eigen_matrix_compare",
         "//drake/common:find_resource",
+        "//drake/common/test_utilities:eigen_matrix_compare",
         "//drake/multibody/joints",
         "//drake/multibody/parsers",
         "//drake/multibody/rigid_body_plant",

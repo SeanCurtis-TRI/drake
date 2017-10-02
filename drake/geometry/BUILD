@@ -230,7 +230,7 @@ drake_cc_library(
         ":geometry_state",
         ":geometry_world",
         ":internal_geometry",
-        "//drake/common:eigen_matrix_compare",
+        "//drake/common/test_utilities:eigen_matrix_compare",
         "@gtest//:without_main",
     ],
 )
@@ -247,7 +247,7 @@ drake_cc_googletest(
     name = "frame_kinematics_vector_test",
     deps = [
         ":frame_kinematics",
-        "//drake/common:eigen_matrix_compare",
+        "//drake/common/test_utilities:eigen_matrix_compare",
     ],
 )
 
@@ -274,7 +274,7 @@ drake_cc_googletest(
         ":geometry_state",
         ":geometry_world",
         ":shape_specification",
-        "//drake/common:eigen_matrix_compare",
+        "//drake/common/test_utilities:eigen_matrix_compare",
     ],
 )
 
@@ -307,8 +307,8 @@ drake_cc_googletest(
     name = "shape_specification_test",
     deps = [
         ":shape_specification",
-        "//drake/common:eigen_matrix_compare",
-        "//drake/common:is_dynamic_castable",
+        "//drake/common/test_utilities:eigen_matrix_compare",
+        "//drake/common/test_utilities:is_dynamic_castable",
     ],
 )
 

@@ -1,6 +1,7 @@
 # -*- python -*-
 
 load("@drake//tools:pathutils.bzl", "dirname", "output_path", "join_paths")
+load("@drake//tools:drake.bzl", "MainClassInfo")
 
 InstallInfo = provider()
 
@@ -23,6 +24,13 @@ def _workspace(ctx):
 
     # If workspace_root is empty, assume we are the root workspace
     return ctx.workspace_name
+
+def _rename(file_dest, rename):
+    """Compute file name if file renamed."""
+    if file_dest in rename:
+        renamed = rename[file_dest]
+        return join_paths(dirname(file_dest), renamed)
+    return file_dest
 
 #------------------------------------------------------------------------------
 def _output_path(ctx, input_file, strip_prefix = [], warn_foreign = True):
@@ -74,7 +82,9 @@ def _guess_files(target, candidates, scope, attr_name):
         fail(msg_fmt % (attr_name, scope), scope)
 
 #------------------------------------------------------------------------------
-def _install_action(ctx, artifact, dests, strip_prefixes = [], rename = {}):
+def _install_action(
+    ctx, artifact, dests, strip_prefixes = [], rename = {}, warn_foreign = True
+):
     """Compute install action for a single file.
 
     This takes a single file artifact and returns the appropriate install
@@ -95,16 +105,15 @@ def _install_action(ctx, artifact, dests, strip_prefixes = [], rename = {}):
     else:
         strip_prefix = strip_prefixes
 
-    file_dest = join_paths(dest, _output_path(ctx, artifact, strip_prefix))
-    if file_dest in rename:
-        renamed = rename[file_dest]
-        file_dest = join_paths(dirname(file_dest), renamed)
+    file_dest = join_paths(
+        dest, _output_path(ctx, artifact, strip_prefix, warn_foreign))
+    file_dest = _rename(file_dest, rename)
 
     return struct(src = artifact, dst = file_dest)
 
 #------------------------------------------------------------------------------
 def _install_actions(ctx, file_labels, dests, strip_prefixes = [],
-                     excluded_files = [], rename = {}):
+                     excluded_files = [], rename = {}, warn_foreign = True):
     """Compute install actions for files.
 
     This takes a list of labels (targets or files) and computes the install
@@ -144,7 +153,9 @@ def _install_actions(ctx, file_labels, dests, strip_prefixes = [],
                 continue
 
             actions.append(
-                _install_action(ctx, a, dests, strip_prefixes, rename))
+                _install_action(ctx, a, dests, strip_prefixes,
+                                rename, warn_foreign)
+            )
 
     return actions
 
@@ -199,9 +210,17 @@ def _install_java_actions(ctx, target):
         "jar": ctx.attr.java_strip_prefix,
         None: ctx.attr.runtime_strip_prefix,
     }
-
+    excluded_files = []
+    if target.files_to_run.executable:
+        excluded_files = [
+            _output_path(
+                ctx,
+                target.files_to_run.executable,
+                warn_foreign = False
+            )
+        ]
     return _install_actions(ctx, [target], dests, strip_prefixes,
-                            rename = ctx.attr.rename)
+                            excluded_files, rename = ctx.attr.rename)
 
 #------------------------------------------------------------------------------
 # Compute install actions for a py_library or py_binary.
@@ -212,9 +231,54 @@ def _install_py_actions(ctx, target):
                             rename = ctx.attr.rename)
 
 #------------------------------------------------------------------------------
+# Compute install actions for a script or an executable.
+def _install_runtime_actions(ctx, target):
+    return _install_actions(ctx, [target], ctx.attr.runtime_dest,
+                            ctx.attr.runtime_strip_prefix,
+                            rename = ctx.attr.rename)
+
+#------------------------------------------------------------------------------
+# Compute install actions for a java launchers.
+def _install_java_launcher_actions(
+        ctx,
+        dest,
+        java_dest,
+        java_strip_prefix,
+        rename,
+        target):
+    main_class = target[MainClassInfo].main_class
+    # List runtime_classpath and compute their install paths.
+    classpath = []
+    actions = []
+
+    for jar in target[MainClassInfo].classpath:
+        jar_install = _install_action(ctx, jar, java_dest, java_strip_prefix,
+                                      rename, warn_foreign = False)
+        # Adding double quotes around the generated scripts to avoid
+        # white-space problems when running the generated shell script. This
+        # string is used in a "for-loop" in the script.
+        classpath.append(join_paths("$prefix", jar_install.dst))
+
+    # Compute destination file name.
+    filename = target[MainClassInfo].filename
+    file_dest = join_paths(dest, filename)
+    file_dest = _rename(file_dest, rename)
+
+    actions.append(struct(dst = file_dest, classpath = classpath,
+                          main_class = main_class))
+
+    return actions
+
+#------------------------------------------------------------------------------
 # Generate install code for an install action.
 def _install_code(action):
     return "install(%r, %r)" % (action.src.short_path, action.dst)
+
+#------------------------------------------------------------------------------
+# Generate install code for a java launcher.
+def _java_launcher_code(action):
+    return "create_java_launcher(%r, %r, %r)" % (action.dst, action.classpath,
+                                                 action.main_class)
 
 #END internal helpers
 #==============================================================================
@@ -225,21 +289,22 @@ def _install_code(action):
 # targets, headers, or documentation files.
 def _install_impl(ctx):
     actions = []
-
+    rename = dict(ctx.attr.rename)
     # Collect install actions from dependencies.
     for d in ctx.attr.deps:
         actions += d[InstallInfo].install_actions
+        rename.update(d[InstallInfo].rename)
 
     # Generate actions for data, docs and includes.
     actions += _install_actions(ctx, ctx.attr.docs, ctx.attr.doc_dest,
                                 strip_prefixes = ctx.attr.doc_strip_prefix,
-                                rename = ctx.attr.rename)
+                                rename = rename)
     actions += _install_actions(ctx, ctx.attr.data, ctx.attr.data_dest,
                                 strip_prefixes = ctx.attr.data_strip_prefix,
-                                rename = ctx.attr.rename)
+                                rename = rename)
     actions += _install_actions(ctx, ctx.attr.hdrs, ctx.attr.hdr_dest,
                                 strip_prefixes = ctx.attr.hdr_strip_prefix,
-                                rename = ctx.attr.rename)
+                                rename = rename)
 
     for t in ctx.attr.targets:
         # TODO(jwnimmer-tri): Raise an error if a target has testonly=1.
@@ -249,18 +314,36 @@ def _install_impl(ctx):
             actions += _install_java_actions(ctx, t)
         elif hasattr(t, "py"):
             actions += _install_py_actions(ctx, t)
+        elif MainClassInfo in t:
+            actions += _install_java_launcher_actions(
+                ctx,
+                ctx.attr.runtime_dest,
+                ctx.attr.java_dest,
+                ctx.attr.java_strip_prefix,
+                rename,
+                t
+            )
+        elif hasattr(t, "files_to_run") and t.files_to_run.executable:
+            # Executable scripts copied from source directory.
+            actions += _install_runtime_actions(ctx, t)
 
     # Generate code for install actions.
     script_actions = []
     installed_files = {}
     for a in actions:
+        src = None
+        if hasattr(a, "src"):
+            src = a.src
         if a.dst not in installed_files:
-            script_actions.append(_install_code(a))
-            installed_files[a.dst] = a.src
-        elif a.src != installed_files[a.dst]:
+            if src:
+                script_actions.append(_install_code(a))
+            else:
+                script_actions.append(_java_launcher_code(a))
+            installed_files[a.dst] = src
+        elif src != installed_files[a.dst]:
             fail("Install conflict detected:\n" +
                  "\n  src1 = " + repr(installed_files[a.dst]) +
-                 "\n  src2 = " + repr(a.src) +
+                 "\n  src2 = " + repr(src) +
                  "\n  dst = " + repr(a.dst))
 
     # Generate install script.
@@ -272,9 +355,10 @@ def _install_impl(ctx):
         substitutions = {"<<actions>>": "\n    ".join(script_actions)})
 
     # Return actions.
-    files = ctx.runfiles(files = [a.src for a in actions])
+    files = ctx.runfiles(
+        files = [a.src for a in actions if not hasattr(a, "main_class")])
     return [
-        InstallInfo(install_actions = actions),
+        InstallInfo(install_actions = actions, rename = rename),
         DefaultInfo(runfiles = files),
     ]
 
@@ -366,6 +450,21 @@ Note:
     including e.g. shared libraries — in a target's ``runfiles``, only *source*
     artifacts are considered when guessing resource files.
 
+    Java binary launchers are created at install time. The install script is
+    configured to generate them, but no file other than the install script is
+    created at build time. Java binary launchers rely on a target containing
+    a ``MainClassInfo`` provider that contains all the required information to
+    generate the launcher. Do not forget to provide as dependencies the install
+    targets that rename files. This will be necessary to use the appropriate
+    jar file name when creating the java launcher.
+
+    MainClassInfo(
+            main_class = Name of main class to run ("name.class.main")
+            classpath = List contained in
+                ctx.attr.target.java.compilation_info.runtime_classpath
+            filename = Java launcher file name
+        )
+
 Args:
     deps: List of other install rules that this rule should include.
     docs: List of documentation files to install.
@@ -415,7 +514,7 @@ def _install_files_impl(ctx):
                                rename = ctx.attr.rename)
 
     # Return computed actions.
-    return [InstallInfo(install_actions = actions)]
+    return [InstallInfo(install_actions = actions, rename = ctx.attr.rename)]
 
 install_files = rule(
     # Update buildifier-tables.json when this changes.
