@@ -7,6 +7,14 @@
 namespace drake {
 namespace systems {
 
+/// The set of parameters for the compliant contact model. These values affect
+/// all contacts in the simulation session. In some sense, they are related
+/// to the scale of the simulation. See @ref drake_contacts for details.
+struct CompliantContactParameters {
+  double v_stiction_tolerance;
+  double characteristc_area;
+};
+
 /// This class encapsulates the compliant contact model force computations as
 /// described in detail in @ref drake_contacts.
 ///
@@ -68,7 +76,8 @@ class CompliantContactModel {
 
   // Note: this is the *inverse* of the v_stiction_tolerance parameter to
   // optimize for the division.
-  T inv_v_stiction_tolerance_{100};  // inverse of 1 cm/s.
+  double inv_v_stiction_tolerance_{100};  // inverse of 1 cm/s.
+  double characteristic_area_{1e-4};      // One square-cm (in m²).
 };
 
 }  // namespace systems
