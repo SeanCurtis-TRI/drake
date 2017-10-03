@@ -41,7 +41,7 @@ class ShapeToLcm : public ShapeReifier {
     Eigen::Map<Eigen::Vector3f> position(geometry_data_.position);
     position = X_PG_.translation().cast<float>();
     // LCM quaternion must be w, x, y, z.
-    Eigen::Quaternion<double> q(X_PG_.rotation());
+    Eigen::Quaternion<double> q(X_PG_.linear());
     geometry_data_.quaternion[0] = q.w();
     geometry_data_.quaternion[1] = q.x();
     geometry_data_.quaternion[2] = q.y();

@@ -19,6 +19,12 @@ namespace geometry {
 
 class ShapeReifier;
 
+/** Simple struct for instantiating the type-specific Shape functionality.
+ A class derived from the Shape class will invoke the parent's constructor as
+ Shape(ShapeTag<DerivedShape>()). */
+template <typename ShapeType>
+struct ShapeTag{};
+
 /** The base interface for all shape specifications. It has no public
   constructor and cannot be instantiated directly. The Shape class has two
   key properties:
@@ -42,13 +48,13 @@ class Shape {
   DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(Shape)
 
   /** Constructor available for derived class construction. A derived class
-   should provide invoke this in its initialization list, passing a `nullptr`
-   cast to a pointer of the derived type, e.g.:
+   should invoke this in its initialization list, passing a ShapeTag
+   instantiated on its derived type, e.g.:
 
    ```
    class MyShape final : public Shape {
     public:
-     MyShape() : Shape(static_cast<MyShape*>(nullptr)) {}
+     MyShape() : Shape(ShapeTag<MyShape>()) {}
      ...
    };
    ```
@@ -59,14 +65,14 @@ class Shape {
 
      1. they must have a public copy constructor,
      2. they must be marked as final, and
-     3. their constructors must invoke the parent constructor with a nullptr
-        cast as their type (as noted above), and
-     4. The ShapeReifier class must be extended to include a an invocation of
+     3. their constructors must invoke the parent constructor with a ShapeTag
+        instance (as noted above), and
+     4. The ShapeReifier class must be extended to include an invocation of
         ShapeReifier::ImplementGeometry() on the derived Shape class.
 
    @tparam S    The derived shape class. It must derive from Shape. */
   template <typename S>
-  explicit Shape(S*);
+  explicit Shape(ShapeTag<S> tag);
 
  private:
   std::function<std::unique_ptr<Shape>(const Shape&)> cloner_;
@@ -93,7 +99,7 @@ class Cylinder final : public Shape {
  public:
   DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(Cylinder)
 
-  explicit Cylinder(double radius, double length);
+  Cylinder(double radius, double length);
 
   double get_radius() const { return radius_; }
   double get_length() const { return length_; }
@@ -147,8 +153,7 @@ class ShapeReifier {
 };
 
 template <typename S>
-Shape::Shape(S* shape) {
-  DRAKE_ASSERT(shape == nullptr);
+Shape::Shape(ShapeTag<S>) {
   static_assert(std::is_base_of<Shape, S>::value,
                 "Concrete shapes *must* be derived from the Shape class");
   cloner_ = [](const Shape& shape_arg) {
