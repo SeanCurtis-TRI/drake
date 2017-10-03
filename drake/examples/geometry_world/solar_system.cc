@@ -90,6 +90,7 @@ void SolarSystem<T>::SetDefaultState(const systems::Context<T>&,
 }
 
 // Registers geometry to form an L-shaped arm onto the given frame. The arm is
+// defined as shown below:
 //
 //                        ◯          ← z = height
 //   x = 0                │
@@ -105,7 +106,6 @@ template <class ParentId>
 void MakeArm(SourceId source_id, ParentId parent_id, double length,
              double height, double radius, const VisualMaterial& material,
              GeometrySystem<double>* geometry_system) {
-  // The posts for the orrery a horizontal post and a vertical post.
   Isometry3<double> arm_pose = Isometry3<double>::Identity();
   // tilt it horizontally
   arm_pose.linear() =
