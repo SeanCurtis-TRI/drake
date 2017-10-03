@@ -2,6 +2,7 @@
 
 #include <utility>
 
+#include "drake/multibody/rigid_body_plant/compliant_contact_model.h"
 #include "drake/multibody/rigid_body_plant/drake_visualizer.h"
 #include "drake/multibody/rigid_body_plant/rigid_body_plant.h"
 #include "drake/systems/controllers/pid_controlled_system.h"
@@ -15,6 +16,7 @@ using std::move;
 
 namespace drake {
 
+using systems::CompliantContactParameters;
 using systems::ConstantVectorSource;
 using systems::Context;
 using systems::Diagram;
@@ -35,7 +37,9 @@ std::unique_ptr<systems::Diagram<double>> CreateCarSimLcmDiagram(
 
   // Contact parameters
   const double kStictionSlipTolerance = 0.001;
-  plant->set_contact_model_parameters(kStictionSlipTolerance);
+  const double kContactArea = 1;
+  plant->set_contact_model_parameters(
+      CompliantContactParameters{kStictionSlipTolerance, kContactArea});
 
   // Instantiates a PID controller for controlling the actuators in the
   // RigidBodyPlant. The vector order is [steering, left wheel, right wheel].

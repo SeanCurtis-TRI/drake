@@ -57,6 +57,7 @@ DEFINE_double(ud, 0.2, "The dynamic coefficient of friction");
 DEFINE_double(v_tol, 0.01,
               "The maximum slipping speed allowed during stiction");
 DEFINE_double(dissipation, 2, "The contact model's dissipation");
+DEFINE_double(contact_area, 1.0, "The characteristic scale of contact area.");
 DEFINE_double(sim_duration, 3, "The simulation duration");
 DEFINE_int32(pin_count, 10, "The number of pins -- in the range [0, 10]");
 DEFINE_bool(playback, true, "If true, loops playback of simulation");
@@ -75,6 +76,7 @@ int main() {
   cout << "\tstatic friction:  " << FLAGS_us << "\n";
   cout << "\tdynamic friction: " << FLAGS_ud << "\n";
   cout << "\tslip threshold:   " << FLAGS_v_tol << "\n";
+  cout << "\tContact area:     " << FLAGS_contact_area << "\n";
   cout << "\tdissipation:      " << FLAGS_dissipation << "\n";
   cout << "\tpin count:        " << FLAGS_pin_count << "\n";
 
@@ -87,16 +89,26 @@ int main() {
 
   // Create RigidBodyTree.
   auto tree_ptr = make_unique<RigidBodyTree<double>>();
+
+  // Material parameters
+  CompliantMaterialParameters material_parameters;
+  material_parameters.set_stiffness(FLAGS_stiffness);
+  material_parameters.set_dissipation(FLAGS_dissipation);
+  material_parameters.set_friction(FLAGS_us, FLAGS_ud);
+
   drake::parsers::urdf::AddModelInstanceFromUrdfFile(
       FindResourceOrThrow("drake/examples/contact_model/bowling_ball.urdf"),
-      kQuaternion, nullptr /* weld to frame */, tree_ptr.get());
+      kQuaternion, nullptr /* weld to frame */, material_parameters,
+      tree_ptr.get());
 
   for (int i = 0; i < FLAGS_pin_count; ++i) {
     drake::parsers::urdf::AddModelInstanceFromUrdfFile(
         FindResourceOrThrow("drake/examples/contact_model/pin.urdf"),
-        kQuaternion, nullptr /* weld to frame */, tree_ptr.get());
+        kQuaternion, nullptr /* weld to frame */, material_parameters,
+        tree_ptr.get());
   }
-  multibody::AddFlatTerrainToWorld(tree_ptr.get(), 100., 10.);
+  multibody::AddFlatTerrainToWorld(tree_ptr.get(), 100., 10.,
+                                   material_parameters);
 
   // Instantiate a RigidBodyPlant from the RigidBodyTree.
   auto& plant = *builder.AddSystem<RigidBodyPlant<double>>(move(tree_ptr));
@@ -104,8 +116,8 @@ int main() {
 
   // Note: this sets identical contact parameters across all object pairs:
   // ball-lane, ball-pin, and pin-pin.  :(
-  plant.set_normal_contact_parameters(FLAGS_stiffness, FLAGS_dissipation);
-  plant.set_friction_contact_parameters(FLAGS_us, FLAGS_ud, FLAGS_v_tol);
+  plant.set_contact_model_parameters(
+      CompliantContactParameters{FLAGS_v_tol, FLAGS_contact_area});
   const auto& tree = plant.get_rigid_body_tree();
 
   // LCM communication.

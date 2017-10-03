@@ -130,11 +130,11 @@ class RigidBodyPlant : public LeafSystem<T> {
 
   ~RigidBodyPlant() override;
 
-  // TODO(SeanCurtis-TRI): Change the parameter to a struct instead of a double.
   /// Sets the parameters of the compliance _model_. To set material parameters,
-  /// use the CompliantContactParameter class associated with the collision
+  /// use the CompliantMaterialParameters class associated with the collision
   /// element.
-  void set_contact_model_parameters(double v_stiction_tolerance);
+  void set_contact_model_parameters(
+      const CompliantContactParameters& parameters);
 
   /// Returns a constant reference to the multibody dynamics model
   /// of the world.

@@ -51,8 +51,8 @@ class CompliantContactModelTest : public ContactResultTestCommon {
     // Populate the CompliantContactModel.
     compliant_contact_model_ =
         make_unique<CompliantContactModel<double>>();
-    compliant_contact_model_->set_velocity_stiction_tolerance(
-        kVStictionTolerance);
+    CompliantContactParameters parameters{kVStictionTolerance, kContactArea};
+    compliant_contact_model_->set_model_parameters(parameters);
 
     // The state to test is the default state of the tree (0 velocities
     // and default configuration positions of the tree)

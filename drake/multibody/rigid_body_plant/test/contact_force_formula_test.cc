@@ -71,10 +71,8 @@ class ContactFormulaTest : public ::testing::Test {
   }
 
   // Returns the values to configure the compliant contact model.
-  virtual double GetContactModelParameters() {
-    // TODO(SeanCurtis-TRI): Replace double with struct when I grow the model
-    // parameters.
-    return 0.01;  // v_stiction_tolerance_
+  virtual CompliantContactParameters GetContactModelParameters() {
+    return CompliantContactParameters{0.01, 1};
   }
 
   // Returns the default compliant contact materials.

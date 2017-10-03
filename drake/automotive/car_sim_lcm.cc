@@ -108,7 +108,8 @@ int main(int argc, char* argv[]) {
           "drake/automotive/models/prius/prius_with_lidar.sdf"),
       multibody::joints::kQuaternion, nullptr /* weld to frame */,
       contact_default_values, rigid_body_tree.get());
-  multibody::AddFlatTerrainToWorld(rigid_body_tree.get());
+  multibody::AddFlatTerrainToWorld(rigid_body_tree.get(),
+                                   contact_default_values);
   if (FLAGS_with_speed_bump) {
     AddModelInstancesFromSdfFile(
         drake::FindResourceOrThrow(

@@ -62,7 +62,7 @@ GTEST_TEST(CompliantMaterialParameters, SetInvalidValues) {
 // CompliantMaterialParameters.
 GTEST_TEST(CompliantContactParamters, DefaultValues) {
   CompliantMaterialParameters defaults;
-  EXPECT_EQ(defaults.stiffness(), 1e7) << "Have you changed the doxygen?";
+  EXPECT_EQ(defaults.stiffness(), 1e8) << "Have you changed the doxygen?";
   EXPECT_EQ(defaults.dissipation(), 0.32) << "Have you changed the doxygen?";
   EXPECT_EQ(defaults.static_friction(), 0.9) << "Have you changed the doxygen?";
   EXPECT_EQ(defaults.dynamic_friction(), 0.5)

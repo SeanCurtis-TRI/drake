@@ -9,10 +9,11 @@ namespace systems {
 
 /// The set of parameters for the compliant contact model. These values affect
 /// all contacts in the simulation session. In some sense, they are related
-/// to the scale of the simulation. See @ref drake_contacts for details.
+/// to the scale of the simulation. The values must all be _strictly_ positive.
+/// See @ref drake_contacts for details.
 struct CompliantContactParameters {
-  double v_stiction_tolerance;
-  double characteristc_area;
+  double v_stiction_tolerance{1e-2};      // 1 cm/s (in m/s).
+  double characteristic_area{2e-4};       // Two square-cm (in m²).
 };
 
 /// This class encapsulates the compliant contact model force computations as
@@ -43,9 +44,10 @@ class CompliantContactModel {
       const KinematicsCache<T>& kinsol,
       ContactResults<T>* contacts = nullptr) const;
 
-  /// Configures the velocity stiction tolerance for the model. See @ref
-  /// drake_contact for discussion of this value.
-  void set_velocity_stiction_tolerance(double tolerance);
+  /// Configures the model parameters -- these are the global model values that
+  /// affect all contacts. If values are outside of valid ranges, the program
+  /// aborts. (See CompliantContactParameters for details on valid ranges.)
+  void set_model_parameters(const CompliantContactParameters& values);
 
  private:
   // Computes the friction coefficient based on the relative tangential
@@ -77,7 +79,7 @@ class CompliantContactModel {
   // Note: this is the *inverse* of the v_stiction_tolerance parameter to
   // optimize for the division.
   double inv_v_stiction_tolerance_{100};  // inverse of 1 cm/s.
-  double characteristic_area_{1e-4};      // One square-cm (in m²).
+  double characteristic_area_{2e-4};      // One square-cm (in m²).
 };
 
 }  // namespace systems

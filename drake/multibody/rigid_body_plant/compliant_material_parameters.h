@@ -9,7 +9,7 @@ namespace systems {
  include:
    - stiffness with units of pascals (i.e.,N/m²). This should be thought of as
      the Young's modulus of the material. The default value is that of a soft
-     rubber: 1e7 pascals.
+     rubber: 1e8 pascals (a medium rubber).
    - dissipation with units of s/m. Its default value is 0.32, drawn from
      the Hunt-Crossly 1975 paper representing the dissipation for ivory.
    - coefficients of friction (static and dynamic). Unitless values with
@@ -52,8 +52,7 @@ class CompliantMaterialParameters {
   // NOTE: If *any* of these values get changed, the class doxygen should echo
   // the new values as well as modifying the corresponding unit test.
   // Stiffness
-  // TODO(SeanCurtis-TRI): Convert this to Young's modulus in follow-up PR.
-  double youngs_modulus_{1e7};
+  double youngs_modulus_{1e8};
   // Dissipation in s/m from [Hunt 1975] -- dissipation for ivory.
   double dissipation_{0.32};
   double static_friction_{0.9};

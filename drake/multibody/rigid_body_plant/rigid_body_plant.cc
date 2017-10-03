@@ -166,9 +166,8 @@ RigidBodyPlant<T>::~RigidBodyPlant() {}
 
 template <typename T>
 void RigidBodyPlant<T>::set_contact_model_parameters(
-    double v_stiction_tolerance) {
-  compliant_contact_model_->set_velocity_stiction_tolerance(
-      v_stiction_tolerance);
+    const CompliantContactParameters& parameters) {
+  compliant_contact_model_->set_model_parameters(parameters);
 }
 
 template <typename T>

@@ -15,10 +15,12 @@ namespace drake {
 namespace systems {
 
 template <typename T>
-void CompliantContactModel<T>::set_velocity_stiction_tolerance(
-    double tolerance) {
-  DRAKE_DEMAND(tolerance > 0);
-  inv_v_stiction_tolerance_ = 1.0 / tolerance;
+void CompliantContactModel<T>::set_model_parameters(
+    const CompliantContactParameters& values) {
+  DRAKE_DEMAND(values.v_stiction_tolerance > 0 &&
+               values.characteristic_area > 0);
+  inv_v_stiction_tolerance_ = 1.0 / values.v_stiction_tolerance;
+  characteristic_area_ = values.characteristic_area;
 }
 
 template <typename T>
@@ -116,7 +118,7 @@ VectorX<T> CompliantContactModel<T>::ComputeContactForce(
       const T x = T(-pair.distance);
       const T x_dot = -v_CBcAc_C(2);
 
-      const T fK = parameters.stiffness() * x;
+      const T fK = parameters.stiffness() * x * characteristic_area_;
       const T fD = fK * parameters.dissipation() * x_dot;
       const T fN = fK + fD;
       if (fN <= 0) continue;
