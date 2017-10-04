@@ -1,54 +1,56 @@
 #pragma once
 
-#include "drake/common/drake_optional.h"
 #include "drake/multibody/rigid_body_plant/compliant_material_parameters.h"
 #include "drake/multibody/rigid_body_tree.h"
 
 namespace drake {
 namespace multibody {
 
-/**
- * Adds a box-shaped terrain to @p tree with default "size" and depth. This
- * directly modifies the existing world rigid body within @p tree and thus does
- * not need to return a `model_instance_id` value.
+/** @name Adding a ground plane to a RigidBodyTree.
+ *
+ * These functions provide a simple interface for adding a ground plane to a
+ * rigid body tree. The ground plane is actually a box whose top surface is
+ * placed flush with the z = 0 plane.
+ *
+ * Fully specified, the box is parameterized with:
+ *   - size - the size of the box along the x- and y-axes (forming a square)
+ *   - depth - the size of the box along the z-axis
+ *   - contact_material - the compliant contact material properties for the
+ *     ground plane.
  *
  * Two opposite corners of the resulting axis-aligned box are:
  * `(size / 2, size / 2, 0)` and
  * `(-size / 2, -size / 2, -depth)`.
  *
- * @param[in] tree The RigidBodyTreed to which to add the terrain.
- *
- * @param[in] contact_material The optional compliant contact material -- if
- * not provided, uses the hard-coded default values.
+ * The various overloads allow the ground plane's parameters to default to
+ * hard-coded values.
+ */
+//@{
+
+/**
+ * Adds terrain which uses default values for all parameters.
+ */
+void AddFlatTerrainToWorld(RigidBodyTreed* tree);
+
+/**
+ * Adds terrain which uses default size values and specified contact material.
  */
 void AddFlatTerrainToWorld(
     RigidBodyTreed* tree,
-    const optional<systems::CompliantMaterialParameters>& contact_material);
+    const systems::CompliantMaterialParameters& contact_material);
 
 /**
- * Adds a box-shaped terrain to @p tree. This directly modifies the existing
- * world rigid body within @p tree and thus does not need to return a
- * `model_instance_id` value.
- *
- * Two opposite corners of the resulting axis-aligned box are:
- * `(box_size / 2, box_size / 2, 0)` and
- * `(-box_size / 2, -box_size / 2, -box_depth)`.
- *
- * @param[in] tree The RigidBodyTreed to which to add the terrain.
- *
- * @param[in] contact_material The optional compliant contact material -- if
- * not provided, uses the hard-coded default values.
- *
- * @param[in] box_size The length and width of the terrain aligned with the
- * world's X and Y axes.
- *
- * @param[in] box_depth The depth of the terrain aligned with the world's Z
- * axis. Note that regardless of how deep the terrain is, the top surface of the
- * terrain will be at Z = 0.
+ * Adds terrain which uses given size values and default contact material.
+ */
+void AddFlatTerrainToWorld(
+    RigidBodyTreed* tree, double box_size, double box_depth);
+
+/**
+ * Adds fully-specified terrain.
  */
 void AddFlatTerrainToWorld(
     RigidBodyTreed* tree, double box_size, double box_depth,
-    const optional<systems::CompliantMaterialParameters>& contact_material);
+    const systems::CompliantMaterialParameters& contact_material);
 
 }  // namespace multibody
 }  // namespace drake

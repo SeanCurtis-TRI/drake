@@ -86,7 +86,8 @@ int main() {
   drake::parsers::urdf::AddModelInstanceFromUrdfFile(
       FindResourceOrThrow(kSlidingBrickUrdf),
       kFixed, nullptr /* weld to frame */, material_parameters, tree_ptr.get());
-  multibody::AddFlatTerrainToWorld(tree_ptr.get(), 100., 10.);
+  multibody::AddFlatTerrainToWorld(tree_ptr.get(), 100., 10.,
+                                   material_parameters);
 
   // Instantiate a RigidBodyPlant from the RigidBodyTree.
   auto& plant = *builder.AddSystem<RigidBodyPlant<double>>(move(tree_ptr));

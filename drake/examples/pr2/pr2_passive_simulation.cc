@@ -28,6 +28,12 @@ int DoMain() {
   systems::DiagramBuilder<double> diagram_builder;
   drake::lcm::DrakeLcm lcm;
 
+  // Set contact parameters that support gripping.
+  systems::CompliantMaterialParameters material_parameters;
+  material_parameters.set_stiffness(1000);
+  material_parameters.set_dissipation(100);
+  material_parameters.set_friction(1, 5e-1);
+
   // Construct the tree for the PR2.
   auto tree_ = std::make_unique<RigidBodyTree<double>>();
   drake::parsers::urdf::AddModelInstanceFromUrdfFile(
@@ -35,10 +41,11 @@ int DoMain() {
                           "pr2_simplified.urdf"),
       multibody::joints::
           kFixed /* our PR2 model moves with actuators, not a floating base */,
-      nullptr /* weld to frame */, tree_.get());
+      nullptr /* weld to frame */, material_parameters, tree_.get());
   const double terrain_size = 100;
   const double terrain_depth = 10;
-  multibody::AddFlatTerrainToWorld(tree_.get(), terrain_size, terrain_depth);
+  multibody::AddFlatTerrainToWorld(tree_.get(), terrain_size, terrain_depth,
+                                   material_parameters);
 
   // We expect the number of actuators from the URDF to be 28.
   DRAKE_ASSERT(tree_->get_num_actuators() == 28);
@@ -48,6 +55,8 @@ int DoMain() {
   auto plant_ = diagram_builder.AddSystem<systems::RigidBodyPlant<double>>(
       std::move(tree_));
   plant_->set_name("plant_");
+  plant_->set_contact_model_parameters(
+      systems::CompliantContactParameters{1e-3, 1});
 
   // Send the PR2's actuators zeros in abscence of a controller.
   auto constant_zero_source =
@@ -63,17 +72,6 @@ int DoMain() {
   visualizer_publisher.set_name("visualizer_publisher");
   diagram_builder.Connect(plant_->state_output_port(),
                           visualizer_publisher.get_input_port(0));
-
-  // Set contact parameters that support gripping.
-  const double kStaticFriction = 1;
-  const double kDynamicFriction = 5e-1;
-  const double kStictionSlipTolerance = 1e-3;
-  plant_->set_friction_contact_parameters(kStaticFriction, kDynamicFriction,
-                                          kStictionSlipTolerance);
-
-  const double kStiffness = 1000;
-  const double kDissipation = 100;
-  plant_->set_normal_contact_parameters(kStiffness, kDissipation);
 
   // Create the simulator.
   std::unique_ptr<systems::Diagram<double>> diagram = diagram_builder.Build();

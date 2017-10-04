@@ -85,21 +85,29 @@ int main() {
   drake::unused(sdf_fixed_validator_registered);
   drake::unused(sdf_floating_validator_registered);
 
+  drake::systems::CompliantMaterialParameters material_parameters;
+  material_parameters.set_stiffness(10000);
+  material_parameters.set_dissipation(1);
+  material_parameters.set_friction(0.9, 0.5);
+
   auto tree = std::make_unique<RigidBodyTree<double>>();
   drake::parsers::sdf::AddModelInstancesFromSdfFileToWorld(
-      FLAGS_sdf_dir + "/" + FLAGS_sdf_fixed, kFixed, tree.get());
+      FLAGS_sdf_dir + "/" + FLAGS_sdf_fixed, kFixed, material_parameters,
+      tree.get());
 
   drake::parsers::sdf::AddModelInstancesFromSdfFileToWorld(
-      FLAGS_sdf_dir + "/" + FLAGS_sdf_floating, kQuaternion, tree.get());
+      FLAGS_sdf_dir + "/" + FLAGS_sdf_floating, kQuaternion,
+      material_parameters, tree.get());
 
-  drake::multibody::AddFlatTerrainToWorld(tree.get());
+  drake::multibody::AddFlatTerrainToWorld(tree.get(), material_parameters);
 
   systems::DiagramBuilder<double> builder;
 
   auto plant = builder.AddSystem<RigidBodyPlant<double>>(move(tree));
   plant->set_name("rigid_body_plant");
-  plant->set_normal_contact_parameters(10000, 1);
-  plant->set_friction_contact_parameters(0.9, 0.5, 0.01);
+
+  plant->set_contact_model_parameters(
+      drake::systems::CompliantContactParameters{0.01, 1});
 
   // Adds an RgbdCamera at a fixed pose.
   CameraConfig config;

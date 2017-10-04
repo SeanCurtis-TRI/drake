@@ -55,14 +55,21 @@ const double kBoxInitZ = 0.076;
 
 std::unique_ptr<RigidBodyTreed> BuildLiftTestTree(
     int* lifter_instance_id, int* gripper_instance_id) {
+
+  // Applying the same materials to *all* objects.
+  systems::CompliantMaterialParameters material_parameters;
+  material_parameters.set_stiffness(10000);
+  material_parameters.set_dissipation(2);
+  material_parameters.set_friction(0.9, 0.5);
+
   std::unique_ptr<RigidBodyTreed> tree = std::make_unique<RigidBodyTreed>();
-  multibody::AddFlatTerrainToWorld(tree.get());
+  multibody::AddFlatTerrainToWorld(tree.get(), material_parameters);
 
   // Add a joint to the world which can lift the gripper.
   const auto lifter_id_table =
       parsers::sdf::AddModelInstancesFromSdfFile(
       FindResourceOrThrow("drake/examples/schunk_wsg/test/test_lifter.sdf"),
-      multibody::joints::kFixed, nullptr, tree.get());
+      multibody::joints::kFixed, nullptr, material_parameters, tree.get());
   EXPECT_EQ(lifter_id_table.size(), 1);
   *lifter_instance_id = lifter_id_table.begin()->second;
 
@@ -76,7 +83,8 @@ std::unique_ptr<RigidBodyTreed> BuildLiftTestTree(
       FindResourceOrThrow(
           "drake/manipulation/models/wsg_50_description/sdf/"
           "schunk_wsg_50_ball_contact.sdf"),
-      multibody::joints::kFixed, gripper_frame, tree.get());
+      multibody::joints::kFixed, gripper_frame, material_parameters,
+      tree.get());
   EXPECT_EQ(gripper_id_table.size(), 1);
   *gripper_instance_id = gripper_id_table.begin()->second;
 
@@ -87,7 +95,8 @@ std::unique_ptr<RigidBodyTreed> BuildLiftTestTree(
       Eigen::Vector3d(0, 0, kBoxInitZ), Eigen::Vector3d::Zero());
   parsers::urdf::AddModelInstanceFromUrdfFile(
       FindResourceOrThrow("drake/multibody/models/box_small.urdf"),
-      multibody::joints::kQuaternion, box_frame, tree.get());
+      multibody::joints::kQuaternion, box_frame, material_parameters,
+      tree.get());
 
   tree->compile();
   return tree;
@@ -106,15 +115,10 @@ GTEST_TEST(SchunkWsgLiftTest, BoxLiftTest) {
   ASSERT_EQ(plant->get_num_actuators(), 2);
   ASSERT_EQ(plant->get_num_model_instances(), 3);
 
-  // Arbitrary contact parameters.
-  const double kStiffness = 10000;
-  const double kDissipation = 2.0;
-  const double kStaticFriction = 0.9;
-  const double kDynamicFriction = 0.5;
   const double kVStictionTolerance = 0.01;
-  plant->set_normal_contact_parameters(kStiffness, kDissipation);
-  plant->set_friction_contact_parameters(kStaticFriction, kDynamicFriction,
-                                         kVStictionTolerance);
+  const double kContactArea = 1;
+  plant->set_contact_model_parameters(
+      systems::CompliantContactParameters{kVStictionTolerance, kContactArea});
 
   // Build a trajectory and PID controller for the lifting joint.
   const auto& lifting_input_port =

@@ -42,6 +42,7 @@ DEFINE_double(stiffness, 10000, "The contact material stiffness");
 DEFINE_double(dissipation, 2.0, "The contact material dissipation");
 DEFINE_double(v_stiction_tolerance, 0.01,
               "The maximum slipping speed allowed during stiction");
+DEFINE_double(contact_area, 1.0, "The characteristic scale of contact area.");
 DEFINE_double(sim_duration, 5, "Amount of time to simulate");
 DEFINE_bool(playback, true,
             "If true, simulation begins looping playback when complete");
@@ -53,7 +54,8 @@ using drake::systems::RungeKutta3Integrator;
 using drake::systems::ContactResultsToLcmSystem;
 using drake::systems::lcm::LcmPublisherSystem;
 
-std::unique_ptr<RigidBodyTreed> BuildTestTree() {
+std::unique_ptr<RigidBodyTreed> BuildTestTree(
+    const systems::CompliantMaterialParameters& contact_material) {
   std::unique_ptr<RigidBodyTreed> tree = std::make_unique<RigidBodyTreed>();
 
   // Add the gripper.  Offset it slightly back and up so that we can
@@ -64,7 +66,7 @@ std::unique_ptr<RigidBodyTreed> BuildTestTree() {
       Eigen::Vector3d::Zero());
   parsers::urdf::AddModelInstanceFromUrdfFile(
       FindResourceOrThrow("drake/examples/contact_model/rigid_gripper.urdf"),
-      multibody::joints::kFixed, gripper_frame, tree.get());
+      multibody::joints::kFixed, gripper_frame, contact_material, tree.get());
 
   // Add a box to grip.  Position it such that if there *were* a plane at z = 0,
   // the box would be sitting on it (this maintains parity with the
@@ -74,29 +76,36 @@ std::unique_ptr<RigidBodyTreed> BuildTestTree() {
       &tree->world(), Eigen::Vector3d(0, 0, 0.075), Eigen::Vector3d::Zero());
   parsers::urdf::AddModelInstanceFromUrdfFile(
       FindResourceOrThrow("drake/multibody/models/box_small.urdf"),
-      multibody::joints::kQuaternion, box_frame, tree.get());
+      multibody::joints::kQuaternion, box_frame, contact_material, tree.get());
 
   return tree;
 }
 
 int main() {
-  systems::DiagramBuilder<double> builder;
-
-  systems::RigidBodyPlant<double>* plant =
-      builder.AddSystem<systems::RigidBodyPlant<double>>(BuildTestTree());
-  plant->set_name("plant");
-
   // Command-line specified contact parameters.
   std::cout << "Contact properties:\n";
   std::cout << "\tStiffness:                " << FLAGS_stiffness << "\n";
+  std::cout << "\tDissipation:              " << FLAGS_dissipation << "\n";
   std::cout << "\tstatic friction:          " << FLAGS_us << "\n";
   std::cout << "\tdynamic friction:         " << FLAGS_ud << "\n";
   std::cout << "\tAllowed stiction speed:   " << FLAGS_v_stiction_tolerance
             << "\n";
-  std::cout << "\tDissipation:              " << FLAGS_dissipation << "\n";
-  plant->set_normal_contact_parameters(FLAGS_stiffness, FLAGS_dissipation);
-  plant->set_friction_contact_parameters(FLAGS_us, FLAGS_ud,
-                                         FLAGS_v_stiction_tolerance);
+  std::cout << "\tContact area:             " << FLAGS_contact_area << "\n";
+
+  systems::DiagramBuilder<double> builder;
+
+  // Material parameters
+  systems::CompliantMaterialParameters material_parameters;
+  material_parameters.set_stiffness(FLAGS_stiffness);
+  material_parameters.set_dissipation(FLAGS_dissipation);
+  material_parameters.set_friction(FLAGS_us, FLAGS_ud);
+
+  systems::RigidBodyPlant<double>* plant =
+      builder.AddSystem<systems::RigidBodyPlant<double>>(
+          BuildTestTree(material_parameters));
+  plant->set_name("plant");
+  plant->set_contact_model_parameters(systems::CompliantContactParameters{
+      FLAGS_v_stiction_tolerance, FLAGS_contact_area});
 
   // Creates and adds LCM publisher for visualization.  The test doesn't
   // require `drake_visualizer` but it is convenient to have when debugging.

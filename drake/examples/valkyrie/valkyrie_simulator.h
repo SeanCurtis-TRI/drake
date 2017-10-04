@@ -39,6 +39,12 @@ class ValkyrieSimulationDiagram : public systems::Diagram<double> {
   explicit ValkyrieSimulationDiagram(lcm::DrakeLcm* lcm) {
     systems::DiagramBuilder<double> builder;
 
+    // Applying the same materials to *all* objects.
+    systems::CompliantMaterialParameters material_parameters;
+    material_parameters.set_stiffness(100000);
+    material_parameters.set_dissipation(5);
+    material_parameters.set_friction(0.9, 0.5);
+
     // Create RigidBodyTree.
     auto tree_ptr = std::make_unique<RigidBodyTree<double>>();
     drake::parsers::urdf::AddModelInstanceFromUrdfFile(
@@ -46,23 +52,20 @@ class ValkyrieSimulationDiagram : public systems::Diagram<double> {
             "drake/examples/valkyrie/urdf/urdf/"
             "valkyrie_A_sim_drake_one_neck_dof_wide_ankle_rom.urdf"),
         multibody::joints::kRollPitchYaw, nullptr /* weld to frame */,
-        tree_ptr.get());
-    multibody::AddFlatTerrainToWorld(tree_ptr.get(), 100., 10.);
+        material_parameters, tree_ptr.get());
+    multibody::AddFlatTerrainToWorld(tree_ptr.get(), 100., 10.,
+                                     material_parameters);
 
     // Instantiate a RigidBodyPlant from the RigidBodyTree.
     plant_ =
         builder.AddSystem<systems::RigidBodyPlant<double>>(std::move(tree_ptr));
     plant_->set_name("plant");
 
-    // Contact parameters
-    const double kStiffness = 100000;
-    const double kDissipation = 5.0;
-    const double kStaticFriction = 0.9;
-    const double kDynamicFriction = 0.5;
     const double kStictionSlipTolerance = 0.01;
-    plant_->set_normal_contact_parameters(kStiffness, kDissipation);
-    plant_->set_friction_contact_parameters(kStaticFriction, kDynamicFriction,
-                                            kStictionSlipTolerance);
+    const double kContactArea = 1;
+    plant_->set_contact_model_parameters(systems::CompliantContactParameters{
+        kStictionSlipTolerance, kContactArea});
+
     const auto& tree = plant_->get_rigid_body_tree();
 
     // RigidBodyActuators.

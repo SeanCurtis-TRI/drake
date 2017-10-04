@@ -11,6 +11,26 @@
 
 namespace py = pybind11;
 
+namespace {
+
+// This is a simple forwarder to disambiguate between two signatures for the
+// URDF AddModelInstanceFromUrdfStringSearchingInRosPackages. This invokes the
+// version that uses the hard-coded default compliant contact material
+// parameters. This should not prove to be a problem because we are not
+// currently exporting compliant contact functionality.
+drake::parsers::ModelInstanceIdTable AddUrdfModelDisambiguation(
+    const std::string& urdf_string,
+    const drake::parsers::PackageMap& package_map, const std::string& root_dir,
+    const drake::multibody::joints::FloatingBaseType floating_base_type,
+    std::shared_ptr<RigidBodyFrame<double>> weld_to_frame,
+    RigidBodyTree<double>* tree) {
+  return drake::parsers::urdf::
+      AddModelInstanceFromUrdfStringSearchingInRosPackages(
+          urdf_string, package_map, root_dir, floating_base_type, weld_to_frame,
+          tree);
+}
+}
+
 PYBIND11_PLUGIN(_pydrake_rbtree) {
   py::module m("_pydrake_rbtree", "Bindings for the RigidBodyTree class");
 
@@ -197,8 +217,7 @@ PYBIND11_PLUGIN(_pydrake_rbtree) {
     .def("get_frame_index", &RigidBodyFrame<double>::get_frame_index);
 
   m.def("AddModelInstanceFromUrdfStringSearchingInRosPackages",
-        &drake::parsers::urdf::\
-          AddModelInstanceFromUrdfStringSearchingInRosPackages);
+        &AddUrdfModelDisambiguation);
 
   return m.ptr();
 }
