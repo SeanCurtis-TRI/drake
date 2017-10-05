@@ -118,7 +118,7 @@ VectorX<T> CompliantContactModel<T>::ComputeContactForce(
       const T x = T(-pair.distance);
       const T x_dot = -v_CBcAc_C(2);
 
-      const T fK = parameters.stiffness() * x * characteristic_area_;
+      const T fK = parameters.stiffness() * characteristic_area_ * x;
       const T fD = fK * parameters.dissipation() * x_dot;
       const T fN = fK + fD;
       if (fN <= 0) continue;

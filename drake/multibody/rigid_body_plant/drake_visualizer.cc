@@ -1,6 +1,7 @@
 #include "drake/multibody/rigid_body_plant/drake_visualizer.h"
 
 #include <chrono>
+#include <stdexcept>
 #include <thread>
 #include <utility>
 
@@ -37,13 +38,13 @@ void DrakeVisualizer::set_publish_period(double period) {
 void DrakeVisualizer::DoCalcNextUpdateTime(
     const Context<double>& context, CompositeEventCollection<double>* events,
     double* time) const {
-  if (is_load_message_sent(context)) {
-    return LeafSystem<double>::DoCalcNextUpdateTime(context, events, time);
-  } else {
+  LeafSystem<double>::DoCalcNextUpdateTime(context, events, time);
+  if (!is_load_message_sent(context)) {
     // TODO(siyuan): cleanup after #5725 is resolved.
-    *time = context.get_time() + 0.0001;
+    double load_time = context.get_time() + 1e-8;
     DiscreteUpdateEvent<double> event(Event<double>::TriggerType::kTimed);
     event.add_to_composite(events);
+    if (load_time < *time) *time = load_time;
   }
 }
 
@@ -140,7 +141,8 @@ void DrakeVisualizer::DoPublish(const Context<double>& context,
     const std::vector<const PublishEvent<double>*>&) const {
   if (!is_load_message_sent(context)) {
     drake::log()->warn(
-        "DrakeVisualizer::Publish() called before PublishLoadRobot()");
+        "DrakeVisualizer::Publish() called before PublishLoadRobot() at "
+            "simulation time = " + std::to_string(context.get_time()));
     return;
   }
 

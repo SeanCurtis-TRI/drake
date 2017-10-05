@@ -318,7 +318,7 @@ int DoMain(void) {
       *iiwa_trajectory_generator, simulator.get_mutable_context());
   iiwa_trajectory_generator->Initialize(
       plan_source_context.get_time(),
-      Eigen::VectorXd::Zero(7),
+      Eigen::VectorXd::Ones(7) * 0.01,
       plan_source_context.get_mutable_state());
 
   // Step the simulator in some small increment.  Between steps, check
