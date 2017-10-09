@@ -149,8 +149,10 @@ std::unique_ptr<systems::RigidBodyPlant<double>> BuildCombinedPlant(
       drake::multibody::joints::kFixed);
   *wsg_instance = tree_builder->get_model_info_for_instance(wsg_id);
 
-  return std::make_unique<systems::RigidBodyPlant<double>>(
+  auto plant = std::make_unique<systems::RigidBodyPlant<double>>(
       tree_builder->Build());
+  plant->set_contact_model_parameters(tree_builder->contact_model_parmeters());
+  return plant;
 }
 
 
@@ -313,6 +315,7 @@ int DoMain(void) {
       FLAGS_dt, simulator.get_mutable_context());
   simulator.get_mutable_integrator()->set_maximum_step_size(FLAGS_dt);
   simulator.get_mutable_integrator()->set_fixed_step_mode(true);
+
 
   auto& plan_source_context = sys->GetMutableSubsystemContext(
       *iiwa_trajectory_generator, simulator.get_mutable_context());

@@ -25,7 +25,39 @@ namespace manipulation {
 namespace util {
 
 template <typename T>
-WorldSimTreeBuilder<T>::WorldSimTreeBuilder() {}
+WorldSimTreeBuilder<T>::WorldSimTreeBuilder() {
+  // TODO(SeanCurtis-TRI): These values preserve the historical behavior of the
+  // compliant contact model. However, it has several issues:
+  //  1. Stiffness is far too small (it does not reflect a reasonable value for
+  //     a material's Young's modulus.
+  //     - the characteristic area is too large for the scenario, but must be
+  //       this large to offset the small stiffness
+  //  2. the dissipation value is not a realistic value for the Hunt-Crossley
+  //     model. According to the original paper, it shouldn't be much larger
+  //     than 0.6 or so.
+#if 0
+  contact_model_parameters_.v_stiction_tolerance = 0.01;
+  contact_model_parameters_.characteristic_area = 2.0;
+  default_contact_material_.set_stiffness(10000);
+  default_contact_material_.set_dissipation(0.9);
+  default_contact_material_.set_friction(0.9, 0.5);
+#else
+//  contact_model_parameters_.v_stiction_tolerance = 0.01;
+//  contact_model_parameters_.characteristic_area = 2e-4;
+//  default_contact_material_.set_stiffness(1e8);
+  default_contact_material_.set_dissipation(.38);
+//  default_contact_material_.set_friction(0.9, 0.5);
+#endif
+  std::cout << "WorldSimTreeBuilder contact parameters:\n";
+  std::cout << "\tModel:\n";
+  std::cout << "\t\tv_stiction_tolerance: " << contact_model_parameters_.v_stiction_tolerance << "\n";
+  std::cout << "\t\tcharacteristic area:  " << contact_model_parameters_.characteristic_area << "\n";
+  std::cout << "\tMaterial:\n";
+  std::cout << "\t\tStiffness:            " << default_contact_material_.stiffness() << "\n";
+  std::cout << "\t\tDissipation:          " << default_contact_material_.dissipation() << "\n";
+  std::cout << "\t\tMu_static:            " << default_contact_material_.static_friction() << "\n";
+  std::cout << "\t\tMu_dynamic:           " << default_contact_material_.dynamic_friction() << "\n";
+}
 
 template <typename T>
 WorldSimTreeBuilder<T>::~WorldSimTreeBuilder() {}
@@ -75,12 +107,14 @@ int WorldSimTreeBuilder<T>::AddModelInstanceToFrame(
   if (extension == ".urdf") {
     table = drake::parsers::urdf::AddModelInstanceFromUrdfFile(
         FindResourceOrThrow(model_map_[model_name]), floating_base_type,
-        weld_to_frame, rigid_body_tree_.get());
+        weld_to_frame, default_contact_material_,
+        rigid_body_tree_.get());
 
   } else if (extension == ".sdf") {
     table = drake::parsers::sdf::AddModelInstancesFromSdfFile(
         FindResourceOrThrow(model_map_[model_name]), floating_base_type,
-        weld_to_frame, rigid_body_tree_.get());
+        weld_to_frame, default_contact_material_,
+        rigid_body_tree_.get());
   }
   const int model_instance_id = table.begin()->second;
 

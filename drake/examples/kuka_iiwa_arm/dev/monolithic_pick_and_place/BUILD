@@ -142,6 +142,7 @@ pick_and_place_test(
         "--target=0",
         "--start-position=2",
         "--end-position=0",
+        "--dt 6.25e-5",
     ],
 )
 

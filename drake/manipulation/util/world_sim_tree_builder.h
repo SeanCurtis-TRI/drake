@@ -6,6 +6,7 @@
 #include <utility>
 
 #include "drake/multibody/rigid_body_tree.h"
+#include "drake/multibody/rigid_body_plant/compliant_contact_model.h"
 
 namespace drake {
 namespace manipulation {
@@ -107,6 +108,12 @@ class WorldSimTreeBuilder {
     return instance_id_to_model_info_.at(id);
   }
 
+  /// The compliant contat model parameters to use with the default material
+  /// parameters; these values should be passed to the plant.
+  systems::CompliantContactParameters contact_model_parmeters() const {
+    return contact_model_parameters_;
+  }
+
  private:
   std::unique_ptr<RigidBodyTree<T>> rigid_body_tree_{
       std::make_unique<RigidBodyTree<T>>()};
@@ -119,6 +126,11 @@ class WorldSimTreeBuilder {
   std::map<std::string, std::string> model_map_;
 
   std::map<int, ModelInstanceInfo<T>> instance_id_to_model_info_;
+
+  // The default parameters for evaluating contact: the parameters for the
+  // model as well as the contact materials of the collision elements.
+  systems::CompliantContactParameters contact_model_parameters_;
+  systems::CompliantMaterialParameters default_contact_material_;
 };
 
 }  // namespace util
