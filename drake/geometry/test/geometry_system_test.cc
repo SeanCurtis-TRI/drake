@@ -398,7 +398,7 @@ GTEST_TEST(GeometrySystemConnectionTest, FullPoseUpdateUnconnectedId) {
   auto diagram = builder.Build();
 
   auto diagram_context = diagram->AllocateContext();
-  diagram->SetDefaults(diagram_context.get());
+  diagram->SetDefaultContext(diagram_context.get());
   auto& geometry_context = dynamic_cast<GeometryContext<double>&>(
       diagram->GetMutableSubsystemContext(*geometry_system,
                                           diagram_context.get()));
@@ -419,7 +419,7 @@ GTEST_TEST(GeometrySystemConnectionTest, FullPoseUpdateNoIdConnection) {
                   geometry_system->get_source_pose_port(source_id));
   auto diagram = builder.Build();
   auto diagram_context = diagram->AllocateContext();
-  diagram->SetDefaults(diagram_context.get());
+  diagram->SetDefaultContext(diagram_context.get());
   auto& geometry_context = dynamic_cast<GeometryContext<double>&>(
       diagram->GetMutableSubsystemContext(*geometry_system,
                                           diagram_context.get()));
@@ -443,7 +443,7 @@ GTEST_TEST(GeometrySystemConnectionTest, FullPoseUpdateNoPoseConnection) {
                   geometry_system->get_source_frame_id_port(source_id));
   auto diagram = builder.Build();
   auto diagram_context = diagram->AllocateContext();
-  diagram->SetDefaults(diagram_context.get());
+  diagram->SetDefaultContext(diagram_context.get());
   auto& geometry_context = dynamic_cast<GeometryContext<double>&>(
       diagram->GetMutableSubsystemContext(*geometry_system,
                                           diagram_context.get()));
@@ -464,7 +464,7 @@ GTEST_TEST(GeometrySystemConnectionTest, FullPoseUpdateNoConnections) {
   source_system->set_name("source_system");
   auto diagram = builder.Build();
   auto diagram_context = diagram->AllocateContext();
-  diagram->SetDefaults(diagram_context.get());
+  diagram->SetDefaultContext(diagram_context.get());
   auto& geometry_context = dynamic_cast<GeometryContext<double>&>(
       diagram->GetMutableSubsystemContext(*geometry_system,
                                           diagram_context.get()));

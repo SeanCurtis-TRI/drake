@@ -44,7 +44,6 @@ set(installed_headers
   double_overloads.h
   drake_assert.h
   drake_assertion_error.h
-  drake_compat.h
   drake_copyable.h
   drake_deprecated.h
   drake_optional.h
@@ -110,9 +109,5 @@ drake_install_libraries(drakeCommon)
 
 add_executable(resource_tool resource_tool.cc)
 target_link_libraries(resource_tool drakeCommon)
-
-if(BUILD_TESTING)
-  add_subdirectory(test)
-endif()
 
 add_subdirectory(proto)

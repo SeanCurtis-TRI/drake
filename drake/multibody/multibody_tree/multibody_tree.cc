@@ -4,8 +4,8 @@
 #include <stdexcept>
 #include <utility>
 
+#include "drake/common/autodiff.h"
 #include "drake/common/drake_assert.h"
-#include "drake/common/eigen_autodiff_types.h"
 #include "drake/common/eigen_types.h"
 #include "drake/multibody/multibody_tree/body_node_welded.h"
 #include "drake/multibody/multibody_tree/rigid_body.h"
@@ -163,12 +163,12 @@ MultibodyTree<T>::CreateDefaultContext() const {
         "to create a context.");
   }
   auto context = std::make_unique<MultibodyTreeContext<T>>(topology_);
-  SetDefaults(context.get());
+  SetDefaultContext(context.get());
   return std::move(context);
 }
 
 template <typename T>
-void MultibodyTree<T>::SetDefaults(systems::Context<T>* context) const {
+void MultibodyTree<T>::SetDefaultContext(systems::Context<T> *context) const {
   for (const auto& mobilizer : owned_mobilizers_) {
     mobilizer->set_zero_configuration(context);
   }

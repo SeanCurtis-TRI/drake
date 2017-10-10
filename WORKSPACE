@@ -23,7 +23,7 @@ load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
 
 local_repository(
     name = "kythe",
-    path = "tools/third_party/kythe",
+    path = "third_party/com_github_google_kythe",
 )
 
 load("@kythe//tools/build_rules/config:pkg_config.bzl", "pkg_config_package")
@@ -69,11 +69,11 @@ github_archive(
 )
 
 github_archive(
-    name = "google_styleguide",
-    repository = "google/styleguide",
-    commit = "159b4c81bbca97a9ca00f1195a37174388398a67",
-    sha256 = "3ed86946e6e637f0fe21749c0323b086e62c4b8b93694d6cedad615cdc584512",  # noqa
-    build_file = "tools/google_styleguide.BUILD",
+    name = "styleguide",
+    repository = "RobotLocomotion/styleguide",
+    commit = "8d38c5909a5ab38824d7f4566b3f3c6ae4557826",
+    sha256 = "09baa2280a63b9d2efe5c07d08f4674339b5b2a0424f71c429c33ac1783a4cd8",  # noqa
+    build_file = "tools/styleguide.BUILD",
 )
 
 github_archive(
@@ -186,39 +186,9 @@ github_archive(
     build_file = "tools/fcl.BUILD",
 )
 
-# For IPOPT, we will either use pkg-config or compile it ourselves, depending
-# on which OS we are using.
-# TODO(jwnimmer-tri) Once we no longer support Ubuntu 14.04 Trusty, we will no
-# longer need to support @robotlocomotion_ipopt; at that point we should remove
-# it from the WORKSPACE and then also remove this alias mapping, instead just
-# using pkg_config_package(name = "ipopt") directly.
-os_specific_alias_repository(
-    name = "ipopt",
-    mapping = {
-        "default": [
-            "ipopt=@ipopt_pkgconfig",
-        ],
-        "Ubuntu 14.04": [
-            "ipopt=@ipopt_robotlocomotion//:ipopt",
-        ],
-    },
-)
-
-# Find an IPOPT using pkg-config; this is conditionally aliased into @ipopt
-# above, or else ends up unused (will not produce "not found" errors).
 pkg_config_package(
-    name = "ipopt_pkgconfig",
+    name = "ipopt",
     modname = "ipopt",
-)
-
-# Build our own IPOPT; this is conditionally aliased into @ipopt above, or else
-# ends up unused (will not be compiled).
-github_archive(
-    name = "ipopt_robotlocomotion",
-    repository = "RobotLocomotion/ipopt-mirror",
-    commit = "aecf5abd3913eebf1b99167c0edd4e65a6b414bc",
-    sha256 = "d88ea1b6b34c5678ef32ced22a6e9cb00f76a490f233d0b2d56270609eb94e3e",  # noqa
-    build_file = "tools/ipopt.BUILD",
 )
 
 github_archive(
@@ -232,8 +202,8 @@ github_archive(
 github_archive(
     name = "optitrack_driver",
     repository = "RobotLocomotion/optitrack-driver",
-    commit = "a3528bdbf0f4b5cd78aaa0685e545ec8af25e789",
-    sha256 = "b910faf16a0ac8bbcb44404e1b47bf25988811e9ed5667cb28c586e3f7dd113f",  # noqa
+    commit = "3c53cefbe16b3fcb0747034d2435cef7f9892265",
+    sha256 = "d09882fd6a9296b020a3e258ec943b8db03ed80c795e7613dac56acbc289c7a4",  # noqa
 )
 
 github_archive(
@@ -268,42 +238,18 @@ github_archive(
     build_file = "tools/tinyobjloader.BUILD",
 )
 
-# Necessary for buildifier.
-github_archive(
-    name = "io_bazel_rules_go",
-    repository = "bazelbuild/rules_go",
-    commit = "0.4.4",
-    sha256 = "afec53d875013de6cebe0e51943345c587b41263fdff36df5ff651fbf03c1c08",  # noqa
-)
-
-# Necessary for buildifier.
-load("@io_bazel_rules_go//go:def.bzl", "go_repositories", "new_go_repository")
-
-# Necessary for buildifier.
-go_repositories()
-
-# Necessary for buildifier.
-new_go_repository(
-    name = "org_golang_x_tools",
-    commit = "3d92dd60033c312e3ae7cac319c792271cf67e37",
-    importpath = "golang.org/x/tools",
-)
-
-github_archive(
-    name = "com_github_bazelbuild_buildtools",
-    repository = "bazelbuild/buildtools",
-    # TODO(mwoehlke-kitware): Bump this commit to a release tag once it is
-    # incorporated in a released version.
-    commit = "7ce605fb1585076ed681e37d82d0ef529244b23a",
-    sha256 = "c6210992d328212a7752a2c888a15f5c597dbf31f03ac0d59457ceff2928a30b",  # noqa
-)
-
 github_archive(
     name = "yaml_cpp",
     repository = "jbeder/yaml-cpp",
     commit = "85af926ddc5f3c8fb438001743e65ec3a039ceec",
     sha256 = "907fb42a502e1448a73959f9a648771b070d6d8513f16d74149f775fc56550ef",  # noqa
     build_file = "tools/yaml_cpp.BUILD",
+)
+
+load("//tools:buildifier.bzl", "buildifier_repository")
+
+buildifier_repository(
+    name = "buildifier",
 )
 
 load("//tools:gurobi.bzl", "gurobi_repository")

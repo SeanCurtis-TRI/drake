@@ -142,7 +142,7 @@ void SolarSystem<T>::AllocateGeometry(GeometrySystem<T>* geometry_system) {
                       Isometry3<double>::Identity(), make_unique<Sphere>(1.f),
                       VisualMaterial(Vector4d(1, 1, 0, 1))));
 
-  // The fixed pose on which Sun sits and around which all planets rotate.
+  // The fixed post on which Sun sits and around which all planets rotate.
   const double post_height = 1;
   Isometry3<double> post_pose = Isometry3<double>::Identity();
   post_pose.translation() << 0, 0, (orrery_bottom + post_height / 2);

@@ -6,7 +6,7 @@ load(
     "exports_create_cps_scripts",
     "install_cmake_config",
 )
-load("//tools:lint.bzl", "add_lint_tests")
+load("//tools/lint:lint.bzl", "add_lint_tests")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -15,12 +15,6 @@ package(default_visibility = ["//visibility:public"])
 filegroup(
     name = "clang-format",
     srcs = ["//:.clang-format"],
-)
-
-sh_binary(
-    name = "asan",
-    srcs = ["asan.sh"],
-    data = ["asan.supp"],
 )
 
 sh_binary(
@@ -38,63 +32,9 @@ sh_binary(
     ],
 )
 
-sh_binary(
-    name = "lsan",
-    srcs = ["lsan.sh"],
-    data = ["lsan.supp"],
-)
-
-sh_binary(
-    name = "msan",
-    srcs = ["msan.sh"],
-    data = ["msan.supp"],
-)
-
-sh_binary(
-    name = "tsan",
-    srcs = ["tsan.sh"],
-    data = ["tsan.supp"],
-)
-
-sh_binary(
-    name = "ubsan",
-    srcs = ["ubsan.sh"],
-    data = ["ubsan.supp"],
-)
-
-sh_binary(
-    name = "valgrind",
-    srcs = ["valgrind.sh"],
-    data = ["valgrind.supp"],
-)
-
-sh_binary(
-    name = "kcov",
-    srcs = ["kcov.sh"],
-)
-
 py_binary(
     name = "cmake_configure_file",
     srcs = ["cmake_configure_file.py"],
-)
-
-py_binary(
-    name = "drakelint",
-    srcs = ["drakelint.py"],
-    # The clang-format-includes binary is not used by drakelint, because
-    # drakelint imports the formatter library directly.  However, we add
-    # clang-format-includes here as a data dependency because the formatter
-    # asks the user to run bazel-bin/drake/tools/clang-format-includes for
-    # fixups, and this ensures it always is freshly compiled and available.
-    data = ["//drake/tools:clang-format-includes"],
-    deps = ["//drake/tools:formatter"],
-)
-
-py_binary(
-    name = "bzlcodestyle",
-    srcs = ["bzlcodestyle.py"],
-    main = "bzlcodestyle.py",
-    deps = ["@pycodestyle//:pycodestyle"],
 )
 
 py_library(
@@ -116,16 +56,6 @@ exports_files(
 exports_files(
     ["ipopt_build_with_autotools.sh"],
     visibility = ["@ipopt_robotlocomotion//:__pkg__"],
-)
-
-exports_files(
-    ["third_party/jchart2d/LICENSE"],
-    visibility = ["//tools/install/jchart2d:__pkg__"],
-)
-
-exports_files(
-    ["third_party/libbot/LICENSE.ldpc"],
-    visibility = ["@libbot//:__pkg__"],
 )
 
 exports_files(
@@ -176,11 +106,6 @@ exports_files(
     visibility = ["@lcmtypes_robotlocomotion//:__pkg__"],
 )
 
-alias(
-    name = "buildifier",
-    actual = "@com_github_bazelbuild_buildtools//buildifier",
-)
-
 cmake_config(
     cps_file_name = "drake.cps",
     package = "drake",
@@ -204,12 +129,10 @@ install_cmake_config(
 # former.
 #
 # On Linux, we support --compiler strings "clang-3.9", "gcc-4.9", and "gcc-5",
-# each of which does exactly what you would expect. "clang-3.9" is the default
-# for convenience, because the Drake install instructions provide it on both
-# Trusty and Xenial. No wrapper script is needed for any of these compilers, so
-# the cc_toolchain rule does not provide one. Support for "gcc-6" is
-# experimental without any guarantees. Note that it is not in our supported
-# configurations yet. See
+# each of which does exactly what you would expect. "clang-3.9" is the default.
+# No wrapper script is needed for any of these compilers, so the cc_toolchain
+# rule does not provide one. Support for "gcc-6" is experimental without any
+# guarantees. Note that it is not in our supported configurations yet. See
 # http://drake.mit.edu/developers.html#supported-configurations for more
 # information.
 cc_toolchain_suite(
@@ -217,7 +140,6 @@ cc_toolchain_suite(
     toolchains = {
         "darwin|compiler": "cc_toolchain_apple",
         "k8|clang-3.9": "cc_toolchain_linux",
-        "k8|gcc-4.9": "cc_toolchain_linux",
         "k8|gcc-5": "cc_toolchain_linux",
         "k8|gcc-6": "cc_toolchain_linux",
     },
@@ -241,7 +163,10 @@ filegroup(
 # A compiler wrapper script that adjusts linker paths on OS X.
 filegroup(
     name = "osx_cc_wrapper",
-    srcs = ["third_party/bazel/tools/cpp/osx_cc_wrapper.sh"],
+    srcs = [
+        "osx_cc_wrapper.sh",
+        "//third_party:com_github_bazelbuild_bazel/tools/cpp/osx_cc_wrapper.sh",  # noqa
+    ],
     visibility = ["//visibility:private"],
 )
 

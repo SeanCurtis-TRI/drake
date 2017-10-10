@@ -6,14 +6,13 @@ load(
     "drake_cc_googletest",
     "drake_cc_library",
 )
-load("//tools:lint.bzl", "add_lint_tests")
+load("//tools/lint:lint.bzl", "add_lint_tests")
 load("@protobuf//:protobuf.bzl", "cc_proto_library")
 
 package(default_visibility = ["//visibility:public"])
 
 cc_proto_library(
     name = "matlab_rpc",
-    testonly = 1,
     srcs = [
         "matlab_rpc.proto",
     ],
