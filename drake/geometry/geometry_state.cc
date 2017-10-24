@@ -6,6 +6,7 @@
 #include <string>
 #include <utility>
 
+#include "drake/common/autodiff.h"
 #include "drake/geometry/geometry_engine_stub.h"
 #include "drake/geometry/geometry_frame.h"
 #include "drake/geometry/geometry_instance.h"
@@ -302,8 +303,8 @@ GeometryId GeometryState<T>::RegisterGeometryWithParent(
 
   // Transform pose relative to geometry, to pose relative to frame.
   const InternalGeometry& new_geometry = geometries_[new_id];
-  Isometry3<T> X_PG = X_FG_[new_geometry.get_engine_index()];
-  Isometry3<T> X_FG =
+  Isometry3<double> X_PG = X_FG_[new_geometry.get_engine_index()];
+  Isometry3<double> X_FG =
       X_FG_[parent_geometry.get_engine_index()] * X_PG;
   X_FG_[new_geometry.get_engine_index()] = X_FG;
 
@@ -327,11 +328,13 @@ GeometryId GeometryState<T>::RegisterAnchoredGeometry(
   set.emplace(geometry_id);
 
   // Pass the geometry to the engine.
-  // TODO(SeanCurtis-TRI): I should be capturing the returned index so I can
-  // remove the geometry later.
+  // TODO(SeanCurtis-TRI): These matrix() shennigans are here because I can't
+  // assign a an Isometry3<double> to an Isometry3<AutoDiffXd>. Replace this
+  // when I can.
+  Isometry3<T> pose;
+  pose.matrix() = geometry->get_pose().matrix();
   auto engine_index =
-      geometry_engine_->AddAnchoredGeometry(geometry->get_shape(),
-                                            geometry->get_pose());
+      geometry_engine_->AddAnchoredGeometry(geometry->get_shape(), pose);
   DRAKE_ASSERT(static_cast<int>(anchored_geometry_index_id_map_.size()) ==
                engine_index);
   anchored_geometry_index_id_map_.push_back(geometry_id);
@@ -631,13 +634,24 @@ void GeometryState<T>::UpdatePosesRecursively(
   // Cache this transform for later use.
   X_PF_[frame.get_pose_index()] = X_PF;
   Isometry3<T> X_WF = X_WP * X_PF;
+  // TODO(SeanCurtis-TRI): Replace this when we have a transform object that
+  // allows proper multiplication between an AutoDiff type and a double type.
+  // For now, it allows me to perform the multiplication by multiplying the
+  // fully-defined transformation (with [0 0 0 1] on the bottom row).
+  X_WF.makeAffine();
   X_WF_[frame.get_pose_index()] = X_WF;
 
   // Update the geometry which belong to *this* frame.
   for (auto child_id : frame.get_child_geometries()) {
     auto& child_geometry = geometries_[child_id];
     auto child_index = child_geometry.get_engine_index();
-    X_WG_[child_index] = X_WF * X_FG_[child_index];
+    // TODO(SeanCurtis-TRI): See note above about replacing this when we have a
+    // transform that supports autodiff * double.
+    X_FG_[child_index].makeAffine();
+    // TODO(SeanCurtis-TRI): These matrix() shennigans are here because I can't
+    // assign a an Isometry3<double> to an Isometry3<AutoDiffXd>. Replace this
+    // when I can.
+    X_WG_[child_index].matrix() = X_WF.matrix() * X_FG_[child_index].matrix();
   }
 
   // Update each child frame.
@@ -649,6 +663,7 @@ void GeometryState<T>::UpdatePosesRecursively(
 
 // Explicitly instantiates on the most common scalar types.
 template class GeometryState<double>;
+template class GeometryState<AutoDiffXd>;
 
 }  // namespace geometry
 }  // namespace drake

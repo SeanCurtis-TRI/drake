@@ -580,6 +580,12 @@ GTEST_TEST(QueryHandleGuardTest, QueryHandleGuardFunctionality) {
       "fresh QueryHandle from the input port.");
 }
 
+// Confirms that the GeometrySystem can be instantiated on AutoDiff type.
+GTEST_TEST(GeometrySystemAutoDiffTest, InstantiateAutoDiff) {
+  GeometrySystem<AutoDiffXd> geometry_system;
+  geometry_system.RegisterSource("dummy_source");
+}
+
 }  // namespace
 }  // namespace geometry
 }  // namespace drake

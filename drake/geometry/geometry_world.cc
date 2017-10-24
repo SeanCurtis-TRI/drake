@@ -9,6 +9,7 @@
 #include "drake/geometry/geometry_query_inputs.h"
 #include "drake/geometry/geometry_state.h"
 #include "drake/geometry/query_results/penetration_as_point_pair.h"
+#include "drake/common/autodiff.h"
 
 namespace drake {
 namespace geometry {
@@ -204,6 +205,7 @@ void GeometryWorld<T>::AssertValidSource(const GeometryState<T>& state,
 
 // Explicitly instantiates on the most common scalar types.
 template class GeometryWorld<double>;
+template class GeometryWorld<AutoDiffXd>;
 
 }  // namespace geometry
 }  // namespace drake

@@ -146,7 +146,14 @@ struct GeometryPair;
   architecture. The workflow changes slightly when running in a Diagram. For
   details on the change, see GeometrySystem.
 
- @tparam T The underlying scalar type. Must be a valid Eigen scalar. */
+ @tparam T The scalar type. Must be a valid Eigen scalar.
+
+ Instantiated templates for the following kinds of T's are provided:
+ - double
+ - AutoDiffXd
+
+ They are already available to link against in the containing library.
+ No other values for T are currently supported. */
 template <typename T>
 class GeometryWorld {
  public:

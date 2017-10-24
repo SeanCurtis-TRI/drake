@@ -45,7 +45,14 @@ using FrameIdSet = std::unordered_set<FrameId>;
  GeometryWorld's context-dependent state includes values and structure -- the
  topology of the world.
 
- @tparam T The underlying scalar type. Must be a valid Eigen scalar. */
+ @tparam T The scalar type. Must be a valid Eigen scalar.
+
+ Instantiated templates for the following kinds of T's are provided:
+ - double
+ - AutoDiffXd
+
+ They are already available to link against in the containing library.
+ No other values for T are currently supported. */
 template <typename T>
 class GeometryState {
  public:

@@ -192,7 +192,14 @@ template <typename T> class GeometryContext;
  //   - Finalizing API for topology changes at discrete events.
  @endcond
 
- @tparam T The underlying scalar type. Must be a valid Eigen scalar.
+ @tparam T The scalar type. Must be a valid Eigen scalar.
+
+ Instantiated templates for the following kinds of T's are provided:
+ - double
+ - AutoDiffXd
+
+ They are already available to link against in the containing library.
+ No other values for T are currently supported.
  @see GeometryWorld  */
 template <typename T>
 class GeometrySystem : public systems::LeafSystem<T> {

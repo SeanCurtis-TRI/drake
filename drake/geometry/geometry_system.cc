@@ -5,6 +5,7 @@
 #include <utility>
 
 #include "drake/common/drake_assert.h"
+#include "drake/common/extract_double.h"
 #include "drake/geometry/geometry_context.h"
 #include "drake/geometry/geometry_instance.h"
 #include "drake/geometry/geometry_state.h"
@@ -361,15 +362,18 @@ void GeometrySystem<T>::ThrowIfStale(size_t guard,
 
 template <typename T>
 size_t GeometrySystem<T>::HashIsometry(const Isometry3<T>& iso) {
+  // NOTE: This precludes the possibility of using Symbolic with GeometrySystem.
+  // However, this is merely a place-holder while the handle functionality
+  // changes.
   size_t hash_val = 0;
-  std::hash<T> hasher;
+  std::hash<double> hasher;
   // The interesting data of an isometry are only the first three rows of
   // the isometry's corresponding 4x4 matrix.
   auto matrix = iso.matrix();
   for (int r = 0; r < 3; ++r) {
     for (int c = 0; c < 4; ++c) {
       // Naive hashing to serve in as a stopgap.
-      hash_val ^= hasher(matrix(r, c));
+      hash_val ^= hasher(ExtractDoubleOrThrow(matrix(r, c)));
     }
   }
   return hash_val;
@@ -377,6 +381,7 @@ size_t GeometrySystem<T>::HashIsometry(const Isometry3<T>& iso) {
 
 // Explicitly instantiates on the most common scalar types.
 template class GeometrySystem<double>;
+template class GeometrySystem<AutoDiffXd>;
 
 // Don't leave the macro defined.
 #undef GS_THROW_IF_CONTEXT_ALLOCATED

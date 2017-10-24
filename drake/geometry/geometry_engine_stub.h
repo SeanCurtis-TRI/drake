@@ -63,7 +63,14 @@ class EngineShape {
  term solution for getting the GeometryWorld _infrastructure_ up and running
  independent of the underlying engine details.
 
- @tparam T The underlying scalar type. Must be a valid Eigen scalar. */
+ @tparam T The scalar type. Must be a valid Eigen scalar.
+
+ Instantiated templates for the following kinds of T's are provided:
+ - double
+ - AutoDiffXd
+
+ They are already available to link against in the containing library.
+ No other values for T are currently supported. */
 template <typename T>
 class GeometryEngineStub : public GeometryEngine<T>, public ShapeReifier {
  public:

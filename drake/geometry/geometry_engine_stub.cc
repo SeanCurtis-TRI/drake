@@ -3,6 +3,7 @@
 #include <limits>
 #include <memory>
 
+#include "drake/common/autodiff.h"
 #include "drake/geometry/geometry_query_inputs.h"
 
 namespace drake {
@@ -135,7 +136,7 @@ optional<PenetrationAsPointPair<T>> CollideHalfSpace(
     const EngineSphere<T>& sphere, const Vector3<T>& p_WA,
     const EngineHalfSpace<T>& plane) {
   using std::abs;
-  double signed_dist = plane.calc_signed_distance(p_WA) - sphere.get_radius();
+  T signed_dist = plane.calc_signed_distance(p_WA) - sphere.get_radius();
   if (signed_dist < 0) {
     PenetrationAsPointPair<T> contact;
     contact.depth = -signed_dist;
@@ -514,6 +515,7 @@ void GeometryEngineStub<T>::ImplementGeometry(const HalfSpace&) {
 
 // Explicitly instantiates on the most common scalar types.
 template class GeometryEngineStub<double>;
+template class GeometryEngineStub<AutoDiffXd>;
 
 }  // namespace geometry
 }  // namespace drake
