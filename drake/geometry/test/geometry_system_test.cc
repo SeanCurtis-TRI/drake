@@ -547,7 +547,7 @@ GTEST_TEST(QueryHandleGuardTest, QueryHandleGuardFunctionality) {
   auto diagram = builder.Build();
 
   auto diagram_context = diagram->AllocateContext();
-  diagram->SetDefaults(diagram_context.get());
+  diagram->SetDefaultContext(diagram_context.get());
   auto& geometry_context = dynamic_cast<GeometryContext<double>&>(
       diagram->GetMutableSubsystemContext(*geometry_system,
                                           diagram_context.get()));
