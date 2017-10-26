@@ -10,10 +10,12 @@ namespace drake {
 namespace geometry {
 namespace {
 
+using stub_shapes::EngineShape;
+using stub_shapes::OwnedIndex;
 /** The engine's representation of a half space. It is defined in its canonical
  frame C lying on the origin with its normal in the +z-axis direction. */
 template <typename T>
-class EngineHalfSpace final : public stub_shapes::EngineShape<T> {
+class EngineHalfSpace final : public EngineShape<T> {
  public:
   DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(EngineHalfSpace)
 
@@ -25,8 +27,8 @@ class EngineHalfSpace final : public stub_shapes::EngineShape<T> {
                     of the canonical frame C. */
   EngineHalfSpace(stub_shapes::OwnedIndex index, const Vector3<T>& normal,
                   const Vector3<T>& r_FC)
-      : stub_shapes::EngineShape<T>(stub_shapes::EngineShape<T>::kHalfSpace,
-                                    index) {
+      : EngineShape<T>(EngineShape<T>::kHalfSpace,
+                       index) {
     Update(normal, r_FC);
   }
 
@@ -60,12 +62,12 @@ class EngineHalfSpace final : public stub_shapes::EngineShape<T> {
   /** Reports the signed distance of a point (measured from frame F's origin as
    `r_FP`) to the half-space's plane boundary. Positive values indicate
    *outside* the half-space. It is assumed that the plane has already been
-   "posed" in frame F via a call to Set(). */
+   "posed" in frame F via a call to Update(). */
   T calc_signed_distance(const Vector3<T>& r_FP) const {
     return normal_.dot(r_FP) + d_;
   }
 
-  const Vector3<T>& get_normal() const { return normal_; }
+  const Vector3<T>& normal() const { return normal_; }
 
  protected:
   EngineHalfSpace* DoClone() const override {
@@ -81,18 +83,17 @@ class EngineHalfSpace final : public stub_shapes::EngineShape<T> {
 /** The engine's representation of a sphere. It is defined in its canonical
  frame C centered on the origin with the given circle. */
 template <typename T>
-class EngineSphere : public stub_shapes::EngineShape<T> {
+class EngineSphere final : public EngineShape<T> {
  public:
   DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(EngineSphere)
 
   EngineSphere(stub_shapes::OwnedIndex index, const Vector3<T>& center,
                double radius)
-      : stub_shapes::EngineShape<T>(stub_shapes::EngineShape<T>::kSphere,
-                                    index),
+      : EngineShape<T>(EngineShape<T>::kSphere, index),
         center_(center),
         radius_(radius) {}
 
-  double get_radius() const { return radius_; }
+  double radius() const { return radius_; }
 
   void Update(const Isometry3<T>& X_WC) override {
     center_ = X_WC.translation();
@@ -114,7 +115,7 @@ optional<PenetrationAsPointPair<T>> CollideSpheres(
   // TODO(SeanCurtis-TRI): Rather than pass in positions, update the sphere.
   auto r_AB = p_WB - p_WA;
   T dist_sqd = r_AB.squaredNorm();
-  const double separating_dist = sphere_A.get_radius() + sphere_B.get_radius();
+  const double separating_dist = sphere_A.radius() + sphere_B.radius();
   const double separating_dist_sqd = separating_dist * separating_dist;
   if (dist_sqd < separating_dist_sqd) {
     // Distance between *centers*!
@@ -123,8 +124,8 @@ optional<PenetrationAsPointPair<T>> CollideSpheres(
       PenetrationAsPointPair<T> contact;
       contact.depth = separating_dist - distance;
       contact.nhat_AB_W = r_AB / distance;
-      contact.p_WCa = p_WA + contact.nhat_AB_W * sphere_A.get_radius();
-      contact.p_WCb = p_WB - contact.nhat_AB_W * sphere_B.get_radius();
+      contact.p_WCa = p_WA + contact.nhat_AB_W * sphere_A.radius();
+      contact.p_WCb = p_WB - contact.nhat_AB_W * sphere_B.radius();
       return contact;
     }
   }
@@ -136,16 +137,16 @@ optional<PenetrationAsPointPair<T>> CollideHalfSpace(
     const EngineSphere<T>& sphere, const Vector3<T>& p_WA,
     const EngineHalfSpace<T>& plane) {
   using std::abs;
-  T signed_dist = plane.calc_signed_distance(p_WA) - sphere.get_radius();
+  T signed_dist = plane.calc_signed_distance(p_WA) - sphere.radius();
   if (signed_dist < 0) {
     PenetrationAsPointPair<T> contact;
     contact.depth = -signed_dist;
     // Penetration direction is *opposite* the plane normal, because the sphere
-    // is always A.
-    contact.nhat_AB_W = -plane.get_normal();
-    contact.p_WCa = p_WA + contact.nhat_AB_W * sphere.get_radius();
+    // is always considered to be "A" in the (A, B) pair.
+    contact.nhat_AB_W = -plane.normal();
+    contact.p_WCa = p_WA + contact.nhat_AB_W * sphere.radius();
     contact.p_WCb =
-        p_WA - plane.get_normal() * (sphere.get_radius() + signed_dist);
+        p_WA - plane.normal() * (sphere.radius() + signed_dist);
     return contact;
   }
   return {};
@@ -153,14 +154,10 @@ optional<PenetrationAsPointPair<T>> CollideHalfSpace(
 
 }  // namespace
 
-using stub_shapes::EngineShape;
-using stub_shapes::OwnedIndex;
-
 using std::make_unique;
 using std::move;
 using std::unique_ptr;
 using std::vector;
-using stub_shapes::EngineShape;
 
 template <typename T>
 GeometryEngineStub<T>::GeometryEngineStub() : GeometryEngine<T>() {}
@@ -217,7 +214,7 @@ void GeometryEngineStub<T>::UpdateWorldPoses(const vector<Isometry3<T>>& X_WG) {
 // geometry indices to operate on. There is a logical set of indices (e.g.,
 // {0, 1, 2, 3, ... N-1} and the iterator steps through them as: (0, 1), (0, 2),
 // (0, N-1), (1, 2), ...(N-2, N-1). Derivations will change how the input set
-// of indices is interpreted.
+// of indices are interpreted.
 //
 // Sub-classes must define two methods:
 //  Pair make_pair() const;
@@ -326,11 +323,11 @@ bool GeometryEngineStub<T>::ComputePairwiseClosestPointsHelper(
     const EngineSphere<T>* sphere_A =
         static_cast<const EngineSphere<T>*>(geometries_[pair.index1]);
     const auto p_WA = X_WG_[pair.index1].translation();
-    const double radius_A = sphere_A->get_radius();
+    const double radius_A = sphere_A->radius();
     const EngineSphere<T>* sphere_B =
         static_cast<const EngineSphere<T>*>(geometries_[pair.index2]);
     const auto p_WB = X_WG_[pair.index2].translation();
-    const double radius_B = sphere_B->get_radius();
+    const double radius_B = sphere_B->radius();
 
     // Compute
     //  r_ACa: the point on A closest to B in A's frame.
@@ -403,7 +400,7 @@ bool GeometryEngineStub<T>::FindClosestGeometry(
           static_cast<const EngineSphere<T>&>(*geometries_[g]);
       const auto& p_WA = X_WG_[g].translation();
       Vector3<T> r_AQ = points.block<3, 1>(0, i) - p_WA;
-      double radius_sqd = sphere.get_radius() * sphere.get_radius();
+      double radius_sqd = sphere.radius() * sphere.radius();
       T distance = r_AQ.squaredNorm() - radius_sqd;
       if (abs(distance) < abs(data[i].distance)) {
         near_geometry[i] = g;
@@ -419,14 +416,14 @@ bool GeometryEngineStub<T>::FindClosestGeometry(
     const EngineSphere<T>& sphere =
         static_cast<const EngineSphere<T>&>(*geometries_[i]);
     const auto& p_WA = X_WG_[near_geometry[i]].translation();
-    const double radius_sqd = sphere.get_radius() * sphere.get_radius();
+    const double radius_sqd = sphere.radius() * sphere.radius();
     data[i].distance =
-        sqrt(data[i].distance - radius_sqd) - sphere.get_radius();
+        sqrt(data[i].distance - radius_sqd) - sphere.radius();
 
     Vector3<T> offset = Vector3<T>::Zero();
     if (abs(data[i].distance) > Eigen::NumTraits<T>::dummy_precision()) {
       *data[i].rhat_CaQ_W /= data[i].distance;
-      offset = *data[i].rhat_CaQ_W * sphere.get_radius();
+      offset = *data[i].rhat_CaQ_W * sphere.radius();
     } else {
       data[i].rhat_CaQ_W = {};
     }
