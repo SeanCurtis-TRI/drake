@@ -78,7 +78,8 @@ GeometryEngineStub<T>::GeometryEngineStub(const GeometryEngineStub<T>& other)
   // newly copied shapes in owned_geometries_.
   geometries_.reserve(other.geometries_.size());
   for (const auto& geometry : other.geometries_) {
-    geometries_.push_back(owned_geometries_[geometry->get_index()].get_mutable());
+    geometries_.push_back(
+        owned_geometries_[geometry->get_index()].get_mutable());
   }
 
   anchored_geometries_.reserve(other.anchored_geometries_.size());
@@ -99,7 +100,8 @@ GeometryEngineStub<T>& GeometryEngineStub<T>::operator=(
   geometries_.clear();
   geometries_.reserve(other.geometries_.size());
   for (const auto& geometry : other.geometries_) {
-    geometries_.push_back(owned_geometries_[geometry->get_index()].get_mutable());
+    geometries_.push_back(
+        owned_geometries_[geometry->get_index()].get_mutable());
   }
 
   anchored_geometries_.clear();
@@ -455,9 +457,11 @@ GeometryEngineStub<T>::ToAutoDiff() const {
   engine_clone->anchored_geometries_.reserve(anchored_geometries_.size());
   size_t geometry_index = 0;
   size_t anchored_index = 0;
-  for (size_t owned_index = 0; owned_index < owned_geometries_.size(); ++owned_index) {
+  for (size_t owned_index = 0; owned_index < owned_geometries_.size();
+       ++owned_index) {
     const auto* source_shape = owned_geometries_[owned_index].get();
-    std::unique_ptr<EngineShape<AutoDiffXd>> clone_shape = source_shape->ToAutoDiff();
+    std::unique_ptr<EngineShape<AutoDiffXd>> clone_shape =
+        source_shape->ToAutoDiff();
     engine_clone->owned_geometries_.emplace_back(std::move(clone_shape));
     EngineShape<AutoDiffXd>* shape_ad =
         engine_clone->owned_geometries_.back().get_mutable();

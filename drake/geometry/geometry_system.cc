@@ -1,5 +1,6 @@
 #include "drake/geometry/geometry_system.h"
 
+#include <algorithm>
 #include <functional>
 #include <string>
 #include <utility>

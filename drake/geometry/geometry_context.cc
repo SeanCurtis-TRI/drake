@@ -1,4 +1,5 @@
 #include "drake/geometry/geometry_context.h"
+
 #include "drake/common/autodiff.h"
 
 namespace drake {

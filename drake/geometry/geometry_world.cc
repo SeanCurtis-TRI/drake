@@ -4,12 +4,12 @@
 #include <utility>
 #include <vector>
 
+#include "drake/common/autodiff.h"
 #include "drake/geometry/geometry_context.h"
 #include "drake/geometry/geometry_instance.h"
 #include "drake/geometry/geometry_query_inputs.h"
 #include "drake/geometry/geometry_state.h"
 #include "drake/geometry/query_results/penetration_as_point_pair.h"
-#include "drake/common/autodiff.h"
 
 namespace drake {
 namespace geometry {

@@ -37,13 +37,15 @@ class GeometryStateTester {
 
   const std::unordered_map<SourceId, std::string>& get_source_name_map() const {
     return state_->source_names_;
-  };
+  }
 
-  const std::unordered_map<SourceId, FrameIdSet>& get_source_frame_id_map() const {
+  const std::unordered_map<SourceId, FrameIdSet>& get_source_frame_id_map()
+      const {
     return state_->source_frame_id_map_;
   }
 
-  const std::unordered_map<SourceId, FrameIdSet>& get_source_root_frame_map() const {
+  const std::unordered_map<SourceId, FrameIdSet>& get_source_root_frame_map()
+      const {
     return state_->source_root_frame_map_;
   }
 
@@ -52,7 +54,8 @@ class GeometryStateTester {
     return state_->source_anchored_geometry_map_;
   }
 
-  const std::unordered_map<FrameId, internal::InternalFrame>& get_frames() const {
+  const std::unordered_map<FrameId, internal::InternalFrame>& get_frames()
+      const {
     return state_->frames_;
   }
 

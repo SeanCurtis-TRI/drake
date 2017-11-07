@@ -52,7 +52,6 @@ class EngineShape {
   }
 
  protected:
-
   virtual std::unique_ptr<EngineShape<T>> DoClone() const = 0;
   virtual std::unique_ptr<EngineShape<AutoDiffXd>> DoToAutoDiff() const = 0;
 
@@ -99,7 +98,7 @@ class EngineHalfSpace final : public EngineShape<T> {
    @param source    The source half space to copy from.
    @tparam U  The scalar type of the source. */
   template <typename U>
-  EngineHalfSpace(const EngineHalfSpace<U> source)
+  explicit EngineHalfSpace(const EngineHalfSpace<U> source)
       : EngineShape<T>(EngineShape<T>::kHalfSpace, source.get_index()),
         normal_(source.normal_.template cast<T>()),
         d_(source.d_) {}
@@ -128,7 +127,7 @@ class EngineHalfSpace final : public EngineShape<T> {
   }
 
   const Vector3<T>& normal() const { return normal_; }
-  T d() const { return d_; };
+  T d() const { return d_; }
 
  protected:
   template <typename>
@@ -163,7 +162,7 @@ class EngineSphere final : public EngineShape<T> {
    @param source    The source half space to copy from.
    @tparam U  The scalar type of the source. */
   template <typename U>
-  EngineSphere(const EngineSphere<U> source)
+  explicit EngineSphere(const EngineSphere<U> source)
       : EngineShape<T>(EngineShape<T>::kSphere, source.get_index()),
         radius_(source.radius_) {}
 

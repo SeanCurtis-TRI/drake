@@ -16,7 +16,7 @@ namespace geometry {
 template <typename T>
 class GeometryEngineStubTester {
  public:
-  GeometryEngineStubTester(const GeometryEngineStub<T>* engine)
+  explicit GeometryEngineStubTester(const GeometryEngineStub<T>* engine)
       : engine_(engine) {}
 
   const std::vector<copyable_unique_ptr<stub_shapes::EngineShape<T>>>&
@@ -105,9 +105,8 @@ TEST_F(GeometryEngineStubTest, TransmogrifyEngine) {
     engine_ad->get_mutable_poses()[1].translation()(i).derivatives() = derivs;
   }
 
-  EXPECT_TRUE( engine_ad->ComputePairwiseClosestPoints(sphere_ids,
-                                                       query_indices,
-                                                       &results));
+  EXPECT_TRUE(engine_ad->ComputePairwiseClosestPoints(sphere_ids, query_indices,
+                                                      &results));
   EXPECT_EQ(results.size(), 1u);
 
   // Examine the gradient of the distance between the two bodies (spheres with
