@@ -6,23 +6,178 @@
 #include <gtest/gtest.h>
 
 #include "drake/common/test_utilities/eigen_matrix_compare.h"
+#include "drake/common/test_utilities/is_dynamic_castable.h"
 #include "drake/geometry/geometry_frame.h"
 #include "drake/geometry/test/query_test_utility.h"
 
 namespace drake {
 namespace geometry {
+
+template <typename T>
+class GeometryEngineStubTester {
+ public:
+  GeometryEngineStubTester(const GeometryEngineStub<T>* engine)
+      : engine_(engine) {}
+
+  const std::vector<copyable_unique_ptr<stub_shapes::EngineShape<T>>>&
+  get_owned_geometries() const {
+    return engine_->owned_geometries_;
+  }
+  const std::vector<stub_shapes::EngineShape<T>*>& get_geometries() const {
+    return engine_->geometries_;
+  }
+  const std::vector<stub_shapes::EngineShape<T>*>& get_anchored_geometries()
+  const {
+    return engine_->anchored_geometries_;
+  }
+
+ private:
+  const GeometryEngineStub<T>* engine_;
+};
+
 namespace {
 
 using std::make_unique;
 using std::vector;
+using stub_shapes::EngineHalfSpace;
+using stub_shapes::EngineShape;
+using stub_shapes::EngineSphere;
+using stub_shapes::OwnedIndex;
 
 using GEngine = GeometryEngineStub<double>;
 
 class GeometryEngineStubTest : public test::GeometryQueryTest {};
 
+// Test that the engine sphere is transmogrifiable.
+GTEST_TEST(EngineShapeTest, TransmogrifySphere) {
+  double radius = 1.5;
+  OwnedIndex index{1};
+  EngineSphere<double> sphere_d{index, radius};
+  EngineShape<double>* base = &sphere_d;
+  EXPECT_TRUE(is_dynamic_castable<EngineSphere<double>>(base));
+  auto base_a = sphere_d.ToAutoDiff();
+  EXPECT_TRUE(is_dynamic_castable<EngineSphere<AutoDiffXd>>(base_a));
+  EngineSphere<AutoDiffXd>* sphere_a =
+      dynamic_cast<EngineSphere<AutoDiffXd>*>(base_a.get());
+  EXPECT_EQ(sphere_a->radius(), sphere_d.radius());
+}
+
+// Test that the engine half space is transmogrifiable.
+GTEST_TEST(EngineShapeTest, TransmogrifyHalfSpace) {
+  Vector3<double> normal(1, 2, 3);
+  normal.normalize();
+  Vector3<double> point(10, 20, 30);
+  OwnedIndex index{1};
+  EngineHalfSpace<double> half_space_d{index, normal, point};
+  EngineHalfSpace<double>* base = &half_space_d;
+  EXPECT_TRUE(is_dynamic_castable<EngineHalfSpace<double>>(base));
+  auto base_a = half_space_d.ToAutoDiff();
+  EXPECT_TRUE(is_dynamic_castable<EngineHalfSpace<AutoDiffXd>>(base_a));
+  EngineHalfSpace<AutoDiffXd>* half_space_a =
+      dynamic_cast<EngineHalfSpace<AutoDiffXd>*>(base_a.get());
+  auto& normal_ad = half_space_a->normal();
+  for (int i = 0; i < 3; ++i)
+    EXPECT_EQ(ExtractDoubleOrThrow(normal_ad[0]), half_space_d.normal()[0]);
+  EXPECT_EQ(ExtractDoubleOrThrow(half_space_a->d()), half_space_d.d());
+}
+
+// Transmogrify the stub engine, bringing all of the registered geometry along.
+// Performs a simple distance query and confirms the derivative is as expected.
+TEST_F(GeometryEngineStubTest, TransmogrifyEngine) {
+  // Set up the experiment.
+  SetUpAxisSpheres();
+  GeometryEngineStub<double>* stub_engine =
+      dynamic_cast<GeometryEngineStub<double>*>(state_tester_.get_engine());
+  ASSERT_NE(stub_engine, nullptr);
+  std::vector<NearestPair<AutoDiffXd>> results;
+  vector<GeometryIndex> query_indices = {GeometryIndex(2),
+                                         GeometryIndex(1)};
+  const std::vector<GeometryId>& sphere_ids =
+      state_tester_.get_index_to_id_map();
+
+  // Transmogrify and set the derivatives for sphere 1's position.
+  std::unique_ptr<GeometryEngineStub<AutoDiffXd>> engine_ad{
+      dynamic_cast<GeometryEngineStub<AutoDiffXd>*>(
+          stub_engine->ToAutoDiff().release())};
+  for (int i = 0; i < 3; ++i) {
+    VectorX<double> derivs = VectorX<double>::Zero(3);
+    derivs(i) = 1;
+    engine_ad->get_mutable_poses()[1].translation()(i).derivatives() = derivs;
+  }
+
+  EXPECT_TRUE( engine_ad->ComputePairwiseClosestPoints(sphere_ids,
+                                                       query_indices,
+                                                       &results));
+  EXPECT_EQ(results.size(), 1u);
+
+  // Examine the gradient of the distance between the two bodies (spheres with
+  // centers and radii of a, aᵣ, b, and, bᵣ, respectively).
+  //
+  // d = ‖ᵇrᵃ‖₂ - aᵣ - bᵣ = ‖a - b‖₂ - aᵣ - bᵣ
+  //
+  // The gradient of this quantity w.r.t. the position of body a is:
+  //
+  // ∇ₐd = <a₀ - b₀, a₁ - b₁, a₂ - b₂> / ‖ᵇrᵃ‖₂
+  //
+  // In this case, bodies a and b are at:
+  //  a: [1, 0, 0]
+  //  b: [0, 1, 0]
+  // So, the expected gradient is:
+  //
+  // ∇ₐd = <1 - 0, 0 - 1, 0 - 0> / √2 = <1, -1, 0> / √2
+
+  EXPECT_EQ(results[0].distance.derivatives()(0), 1 / sqrt(2));
+  EXPECT_EQ(results[0].distance.derivatives()(1), -1 / sqrt(2));
+  EXPECT_EQ(results[0].distance.derivatives()(2), 0);
+}
+
 TEST_F(GeometryEngineStubTest, Constructor) {
   GEngine engine;
   EXPECT_EQ(engine.get_update_input_size(), 0);
+}
+
+// Confirms that the copy constructor creates the appropriate, independent stub.
+TEST_F(GeometryEngineStubTest, CopyConstructor) {
+  SetUpAxisSpheres();
+  state_->RegisterAnchoredGeometry(
+      source_id_, make_unique<GeometryInstance>(Isometry3<double>::Identity(),
+                                                make_sphere(1.0)));
+
+  GEngine engine(*dynamic_cast<GEngine*>(state_tester_.get_engine()));
+  GeometryEngineStubTester<double> src(
+      dynamic_cast<GEngine*>(state_tester_.get_engine()));
+  GeometryEngineStubTester<double> copy(&engine);
+
+  // Confirms that the *owned* data is equivalent but different instances.
+  const auto& src_owned = src.get_owned_geometries();
+  const auto& copy_owned = copy.get_owned_geometries();
+  EXPECT_EQ(copy_owned.size(), src_owned.size());
+  for (size_t i = 0; i < copy_owned.size(); ++i) {
+    EXPECT_NE(copy_owned[i].get(), src_owned[i].get());
+    EXPECT_EQ(copy_owned[i]->get_type(), src_owned[i]-> get_type());
+    EXPECT_EQ(copy_owned[i]->get_index(), src_owned[i]->get_index());
+    EXPECT_EQ(copy_owned[i]->get_index(), i);
+  }
+
+  // Confirms that the *geometry* data is equivalent but different instances.
+  const auto& src_geometry = src.get_geometries();
+  const auto& copy_geometry = copy.get_geometries();
+  EXPECT_EQ(copy_geometry.size(), src_geometry.size());
+  for (size_t i = 0; i < copy_geometry.size(); ++i) {
+    EXPECT_NE(copy_geometry[i], src_geometry[i]);
+    OwnedIndex owned_index = copy_geometry[i]->get_index();
+    EXPECT_EQ(copy_owned[owned_index].get(), copy_geometry[i]);
+  }
+
+  // Confirms that the *geometry* data is equivalent but different instances.
+  const auto& src_anchored = src.get_anchored_geometries();
+  const auto& copy_anchored = copy.get_anchored_geometries();
+  EXPECT_EQ(copy_anchored.size(), src_anchored.size());
+  for (size_t i = 0; i < copy_anchored.size(); ++i) {
+    EXPECT_NE(copy_anchored[i], src_anchored[i]);
+    OwnedIndex owned_index = copy_anchored[i]->get_index();
+    EXPECT_EQ(copy_owned[owned_index].get(), copy_anchored[i]);
+  }
 }
 
 // Tests the interface in which all geometries in the world are included.

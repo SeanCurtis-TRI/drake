@@ -21,6 +21,11 @@ using std::move;
 using std::unique_ptr;
 using std::vector;
 
+// Tests that the GeometryWorld can be instantiated on AutoDiffXd.
+GTEST_TEST(GeometryWorldScalarTest, Autodiff) {
+  auto world = make_unique<GeometryWorld<AutoDiffXd>>();
+}
+
 class GeometryWorldTest : public ::testing::Test {
  protected:
   void SetUp() {
@@ -39,7 +44,7 @@ class GeometryWorldTest : public ::testing::Test {
 // TODO(SeanCurtis-TRI): Move this into the GeometrySystem test.
 // // Confirm that the state is extracted from the context without any copying.
 // TEST_F(GeometryWorldTest, PullStateFromContext) {
-//  auto state_ptr = world_->get_mutable_state(context_.get());
+//  auto& state_ptr = world_->get_mutable_geometry_state(context_.get());
 //  EXPECT_EQ(state_ptr, geometry_state_);
 //  auto& state = world_->get_state(*context_);
 //  EXPECT_EQ(&state, geometry_state_);

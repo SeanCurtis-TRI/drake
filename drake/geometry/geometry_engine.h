@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 
+#include "drake/common/autodiff.h"
 #include "drake/common/drake_optional.h"
 #include "drake/common/eigen_types.h"
 #include "drake/geometry/geometry_ids.h"
@@ -47,9 +48,20 @@ class GeometryEngine {
  public:
   virtual ~GeometryEngine() {}
 
+  /** @name Cloning and conversion from between scalar types. */
+  //@{
+
+  /** Returns an independent copy of this engine on the same scalar type. */
   std::unique_ptr<GeometryEngine> Clone() const {
     return std::unique_ptr<GeometryEngine>(DoClone());
   }
+
+  /** Returns an independent copy of this engine on the AutoDiffXd scalar
+   type. If the engine is already an AutoDiffXd engine, it is the same as
+   calling Clone(). */
+  virtual std::unique_ptr<GeometryEngine<AutoDiffXd>> ToAutoDiff() const = 0;
+
+  //@}
 
   /** @name                    Geometry Management
    @{ */

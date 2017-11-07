@@ -202,11 +202,17 @@ template <typename T> class GeometryContext;
  No other values for T are currently supported.
  @see GeometryWorld  */
 template <typename T>
-class GeometrySystem : public systems::LeafSystem<T> {
+class GeometrySystem final : public systems::LeafSystem<T> {
  public:
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(GeometrySystem)
 
   GeometrySystem();
+
+  /** Constructor used for scalar conversions. It should only be used to convert
+   _from_ double _to_ other scalar types. */
+  template <typename U>
+  explicit GeometrySystem(const GeometrySystem<U>& other);
+
   ~GeometrySystem() override {}
 
   /** @name       Port management
@@ -460,6 +466,13 @@ class GeometrySystem : public systems::LeafSystem<T> {
   // Friend class to facilitate testing.
   friend class GeometrySystemTester;
 
+  // GeometrySystem of different scalar types can all access each other's data.
+  template <typename>
+  friend class GeometrySystem;
+
+  // Helper class to register input ports for a source id.
+  void MakeSourcePorts(SourceId source_id);
+
   // Allow the load dispatch to peek into GeometrySystem.
   friend void DispatchLoadMessage(const GeometrySystem<double>&);
 
@@ -554,4 +567,21 @@ class GeometrySystem : public systems::LeafSystem<T> {
 };
 
 }  // namespace geometry
+
+// Define the conversion trait to *only* allow double -> AutoDiffXd conversion.
+// Symbolic is not supported (because ExtractDoubleOrThrow is used) and
+// conversion the other way doesn't compile.
+namespace systems {
+namespace scalar_conversion {
+template <>
+struct Traits<geometry::GeometrySystem> {
+  template <typename T, typename U>
+  using supported = typename std::conditional<
+      !std::is_same<T, symbolic::Expression>::value &&
+          std::is_same<U, double>::value,
+      std::true_type, std::false_type>::type;
+};
+}  // namespace scalar_conversion
+}  // namespace systems
+
 }  // namespace drake

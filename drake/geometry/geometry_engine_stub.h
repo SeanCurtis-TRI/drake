@@ -4,6 +4,7 @@
 #include <utility>
 #include <vector>
 
+#include "drake/common/autodiff.h"
 #include "drake/common/copyable_unique_ptr.h"
 #include "drake/common/eigen_types.h"
 #include "drake/geometry/geometry_engine.h"
@@ -32,7 +33,7 @@ class EngineShape {
     kHalfSpace,
   };
 
-  explicit EngineShape(Type type, OwnedIndex index)
+  EngineShape(Type type, OwnedIndex index)
       : type_(type), index_(index) {}
 
   virtual ~EngineShape() {}
@@ -44,12 +45,16 @@ class EngineShape {
   OwnedIndex get_index() const { return index_; }
   void set_index(OwnedIndex index) { index_ = index; }
 
-  std::unique_ptr<EngineShape> Clone() const {
-    return std::unique_ptr<EngineShape>(DoClone());
+  std::unique_ptr<EngineShape> Clone() const { return DoClone(); }
+
+  std::unique_ptr<EngineShape<AutoDiffXd>> ToAutoDiff() const {
+    return DoToAutoDiff();
   }
 
  protected:
-  virtual EngineShape* DoClone() const = 0;
+
+  virtual std::unique_ptr<EngineShape<T>> DoClone() const = 0;
+  virtual std::unique_ptr<EngineShape<AutoDiffXd>> DoToAutoDiff() const = 0;
 
  private:
   Type type_{kUnknown};
@@ -57,7 +62,136 @@ class EngineShape {
   OwnedIndex index_;
 };
 
+/** The engine's representation of a half space. It is defined in its canonical
+ frame C lying on the origin with its normal in the +z-axis direction. */
+template <typename T>
+class EngineHalfSpace final : public EngineShape<T> {
+ public:
+  DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(EngineHalfSpace)
+
+  /** Constructor.
+   @param normal    A vector normal to the plane. It points in the "outside"
+                    direction. It is assumed to be unit length. It is
+                    measured and expressed in the frame F.
+   @param r_FC      The position vector from the origin of frame F to the origin
+                    of the canonical frame C. */
+  EngineHalfSpace(stub_shapes::OwnedIndex index, const Vector3<T>& normal,
+                  const Vector3<T>& r_FC)
+      : EngineShape<T>(EngineShape<T>::kHalfSpace,
+                       index) {
+    Update(normal, r_FC);
+  }
+
+  /** Constructor. Defines the plane from the given transform. The plane normal
+   is the z-axis of isometry's z-axis and the origin, translated by the isometry
+   is a point on the plane.
+   @param X_FC      The transform from the plane's canonical frame (normal is
+                    +z-axis, lying on th origin) to the frame F.
+   */
+  EngineHalfSpace(stub_shapes::OwnedIndex index, const Isometry3<T>& X_FC)
+      : EngineShape<T>(EngineShape<T>::kHalfSpace,
+                       index) {
+    Update(X_FC);
+  }
+
+  /** Constructor for initializing a half space from another half space of
+   different type.
+   @param source    The source half space to copy from.
+   @tparam U  The scalar type of the source. */
+  template <typename U>
+  EngineHalfSpace(const EngineHalfSpace<U> source)
+      : EngineShape<T>(EngineShape<T>::kHalfSpace, source.get_index()),
+        normal_(source.normal_.template cast<T>()),
+        d_(source.d_) {}
+
+  void Update(const Isometry3<T>& X_WC) override {
+    Update(X_WC.linear().col(2), X_WC.translation());
+  }
+
+  /** Sets the plane parameters from the given normal and point on the plane.
+   @param normal    A vector normal to the plane. It points in the "outside"
+                    direction. It is assumed to be unit length. It is
+                    measured and expressed in the frame F.
+   @param r_FC      The position vector from the origin of frame F to the origin
+                    of the canonical frame C. */
+  void Update(const Vector3<T>& normal, const Vector3<T>& r_FC) {
+    normal_ = normal;
+    d_ = -normal_.dot(r_FC);
+  }
+
+  /** Reports the signed distance of a point (measured from frame F's origin as
+   `r_FP`) to the half-space's plane boundary. Positive values indicate
+   *outside* the half-space. It is assumed that the plane has already been
+   "posed" in frame F via a call to Update(). */
+  T calc_signed_distance(const Vector3<T>& r_FP) const {
+    return normal_.dot(r_FP) + d_;
+  }
+
+  const Vector3<T>& normal() const { return normal_; }
+  T d() const { return d_; };
+
+ protected:
+  template <typename>
+  friend class EngineHalfSpace;
+
+  std::unique_ptr<EngineShape<T>> DoClone() const override {
+    return std::make_unique<EngineHalfSpace>(*this);
+  }
+
+  std::unique_ptr<EngineShape<AutoDiffXd>> DoToAutoDiff() const override {
+    return std::make_unique<EngineHalfSpace<AutoDiffXd>>(*this);
+  }
+
+ private:
+  // Defines the implicit equation of the plane: P(x) = dot(N, x) + d
+  Vector3<T> normal_;
+  T d_{0.0};
+};
+
+/** The engine's representation of a sphere. It is defined in its canonical
+ frame C centered on the origin with the given circle. */
+template <typename T>
+class EngineSphere final : public EngineShape<T> {
+ public:
+  DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(EngineSphere)
+
+  EngineSphere(stub_shapes::OwnedIndex index, double radius)
+      : EngineShape<T>(EngineShape<T>::kSphere, index), radius_(radius) {}
+
+  /** Constructor for initializing a half space from another half space of
+   different type.
+   @param source    The source half space to copy from.
+   @tparam U  The scalar type of the source. */
+  template <typename U>
+  EngineSphere(const EngineSphere<U> source)
+      : EngineShape<T>(EngineShape<T>::kSphere, source.get_index()),
+        radius_(source.radius_) {}
+
+  double radius() const { return radius_; }
+
+  void Update(const Isometry3<T>& X_WC) override {}
+
+ protected:
+  // Friends with shapes of all scalar types.
+  template <typename>
+  friend class EngineSphere;
+
+  std::unique_ptr<EngineShape<T>> DoClone() const override {
+    return std::make_unique<EngineSphere>(*this);
+  }
+
+  std::unique_ptr<EngineShape<AutoDiffXd>> DoToAutoDiff() const override {
+    return std::make_unique<EngineSphere<AutoDiffXd>>(*this);
+  }
+
+ private:
+  double radius_;
+};
+
 }  // namespace stub_shapes
+
+// Forward declaration
+template <typename T> class GeometryEngineStubTester;
 
 /** A stub geometry engine that operates only on spheres. This will be my short-
  term solution for getting the GeometryWorld _infrastructure_ up and running
@@ -74,9 +208,18 @@ class EngineShape {
 template <typename T>
 class GeometryEngineStub : public GeometryEngine<T>, public ShapeReifier {
  public:
-  DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(GeometryEngineStub)
+  /** @name Implements CopyConstructible, CopyAssignable, MoveConstructible,
+   MoveAssignable */
+  //@{
 
-  GeometryEngineStub();
+  GeometryEngineStub(const GeometryEngineStub& other);
+  GeometryEngineStub& operator=(const GeometryEngineStub& other);
+  GeometryEngineStub(GeometryEngineStub&&) = default;
+  GeometryEngineStub& operator=(GeometryEngineStub&&) = default;
+
+  //@}
+
+  GeometryEngineStub() = default;
 
   // Geometry management methods
 
@@ -118,12 +261,23 @@ class GeometryEngineStub : public GeometryEngine<T>, public ShapeReifier {
       const std::vector<GeometryId>& dynamic_map,
       const std::vector<GeometryId>& anchored_map) const override;
 
+  // Cloning and transmogrification
+  std::unique_ptr<GeometryEngine<AutoDiffXd>> ToAutoDiff() const override;
+
   // ShapeReifier interface implementation.
   void ImplementGeometry(const Sphere& sphere) override;
   void ImplementGeometry(const Cylinder& cylinder) override;
   void ImplementGeometry(const HalfSpace& half_space) override;
 
+  std::vector<Isometry3<T>>& get_mutable_poses() { return X_WG_; }
+
  protected:
+  // Friends with shapes of all scalar types.
+  template <typename>
+  friend class GeometryEngineStub;
+
+  friend class GeometryEngineStubTester<T>;
+
   // NVI implementation for cloning GeometryEngine instances.
   // @return A _raw_ pointers to the newly cloned GeometryEngine instance.
   GeometryEngineStub* DoClone() const override {

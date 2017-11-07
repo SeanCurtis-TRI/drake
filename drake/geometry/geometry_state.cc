@@ -421,6 +421,12 @@ const FrameIdSet& GeometryState<T>::GetFramesForSource(
 }
 
 template <typename T>
+std::unique_ptr<GeometryState<AutoDiffXd>> GeometryState<T>::ToAutoDiff()
+    const {
+  return std::unique_ptr<GeometryState<AutoDiffXd>>(
+      new GeometryState<AutoDiffXd>(*this));
+}
+template <typename T>
 void GeometryState<T>::SetFramePoses(const FrameIdVector& ids,
                                      const FramePoseVector<T>& poses) {
   ValidateFramePoses(ids, poses);

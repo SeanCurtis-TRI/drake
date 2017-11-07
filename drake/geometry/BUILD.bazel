@@ -256,6 +256,7 @@ drake_cc_googletest(
     deps = [
         ":geometry_engine",
         ":query_test_utility",
+        "//drake/common/test_utilities:is_dynamic_castable",
     ],
 )
 

@@ -3,109 +3,17 @@
 #include <limits>
 #include <memory>
 
-#include "drake/common/autodiff.h"
+#include "drake/common/extract_double.h"
 #include "drake/geometry/geometry_query_inputs.h"
 
 namespace drake {
 namespace geometry {
 namespace {
 
+using std::make_unique;
 using stub_shapes::EngineShape;
-using stub_shapes::OwnedIndex;
-/** The engine's representation of a half space. It is defined in its canonical
- frame C lying on the origin with its normal in the +z-axis direction. */
-template <typename T>
-class EngineHalfSpace final : public EngineShape<T> {
- public:
-  DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(EngineHalfSpace)
-
-  /** Constructor.
-   @param normal    A vector normal to the plane. It points in the "outside"
-                    direction. It is assumed to be unit length. It is
-                    measured and expressed in the frame F.
-   @param r_FC      The position vector from the origin of frame F to the origin
-                    of the canonical frame C. */
-  EngineHalfSpace(stub_shapes::OwnedIndex index, const Vector3<T>& normal,
-                  const Vector3<T>& r_FC)
-      : EngineShape<T>(EngineShape<T>::kHalfSpace,
-                       index) {
-    Update(normal, r_FC);
-  }
-
-  /** Constructor. Defines the plane from the given transform. The plane normal
-   is the z-axis of isometry's z-axis and the origin, translated by the isometry
-   is a point on the plane.
-   @param X_FC      The transform from the plane's canonical frame (normal is
-                    +z-axis, lying on th origin) to the frame F.
-   */
-  EngineHalfSpace(stub_shapes::OwnedIndex index, const Isometry3<T>& X_FC)
-      : stub_shapes::EngineShape<T>(stub_shapes::EngineShape<T>::kHalfSpace,
-                                    index) {
-    Update(X_FC);
-  }
-
-  void Update(const Isometry3<T>& X_WC) override {
-    Update(X_WC.linear().col(2), X_WC.translation());
-  }
-
-  /** Sets the plane parameters from the given normal and point on the plane.
-   @param normal    A vector normal to the plane. It points in the "outside"
-                    direction. It is assumed to be unit length. It is
-                    measured and expressed in the frame F.
-   @param r_FC      The position vector from the origin of frame F to the origin
-                    of the canonical frame C. */
-  void Update(const Vector3<T>& normal, const Vector3<T>& r_FC) {
-    normal_ = normal;
-    d_ = -normal_.dot(r_FC);
-  }
-
-  /** Reports the signed distance of a point (measured from frame F's origin as
-   `r_FP`) to the half-space's plane boundary. Positive values indicate
-   *outside* the half-space. It is assumed that the plane has already been
-   "posed" in frame F via a call to Update(). */
-  T calc_signed_distance(const Vector3<T>& r_FP) const {
-    return normal_.dot(r_FP) + d_;
-  }
-
-  const Vector3<T>& normal() const { return normal_; }
-
- protected:
-  EngineHalfSpace* DoClone() const override {
-    return new EngineHalfSpace(*this);
-  }
-
- private:
-  // Defines the implicit equation of the plane: P(x) = dot(N, x) + d
-  Vector3<T> normal_;
-  T d_{0.0};
-};
-
-/** The engine's representation of a sphere. It is defined in its canonical
- frame C centered on the origin with the given circle. */
-template <typename T>
-class EngineSphere final : public EngineShape<T> {
- public:
-  DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(EngineSphere)
-
-  EngineSphere(stub_shapes::OwnedIndex index, const Vector3<T>& center,
-               double radius)
-      : EngineShape<T>(EngineShape<T>::kSphere, index),
-        center_(center),
-        radius_(radius) {}
-
-  double radius() const { return radius_; }
-
-  void Update(const Isometry3<T>& X_WC) override {
-    center_ = X_WC.translation();
-  }
-
- protected:
-  EngineSphere* DoClone() const override { return new EngineSphere(*this); }
-
- private:
-  Vector3<T> center_;
-  double radius_;
-};
+using stub_shapes::EngineSphere;
+using stub_shapes::EngineHalfSpace;
 
 // Helper method to compute the contact between two spheres.
 template <typename T>
@@ -160,7 +68,49 @@ using std::unique_ptr;
 using std::vector;
 
 template <typename T>
-GeometryEngineStub<T>::GeometryEngineStub() : GeometryEngine<T>() {}
+GeometryEngineStub<T>::GeometryEngineStub(const GeometryEngineStub<T>& other)
+    : GeometryEngine<T>(),
+      owned_geometries_(other.owned_geometries_),
+      geometries_(),
+      anchored_geometries_(),
+      X_WG_(other.X_WG_) {
+  // Make sure mappings in geometries_ and anchored_geometries_ reflect the
+  // newly copied shapes in owned_geometries_.
+  geometries_.reserve(other.geometries_.size());
+  for (const auto& geometry : other.geometries_) {
+    geometries_.push_back(owned_geometries_[geometry->get_index()].get_mutable());
+  }
+
+  anchored_geometries_.reserve(other.anchored_geometries_.size());
+  for (const auto& geometry : other.anchored_geometries_) {
+    anchored_geometries_.push_back(
+        owned_geometries_[geometry->get_index()].get_mutable());
+  }
+}
+
+template <typename T>
+GeometryEngineStub<T>& GeometryEngineStub<T>::operator=(
+    const GeometryEngineStub<T>& other) {
+  owned_geometries_ = other.owned_geometries_;
+  X_WG_ = other.X_WG_;
+
+  // Make sure mappings in geometries_ and anchored_geometries_ reflect the
+  // newly copied shapes in owned_geometries_.
+  geometries_.clear();
+  geometries_.reserve(other.geometries_.size());
+  for (const auto& geometry : other.geometries_) {
+    geometries_.push_back(owned_geometries_[geometry->get_index()].get_mutable());
+  }
+
+  anchored_geometries_.clear();
+  anchored_geometries_.reserve(other.anchored_geometries_.size());
+  for (const auto& geometry : other.anchored_geometries_) {
+    anchored_geometries_.push_back(
+        owned_geometries_[geometry->get_index()].get_mutable());
+  }
+
+  return *this;
+}
 
 template <typename T>
 GeometryIndex GeometryEngineStub<T>::AddDynamicGeometry(
@@ -322,11 +272,11 @@ bool GeometryEngineStub<T>::ComputePairwiseClosestPointsHelper(
   for (const auto& pair : pair_set) {
     const EngineSphere<T>* sphere_A =
         static_cast<const EngineSphere<T>*>(geometries_[pair.index1]);
-    const auto p_WA = X_WG_[pair.index1].translation();
+    const Vector3<T> p_WA = X_WG_[pair.index1].translation();
     const double radius_A = sphere_A->radius();
     const EngineSphere<T>* sphere_B =
         static_cast<const EngineSphere<T>*>(geometries_[pair.index2]);
-    const auto p_WB = X_WG_[pair.index2].translation();
+    const Vector3<T> p_WB = X_WG_[pair.index2].translation();
     const double radius_B = sphere_B->radius();
 
     // Compute
@@ -335,10 +285,10 @@ bool GeometryEngineStub<T>::ComputePairwiseClosestPointsHelper(
     //  rhat_CaCb_W: The unit vector pointing from Ca to Cb.
     //    rhat_CaCb_W is the same as rhat_AB (the unit vector pointing from A's
     //    center to B's center because we are limited to spheres.
-    auto r_AB_W = p_WB - p_WA;
+    Vector3<T> r_AB_W = p_WB - p_WA;
     T dist = r_AB_W.norm();
     auto rhat_CaCb_W = r_AB_W / dist;
-    auto r_ACa_W = rhat_CaCb_W * radius_A;
+    Vector3<T> r_ACa_W = rhat_CaCb_W * radius_A;
     auto r_ACa_A = X_WG_[pair.index1].linear().transpose() * r_ACa_W;
     auto r_BCb_W = rhat_CaCb_W * -radius_B;
     auto r_BCb_B = X_WG_[pair.index2].linear().transpose() * r_BCb_W;
@@ -448,10 +398,15 @@ std::vector<PenetrationAsPointPair<T>> GeometryEngineStub<
       switch (anchored_geometries_[a]->get_type()) {
         case EngineShape<T>::kSphere:
           {
+            // This implicitly disallows anchored spheres from a penetration
+            // calculation perspective.
             DRAKE_DEMAND(false && "This isn't implemented yet");
             const EngineSphere<T>& sphere_B =
                 static_cast<const EngineSphere<T>&>(*anchored_geometries_[a]);
-            // TODO(SeanCurtis-TRI): I need to get anchored poses.
+            // TODO(SeanCurtis-TRI): I need to get anchored poses. This is a
+            // BUG!! I have no guarantees that `a` is a valid index into X_WG_.
+            // The simple solution is to put the center back into the sphere and
+            // simply grab the center directly.
             contact = CollideSpheres<T>(sphere_A, X_WG_[i].translation(),
                                         sphere_B, X_WG_[a].translation());
           }
@@ -474,6 +429,8 @@ std::vector<PenetrationAsPointPair<T>> GeometryEngineStub<
       }
     }
     // dynamic-dynamic collisions.
+    // TODO(SeanCurtis-TRI): This should fail badly if there is a halfspace
+    // registered. It also won't work with cylinders.
     for (int j = i + 1; j < get_update_input_size(); ++j) {
       const EngineSphere<T>& sphere_B =
           static_cast<const EngineSphere<T>&>(*geometries_[j]);
@@ -490,10 +447,48 @@ std::vector<PenetrationAsPointPair<T>> GeometryEngineStub<
 }
 
 template <typename T>
+std::unique_ptr<GeometryEngine<AutoDiffXd>>
+GeometryEngineStub<T>::ToAutoDiff() const {
+  auto engine_clone = make_unique<GeometryEngineStub<AutoDiffXd>>();
+  engine_clone->owned_geometries_.reserve(owned_geometries_.size());
+  engine_clone->geometries_.reserve(geometries_.size());
+  engine_clone->anchored_geometries_.reserve(anchored_geometries_.size());
+  size_t geometry_index = 0;
+  size_t anchored_index = 0;
+  for (size_t owned_index = 0; owned_index < owned_geometries_.size(); ++owned_index) {
+    const auto* source_shape = owned_geometries_[owned_index].get();
+    std::unique_ptr<EngineShape<AutoDiffXd>> clone_shape = source_shape->ToAutoDiff();
+    engine_clone->owned_geometries_.emplace_back(std::move(clone_shape));
+    EngineShape<AutoDiffXd>* shape_ad =
+        engine_clone->owned_geometries_.back().get_mutable();
+    if (geometry_index < geometries_.size() &&
+        source_shape == geometries_[geometry_index++]) {
+      engine_clone->geometries_.push_back(shape_ad);
+    } else if (anchored_index < anchored_geometries_.size() &&
+        source_shape == anchored_geometries_[anchored_index++]) {
+      engine_clone->anchored_geometries_.push_back(shape_ad);
+    } else {
+      DRAKE_ABORT_MSG("Attempting to convert a shape that is neither dynamic "
+                      "nor anchored.");
+    }
+  }
+
+  // Copy geometry poses
+  engine_clone->X_WG_.resize(X_WG_.size());
+  for (size_t i = 0; i < X_WG_.size(); ++i) {
+    // NOTE: Can't assign Isometry3<double> to Isometry3<AutoDiff>. But we *can*
+    // assign Matrix<double> to Matrix<AutoDiff>, so that's what we're doing.
+    engine_clone->X_WG_[i].matrix() = X_WG_[i].matrix();
+  }
+
+  return engine_clone;
+}
+
+template <typename T>
 void GeometryEngineStub<T>::ImplementGeometry(const Sphere& sphere) {
   stub_shapes::OwnedIndex index(static_cast<int>(owned_geometries_.size()));
   owned_geometries_.emplace_back(std::unique_ptr<EngineSphere<T>>(
-      new EngineSphere<T>(index, Vector3<T>::Zero(), sphere.get_radius())));
+      new EngineSphere<T>(index, sphere.get_radius())));
 }
 
 template <typename T>
