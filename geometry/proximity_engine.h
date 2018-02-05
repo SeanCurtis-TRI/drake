@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "drake/common/autodiff.h"
+#include "drake/common/drake_optional.h"
 #include "drake/geometry/geometry_ids.h"
 #include "drake/geometry/geometry_index.h"
 #include "drake/geometry/query_results/penetration_as_point_pair.h"
@@ -81,10 +82,23 @@ class ProximityEngine {
   /** Adds the given `shape` to the engine's dynamic geometry.  */
   GeometryIndex AddDynamicGeometry(const Shape& shape);
 
+  /** Removes the given dynamic geometry indicated by engine `index` from the
+   engine. Returns the index of the geometry that was moved into this newly
+   cleared index position to maintain contiguous geometry. Returning nullopt
+   means no geometries were moved.  */
+  optional<GeometryIndex> RemoveGeometry(GeometryIndex index);
+
   /** Adds the given `shape` to the engine's anchored geometry at the fixed
    pose given by `X_WG` (in the world frame W).  */
   AnchoredGeometryIndex AddAnchoredGeometry(const Shape& shape,
                                             const Isometry3<double>& X_WG);
+
+  /** Removes the given anchored geometry indicated by engine `index from the
+   engine. Returns the index of the geometry that was moved into this newly
+   cleared index position to maintain contiguous geometry. Returning nullopt
+   means no geometries were moved.  */
+  optional<AnchoredGeometryIndex> RemoveAnchoredGeometry(
+      AnchoredGeometryIndex index);
 
   /** Reports the _total_ number of geometries in the engine -- dynamic and
    anchored (spanning all sources).  */

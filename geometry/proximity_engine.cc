@@ -349,6 +349,13 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
     return index;
   }
 
+  optional<GeometryIndex> RemoveGeometry(GeometryIndex index) {
+    optional<int> result =
+        RemoveGeometry(index, &dynamic_tree_, &dynamic_objects_);
+    if (result) return GeometryIndex{*result};
+    return {};
+  }
+
   AnchoredGeometryIndex AddAnchoredGeometry(const Shape& shape,
                                             const Isometry3<double>& X_WG) {
     // The collision object gets instantiated in the reification process and
@@ -362,6 +369,14 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
     anchored_objects_.emplace_back(std::move(fcl_object));
 
     return index;
+  }
+
+  optional<AnchoredGeometryIndex> RemoveAnchoredGeometry(
+      AnchoredGeometryIndex index) {
+    optional<int> result =
+        RemoveGeometry(index, &anchored_tree_, &anchored_objects_);
+    if (result) return AnchoredGeometryIndex{*result};
+    return {};
   }
 
   int num_geometries() const {
@@ -525,6 +540,33 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
   // transmogrify them. Otherwise, while the engine can be transmogrified, the
   // results on an <AutoDiffXd> type will still be double.
 
+  // Removes the geometry with the given engine index from the given tree.
+  optional<int> RemoveGeometry(
+      int index, fcl::DynamicAABBTreeCollisionManager<double>* tree,
+      std::vector<std::unique_ptr<fcl::CollisionObject<double>>>* geometries) {
+    std::vector<unique_ptr<fcl::CollisionObject<double>>>& typed_geometries =
+        *geometries;
+    fcl::CollisionObjectd* fcl_object = typed_geometries[index].get();
+    const size_t old_size = tree->size();
+    tree->unregisterObject(fcl_object);
+    // NOTE: The FCL API provides no other mechanism for confirming the
+    // unregistration was successful.
+    DRAKE_DEMAND(old_size == tree->size() + 1);
+    optional<int> moved{};
+    const int last = static_cast<int>(typed_geometries.size() - 1);
+    if (index < last) {
+      // Removed geometry that *isn't* the last in the geometries. Swap last
+      // into
+      // empty slot.
+      moved = last;
+      typed_geometries[index].swap(typed_geometries.back());
+      typed_geometries[index]->setUserData(
+          reinterpret_cast<void*>(static_cast<size_t>(index)));
+    }
+    typed_geometries.pop_back();
+    return moved;
+  }
+
   // Helper method called by the various ImplementGeometry overrides to
   // facilitate the logistics of creating shapes from specifications. `data`
   // is a unique_ptr of an fcl CollisionObject that should be instantiated
@@ -600,9 +642,21 @@ GeometryIndex ProximityEngine<T>::AddDynamicGeometry(const Shape& shape) {
 }
 
 template <typename T>
+optional<GeometryIndex> ProximityEngine<T>::RemoveGeometry(
+    GeometryIndex index) {
+  return impl_->RemoveGeometry(index);
+}
+
+template <typename T>
 AnchoredGeometryIndex ProximityEngine<T>::AddAnchoredGeometry(
     const Shape& shape, const Isometry3<double>& X_WG) {
   return impl_->AddAnchoredGeometry(shape, X_WG);
+}
+
+template <typename T>
+optional<AnchoredGeometryIndex> ProximityEngine<T>::RemoveAnchoredGeometry(
+    AnchoredGeometryIndex index) {
+  return impl_->RemoveAnchoredGeometry(index);
 }
 
 template <typename T>

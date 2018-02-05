@@ -145,7 +145,62 @@ GTEST_TEST(ProximityEngineTests, MoveSemantics) {
   EXPECT_EQ(move_construct.num_dynamic(), 0);
 }
 
+
 // Penetration tests -- testing data flow; not testing the value of the query.
+
+// Tests the removal of geometry from the engine. This uses anchored geometry
+// to test the removal functionality. Dynamic geometry uses the exact same code,
+// so this test implicitly also covers removing dynamic geometry.
+GTEST_TEST(ProximityEngineTests, GeometryRemoval) {
+  ProximityEngine<double> engine;
+
+  double x_pos[] = {0, 2, 4};
+  AnchoredGeometryIndex indices[3];
+
+  // Populate the world with three anchored spheres.
+  Sphere sphere{0.5};
+  Isometry3<double> pose = Isometry3<double>::Identity();
+  for (int i = 0; i < 3; ++i) {
+    pose.translation() << x_pos[i], 0, 0;
+    indices[i] = engine.AddAnchoredGeometry(sphere, pose);
+    EXPECT_EQ(indices[i], i);
+  }
+  EXPECT_EQ(engine.num_geometries(), 3);
+  EXPECT_EQ(engine.num_anchored(), 3);
+
+  // Case: Remove middle object, confirm that final gets moved.
+  auto remove_index = indices[1];
+  optional<AnchoredGeometryIndex> moved =
+      engine.RemoveAnchoredGeometry(remove_index);
+  // Confirm that a move is reported, that the moved object has its engine
+  // index updated, and that there is "physical" evidence of the move (e.g.,
+  // the correct, unique position).
+  {
+    EXPECT_EQ(engine.num_geometries(), 2);
+    EXPECT_EQ(engine.num_anchored(), 2);
+    EXPECT_TRUE(moved);
+    EXPECT_EQ(*moved, 2);
+    EXPECT_TRUE(CompareMatrices(
+        ProximityEngineTester::GetAnchoredTranslation(remove_index, engine),
+        Vector3<double>{x_pos[2], 0, 0}, 1e-13, MatrixCompareType::absolute));
+    EXPECT_EQ(
+        ProximityEngineTester::GetAnchoredGeometryIndex(remove_index, engine),
+        1);
+  }
+
+  // Case: Remove the last object, nothing should get moved.
+  moved = engine.RemoveAnchoredGeometry(remove_index);
+  // Confirm nothing moved; the only collision object left is the 0th object.
+  {
+    EXPECT_EQ(engine.num_geometries(), 1);
+    EXPECT_EQ(engine.num_anchored(), 1);
+    EXPECT_FALSE(moved);
+    EXPECT_TRUE(CompareMatrices(
+        ProximityEngineTester::GetAnchoredTranslation(0, engine),
+        Vector3<double>{x_pos[0], 0, 0}, 1e-13, MatrixCompareType::absolute));
+    EXPECT_EQ(ProximityEngineTester::GetAnchoredGeometryIndex(0, engine), 0);
+  }
+}
 
 // A scene with no geometry reports no penetrations.
 GTEST_TEST(ProximityEngineTests, PenetrationOnEmptyScene) {
