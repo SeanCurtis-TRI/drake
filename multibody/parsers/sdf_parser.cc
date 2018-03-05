@@ -790,11 +790,65 @@ void ParseModel(RigidBodyTree<double>* tree, XMLElement* node,
                    &pose_map, tree);
 }
 
+// Parses the <include> tag. The URI pointed to in the tag must be an sdf file
+// and *must* contain only a single model. The following sub-elements are
+// *not* supported:
+//   1. static
+//   2. pose
+void ParseInclude(RigidBodyTree<double>* model, XMLElement* node,
+                  const PackageMap& package_map, const string& root_dir,
+                  const FloatingBaseType floating_base_type,
+                  std::shared_ptr<RigidBodyFrame<double>> weld_to_frame,
+                  ModelInstanceIdTable* model_instance_id_table) {
+  XMLElement* uri_node = node->FirstChildElement("uri");
+  if (uri_node == nullptr) {
+    throw runtime_error("Found <include> tag without <uri> tag");
+  }
+  // TODO(SeanCurtis-TRI): Parse the following attributes:
+  // static ?? Overrides the "static" value of the selected model
+  // pose  x, y, z, r, p, y (Pose of the model)
+  //   frame  string (frame the pose is defined in)
+
+  const std::string uri(uri_node->Value());
+  ModelInstanceIdTable include_id_table =
+      AddModelInstancesFromSdfFileSearchingInRosPackages(
+          uri, package_map, floating_base_type, weld_to_frame, model);
+  if (include_id_table.size() > 1) {
+    throw runtime_error("SDF <include> uri's should point to files which "
+                        "include a *single* model.");
+  }
+
+  std::string name = include_id_table.begin()->first;
+  XMLElement* name_node = node->FirstChildElement("name");
+  bool custom_name = false;
+  if (name_node) {
+    name = name_node->Value();
+    custom_name = true;
+  }
+  if (model_instance_id_table->count(name) > 0) {
+    if (custom_name) {
+      throw std::runtime_error("SDF <include> provided name, '" + name +
+          "', already exists in model_instance_id_table.");
+    } else {
+      throw std::runtime_error("SDF <include> references model with a name, '" +
+          name + "', that already exists in model_instance_id_table.");
+    }
+  }
+  (*model_instance_id_table)[name] = model_instance_id_table->begin()->second;
+}
+
 void ParseWorld(RigidBodyTree<double>* model, XMLElement* node,
                 const PackageMap& package_map, const string& root_dir,
                 const FloatingBaseType floating_base_type,
                 std::shared_ptr<RigidBodyFrame<double>> weld_to_frame,
                 ModelInstanceIdTable* model_instance_id_table) {
+  for (XMLElement* include_node = node->FirstChildElement("include");
+       include_node;
+       include_node = include_node->NextSiblingElement("include")) {
+    ParseInclude(model, include_node, package_map, root_dir, floating_base_type,
+                 weld_to_frame, model_instance_id_table);
+  }
+
   for (XMLElement* model_node = node->FirstChildElement("model"); model_node;
        model_node = model_node->NextSiblingElement("model")) {
     ParseModel(model, model_node, package_map, root_dir, floating_base_type,
