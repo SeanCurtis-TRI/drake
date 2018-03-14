@@ -1,5 +1,8 @@
 <?xml version="1.0" ?>
-<robot name = "box">
+<robot mlns="http://drake.mit.edu"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://drake.mit.edu ../../../../../doc/drakeURDF.xsd"
+       name="box">
   <material name="Black">
     <color rgba="0.0 0.0 0.0 1.0"/>
   </material>
@@ -59,8 +62,10 @@
         <drake_compliance>
             <youngs_modulus>3e7</youngs_modulus>
             <dissipation>5</dissipation>
-            <static_friction>0.5</static_friction>
-            <dynamic_friction>0.2</dynamic_friction>
+            <friction>
+                <static>0.5</static>
+                <dynamic>0.2</dynamic>
+            </friction>
         </drake_compliance>
   </collision>
 
@@ -80,8 +85,10 @@
       <drake_compliance>
           <youngs_modulus>3e7</youngs_modulus>
           <dissipation>5</dissipation>
-          <static_friction>0.5</static_friction>
-          <dynamic_friction>0.2</dynamic_friction>
+          <friction>
+              <static>0.5</static>
+              <dynamic>0.2</dynamic>
+          </friction>
       </drake_compliance>
   </collision>
 
@@ -99,8 +106,10 @@
       <drake_compliance>
           <youngs_modulus>3e7</youngs_modulus>
           <dissipation>5</dissipation>
-          <static_friction>0.5</static_friction>
-          <dynamic_friction>0.2</dynamic_friction>
+          <friction>
+              <static>0.5</static>
+              <dynamic>0.2</dynamic>
+          </friction>
       </drake_compliance>
   </collision>
 
@@ -120,8 +129,10 @@
       <drake_compliance>
           <youngs_modulus>3e7</youngs_modulus>
           <dissipation>5</dissipation>
-          <static_friction>0.5</static_friction>
-          <dynamic_friction>0.2</dynamic_friction>
+          <friction>
+              <static>0.5</static>
+              <dynamic>0.2</dynamic>
+          </friction>
       </drake_compliance>
   </collision>
 
@@ -139,8 +150,10 @@
       <drake_compliance>
           <youngs_modulus>3e7</youngs_modulus>
           <dissipation>5</dissipation>
-          <static_friction>0.5</static_friction>
-          <dynamic_friction>0.2</dynamic_friction>
+          <friction>
+              <static>0.5</static>
+              <dynamic>0.2</dynamic>
+          </friction>
       </drake_compliance>
   </collision>
 
@@ -159,8 +172,10 @@
             <drake_compliance>
                 <youngs_modulus>3e7</youngs_modulus>
                 <dissipation>5</dissipation>
-                <static_friction>0.5</static_friction>
-                <dynamic_friction>0.2</dynamic_friction>
+                <friction>
+                    <static>0.5</static>
+                    <dynamic>0.2</dynamic>
+                </friction>
             </drake_compliance>
         </collision>
 
@@ -178,8 +193,10 @@
             <drake_compliance>
                 <youngs_modulus>3e7</youngs_modulus>
                 <dissipation>5</dissipation>
-                <static_friction>0.5</static_friction>
-                <dynamic_friction>0.2</dynamic_friction>
+                <friction>
+                    <static>0.5</static>
+                    <dynamic>0.2</dynamic>
+                </friction>
             </drake_compliance>
         </collision>
 
@@ -197,8 +214,10 @@
             <drake_compliance>
                 <youngs_modulus>3e7</youngs_modulus>
                 <dissipation>5</dissipation>
-                <static_friction>0.5</static_friction>
-                <dynamic_friction>0.2</dynamic_friction>
+                <friction>
+                    <static>0.5</static>
+                    <dynamic>0.2</dynamic>
+                </friction>
             </drake_compliance>
         </collision>
 
@@ -216,8 +235,10 @@
             <drake_compliance>
                 <youngs_modulus>3e7</youngs_modulus>
                 <dissipation>5</dissipation>
-                <static_friction>0.5</static_friction>
-                <dynamic_friction>0.2</dynamic_friction>
+                <friction>
+                    <static>0.5</static>
+                    <dynamic>0.2</dynamic>
+                </friction>
             </drake_compliance>
         </collision>
 

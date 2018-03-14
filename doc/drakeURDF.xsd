@@ -429,7 +429,7 @@ Reynolds number around which we design the aerodynamic coefficients.</xs:documen
             </xs:annotation>
         </xs:attribute>
 
-        <xs:attribute name="visual_diameter" type="xs:boolean" default="0.2">
+        <xs:attribute name="visual_diameter" type="xs:float" default="0.2">
             <xs:annotation>
                 <xs:documentation>diameter of the propllor when drawn.</xs:documentation>
             </xs:annotation>
@@ -550,13 +550,13 @@ this buoyancy is attached.</xs:documentation>
 e.g. terminator - pulley - pulley - crossover - pulley - terminator
 </xs:documentation>
             </xs:annotation>
-            <xs:element maxOccurs="2" minOccurs="2" name="terminator" type="link_reference_w_pose"/>
-            <xs:element form="qualified" maxOccurs="unbounded" minOccurs="0" name="pulley"
-                type="pulley">
-                <xs:annotation>
-                    <xs:documentation>provides a radius about which the cable slides (as if it were frictionless - the actual motion of the pulley is not simulated)</xs:documentation>
-                </xs:annotation>
-            </xs:element>
+            <!--<xs:element maxOccurs="2" minOccurs="2" name="terminator" type="link_reference_w_pose"/>-->
+            <!--<xs:element form="qualified" maxOccurs="unbounded" minOccurs="0" name="pulley"-->
+                <!--type="pulley">-->
+                <!--<xs:annotation>-->
+                    <!--<xs:documentation>provides a radius about which the cable slides (as if it were frictionless - the actual motion of the pulley is not simulated)</xs:documentation>-->
+                <!--</xs:annotation>-->
+            <!--</xs:element>-->
         </xs:all>
         <xs:attribute default="cable" name="name"/>
         <xs:attribute name="min_length" use="required"/>
@@ -657,6 +657,45 @@ e.g. terminator - pulley - pulley - crossover - pulley - terminator
         <xs:attribute name="length" type="xs:double" use="required"/>
     </xs:complexType>
 
+    <xs:complexType name="drake_compliance">
+        <xs:all>
+            <xs:element name="youngs_modulus" minOccurs="0" maxOccurs="1">
+                <xs:simpleType>
+                    <xs:restriction base="xs:float">
+                        <xs:minExclusive value="0"/>
+                    </xs:restriction>
+                </xs:simpleType>
+            </xs:element>
+            <xs:element name="dissipation" minOccurs="0" maxOccurs="1">
+                <xs:simpleType>
+                    <xs:restriction base="xs:float">
+                        <xs:minExclusive value="0"/>
+                    </xs:restriction>
+                </xs:simpleType>
+            </xs:element>
+            <xs:element name="friction" minOccurs="0" maxOccurs="1">
+                <xs:complexType>
+                    <xs:all>
+                        <xs:element name="static">
+                            <xs:simpleType>
+                                <xs:restriction base="xs:float">
+                                    <xs:minExclusive value="0"/>
+                                </xs:restriction>
+                            </xs:simpleType>
+                        </xs:element>
+                        <xs:element name="dynamic">
+                            <xs:simpleType>
+                                <xs:restriction base="xs:float">
+                                    <xs:minExclusive value="0"/>
+                                </xs:restriction>
+                            </xs:simpleType>
+                        </xs:element>
+                    </xs:all>
+                </xs:complexType>
+            </xs:element>
+        </xs:all>
+    </xs:complexType>
+
     <xs:complexType name="geometry">
         <xs:choice>
             <xs:element name="box" type="box">
@@ -723,6 +762,7 @@ e.g. terminator - pulley - pulley - crossover - pulley - terminator
         <xs:all>
             <xs:element name="origin" type="pose" minOccurs="0" maxOccurs="1"/>
             <xs:element name="geometry" type="geometry" minOccurs="1" maxOccurs="1"/>
+            <xs:element name="drake_compliance" type="drake_compliance" minOccurs="0" maxOccurs="1"/>
         </xs:all>
         <xs:attribute name="name" type="xs:string"/>
         <xs:attribute name="group" type="xs:string"/>
