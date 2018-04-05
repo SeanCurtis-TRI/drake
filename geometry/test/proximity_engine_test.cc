@@ -2,6 +2,7 @@
 
 #include <utility>
 
+#include <fcl/fcl.h>
 #include <gtest/gtest.h>
 
 #include "drake/common/test_utilities/eigen_matrix_compare.h"
@@ -367,6 +368,276 @@ TEST_F(SimplePenetrationTest, PenetrationDynamicAndDynamicSingleSource) {
   std::unique_ptr<ProximityEngine<AutoDiffXd>> ad_engine =
       engine_.ToAutoDiffXd();
   ExpectPenetration(origin_id, collide_id, ad_engine.get());
+}
+
+GTEST_TEST(BoxPenetrationTest, BoxPlaneTest) {
+  using std::abs;
+  ProximityEngine<double> engine;
+  std::vector<GeometryId> dynamic_map_;
+  std::vector<GeometryId> anchored_map_;
+
+  // Set up anchored geometry
+  Isometry3<double> pose = Isometry3<double>::Identity();
+  AnchoredGeometryIndex anchored_index =
+      engine.AddAnchoredGeometry(HalfSpace(), pose);
+  GeometryId plane_id = GeometryId::get_new_id();
+  anchored_map_.push_back(plane_id);
+  EXPECT_EQ(anchored_index, 0);
+
+  const double size = 1.0;
+  Box box{size, size, size};
+  GeometryIndex origin_index = engine.AddDynamicGeometry(box);
+  GeometryId box_id = GeometryId::get_new_id();
+  dynamic_map_.push_back(box_id);
+  EXPECT_EQ(origin_index, 0);
+  std::vector<Isometry3<double>> poses{Isometry3<double>::Identity()};
+  engine.UpdateWorldPoses(poses);
+
+  // Determines if the given point `p_WP` lies on the given `box` with the
+  // pose `X_WB` (within a threshold).
+  auto expect_point_on_box = [](const Box& box, const Vector3<double>& p_WP,
+                                const Isometry3<double>& X_WB,
+                                double threshold) {
+    Vector3<double> p_BP = X_WB.inverse() * p_WP;
+    // Determine which plane it lies on
+    if (abs(p_BP(0)) - box.width() / 2 < threshold) {
+      EXPECT_LE(abs(p_BP(1)), box.size()(1) / 2);
+      EXPECT_LE(abs(p_BP(2)), box.size()(2) / 2);
+    } else if (abs(p_BP(1)) - box.depth() / 2 < threshold) {
+      EXPECT_LE(abs(p_BP(0)), box.size()(0) / 2);
+      EXPECT_LE(abs(p_BP(2)), box.size()(2) / 2);
+    } else if (abs(p_BP(2)) - box.height() / 2 < threshold) {
+      EXPECT_LE(abs(p_BP(0)), box.size()(0) / 2);
+      EXPECT_LE(abs(p_BP(1)), box.size()(1) / 2);
+    } else {
+      GTEST_FAIL() << "Point doesn't lie on any of the box's planes: ("
+        << p_WP(0) << ", " << p_WP(1) << ", " << p_WP(2) << ")";
+    }
+  };
+
+  // Helper function to confirm two penetration point results are the same.
+  // `unique_contact` is true if it is known that the contact points must
+  // be unique.
+  auto expect_eq_results = [&box, expect_point_on_box](
+      const auto& test, const auto& expected, const Isometry3<double>& X_WB) {
+    Vector3<double> normal;
+    Vector3<double> p_WCa;
+    Vector3<double> p_WCb;
+    if (test.id_A == expected.id_A && test.id_B == expected.id_B) {
+      normal = expected.nhat_BA_W;
+      p_WCa = test.p_WCa;
+      p_WCb = test.p_WCb;
+    } else if (test.id_A == expected.id_B && test.id_B == expected.id_A) {
+      normal = -expected.nhat_BA_W;
+      p_WCa = test.p_WCb;
+      p_WCb = test.p_WCa;
+    } else {
+      GTEST_FAIL() << "Test and expected ids don't match";
+    }
+    // Normal and depth should be "exact" match.
+    EXPECT_TRUE(CompareMatrices(test.nhat_BA_W, normal, 1e-13,
+                                MatrixCompareType::absolute));
+    EXPECT_EQ(test.depth, expected.depth);
+    // If the deepest point is not unique (i.e., if it lies on an face or edge)
+    // we can't know exactly what contact points will be reported.
+    // However, we can determine if p_WCa lies on the box, and if p_WCb is the
+    // projection of P_WCa onto the z=0 plane.
+    expect_point_on_box(box, p_WCa, X_WB, 1e-13);
+    EXPECT_TRUE(CompareMatrices(p_WCb, Vector3<double>{p_WCa(0), p_WCa(1), 0},
+                                1e-13, MatrixCompareType::absolute));
+  };
+
+  // Initial conditions - note the contact points are *not* used.
+  PenetrationAsPointPair<double> expected{
+      box_id, plane_id, Vector3<double>{0, 0, -size / 2},
+      Vector3<double>{0, 0, 0}, Vector3<double>{0, 0, 1}, size / 2};
+
+  std::vector<PenetrationAsPointPair<double>> results =
+      engine.ComputePointPairPenetration(dynamic_map_, anchored_map_);
+  EXPECT_EQ(results.size(), 1);
+  // Face-face collision.
+  expect_eq_results(results[0], expected, poses[0]);
+
+  // Move box half the distance out of collision -- everything should be the
+  // same except half distance.
+  poses[0] = Isometry3<double>{Translation3<double>{0, 0, size / 4}};
+  engine.UpdateWorldPoses(poses);
+  results = engine.ComputePointPairPenetration(dynamic_map_, anchored_map_);
+  EXPECT_EQ(results.size(), 1);
+  expected.depth = size / 4;
+  // face-face collision.
+  expect_eq_results(results[0], expected, poses[0]);
+
+  // Move box out of collision.
+  poses[0] = Isometry3<double>{Translation3<double>{0, 0, size}};
+  engine.UpdateWorldPoses(poses);
+  results = engine.ComputePointPairPenetration(dynamic_map_, anchored_map_);
+  EXPECT_EQ(results.size(), 0);
+
+  // Rotate the box 45 degrees around the y-axis.
+  poses[0] =
+      Isometry3<double>{AngleAxis<double>(M_PI_4, Vector3<double>::UnitY())};
+  engine.UpdateWorldPoses(poses);
+  results = engine.ComputePointPairPenetration(dynamic_map_, anchored_map_);
+  EXPECT_EQ(results.size(), 1);
+  expected.depth = size / sqrt(2);
+  // Edge face collision
+  expect_eq_results(results[0], expected, poses[0]);
+
+  // Rotate the box 45 degrees around the y-axis and then around the x-axis.
+  // Puts a single point deeply into the plane
+  poses[0] =
+      Isometry3<double>{AngleAxis<double>(M_PI_4, Vector3<double>::UnitX())} *
+      Isometry3<double>{AngleAxis<double>(M_PI_4, Vector3<double>::UnitY())};
+  engine.UpdateWorldPoses(poses);
+  results = engine.ComputePointPairPenetration(dynamic_map_, anchored_map_);
+  EXPECT_EQ(results.size(), 1);
+  expected.depth = size * (sqrt(2) + 2) / 4;
+  // Edge face collision
+  expect_eq_results(results[0], expected, poses[0]);
+}
+
+// This should be the sme as the PlaneBoxTest -- except the role of plane is
+// played by a large box. Same results, but different code path.
+GTEST_TEST(BoxPenetration, BoxBoxTest) {
+  using std::abs;
+  ProximityEngine<double> engine;
+  std::vector<GeometryId> dynamic_map_;
+  std::vector<GeometryId> anchored_map_;
+
+  // Set up anchored geometry
+  const double plane_size = 30;
+  Isometry3<double> pose{Translation3<double>{0, 0, -plane_size / 2}};
+  AnchoredGeometryIndex anchored_index =
+      engine.AddAnchoredGeometry(Box(plane_size, plane_size, plane_size), pose);
+  EXPECT_EQ(anchored_index, 0);
+  GeometryId plane_id = GeometryId::get_new_id();
+  anchored_map_.push_back(plane_id);
+
+  const double size = 1.0;
+  Box box{size, size, size};
+  GeometryIndex origin_index = engine.AddDynamicGeometry(box);
+  EXPECT_EQ(origin_index, 0);
+  GeometryId box_id = GeometryId::get_new_id();
+  dynamic_map_.push_back(box_id);
+
+  // Determines if the given point `p_WP` lies on the given `box` with the
+  // pose `X_WB` (within a threshold).
+  auto expect_point_on_box = [](const Box& box, const Vector3<double>& p_WP,
+                                const Isometry3<double>& X_WB,
+                                double threshold) {
+    Vector3<double> p_BP = X_WB.inverse() * p_WP;
+    // Determine which plane it lies on
+    if (abs(p_BP(0)) - box.width() / 2 < threshold) {
+      EXPECT_LE(abs(p_BP(1)), box.size()(1) / 2);
+      EXPECT_LE(abs(p_BP(2)), box.size()(2) / 2);
+    } else if (abs(p_BP(1)) - box.depth() / 2 < threshold) {
+      EXPECT_LE(abs(p_BP(0)), box.size()(0) / 2);
+      EXPECT_LE(abs(p_BP(2)), box.size()(2) / 2);
+    } else if (abs(p_BP(2)) - box.height() / 2 < threshold) {
+      EXPECT_LE(abs(p_BP(0)), box.size()(0) / 2);
+      EXPECT_LE(abs(p_BP(1)), box.size()(1) / 2);
+    } else {
+      GTEST_FAIL() << "Point doesn't lie on any of the box's planes: ("
+                   << p_WP(0) << ", " << p_WP(1) << ", " << p_WP(2) << ")";
+    }
+  };
+
+  // Helper function to confirm two penetration point results are the same.
+  // `unique_contact` is true if it is known that the contact points must
+  // be unique.
+  auto expect_eq_results = [&box, expect_point_on_box](
+      const auto& test, const auto& expected, const Isometry3<double>& X_WB) {
+    Vector3<double> normal;
+    Vector3<double> p_WCa;
+    Vector3<double> p_WCb;
+    if (test.id_A == expected.id_A && test.id_B == expected.id_B) {
+      normal = expected.nhat_BA_W;
+      p_WCa = test.p_WCa;
+      p_WCb = test.p_WCb;
+    } else if (test.id_A == expected.id_B && test.id_B == expected.id_A) {
+      normal = -expected.nhat_BA_W;
+      p_WCa = test.p_WCb;
+      p_WCb = test.p_WCa;
+    } else {
+      GTEST_FAIL() << "Test and expected ids don't match. Expected: ("
+          << expected.id_A << ", " << expected.id_B << "), Received: ("
+          << test.id_A << ", " << test.id_B << ")";
+    }
+    // Normal and depth should be "exact" match.
+    EXPECT_TRUE(CompareMatrices(test.nhat_BA_W, normal, 1e-13,
+                                MatrixCompareType::absolute));
+    EXPECT_NEAR(test.depth, expected.depth, 1e-13);
+    // If the deepest point is not unique (i.e., if it lies on an face or edge)
+    // we can't know exactly what contact points will be reported.
+    // However, we can determine if p_WCa lies on the box, and if p_WCb is the
+    // projection of P_WCa onto the z=0 plane.
+    expect_point_on_box(box, p_WCa, X_WB, 1e-13);
+    EXPECT_TRUE(CompareMatrices(p_WCb, Vector3<double>{p_WCa(0), p_WCa(1), 0},
+                                1e-13, MatrixCompareType::absolute));
+  };
+
+  // Initial conditions - note the contact points are *not* used.
+  PenetrationAsPointPair<double> expected{
+      box_id, plane_id,  // id_A and id_B, respectively
+      Vector3<double>{0, 0, -size / 2},  // p_WCa
+      Vector3<double>{0, 0, 0},  // p_WCb
+      Vector3<double>{0, 0, 1},  // nhat_BA_W
+      size / 2};  // penetration depth
+
+  std::cout << "Box id: " << box_id << ", plane id: " << plane_id << "\n";
+  std::vector<Isometry3<double>> poses{Isometry3<double>::Identity()};
+  engine.UpdateWorldPoses(poses);
+  std::vector<PenetrationAsPointPair<double>> results =
+      engine.ComputePointPairPenetration(dynamic_map_, anchored_map_);
+  EXPECT_EQ(results.size(), 1);
+  // Face-face collision.
+  std::cerr << "Case 1\n";
+  std::cerr << "  A:     " << results[0].id_A << "\n";
+  std::cerr << "  B:     " << results[0].id_B << "\n";
+  std::cerr << "  p_WCa: " << results[0].p_WCa.transpose() << "\n";
+  std::cerr << "  p_WCb: " << results[0].p_WCb.transpose() << "\n";
+  std::cerr << "  n_hat: " << results[0].nhat_BA_W.transpose() << "\n";
+  std::cerr << "  d:     " << results[0].depth << "\n";
+  expect_eq_results(results[0], expected, poses[0]);
+
+  // Move box half the distance out of collision -- everything should be the
+  // same except half distance.
+  poses[0] = Isometry3<double>{Translation3<double>{0, 0, size / 4}};
+  engine.UpdateWorldPoses(poses);
+  results = engine.ComputePointPairPenetration(dynamic_map_, anchored_map_);
+  EXPECT_EQ(results.size(), 1);
+  expected.depth = size / 4;
+  // face-face collision.
+  expect_eq_results(results[0], expected, poses[0]);
+
+  // Move box out of collision.
+  poses[0] = Isometry3<double>{Translation3<double>{0, 0, size}};
+  engine.UpdateWorldPoses(poses);
+  results = engine.ComputePointPairPenetration(dynamic_map_, anchored_map_);
+  EXPECT_EQ(results.size(), 0);
+
+  // Rotate the box 45 degrees around the y-axis.
+  poses[0] =
+      Isometry3<double>{AngleAxis<double>(M_PI_4, Vector3<double>::UnitY())};
+  engine.UpdateWorldPoses(poses);
+  results = engine.ComputePointPairPenetration(dynamic_map_, anchored_map_);
+  EXPECT_EQ(results.size(), 1);
+  expected.depth = size / sqrt(2);
+  // Edge-face collision
+  expect_eq_results(results[0], expected, poses[0]);
+
+  // Rotate the box 45 degrees around the y-axis and then around the x-axis.
+  // Puts a single point deeply into the plane
+  poses[0] =
+      Isometry3<double>{AngleAxis<double>(M_PI_4, Vector3<double>::UnitX())} *
+      Isometry3<double>{AngleAxis<double>(M_PI_4, Vector3<double>::UnitY())};
+  engine.UpdateWorldPoses(poses);
+  results = engine.ComputePointPairPenetration(dynamic_map_, anchored_map_);
+  EXPECT_EQ(results.size(), 1);
+  expected.depth = size * (sqrt(2) + 2) / 4;
+  // Vertex-vertex collision
+  expect_eq_results(results[0], expected, poses[0]);
 }
 
 }  // namespace

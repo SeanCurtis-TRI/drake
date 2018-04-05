@@ -162,14 +162,16 @@ bool SingleCollisionCallback(fcl::CollisionObjectd* fcl_object_A_ptr,
       // Signed distance is negative when penetration depth is positive.
       double depth = contact.penetration_depth;
 
-      // FCL returns a single contact point, but PenetrationAsPointPair expects
+
+      // FCL returns a single contact point centered between the two penetrating
+      // surfaces. PenetrationAsPointPair expects
       // two, one on the surface of body A (Ac) and one on the surface of body B
       // (Bc). Choose points along the line defined by the contact point and
       // normal, equidistant to the contact point. Recall that signed_distance
       // is strictly non-positive, so signed_distance * drake_normal points out
       // of A and into B.
-      const Vector3d p_WAc{contact.pos - 0.5 * depth * drake_normal};
-      const Vector3d p_WBc{contact.pos + 0.5 * depth * drake_normal};
+      Vector3d p_WAc = contact.pos - 0.5 * depth * drake_normal;
+      Vector3d p_WBc = contact.pos + 0.5 * depth * drake_normal;
 
       PenetrationAsPointPair<double> penetration;
       penetration.depth = depth;
@@ -400,6 +402,11 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
     // Note: Using `shared_ptr` because of FCL API requirements.
     auto fcl_half_space = make_shared<fcl::Halfspaced>(0, 0, 1, 0);
     TakeShapeOwnership(fcl_half_space, user_data);
+  }
+
+  void ImplementGeometry(const Box& box, void* user_data) override {
+    auto fcl_box = make_shared<fcl::Boxd>(box.size());
+    TakeShapeOwnership(fcl_box, user_data);
   }
 
   void ImplementGeometry(const Mesh&, void* user_data) override {

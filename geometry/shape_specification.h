@@ -111,6 +111,27 @@ class Cylinder final : public Shape {
   double length_{};
 };
 
+/** Definition of a box. The box is centered on the origin of its canonical
+ frame with its dimensions aligned with the frame's axes. The size of the box
+ is given by three sizes. */
+class Box final : public Shape {
+ public:
+  DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(Box)
+
+  /** Constructs a box with the given `width`, `depth`, and `height`, which
+   specify the box's dimension along the canonical x-, y-, and z-axes,
+   respectively.  */
+  Box(double width, double depth, double height);
+
+  double width() const { return size_(0); }
+  double depth() const { return size_(1); }
+  double height() const { return size_(2); }
+  const Vector3<double>& size() const { return size_; }
+
+ private:
+  Vector3<double> size_;
+};
+
 /** Definition of a half space. In its canonical frame, the plane defining the
  boundary of the half space is that frame's z = 0 plane. By implication, the
  plane's normal points in the +z direction and the origin lies on the plane.
@@ -220,6 +241,7 @@ class ShapeReifier {
   virtual void ImplementGeometry(const Cylinder& cylinder, void* user_data) = 0;
   virtual void ImplementGeometry(const HalfSpace& half_space,
                                  void* user_data) = 0;
+  virtual void ImplementGeometry(const Box& box, void* user_data) = 0;
   virtual void ImplementGeometry(const Mesh& mesh, void* user_data) = 0;
 };
 
