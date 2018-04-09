@@ -577,7 +577,8 @@ GTEST_TEST(BoxPenetration, BoxBoxTest) {
                                 1e-13, MatrixCompareType::absolute));
   };
 
-  // Initial conditions - note the contact points are *not* used.
+  // TODO(SeanCurtis-TRI): Is this true? Contact points aren't used?
+  // Initial conditions - note the contact points p_WCa and p_WCb are not used.
   PenetrationAsPointPair<double> expected{
       box_id, plane_id,  // id_A and id_B, respectively
       Vector3<double>{0, 0, -size / 2},  // p_WCa
@@ -585,20 +586,12 @@ GTEST_TEST(BoxPenetration, BoxBoxTest) {
       Vector3<double>{0, 0, 1},  // nhat_BA_W
       size / 2};  // penetration depth
 
-  std::cout << "Box id: " << box_id << ", plane id: " << plane_id << "\n";
   std::vector<Isometry3<double>> poses{Isometry3<double>::Identity()};
   engine.UpdateWorldPoses(poses);
   std::vector<PenetrationAsPointPair<double>> results =
       engine.ComputePointPairPenetration(dynamic_map_, anchored_map_);
   EXPECT_EQ(results.size(), 1);
   // Face-face collision.
-  std::cerr << "Case 1\n";
-  std::cerr << "  A:     " << results[0].id_A << "\n";
-  std::cerr << "  B:     " << results[0].id_B << "\n";
-  std::cerr << "  p_WCa: " << results[0].p_WCa.transpose() << "\n";
-  std::cerr << "  p_WCb: " << results[0].p_WCb.transpose() << "\n";
-  std::cerr << "  n_hat: " << results[0].nhat_BA_W.transpose() << "\n";
-  std::cerr << "  d:     " << results[0].depth << "\n";
   expect_eq_results(results[0], expected, poses[0]);
 
   // Move box half the distance out of collision -- everything should be the
@@ -638,6 +631,254 @@ GTEST_TEST(BoxPenetration, BoxBoxTest) {
   expected.depth = size * (sqrt(2) + 2) / 4;
   // Vertex-vertex collision
   expect_eq_results(results[0], expected, poses[0]);
+}
+
+// Explicitly test box-sphere intersection to confirm correct behavior; this
+// will catch upstream changes which may break Drake functionality (history
+// has shown that FCL testing doesn't necessarily catch bugs).
+class BoxSphereTests : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    // Set up sphere as anchored geometry
+    AnchoredGeometryIndex sphere_index = engine_.AddAnchoredGeometry(
+        Sphere(kRadius), Isometry3<double>::Identity());
+    EXPECT_EQ(sphere_index, 0);
+    sphere_id_ = GeometryId::get_new_id();
+    anchored_map_.push_back(sphere_id_);
+
+    Box box{kSize, kSize, kSize};
+    GeometryIndex box_index = engine_.AddDynamicGeometry(box);
+    EXPECT_EQ(box_index, 0);
+    box_id_ = GeometryId::get_new_id();
+    dynamic_map_.push_back(box_id_);
+
+    // A single dynamic pose for the box.
+    poses_ = {Isometry3<double>::Identity()};
+  }
+
+  // Updates geometry based on current value of dynamic poses, perform collision
+  // detection, and report penetration as point pair results.
+  std::vector<PenetrationAsPointPair<double>> UpdateAndCollide() {
+    engine_.UpdateWorldPoses(poses_);
+    return engine_.ComputePointPairPenetration(dynamic_map_, anchored_map_);
+  }
+
+  // Utility function for comparing reported penetration against expected
+  // penetration. Does it in a way that doesn't care whether the reported
+  // pair is (sphere, box) or (box, sphere).
+  void ExpectPenetration(const PenetrationAsPointPair<double>& test,
+                         const PenetrationAsPointPair<double>& expected,
+                         const char* test_source,
+                         double threshold = kThreshold) {
+    Vector3<double> normal;
+    Vector3<double> p_WCa;
+    Vector3<double> p_WCb;
+    if (test.id_A == expected.id_A && test.id_B == expected.id_B) {
+      normal = expected.nhat_BA_W;
+      p_WCa = test.p_WCa;
+      p_WCb = test.p_WCb;
+    } else if (test.id_A == expected.id_B && test.id_B == expected.id_A) {
+      normal = -expected.nhat_BA_W;
+      p_WCa = test.p_WCb;
+      p_WCb = test.p_WCa;
+    } else {
+      GTEST_FAIL() << test_source << ": Test and expected ids don't match. "
+                   << "Expected: (" << expected.id_A << ", " << expected.id_B
+                   << "), Received: (" << test.id_A << ", " << test.id_B << ")";
+    }
+
+    EXPECT_TRUE(CompareMatrices(test.p_WCa, p_WCa, threshold,
+                                MatrixCompareType::absolute))
+        << test_source << ": contact point on A doesn't match";
+    EXPECT_TRUE(CompareMatrices(test.p_WCb, p_WCb, threshold,
+                                MatrixCompareType::absolute))
+        << test_source << ": contact point on B doesn't match";
+
+    EXPECT_TRUE(CompareMatrices(test.nhat_BA_W, normal, threshold,
+                                MatrixCompareType::absolute))
+        << test_source << ": normals don't match";
+    EXPECT_NEAR(test.depth, expected.depth, threshold)
+        << test_source << ": depths don't match";
+  };
+
+  // NOTE: gtest and Eigen will attempt to take references of these by default.
+  // This disallows inline-defined constexpr values.
+  static const double kRadius;
+  static const double kSize;
+  static const double kThreshold;
+  ProximityEngine<double> engine_;
+  GeometryId sphere_id_{};
+  GeometryId box_id_{};
+  std::vector<GeometryId> dynamic_map_;
+  std::vector<GeometryId> anchored_map_;
+  std::vector<Isometry3<double>> poses_;
+};
+
+const double BoxSphereTests::kRadius = 1.0;
+const double BoxSphereTests::kSize = 1.0;
+const double BoxSphereTests::kThreshold = 1e-14;
+
+// The simple case where the box and sphere *don't* intersect.
+TEST_F(BoxSphereTests, BoxSphereNotColliding) {
+  // See BoxSphereColliding for the same configuration but with collision.
+
+  // Case 1(a-c): Simply move the box along the world-axes so it is *not* in
+  // collision. The closest point should lie *on* the center of the box's face
+  const double clear_offset = kRadius + kSize / 2 + kThreshold;
+
+  // Along x-axis
+  poses_[0].translation() << clear_offset, 0, 0;
+  std::vector<PenetrationAsPointPair<double>> results = UpdateAndCollide();
+  EXPECT_EQ(results.size(), 0);
+
+  // Along y-axis
+  poses_[0].translation() << 0, clear_offset, 0;
+  results = UpdateAndCollide();
+  EXPECT_EQ(results.size(), 0);
+
+  // Along z-axis
+  poses_[0].translation() << 0, 0, clear_offset;
+  results = UpdateAndCollide();
+  EXPECT_EQ(results.size(), 0);
+
+  // Case 2(d-f): Rotate the box so that, along the axis of translation, one
+  // of the corners is maximally extended. That's a different set of rotation
+  // for each axis of displacement, but should give me the *same* clearance.
+  //
+  // For a given axis, we should have *this* picture
+  //        ┆  ╱╲
+  //        ┆ ╱  ╲
+  //        ┆╱    ╲
+  //       ╱┆╲    ╱
+  //      ╱ ┆ ╲  ╱
+  //     ╱  ┆  ╲╱
+  //     ╲  ┆  ╱
+  //      ╲ ┆ ╱
+  //       ╲┆╱    ╱____ With epsilon separation
+  //      **┆**   ╲
+  //    **  ┆  **
+  //   *    ┆    *
+  // ┄*┄┄┄┄┄┆┄┄┄┄┄*┄┄┄┄┄
+  //   *    ┆    *
+  //    **  ┆  **
+  //      **┆**
+  //        ┆
+  //
+  // That requires *just* the right rotation and offset. Considering on corner
+  // (-1/2, -1/2, -1/2), we want to put in the most negative x, y, and z
+  // positions, respectively.
+  // For the x-axis: rotate -45 around z and then 45 around y
+  // For the y-axis: rotate 45 around z and then -45 around x
+  // For the z-axis: rotate -45 around y and then 45 around x
+  //
+  // Then for axis A, the box needs to be offset the negative amount of the
+  // corner along each other axis.  E.g., If the rotated corner is at:
+  // <r_x, r_y, r_z>, then for the x-axis test, the offset will be:
+  // <0, -r_y, -r_z>.
+  Vector3<double> corner{-kSize / 2, -kSize / 2, -kSize / 2};
+  poses_[0].linear() = (AngleAxis<double>{M_PI_4, Vector3<double>::UnitY()} *
+                        AngleAxis<double>{-M_PI_4, Vector3<double>::UnitZ()})
+                           .matrix();
+  Vector3<double> rotated_corner = poses_[0].linear() * corner;
+  const double angled_clear_offset =
+      rotated_corner.norm() + kThreshold + kRadius;
+
+  // Along x-axis -- uses the defining orientation.
+  poses_[0].translation() << angled_clear_offset, -rotated_corner(1),
+      -rotated_corner(2);
+  results = UpdateAndCollide();
+  EXPECT_EQ(results.size(), 0) << "Depth: " << results[0].depth;
+
+  // Along y-axis
+  poses_[0].linear() = (AngleAxis<double>{-M_PI_4, Vector3<double>::UnitX()} *
+                        AngleAxis<double>{M_PI_4, Vector3<double>::UnitZ()})
+                           .matrix();
+  rotated_corner = poses_[0].linear() * corner;
+  poses_[0].translation() << -rotated_corner(0), angled_clear_offset,
+      -rotated_corner(2);
+  results = UpdateAndCollide();
+  EXPECT_EQ(results.size(), 0) << "Depth: " << results[0].depth;
+
+  // Along z-axis
+  poses_[0].linear() = (AngleAxis<double>{M_PI_4, Vector3<double>::UnitX()} *
+                        AngleAxis<double>{-M_PI_4, Vector3<double>::UnitY()})
+                           .matrix();
+  poses_[0].translation() << -rotated_corner(0), -rotated_corner(1),
+      angled_clear_offset;
+  results = UpdateAndCollide();
+  EXPECT_EQ(results.size(), 0) << "Depth: " << results[0].depth;
+}
+
+// The simple case where the box and sphere *don't* intersect.
+TEST_F(BoxSphereTests, BoxSphereColliding) {
+  // TODO(SeanCurtis-TRI): With the boxes *turned* below, FCL is not reporting
+  // collisions for penetration depths smaller than 1e-6. This needs to be
+  // investigated. Furthermore, this depth is leading to a contact normal that
+  // is deviates from the expected direction by 1e-5 or so.
+  const double depth = 1e-6;
+
+  PenetrationAsPointPair<double> expected{
+      box_id_,
+      sphere_id_,                // id_A and id_B, respectively
+      Vector3<double>{0, 0, 0},  // p_WCa
+      Vector3<double>{0, 0, 0},  // p_WCb
+      Vector3<double>{0, 0, 0},  // nhat_BA_W
+      depth};                    // penetration depth
+
+  // Case 1(a-c): Simply move the box along the world-axes so it is *not* in
+  // collision. The closest point should lie *on* the center of the box's face
+  const double offset = kRadius + kSize / 2 - depth;
+
+  // Along x-axis - expect
+  expected.p_WCa << kRadius - depth, 0, 0;  // On box
+  expected.p_WCb << kRadius, 0, 0;          // On sphere
+  expected.nhat_BA_W << 1, 0, 0;            // From sphere, into box
+  poses_[0].translation() << offset, 0, 0;
+  std::vector<PenetrationAsPointPair<double>> results = UpdateAndCollide();
+  ASSERT_EQ(results.size(), 1);
+  ExpectPenetration(results[0], expected, "Axis-oriented, x-displacement");
+
+  // Along y-axis
+  expected.p_WCa << 0, kRadius - depth, 0;  // On box
+  expected.p_WCb << 0, kRadius, 0;          // On sphere
+  expected.nhat_BA_W << 0, 1, 0;            // From sphere, into box
+  poses_[0].translation() << 0, offset, 0;
+  results = UpdateAndCollide();
+  ASSERT_EQ(results.size(), 1);
+  ExpectPenetration(results[0], expected, "Axis-oriented, y-displacement");
+
+  // Along z-axis
+  expected.p_WCa << 0, 0, kRadius - depth;  // On box
+  expected.p_WCb << 0, 0, kRadius;          // On sphere
+  expected.nhat_BA_W << 0, 0, 1;            // From sphere, into box
+  poses_[0].translation() << 0, 0, offset;
+  results = UpdateAndCollide();
+  ASSERT_EQ(results.size(), 1);
+  ExpectPenetration(results[0], expected, "Axis-oriented, z-displacement");
+
+  // Case 2(d-f): Perform the same rotations as in the non-colliding box-sphere
+  // tests (BoxSphereNotColliding). The penetration depth should be the same
+  // fixed penetration depth.
+  Vector3<double> corner{-kSize / 2, -kSize / 2, -kSize / 2};
+  poses_[0].linear() = (AngleAxis<double>{M_PI_4, Vector3<double>::UnitY()} *
+                        AngleAxis<double>{-M_PI_4, Vector3<double>::UnitZ()})
+                           .matrix();
+  Vector3<double> rotated_corner = poses_[0].linear() * corner;
+  std::cerr << "Rotated corner: " << rotated_corner.transpose() << "\n";
+  const double angled_clear_offset =
+      -rotated_corner(0) + kRadius - depth;
+
+  // Along x-axis -- uses the defining orientation.
+  expected.p_WCa << kRadius - depth, 0, 0;  // On box
+  expected.p_WCb << kRadius, 0, 0;          // On sphere
+  expected.nhat_BA_W << 1, 0, 0;            // From sphere, into box
+  poses_[0].translation() << angled_clear_offset, -rotated_corner(1),
+      -rotated_corner(2);
+  const Vector3<double> moved_corner = poses_[0] * corner;
+  std::cerr << "Colliding point: " << std::setprecision(16) << moved_corner.transpose() << "\n";
+  results = UpdateAndCollide();
+  ASSERT_EQ(results.size(), 1);
+  ExpectPenetration(results[0], expected, "Angled, x-displacement");
 }
 
 }  // namespace
