@@ -811,11 +811,22 @@ TEST_F(BoxSphereTests, BoxSphereNotColliding) {
 
 // The simple case where the box and sphere *don't* intersect.
 TEST_F(BoxSphereTests, BoxSphereColliding) {
-  // TODO(SeanCurtis-TRI): With the boxes *turned* below, FCL is not reporting
-  // collisions for penetration depths smaller than 1e-6. This needs to be
-  // investigated. Furthermore, this depth is leading to a contact normal that
-  // is deviates from the expected direction by 1e-5 or so.
+  // TODO(SeanCurtis-TRI): FCL uses GJK algorithm to compute collision between
+  // box and sphere. It has *severe* numerical issues that can allow relatively
+  // large deviations in the normal definition. As such, we require a larger
+  // error threshold.
+
+  // TODO(SeanCurtis-TRI): The GJK solver for fcl has a threshold that is hard
+  // coded to 1e-6 (and can't be changed in the CollisionRequest. See FCL
+  // issues #278 and #280. Until one or both of those merges, 1e-6 is the
+  // shallowest collision that can be detected (and even then there is
+  // significant error).
+  const double bad_sphere_tolerance = 3e-2;
   const double depth = 1e-6;
+
+  // TODO(SeanCurtis-TRI): Add test that shows shallower collision is not
+  // reported with a note saying it should be removed when FCL behavior is
+  // fixed.
 
   PenetrationAsPointPair<double> expected{
       box_id_,
@@ -836,7 +847,8 @@ TEST_F(BoxSphereTests, BoxSphereColliding) {
   poses_[0].translation() << offset, 0, 0;
   std::vector<PenetrationAsPointPair<double>> results = UpdateAndCollide();
   ASSERT_EQ(results.size(), 1);
-  ExpectPenetration(results[0], expected, "Axis-oriented, x-displacement");
+  ExpectPenetration(results[0], expected, "Axis-oriented, x-displacement",
+                    bad_sphere_tolerance);
 
   // Along y-axis
   expected.p_WCa << 0, kRadius - depth, 0;  // On box
@@ -845,7 +857,8 @@ TEST_F(BoxSphereTests, BoxSphereColliding) {
   poses_[0].translation() << 0, offset, 0;
   results = UpdateAndCollide();
   ASSERT_EQ(results.size(), 1);
-  ExpectPenetration(results[0], expected, "Axis-oriented, y-displacement");
+  ExpectPenetration(results[0], expected, "Axis-oriented, y-displacement",
+                    bad_sphere_tolerance);
 
   // Along z-axis
   expected.p_WCa << 0, 0, kRadius - depth;  // On box
@@ -854,7 +867,8 @@ TEST_F(BoxSphereTests, BoxSphereColliding) {
   poses_[0].translation() << 0, 0, offset;
   results = UpdateAndCollide();
   ASSERT_EQ(results.size(), 1);
-  ExpectPenetration(results[0], expected, "Axis-oriented, z-displacement");
+  ExpectPenetration(results[0], expected, "Axis-oriented, z-displacement",
+                    bad_sphere_tolerance);
 
   // Case 2(d-f): Perform the same rotations as in the non-colliding box-sphere
   // tests (BoxSphereNotColliding). The penetration depth should be the same
@@ -878,7 +892,8 @@ TEST_F(BoxSphereTests, BoxSphereColliding) {
   std::cerr << "Colliding point: " << std::setprecision(16) << moved_corner.transpose() << "\n";
   results = UpdateAndCollide();
   ASSERT_EQ(results.size(), 1);
-  ExpectPenetration(results[0], expected, "Angled, x-displacement");
+  ExpectPenetration(results[0], expected, "Angled, x-displacement",
+                    bad_sphere_tolerance);
 }
 
 }  // namespace
