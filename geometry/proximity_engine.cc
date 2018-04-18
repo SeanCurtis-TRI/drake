@@ -5,6 +5,7 @@
 #include <utility>
 
 #include <fcl/fcl.h>
+#include <fcl/geometry/shape/box.h>
 
 #include "drake/common/default_scalars.h"
 
@@ -214,7 +215,10 @@ shared_ptr<fcl::ShapeBased> CopyShapeOrThrow(
     case fcl::GEOM_HALFSPACE:
       // All half spaces are defined exactly the same.
       return make_shared<fcl::Halfspaced>(0, 0, 1, 0);
-    case fcl::GEOM_BOX:
+    case fcl::GEOM_BOX: {
+      const auto& box = dynamic_cast<const fcl::Boxd&>(geometry);
+      return make_shared<fcl::Boxd>(box.side);
+    }
     case fcl::GEOM_ELLIPSOID:
     case fcl::GEOM_CAPSULE:
     case fcl::GEOM_CONE:

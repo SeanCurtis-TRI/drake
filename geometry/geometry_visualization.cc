@@ -92,8 +92,8 @@ class ShapeToLcm : public ShapeReifier {
     geometry_data_.num_float_data = 3;
     // Box width, depth, and height.
     geometry_data_.float_data.push_back(static_cast<float>(box.width()));
-    geometry_data_.float_data.push_back(static_cast<float>(box.height()));
     geometry_data_.float_data.push_back(static_cast<float>(box.depth()));
+    geometry_data_.float_data.push_back(static_cast<float>(box.height()));
   }
 
   void ImplementGeometry(const Mesh& mesh, void*) override {

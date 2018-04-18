@@ -123,9 +123,16 @@ class Box final : public Shape {
    respectively.  */
   Box(double width, double depth, double height);
 
+  /** Returns the box's dimension along the x axis. */
   double width() const { return size_(0); }
+
+  /** Returns the box's dimension along the y axis. */
   double depth() const { return size_(1); }
+
+  /** Returns the box's dimension along the z axis. */
   double height() const { return size_(2); }
+
+  /** Returns the box's dimensions. */
   const Vector3<double>& size() const { return size_; }
 
  private:
