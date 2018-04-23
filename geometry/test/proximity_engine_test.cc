@@ -251,7 +251,7 @@ class SimplePenetrationTest : public ::testing::Test {
                          ProximityEngine<T>* engine) {
     std::vector<PenetrationAsPointPair<double>> results =
         engine->ComputePointPairPenetration(dynamic_map_, anchored_map_);
-    EXPECT_EQ(results.size(), 1);
+    ASSERT_EQ(results.size(), 1);
     const PenetrationAsPointPair<double> penetration = results[0];
 
     // There are no guarantees as to the ordering of which element is A and
@@ -613,7 +613,7 @@ class BoxPenetrationTest : public ::testing::Test {
 const double BoxPenetrationTest::kDepth = 1e-3;
 const double BoxPenetrationTest::kRadius = 1.0;
 const double BoxPenetrationTest::kLength = 10.0;
-
+#if 0
 TEST_F(BoxPenetrationTest, TangentPlane) {
   TestCollision(TangentPlane, 1e-12);
 }
@@ -621,13 +621,13 @@ TEST_F(BoxPenetrationTest, TangentPlane) {
 TEST_F(BoxPenetrationTest, TangentBox) {
   TestCollision(TangentBox, 1e-12);
 }
-
+#endif
 TEST_F(BoxPenetrationTest, TangentSphere) {
   // TODO(SeanCurtis-TRI): There are underlying fcl issues that prevent the
   // collision result from being more precise
   TestCollision(TangentSphere, 1e-12);
 }
-
+#if 0
 TEST_F(BoxPenetrationTest, TangentStandingCylinder) {
   TestCollision(TangentStandingCylinder, 1e-12);
 }
@@ -635,7 +635,7 @@ TEST_F(BoxPenetrationTest, TangentStandingCylinder) {
 TEST_F(BoxPenetrationTest, TangentProneCylinder) {
   TestCollision(TangentProneCylinder, 1e-12);
 }
-
+#endif
 #if 0
 GTEST_TEST(BoxPenetrationTest, BoxPlaneTest) {
   using std::abs;

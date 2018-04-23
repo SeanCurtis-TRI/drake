@@ -6,6 +6,7 @@
 
 #include <fcl/fcl.h>
 #include <fcl/geometry/shape/box.h>
+#include <fcl/narrowphase/collision_request.h>
 
 #include "drake/common/default_scalars.h"
 
@@ -429,7 +430,15 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
     collision_data.contacts = &contacts;
     collision_data.request.num_max_contacts = 1;
     collision_data.request.enable_contact = true;
+    // TODO(SeanCurtis-TRI): FCL has some *significant* issues with its
+    // collision algorithms. The independent is *horrible*. Libccd appears to
+    // die if given a gjk tolerance much below 2e-12. So, to keep *some*
+    // semblance of sanity, we'll enforce ccd and 2e-12 as tolerance.
+    collision_data.request.gjk_tolerance = 2e-12;
+    collision_data.request.gjk_solver_type = fcl::GJKSolverType::GST_LIBCCD;
+
     dynamic_tree_.collide(&collision_data, SingleCollisionCallback);
+    
     // NOTE: The interface to DynamicAABBTreeCollisionManager::collide
     // requires the input collision manager pointer to be *non* const.
     // As of 02/06/2018, it appears the only opportunity for modification
