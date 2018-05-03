@@ -5,6 +5,7 @@
 #include <utility>
 
 #include "drake/common/drake_assert.h"
+#include "drake/common/extract_double.h"
 #include "drake/geometry/geometry_context.h"
 #include "drake/geometry/geometry_instance.h"
 #include "drake/geometry/geometry_state.h"
@@ -76,7 +77,9 @@ SceneGraph<T>::SceneGraph()
     : LeafSystem<T>(SystemTypeTag<geometry::SceneGraph>{}) {
   auto state_value = make_unique<GeometryStateValue<T>>();
   initial_state_ = &state_value->template GetMutableValue<GeometryState<T>>();
-  geometry_state_index_ = this->DeclareAbstractState(std::move(state_value));
+  // This must *always* be the first abstract state -- GeometryContext assumes
+  // its index is 0.
+  this->DeclareAbstractState(std::move(state_value));
 
   bundle_port_index_ =
       this->DeclareAbstractOutputPort(&SceneGraph::MakePoseBundle,
@@ -122,7 +125,8 @@ SceneGraph<T>::SceneGraph(const SceneGraph<U>& other) : SceneGraph() {
     MakeSourcePorts(source_id);
     const auto& new_ports = input_source_ids_[source_id];
     const auto& ref_ports = other.input_source_ids_.at(source_id);
-    DRAKE_DEMAND(new_ports.pose_port == ref_ports.pose_port);
+    DRAKE_DEMAND(new_ports.pose_port == ref_ports.pose_port &&
+                 new_ports.velocity_port == ref_ports.velocity_port);
   }
 }
 
@@ -144,6 +148,14 @@ const systems::InputPortDescriptor<T>& SceneGraph<T>::get_source_pose_port(
     SourceId id) {
   ThrowUnlessRegistered(id, "Can't acquire pose port for unknown source id: ");
   return this->get_input_port(input_source_ids_[id].pose_port);
+}
+
+template <typename T>
+const systems::InputPortDescriptor<T>& SceneGraph<T>::get_source_velocity_port(
+    SourceId id) {
+  ThrowUnlessRegistered(id,
+                        "Can't acquire velocity port for unknown source id: ");
+  return this->get_input_port(input_source_ids_[id].velocity_port);
 }
 
 template <typename T>
@@ -193,6 +205,7 @@ void SceneGraph<T>::MakeSourcePorts(SourceId source_id) {
   // Create and store the input ports for this source id.
   SourcePorts& source_ports = input_source_ids_[source_id];
   source_ports.pose_port = this->DeclareAbstractInputPort().get_index();
+  source_ports.velocity_port = this->DeclareAbstractInputPort().get_index();
 }
 
 template <typename T>
@@ -309,8 +322,7 @@ template <typename T>
 std::unique_ptr<LeafContext<T>> SceneGraph<T>::DoMakeLeafContext() const {
   // Disallow further geometry source additions.
   context_has_been_allocated_ = true;
-  DRAKE_ASSERT(geometry_state_index_ >= 0);
-  return make_unique<GeometryContext<T>>(geometry_state_index_);
+  return make_unique<GeometryContext<T>>();
 }
 
 template <typename T>

@@ -21,6 +21,30 @@ class ProximityEngineTester {
                          const ProximityEngine<T>& ref_engine) {
     return ref_engine.IsDeepCopy(test_engine);
   }
+
+  template <typename T>
+  static Vector3<double> GetDynamicTranslation(
+      int index, const ProximityEngine<T>& engine) {
+    return engine.GetDynamicTranslation(index);
+  }
+
+  template <typename T>
+  static Vector3<double> GetAnchoredTranslation(
+      int index, const ProximityEngine<T>& engine) {
+    return engine.GetAnchoredTranslation(index);
+  }
+
+  template <typename T>
+  static int GetDynamicGeometryIndex(int index,
+                                     const ProximityEngine<T>& engine) {
+    return engine.GetDynamicGeometryIndex(index);
+  }
+
+  template <typename T>
+  static int GetAnchoredGeometryIndex(int index,
+                                      const ProximityEngine<T>& engine) {
+    return engine.GetAnchoredGeometryIndex(index);
+  }
 };
 
 namespace {

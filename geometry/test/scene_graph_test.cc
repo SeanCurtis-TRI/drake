@@ -174,6 +174,10 @@ TEST_F(SceneGraphTest, InputPortsForInvalidSource) {
   DRAKE_EXPECT_THROWS_MESSAGE(
       scene_graph_.get_source_pose_port(fake_source), std::logic_error,
       "Can't acquire pose port for unknown source id: \\d+.");
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      scene_graph_.get_source_velocity_port(fake_source),
+      std::logic_error,
+      "Can't acquire velocity port for unknown source id: \\d+.");
 }
 
 // Confirms that attempting to acquire input ports for valid sources for the
@@ -243,7 +247,8 @@ TEST_F(SceneGraphTest, TopologyAfterAllocation) {
 TEST_F(SceneGraphTest, DirectFeedThrough) {
   SourceId id = scene_graph_.RegisterSource();
   std::vector<int> input_ports{
-      scene_graph_.get_source_pose_port(id).get_index()};
+      scene_graph_.get_source_pose_port(id).get_index(),
+      scene_graph_.get_source_velocity_port(id).get_index()};
   for (int input_port_id : input_ports) {
     EXPECT_TRUE(SceneGraphTester::HasDirectFeedthrough(
         scene_graph_, input_port_id,
@@ -307,6 +312,8 @@ TEST_F(SceneGraphTest, TransmogrifyPorts) {
             scene_graph_.get_num_input_ports());
   EXPECT_EQ(scene_graph_ad.get_source_pose_port(s_id).get_index(),
             scene_graph_.get_source_pose_port(s_id).get_index());
+  EXPECT_EQ(scene_graph_ad.get_source_velocity_port(s_id).get_index(),
+            scene_graph_.get_source_velocity_port(s_id).get_index());
   std::unique_ptr<systems::Context<AutoDiffXd>> context_ad =
       scene_graph_ad.AllocateContext();
 }
