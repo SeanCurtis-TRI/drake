@@ -14,6 +14,7 @@
 #include "drake/geometry/geometry_instance.h"
 #include "drake/geometry/internal_frame.h"
 #include "drake/geometry/shape_specification.h"
+#include "drake/multibody/multibody_tree/math/spatial_velocity.h"
 
 namespace drake {
 namespace geometry {
@@ -99,6 +100,10 @@ class GeometryStateTester {
     state_->SetFramePoses(poses);
   }
 
+  void SetFrameVelocities(const FrameVelocityVector<T>& poses) {
+    state_->SetFrameVelocities(poses);
+  }
+
   template <typename ValueType>
   void ValidateFrameIds(const FrameKinematicsVector<ValueType>& data) const {
     state_->ValidateFrameIds(data);
@@ -110,6 +115,7 @@ class GeometryStateTester {
 
 namespace {
 
+using multibody::SpatialVelocity;
 using std::make_unique;
 using std::move;
 using std::unique_ptr;
@@ -482,6 +488,7 @@ TEST_F(GeometryStateTest, ValidateSingleSourceTree) {
       EXPECT_EQ(geometry.get_child_geometry_ids().size(), 0);
       EXPECT_FALSE(geometry.get_parent_id());
       // TODO(SeanCurtis-TRI): Update this when names are being used.
+      EXPECT_EQ(geometry.get_name(), "no_name");
       EXPECT_EQ(geometry.get_engine_index(), i);
       EXPECT_EQ(geometry.get_child_geometry_ids().size(), 0);
       EXPECT_FALSE(geometry.get_parent_id());
@@ -981,6 +988,30 @@ TEST_F(GeometryStateTest, SetFramePoses) {
         world_poses[i].matrix().block<3, 4>(0, 0),
         (offset * offset * X_FG_[i].matrix()).block<3, 4>(0, 0)));
   }
+}
+
+// Place holder for testing the SetFrameVelocities. It currently has a not-
+// implemented exception. When implemented, this will remind the developer to
+// test.
+TEST_F(GeometryStateTest, SetFrameVelocities) {
+  SourceId s_id = SetUpSingleSourceTree();
+
+  auto make_velocity_vector =
+      [&s_id, this]() -> FrameVelocityVector<double> {
+        const int count = static_cast<int>(this->frames_.size());
+        FrameVelocityVector<double> velocities(s_id, this->frames_);
+        velocities.clear();
+        for (int i = 0; i < count; ++i) {
+          // TODO(SeanCurtis-TRI): Replace identity velocities with real values.
+          velocities.set_value(this->frames_[i], SpatialVelocity<double>());
+        }
+        return velocities;
+      };
+
+  FrameVelocityVector<double> velocities = make_velocity_vector();
+  DRAKE_EXPECT_THROWS_MESSAGE(gs_tester_.SetFrameVelocities(velocities),
+                              std::runtime_error,
+                              "Not implemented");
 }
 
 // Test various frame property queries.

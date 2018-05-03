@@ -22,8 +22,8 @@ class GeometryContext final : public systems::LeafContext<T> {
  public:
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(GeometryContext)
 
-  /** Constructs the context with the given index for the geometry state. */
-  explicit GeometryContext(int geometry_state_index);
+  /** Constructs a new geometry context */
+  GeometryContext() = default;
 
   /** Returns a mutable reference of the underlying geometry state. */
   GeometryState<T>& get_mutable_geometry_state();
@@ -33,7 +33,7 @@ class GeometryContext final : public systems::LeafContext<T> {
 
  private:
   // The index of the geometry state abstract state.
-  const int geometry_state_index_{-1};
+  static constexpr int kGeometryStateIndex{0};
 };
 
 }  // namespace geometry

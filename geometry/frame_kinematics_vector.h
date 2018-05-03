@@ -7,6 +7,7 @@
 #include "drake/common/drake_copyable.h"
 #include "drake/common/eigen_types.h"
 #include "drake/geometry/geometry_ids.h"
+#include "drake/multibody/multibody_tree/math/spatial_velocity.h"
 
 namespace drake {
 namespace geometry {
@@ -131,14 +132,17 @@ namespace geometry {
  Currently, the following data types with the following scalar types are
  supported:
 
-  Alias           | Instantiation                            | Scalar types
- -----------------|------------------------------------------|--------------
-  FramePoseVector | FrameKinematicsVector<Isometry3<Scalar>> | double
-  FramePoseVector | FrameKinematicsVector<Isometry3<Scalar>> | AutoDiffXd
+  Alias               | Instantiation                                  | Scalar types
+ ---------------------|------------------------------------------------|--------------
+  FramePoseVector     | FrameKinematicsVector<Isometry3<Scalar>>       | double
+  FramePoseVector     | FrameKinematicsVector<Isometry3<Scalar>>       | AutoDiffXd
+  FrameVelocityVector | FrameKinematicsVector<SpatialVelocity<Scalar>> | double
+  FrameVelocityVector | FrameKinematicsVector<SpatialVelocity<Scalar>> | AutoDiffXd
   */
 template <class KinematicsValue>
 class FrameKinematicsVector {
  public:
+  // TODO(SeanCurtis-TRI): Should this still be copyable?
   DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(FrameKinematicsVector)
 
   /** Initializes the vector on the owned ids.
@@ -212,6 +216,22 @@ class FrameKinematicsVector {
  */
 template <typename T>
 using FramePoseVector = FrameKinematicsVector<Isometry3<T>>;
+
+/** Class for communicating _velocity_ information to SceneGraph for
+ registered frames.
+
+ @tparam T The scalar type. Must be a valid Eigen scalar.
+
+ Instantiated templates for the following kinds of T's are provided:
+ - double
+ - AutoDiffXd
+
+ They are already available to link against in the containing library.
+ No other values for T are currently supported.
+ */
+template <typename T>
+using FrameVelocityVector =
+    FrameKinematicsVector<drake::multibody::SpatialVelocity<T>>;
 
 }  // namespace geometry
 }  // namespace drake

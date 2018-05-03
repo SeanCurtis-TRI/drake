@@ -119,6 +119,165 @@ class QueryObject {
 
   //@}
 
+#if 0
+  //----------------------------------------------------------------------------
+  /** @name                   Proximity Queries
+
+   These queries represent _proximity_ queries -- queries to determine what is
+   near by, or what is closest. This is not about overlapping/penetration --
+   the proximity of overlapping/penetrating objects should be zero.
+
+   These queries are _not_ affected by collision filtering. */
+
+  //@{
+
+  /** Computes the pair-wise nearest points for all geometries in the world.
+
+   The output vector will *not* be cleared. Contact information will merely be
+   added to the vector.
+
+   @param context         The geometry context to query against.
+   @param near_points     A vector containing `O(N²)` pairs, where there are `N`
+                          geometries in the world.
+   @returns True if the operation was successful. */
+  bool ComputePairwiseClosestPoints(
+      const GeometryContext<T>& context,
+      std::vector<NearestPair<T>>* near_points) const;
+
+  // NOTE: This maps to Model::closestPointsAllToAll().
+  /** Computes the pair-wise nearest points for all geometries in the given set.
+
+   The output vector will *not* be cleared. Contact information will merely be
+   added to the vector.
+
+   @param context         The geometry context to query against.
+   @param ids_to_check    A vector of `N` geometry ids for which the pair-wise
+                          points are computed.
+   @param near_points     A vector containing O(N²) pairs.
+   @returns True if the operation was successful. */
+  bool ComputePairwiseClosestPoints(
+      const GeometryContext<T>& context,
+      const std::vector<GeometryId>& ids_to_check,
+      std::vector<NearestPair<T>>* near_points) const;
+
+  // NOTE: This maps to Model::closestPointsPairwise().
+  /** Computes the pair-wise nearest points for the explicitly indicated pairs
+   of geometries.
+
+   The output vector will *not* be cleared. Contact information will merely be
+   added to the vector.
+
+   @param context      The geometry context to query against.
+   @param pairs        A vector of `N` geometry pairs. The closest points for
+                       each pair will be computed.
+   @param near_points  A vector of `N` NearestPair values will be added to the
+                       vector, one for each input pair.
+   @returns True if the operation was successful. */
+  bool ComputePairwiseClosestPoints(
+      const GeometryContext<T>& context,
+      const std::vector<GeometryPair>& pairs,
+      std::vector<NearestPair<T>>* near_points) const;
+  // TODO(SeanCurtis-TRI): Add a version that takes *frame* pairs.
+
+  // NOTE: This maps to Model::collisionDetectFromPoints().
+  /** Determines the nearest body/element to a point for a set of points.
+
+   @param context      The geometry context to query against.
+   @param points       An ordered list of `N` points represented column-wise by
+                       a `3 x N` Matrix.
+   @param near_bodies  A vector of `N` PointProximity instances such that the
+                       iᵗʰ instance reports the nearest body/element to the iᵗʰ
+                       point.
+   @returns True if the operation was successful. */
+  bool FindClosestGeometry(
+      const GeometryContext<T>& context,
+      const Eigen::Matrix3Xd &points,
+      std::vector<PointProximity<T>> *near_bodies) const;
+
+  // NOTE: This maps to Model::collidingPoints().
+  /** Determines which of the given list of `points` are no farther than
+   `distance` meters from _any_ collision geometry.
+
+   In other words, the index `i` is included in the returned vector of indices
+   iff a sphere of radius `distance`, located at `input_points[i]` collides with
+   any collision element in the model.
+
+   @param[in]   points        An ordered list of `N` points represented
+                              column-wise by a `3 x N` Matrix.
+   @param[in]   distance      The maximum distance from a point that is allowed.
+   @param[out]  results       A vector of indices into `points`. Each index
+                              indicates that the corresponding point is within
+                              closer than `distance` meters away from some
+                              geometry. The vector will _not_ be cleared and
+                              the indexes will be added to the current values.
+   @returns True if the operation was successful.  */
+  bool FindGeometryProximalPoints(const Matrix3X<T>& points, double distance,
+                                  std::vector<size_t>* results) const;
+
+  /** Given a vector of `points` in the world coordinate frame, reports if _any_
+   of those `points` lie within a specified `distance` of any collision geometry
+   in the model.
+
+   In other words, this method tests if any of the spheres of radius
+   `distance` located at `input_points[i]` collides with any part of
+   the model. This method returns as soon as any of these spheres collides
+   with the model. Points are not checked against one another but only against
+   the existing model.
+
+   @param[in]   points    The list of points to check for collisions against the
+                          model.
+   @param[in]   distance  The radius of a control sphere around each point used
+                          to check for collisions with the model.
+  @return True if any point is closer than `distance` units to collision
+          geometry. */
+  bool IsAnyGeometryNear(const Matrix3X<T>& points,
+                         double distance) const;
+
+  //@}
+
+  //----------------------------------------------------------------------------
+  /** @name                  Ray-casting Queries
+
+   These queries perform ray-cast queries. Ray-cast queries report what, if
+   anything, lies in a particular direction from a query point.
+   */
+
+  //@{
+
+  // NOTE: This maps to Model::collisionRaycast().
+  /** Cast one or more rays against the scene geometry.
+
+   @param[in]  origin           A `3 x N` matrix where each column specifies the
+                                position of a ray's origin in the world frame.
+                                If `origin` is `3 x 1`, the same origin is used
+                                for all rays.
+   @param[in]  ray_endpoint     A `3 x N` matrix where each column specifies a
+                                point *away* from the corresponding origin
+                                through which the ray passes.
+   @param[out] distances        A `N`-length vector of distance values. The
+                                `iᵗʰ` value is the distance along the `iᵗʰ` ray.
+                                The value is negative if the ray didn't hit any
+                                surface.
+   @param[out] normals          A `3 x N` matrix of values, where the `iᵗʰ`
+                                column is the normal of the surface where the
+                                `iᵗʰ` ray intersected. Values are undefined if
+                                the `iᵗʰ` distance is negative.
+   @returns True if the operation was successful.   */
+  bool CastRays(const Matrix3X<T>& origin,
+                const Matrix3X<T>& ray_endpoint,
+                Eigen::VectorXd* distances, Matrix3X<T>* normals) const;
+
+  //@}
+
+  // TODO(SeanCurtis-TRI): The list of Model functions not yet explicitly
+  //  accounted for:
+  //      potentialCollisionPoints -- really frigging weird; could include
+  //        multiple penetrating points, but also non penetrating points.
+  //        a) This is not called outside of tests.
+  //        b) This seems to be a *very* bullet-specific method.
+  //
+#endif
+
  private:
   // SceneGraph is the only class that can instantiate QueryObjects.
   friend class SceneGraph<T>;

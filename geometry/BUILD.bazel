@@ -42,6 +42,7 @@ drake_cc_library(
     deps = [
         ":geometry_ids",
         ":geometry_index",
+        ":geometry_query_inputs",
         ":shape_specification",
         "//common",
         "//common:default_scalars",
@@ -62,6 +63,7 @@ drake_cc_library(
         ":geometry_ids",
         "//common:autodiff",
         "//common:essential",
+        "//multibody/multibody_tree/math:spatial_velocity",
     ],
 )
 
@@ -123,6 +125,16 @@ drake_cc_library(
 )
 
 drake_cc_library(
+    name = "geometry_query_inputs",
+    srcs = [],
+    hdrs = ["geometry_query_inputs.h"],
+    deps = [
+        ":geometry_ids",
+        ":geometry_index",
+    ],
+)
+
+drake_cc_library(
     name = "geometry_state",
     srcs = ["geometry_state.cc"],
     hdrs = ["geometry_state.h"],
@@ -135,6 +147,8 @@ drake_cc_library(
         ":internal_frame",
         ":internal_geometry",
         ":proximity_engine",
+        "//common",
+        "//common:unused",
     ],
 )
 
@@ -245,6 +259,7 @@ drake_cc_googletest(
     name = "geometry_state_test",
     deps = [
         ":geometry_state",
+        ":shape_specification",
         "//common/test_utilities",
     ],
 )

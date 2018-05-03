@@ -212,9 +212,10 @@ class SceneGraph final : public systems::LeafSystem<T> {
    provided. */
   //@{
 
-  /** Registers a new source to the geometry system. The caller must save the
-   returned SourceId; it is the token by which all other operations on the
-   geometry world are conducted.
+  /** Registers a new source to the geometry system (see XXXX for the
+   discussion of "geometry source"). The caller must save the returned SourceId;
+   it is the token by which all other operations on the geometry world are
+   conducted.
 
    This source id can be used to register arbitrary _anchored_ geometry. But if
    dynamic geometry is registered (via RegisterGeometry/RegisterFrame), then
@@ -237,6 +238,13 @@ class SceneGraph final : public systems::LeafSystem<T> {
    frames.
    @throws  std::logic_error if the source_id is _not_ recognized. */
   const systems::InputPortDescriptor<T>& get_source_pose_port(SourceId id);
+
+  /** Given a valid source identifier, returns an input _velocity_ port
+   associated with that id. This port is used to communicate _velocity_ data for
+   registered frames.
+   @throws  std::logic_error if the source_id is _not_ recognized, or if the
+   context has already been allocated.. */
+  const systems::InputPortDescriptor<T>& get_source_velocity_port(SourceId id);
 
   /** Returns the output port which produces the PoseBundle for LCM
    communication to drake visualizer. */
@@ -423,6 +431,7 @@ class SceneGraph final : public systems::LeafSystem<T> {
   // TODO(SeanCurtis-TRI): Consider making these TypeSafeIndex values.
   struct SourcePorts {
     int pose_port{-1};
+    int velocity_port{-1};
   };
 
   // A mapping from added source identifier to the port indices associated with
@@ -446,9 +455,6 @@ class SceneGraph final : public systems::LeafSystem<T> {
 
   // TODO(SeanCurtis-TRI): Get rid of this.
   mutable bool context_has_been_allocated_{false};
-
-  // The index of the geometry state in the context's abstract state.
-  int geometry_state_index_{-1};
 };
 
 }  // namespace geometry

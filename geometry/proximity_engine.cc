@@ -478,6 +478,24 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
     return false;
   }
 
+  Vector3<double> GetDynamicTranslation(int index) const {
+    return dynamic_objects_[index]->getTranslation();
+  }
+
+  Vector3<double> GetAnchoredTranslation(int index) const {
+    return anchored_objects_[index]->getTranslation();
+  }
+
+  int GetDynamicGeometryIndex(int index) const {
+    EncodedData data(*dynamic_objects_[index]);
+    return data.index();
+  }
+
+  int GetAnchoredGeometryIndex(int index) const {
+    EncodedData data(*anchored_objects_[index]);
+    return data.index();
+  }
+
  private:
   // Engine on one scalar can see the members of other engines.
   friend class ProximityEngineTester;
@@ -608,6 +626,26 @@ ProximityEngine<T>::ComputePointPairPenetration(
 template <typename T>
 bool ProximityEngine<T>::IsDeepCopy(const ProximityEngine<T>& other) const {
   return impl_->IsDeepCopy(*other.impl_);
+}
+
+template <typename T>
+Vector3<double> ProximityEngine<T>::GetDynamicTranslation(int index) const {
+  return impl_->GetDynamicTranslation(index);
+}
+
+template <typename T>
+Vector3<double> ProximityEngine<T>::GetAnchoredTranslation(int index) const {
+  return impl_->GetAnchoredTranslation(index);
+}
+
+template <typename T>
+int ProximityEngine<T>::GetDynamicGeometryIndex(int index) const {
+  return impl_->GetDynamicGeometryIndex(index);
+}
+
+template <typename T>
+int ProximityEngine<T>::GetAnchoredGeometryIndex(int index) const {
+  return impl_->GetAnchoredGeometryIndex(index);
 }
 
 }  // namespace internal

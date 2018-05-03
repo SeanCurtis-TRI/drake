@@ -268,7 +268,7 @@ GeometryId GeometryState<T>::RegisterGeometry(
   geometries_.emplace(
       geometry_id,
       InternalGeometry(geometry->release_shape(), frame_id, geometry_id,
-                       geometry->pose(), engine_index,
+                       "no_name", geometry->pose(), engine_index,
                        geometry->visual_material()));
   // TODO(SeanCurtis-TRI): Enforcing the invariant that the indexes are
   // compactly distributed. Is there a more robust way to do this?
@@ -356,8 +356,8 @@ GeometryId GeometryState<T>::RegisterAnchoredGeometry(
   anchored_geometries_.emplace(
       geometry_id,
       InternalAnchoredGeometry(
-          geometry->release_shape(), geometry_id, geometry->pose(),
-          engine_index, geometry->visual_material()));
+          geometry->release_shape(), geometry_id, "no name anchored",
+          geometry->pose(), engine_index, geometry->visual_material()));
   return geometry_id;
 }
 
@@ -413,6 +413,18 @@ void GeometryState<T>::SetFramePoses(const FramePoseVector<T>& poses) {
   const Isometry3<T> world_pose = Isometry3<T>::Identity();
   for (auto frame_id : source_root_frame_map_[poses.source_id()]) {
     UpdatePosesRecursively(frames_[frame_id], world_pose, poses);
+  }
+}
+
+template <typename T>
+void GeometryState<T>::SetFrameVelocities(
+    const FrameVelocityVector<T>& velocities) {
+  // TODO(SeanCurtis-TRI): Down the road, make this validation depend on
+  // ASSERT_ARMED.
+  ValidateFrameIds(velocities);
+  const Isometry3<T> world_pose = Isometry3<T>::Identity();
+  for (auto frame_id : source_root_frame_map_[velocities.source_id()]) {
+    UpdateVelocitiesRecursively(frames_[frame_id], world_pose, velocities);
   }
 }
 
