@@ -1239,6 +1239,18 @@ class RigidBodyTree {
       Eigen::Matrix3Xd& ptsB,
       bool use_margins = true);
 
+  /** Returns true if any non-filtered element pair is in collision.
+
+   @param cache[in] a KinematicsCache constructed by RigidBodyTree::doKinematics
+   given `q` and `v`.
+
+   @param[in] use_margins If `true` the model uses the representation with
+   margins.
+   */
+  template <typename U>
+  bool CollisionsExist(const KinematicsCache<U>& cache,
+                       bool use_margins = true);
+
   /** Computes the point of closest approach between bodies in the
    RigidBodyTree that are in contact.
 

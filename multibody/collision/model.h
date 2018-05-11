@@ -115,6 +115,18 @@ class Model {
       const std::vector<ElementId>& ids_to_check, bool use_margins,
       std::vector<PointPair<double>>* closest_points) = 0;
 
+  /** Reports if there are *any* collisions between non-filtered collision
+   elements. This is optimized for doing the minimum amount of work in the case
+   of collision at the cost of not reporting how many collisions there are or
+   characterizing the collision.
+
+   @param[in] use_margins If `true` the model uses the representation with
+   margins.
+
+   @returns true if there are any collisions.
+   */
+  virtual bool CollisionsExist(bool use_margins) = 0;
+
   /** Computes the point of closest approach between collision elements that
    are in contact.
 

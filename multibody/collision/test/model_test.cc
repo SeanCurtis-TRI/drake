@@ -193,6 +193,10 @@ class FclModelDeathTests : public ModelTestBase,
     model_->ClosestPointsAllToAll(ids, true, &pairs);
   }
 
+  void CallCollisionsExist() {
+    model_->CollisionsExist(true);
+  }
+
   void CallCollisionDetectFromPoints() {
     Eigen::Matrix3Xd points;
     std::vector<PointPair<double>> closest_points;
@@ -234,7 +238,8 @@ INSTANTIATE_TEST_CASE_P(
                       &FclModelDeathTests::CallClearCachedResults,
                       &FclModelDeathTests::CallCollisionRaycast,
                       &FclModelDeathTests::CallCollidingPointsCheckOnly,
-                      &FclModelDeathTests::CallCollidingPoints));
+                      &FclModelDeathTests::CallCollidingPoints,
+                      &FclModelDeathTests::CallCollisionsExist));
 #endif
 
 // Fixture for testing collision queries involving pairs of collision
@@ -1303,6 +1308,45 @@ GTEST_TEST(ModelTest, DistanceToNonConvex) {
   pairs.emplace_back(sphere->getId(), cap->getId());
   model->ClosestPointsPairwise(pairs, true, &results);
   EXPECT_EQ(results.size(), 0u);
+}
+
+// Exercise the CollisionExists method of the model -- confirm that it reports
+// the correct state. Uses a sphere and a box. Box is a cube with 1-meter length
+// edges. Sphere has radius 1.0. Tests in two configurations, colliding and
+// non-colliding.
+GTEST_TEST(ModelTest, CollisionExists) {
+  DrakeShapes::Box box_geometry(Vector3d(1.0, 1.0, 1.0));
+  DrakeShapes::Sphere sphere_geometry(0.5);
+
+  // Populate the model.
+  std::unique_ptr<Model> model = newModel();
+  Element& box = *model->AddElement(make_unique<Element>(box_geometry));
+  Element& sphere = *model->AddElement(make_unique<Element>(sphere_geometry));
+
+  Isometry3d box_pose;
+  box_pose.setIdentity();
+  Isometry3d sphere_pose;
+  sphere_pose.setIdentity();
+
+  // Place in a *non*-colliding configuration.
+  box_pose.translation() = Vector3d(0.0, 0.5, 0.0);
+  model->UpdateElementWorldTransform(box.getId(), box_pose);
+  sphere_pose.translation() = Vector3d(1.25, 0, 0.0);
+  model->UpdateElementWorldTransform(sphere.getId(), sphere_pose);
+  model->UpdateModel();
+
+  bool use_margins = false;
+  EXPECT_FALSE(model->CollisionsExist(use_margins));
+
+  // Place in colliding configuration
+  box_pose.translation() = Vector3d(0.0, 0.5, 0.0);
+  model->UpdateElementWorldTransform(box.getId(), box_pose);
+  sphere_pose.translation() = Vector3d(0, 1.25, 0.0);
+  model->UpdateElementWorldTransform(sphere.getId(), sphere_pose);
+  model->UpdateModel();
+
+
+//  EXPECT_TRUE(model->CollisionsExist(use_margins));
 }
 
 }  // namespace

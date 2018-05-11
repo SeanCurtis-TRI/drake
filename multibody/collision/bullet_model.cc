@@ -834,6 +834,64 @@ bool BulletModel::ClosestPointsPairwise(
   return closest_points->size() > 0;
 }
 
+bool BulletModel::CollisionsExist(bool use_margins) {
+  BulletCollisionWorldWrapper& bt_world = getBulletWorld(use_margins);
+  btOverlappingPairCache* pair_cache =
+      bt_world.bt_collision_world->getPairCache();
+  btDispatcher& dispatcher = *bt_world.bt_collision_world->getDispatcher();
+  btDispatcherInfo& dispatch_info =
+      bt_world.bt_collision_world->getDispatchInfo();
+
+  // NOTE: This algorithm is ripped more or less wholesale from
+  // btCollisionDispatcher::defaultNearCallback(). It has been simplified in
+  // some ways and variable names have been modified to match Drake's style
+  // guide. However, the magic numbers have been left untouched (note the 0s and
+  // -1s below). It is worth noting that bullet really was *not* designed for
+  // this type of query; it insists on computing contact data regardless.
+
+  for (int i = 0; i < pair_cache->getNumOverlappingPairs(); ++i) {
+    btBroadphasePair& pair = pair_cache->getOverlappingPairArrayPtr()[i];
+
+    btCollisionObject* object_0 =
+        static_cast<btCollisionObject*>(pair.m_pProxy0->m_clientObject);
+    btCollisionObject* object_1 =
+        static_cast<btCollisionObject*>(pair.m_pProxy1->m_clientObject);
+
+    btCollisionObjectWrapper wrapper_0(0, object_0->getCollisionShape(),
+                                       object_0, object_0->getWorldTransform(),
+                                       -1, -1);
+    btCollisionObjectWrapper wrapper_1(0, object_1->getCollisionShape(),
+                                       object_1, object_1->getWorldTransform(),
+                                       -1, -1);
+
+    // dispatcher will keep algorithms persistent in the collision pair
+    if (!pair.m_algorithm) {
+      pair.m_algorithm = dispatcher.findAlgorithm(&wrapper_0, &wrapper_1, 0,
+                                                  BT_CONTACT_POINT_ALGORITHMS);
+    }
+
+    if (pair.m_algorithm) {
+      btManifoldResult result(&wrapper_0, &wrapper_1);
+      DRAKE_DEMAND(result.getPersistentManifold() == nullptr);
+
+      pair.m_algorithm->processCollision(&wrapper_0, &wrapper_1, dispatch_info,
+                                         &result);
+      if (result.getPersistentManifold() &&
+          result.getPersistentManifold()->getNumContacts() > 0) {
+        // Any contacts at all is sufficient to stop.
+        return true;
+      }
+    } else {
+      // TODO(SeanCurtis-TRI): The original bullet code blindly ignores pairs
+      // for which no algorithm is found. This error assumes that we aren't
+      // generating any geometry for which there is no algorithm. Determine if
+      // this is the right response.
+      throw std::logic_error("No algorithm exists for bullet collision pair");
+    }
+  }
+  return false;
+}
+
 bool BulletModel::ComputeMaximumDepthCollisionPoints(
     bool use_margins, std::vector<PointPair<double>>* collision_points) {
   DRAKE_DEMAND(collision_points != nullptr);

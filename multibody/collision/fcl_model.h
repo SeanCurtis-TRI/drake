@@ -38,6 +38,7 @@ class FclModel : public Model {
                         const Eigen::Matrix3Xd& ray_endpoints, bool use_margins,
                         Eigen::VectorXd* distances,
                         Eigen::Matrix3Xd* normals) override;
+  bool CollisionsExist(bool use_margins) override;
   bool ComputeMaximumDepthCollisionPoints(
       bool use_margins, std::vector<PointPair<double>>* points) override;
   std::vector<size_t> CollidingPoints(

@@ -1174,6 +1174,14 @@ bool RigidBodyTree<T>::collisionDetect(
 
 template <typename T>
 template <typename U>
+bool RigidBodyTree<T>::CollisionsExist(const KinematicsCache<U>& cache,
+                                       bool use_margins) {
+  updateDynamicCollisionElements(cache);
+  return collision_model_->CollisionsExist(use_margins);
+}
+
+template <typename T>
+template <typename U>
 std::vector<drake::multibody::collision::PointPair<U>>
 RigidBodyTree<T>::ComputeMaximumDepthCollisionPoints(
     const KinematicsCache<U>& cache, bool use_margins,
@@ -3884,6 +3892,10 @@ template KinematicsCache<double>          RigidBodyTree<double>::doKinematics(Ei
 
 // Explicit template instantiations for CreateKinematicsCacheWithType.
 template KinematicsCache<AutoDiffXd     > RigidBodyTree<double>::CreateKinematicsCacheWithType<AutoDiffXd     >() const;  // NOLINT
+
+// Explicit template instantiations for CollisionsExist.
+template bool RigidBodyTree<double>::CollisionsExist<AutoDiffXd     >(const KinematicsCache<AutoDiffXd     >&, bool);  // NOLINT
+template bool RigidBodyTree<double>::CollisionsExist<double         >(const KinematicsCache<double         >&, bool);  // NOLINT
 
 // Explicit template instantiations for ComputeMaximumDepthCollisionPoints.
 template std::vector<drake::multibody::collision::PointPair<AutoDiffXd     >> RigidBodyTree<double>::ComputeMaximumDepthCollisionPoints<AutoDiffXd     >(const KinematicsCache<AutoDiffXd     >&, bool, bool);  // NOLINT

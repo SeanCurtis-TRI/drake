@@ -73,6 +73,30 @@ class RBTCollisionTest: public ::testing::Test {
   BodyToSurfacePointMap solution_;
 };
 
+TEST_F(RBTCollisionTest, CollisionExists) {
+  int nq = tree_.get_num_positions();
+  int nv = tree_.get_num_velocities();
+  int num_states = nq + nv;
+  VectorXd x = VectorXd::Zero(num_states);
+  x.head(nq) = tree_.getZeroConfiguration();
+
+  auto q = x.topRows(nq);
+  auto v = x.bottomRows(nv);
+
+  // The zero configuration is a colliding configuration.
+  KinematicsCache<double> kinsol = tree_.doKinematics(q, v);
+  ASSERT_TRUE(tree_.CollisionsExist(kinsol, false));
+
+  // Now reposition the bodies and confirm no collisions.
+  ASSERT_EQ(q.size(), 14);  // Two 7-dof floating quaternion joints.
+  // clang-format off
+  q << -2.5, 0, 0, 1, 0, 0, 0,   // Box size: 2.5 m on a side.
+          1, 0, 0, 1, 0, 0, 0;   // Sphere radius: 0.5.
+  // clang-format on
+  KinematicsCache<double> kinsol_clear = tree_.doKinematics(q, v);
+  ASSERT_FALSE(tree_.CollisionsExist(kinsol_clear, false));
+}
+
 // This unit test assesses the correct return from
 // RigidBodyTree::ComputeMaximumDepthCollisionPoints.
 // The test consists on finding the maximum depth penetration point between a

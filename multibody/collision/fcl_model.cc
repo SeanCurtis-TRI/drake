@@ -151,6 +151,11 @@ bool FclModel::ClosestPointsAllToAll(
   return false;
 }
 
+bool FclModel::CollisionsExist(bool) {
+  DRAKE_ABORT_MSG("Not implemented.");
+  return false;
+}
+
 bool FclModel::ComputeMaximumDepthCollisionPoints(
     bool, std::vector<PointPair<double>>* points) {
   CollisionData collision_data;

@@ -29,6 +29,8 @@ class UnusableModel : public Model {
       const std::vector<ElementId>& ids_to_check, bool use_margins,
       std::vector<PointPair<double>>* closest_points) override;
 
+  bool CollisionsExist(bool use_margins) override;
+
   bool ComputeMaximumDepthCollisionPoints(
       bool use_margins, std::vector<PointPair<double>>* points) override;
 
