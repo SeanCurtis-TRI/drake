@@ -25,23 +25,32 @@ drake_cc_package_library(
 drake_cc_library(
     name = "model",
     srcs = [
-        "collision_filter.cc",
         "element.cc",
         "model.cc",
     ],
     hdrs = [
-        "collision_filter.h",
         "element.h",
         "model.h",
         "point_pair.h",
     ],
     deps = [
+        ":collision_filter",
         "//common:autodiff",
         "//common:essential",
         "//common:sorted_vectors_have_intersection",
         "//multibody/rigid_body_plant:compliant_material",
         "//multibody/shapes",
     ],
+)
+
+drake_cc_library(
+    name = "collision_filter",
+    srcs = ["collision_filter.cc"],
+    hdrs = ["collision_filter.h"],
+    deps = [
+        "//common:autodiff",
+        "//common:essential",
+        ],
 )
 
 drake_cc_library(

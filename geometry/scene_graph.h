@@ -365,96 +365,101 @@ class SceneGraph final : public systems::LeafSystem<T> {
 
   //@}
 
- private:
-  // Friend class to facilitate testing.
-  friend class SceneGraphTester;
+  /** @name             Collision filtering
+   The interface for configuring
+   */
+  //@{
+  //@}
+private:
+// Friend class to facilitate testing.
+friend class SceneGraphTester;
 
-  // SceneGraph of different scalar types can all access each other's data.
-  template <typename>
-  friend class SceneGraph;
+// SceneGraph of different scalar types can all access each other's data.
+template <typename>
+friend class SceneGraph;
 
-  // Give (at least temporarily) QueryObject access to the system API to
-  // evaluate inputs on the context.
-  friend class QueryObject<T>;
+// Give (at least temporarily) QueryObject access to the system API to
+// evaluate inputs on the context.
+friend class QueryObject<T>;
 
-  // The two output ports (bundle and query object) depend on all input
-  // kinematics (more or less). This makes those relationships concrete and
-  // official even if/when this class is made symbolic-compatible (or the
-  // default non-symbolic-compatible behavior were to change).
-  optional<bool> DoHasDirectFeedthrough(int, int) const override {
-    return true;
-  }
+// The two output ports (bundle and query object) depend on all input
+// kinematics (more or less). This makes those relationships concrete and
+// official even if/when this class is made symbolic-compatible (or the
+// default non-symbolic-compatible behavior were to change).
+optional<bool> DoHasDirectFeedthrough(int, int) const override {
+  return true;
+}
 
-  // Helper class to register input ports for a source id.
-  void MakeSourcePorts(SourceId source_id);
+// Helper class to register input ports for a source id.
+void MakeSourcePorts(SourceId source_id);
 
-  // Allow the load dispatch to peek into SceneGraph.
-  friend void DispatchLoadMessage(const SceneGraph<double>&);
+// Allow the load dispatch to peek into SceneGraph.
+friend void DispatchLoadMessage(const SceneGraph<double>&);
 
-  // Constructs a QueryObject for OutputPort allocation.
-  QueryObject<T> MakeQueryObject() const;
+// Constructs a QueryObject for OutputPort allocation.
+QueryObject<T> MakeQueryObject() const;
 
-  // Sets the context into the output port value so downstream consumers can
-  // perform queries.
-  void CalcQueryObject(const systems::Context<T>& context,
-                       QueryObject<T>* output) const;
+// Sets the context into the output port value so downstream consumers can
+// perform queries.
+void CalcQueryObject(const systems::Context<T>& context,
+                     QueryObject<T>* output) const;
 
-  // Constructs a PoseBundle of length equal to the concatenation of all inputs.
-  // This is the method used by the allocator for the output port.
-  systems::rendering::PoseBundle<T> MakePoseBundle() const;
+// Constructs a PoseBundle of length equal to the concatenation of all inputs.
+// This is the method used by the allocator for the output port.
+systems::rendering::PoseBundle<T> MakePoseBundle() const;
 
-  // Aggregates the input poses into the output PoseBundle, in the same order as
-  // was used in allocation. Aborts if any inputs have a _different_ size than
-  // expected.
-  void CalcPoseBundle(const systems::Context<T>& context,
-                      systems::rendering::PoseBundle<T>* output) const;
+// Aggregates the input poses into the output PoseBundle, in the same order as
+// was used in allocation. Aborts if any inputs have a _different_ size than
+// expected.
+void CalcPoseBundle(const systems::Context<T>& context,
+                    systems::rendering::PoseBundle<T>* output) const;
 
-  // Updates the state of geometry world from *all* the inputs.
-  void FullPoseUpdate(const GeometryContext<T>& context) const;
+// Updates the state of geometry world from *all* the inputs.
+void FullPoseUpdate(const GeometryContext<T>& context) const;
 
-  // Override of construction to account for
-  //    - instantiating a GeometryContext instance (as opposed to LeafContext),
-  //    - to detect allocation in support of the topology semantics described
-  //      above.
-  std::unique_ptr<systems::LeafContext<T>> DoMakeLeafContext() const override;
+// Override of construction to account for
+//    - instantiating a GeometryContext instance (as opposed to LeafContext),
+//    - to detect allocation in support of the topology semantics described
+//      above.
+std::unique_ptr<systems::LeafContext<T>> DoMakeLeafContext() const override;
 
-  // Helper method for throwing an exception if a context has *ever* been
-  // allocated by this system. The invoking method should pass it's name so
-  // that the error message can include that detail.
-  void ThrowIfContextAllocated(const char* source_method) const;
+// Helper method for throwing an exception if a context has *ever* been
+// allocated by this system. The invoking method should pass it's name so
+// that the error message can include that detail.
+void ThrowIfContextAllocated(const char* source_method) const;
 
-  // Asserts the given source_id is registered, throwing an exception whose
-  // message is the given message with the source_id appended if not.
-  void ThrowUnlessRegistered(SourceId source_id, const char* message) const;
+// Asserts the given source_id is registered, throwing an exception whose
+// message is the given message with the source_id appended if not.
+void ThrowUnlessRegistered(SourceId source_id, const char* message) const;
 
-  // A struct that stores the port indices for a given source.
-  // TODO(SeanCurtis-TRI): Consider making these TypeSafeIndex values.
-  struct SourcePorts {
-    int pose_port{-1};
-    int velocity_port{-1};
-  };
+// A struct that stores the port indices for a given source.
+// TODO(SeanCurtis-TRI): Consider making these TypeSafeIndex values.
+struct SourcePorts {
+  int pose_port{-1};
+  int velocity_port{-1};
+};
 
-  // A mapping from added source identifier to the port indices associated with
-  // that id.
-  std::unordered_map<SourceId, SourcePorts> input_source_ids_;
+// A mapping from added source identifier to the port indices associated with
+// that id.
+std::unordered_map<SourceId, SourcePorts> input_source_ids_;
 
-  // The index of the output port with the PoseBundle abstract value.
-  int bundle_port_index_{-1};
+// The index of the output port with the PoseBundle abstract value.
+int bundle_port_index_{-1};
 
-  // The index of the output port with the QueryObject abstract value.
-  int query_port_index_{-1};
+// The index of the output port with the QueryObject abstract value.
+int query_port_index_{-1};
 
-  // A raw pointer to the default geometry state (which serves as the model for
-  // allocating contexts for this system). The instance is owned by
-  // model_abstract_states_. This pointer will only be non-null between
-  // construction and context allocation. It serves a key role in enforcing the
-  // property that source ids can only be added prior to context allocation.
-  // This is mutable so that it can be cleared in the const method
-  // AllocateContext().
-  GeometryState<T>* initial_state_{};
+// A raw pointer to the default geometry state (which serves as the model for
+// allocating contexts for this system). The instance is owned by
+// model_abstract_states_. This pointer will only be non-null between
+// construction and context allocation. It serves a key role in enforcing the
+// property that source ids can only be added prior to context allocation.
+// This is mutable so that it can be cleared in the const method
+// AllocateContext().
+GeometryState<T>* initial_state_{};
 
-  // TODO(SeanCurtis-TRI): Get rid of this.
-  mutable bool context_has_been_allocated_{false};
+// TODO(SeanCurtis-TRI): Get rid of this.
+mutable bool context_has_been_allocated_{false};
 };
 
 }  // namespace geometry
@@ -465,11 +470,11 @@ namespace systems {
 namespace scalar_conversion {
 template <>
 struct Traits<geometry::SceneGraph> {
-  template <typename T, typename U>
-  using supported =
-      typename std::conditional<!std::is_same<T, symbolic::Expression>::value &&
-                                    std::is_same<U, double>::value,
-                                std::true_type, std::false_type>::type;
+template <typename T, typename U>
+using supported =
+    typename std::conditional<!std::is_same<T, symbolic::Expression>::value &&
+                                  std::is_same<U, double>::value,
+                              std::true_type, std::false_type>::type;
 };
 }  // namespace scalar_conversion
 }  // namespace systems

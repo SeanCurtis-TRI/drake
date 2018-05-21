@@ -11,6 +11,7 @@
 #include "drake/common/drake_copyable.h"
 #include "drake/common/drake_optional.h"
 #include "drake/common/unused.h"
+#include "drake/geometry/collision_group.h"
 #include "drake/geometry/frame_kinematics_vector.h"
 #include "drake/geometry/geometry_ids.h"
 #include "drake/geometry/geometry_index.h"
@@ -385,6 +386,30 @@ class GeometryState {
 
   //@}
 
+  /** @name               Collision filters
+
+   This interface allows control over which pairs of geometries can even be
+   considered for collision.
+   */
+  //@{
+
+  /** Filters out possible collisions between members of the given `group`. For
+   the set of geometries implied by the `group` `G = {g₀, g₁, ..., gₘ}`, then
+   the pairs `(gᵢ, gⱼ), ∀ gᵢ, gⱼ ∈ G`, are filtered out of consideration.
+
+   @throws std::logic_error if the group includes ids that don't exist in the
+                            state.  */
+  void DisallowSelfCollisions(const CollisionGroup& group);
+
+  /** Filters out possible collisions between members of the two groups. If
+   `group1` has the set of geometries `G = {g₀, g₁, ..., gₘ}` and `group2` has
+   the set of geometries `H = {h₀, h₁, ..., hₘ}`, then the pairs
+   `(g, h), ∀ g ∈ G, h ∈ H`, are filtered out of consideration. This does _not_
+   preclude collisions between members of the _same_ set.   */
+  void DisallowCrossCollisions(const CollisionGroup& group1,
+                               const CollisionGroup& group2);
+  //@}
+
 #if 0
 //----------------------------------------------------------------------------
   /** @name                   Proximity Queries
@@ -603,6 +628,14 @@ class GeometryState {
   // Friend declaration so that the internals of the state can be confirmed in
   // unit tests.
   template <class U> friend class GeometryStateTester;
+
+  // Takes the frame and geometry ids from the given collision group and
+  // populates the sets of geometry *indices* for the dynamic and anchored
+  // geometries implied by the group. Ids that can't be identified will cause
+  // an exception to be thrown.
+  void CollectIndices(const CollisionGroup& group,
+                      std::unordered_set<GeometryIndex>* dynamic,
+                      std::unordered_set<AnchoredGeometryIndex>* anchored);
 
   // Sets the kinematic poses for the frames indicated by the given ids.
   // @param poses The frame id and pose values.

@@ -13,6 +13,7 @@ package(default_visibility = ["//visibility:public"])
 drake_cc_package_library(
     name = "geometry",
     deps = [
+        ":collision_group",
         ":frame_kinematics",
         ":geometry_context",
         ":geometry_frame",
@@ -32,6 +33,12 @@ drake_cc_package_library(
 )
 
 drake_cc_library(
+    name = "collision_group",
+    hdrs = ["collision_group.h"],
+    deps = [":geometry_ids"],
+)
+
+drake_cc_library(
     name = "proximity_engine",
     srcs = [
         "proximity_engine.cc",
@@ -47,6 +54,7 @@ drake_cc_library(
         "//common",
         "//common:default_scalars",
         "//geometry/query_results:penetration_as_point_pair",
+        "//multibody/collision:collision_filter",
         "@fcl",
     ],
 )
@@ -139,6 +147,7 @@ drake_cc_library(
     srcs = ["geometry_state.cc"],
     hdrs = ["geometry_state.h"],
     deps = [
+        ":collision_group",
         ":frame_kinematics",
         ":geometry_frame",
         ":geometry_ids",
@@ -225,6 +234,14 @@ drake_cc_library(
 )
 
 # -----------------------------------------------------
+
+drake_cc_googletest(
+    name = "collision_group_test",
+    deps = [
+        ":collision_group",
+        ":geometry_ids",
+    ],
+)
 
 drake_cc_googletest(
     name = "proximity_engine_test",
