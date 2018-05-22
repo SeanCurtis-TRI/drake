@@ -396,16 +396,17 @@ class GeometryState {
   /** Filters out possible collisions between members of the given `group`. For
    the set of geometries implied by the `group` `G = {g₀, g₁, ..., gₘ}`, then
    the pairs `(gᵢ, gⱼ), ∀ gᵢ, gⱼ ∈ G`, are filtered out of consideration.
-
    @throws std::logic_error if the group includes ids that don't exist in the
                             state.  */
   void DisallowSelfCollisions(const CollisionGroup& group);
 
   /** Filters out possible collisions between members of the two groups. If
    `group1` has the set of geometries `G = {g₀, g₁, ..., gₘ}` and `group2` has
-   the set of geometries `H = {h₀, h₁, ..., hₘ}`, then the pairs
+   the set of geometries `H = {h₀, h₁, ..., hₙ}`, then the pairs
    `(g, h), ∀ g ∈ G, h ∈ H`, are filtered out of consideration. This does _not_
-   preclude collisions between members of the _same_ set.   */
+   preclude collisions between members of the _same_ set.
+   @throws std::logic_error if the groups include ids that don't exist in the
+                            state.   */
   void DisallowCrossCollisions(const CollisionGroup& group1,
                                const CollisionGroup& group2);
   //@}

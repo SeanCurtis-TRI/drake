@@ -199,6 +199,19 @@ GeometryId SceneGraph<T>::RegisterAnchoredGeometry(
 }
 
 template <typename T>
+void SceneGraph<T>::DisallowSelfCollision(const CollisionGroup& group) {
+  GS_THROW_IF_CONTEXT_ALLOCATED
+  initial_state_->DisallowSelfCollisions(group);
+}
+
+template <typename T>
+void SceneGraph<T>::DisallowCrossCollision(const CollisionGroup& groupA,
+                                           const CollisionGroup& groupB) {
+  GS_THROW_IF_CONTEXT_ALLOCATED
+  initial_state_->DisallowCrossCollisions(groupA, groupB);
+}
+
+template <typename T>
 void SceneGraph<T>::MakeSourcePorts(SourceId source_id) {
   // This will fail only if the source generator starts recycling source ids.
   DRAKE_ASSERT(input_source_ids_.count(source_id) == 0);

@@ -1178,6 +1178,62 @@ TEST_F(GeometryStateTest, DisallowCrossCollisions) {
   ASSERT_EQ(static_cast<int>(pairs.size()), expected_collisions);
 }
 
+// Tests the documented error conditions of DisallowSelfCollisions.
+TEST_F(GeometryStateTest, SelfCollisionFilterExceptions) {
+  SetUpSingleSourceTree();
+
+  // NOTE: a collision group with a single frame or geometry doesn't exercise
+  // self-collision filtering logic.
+  CollisionGroup group_bad_frame{FrameId::get_new_id(), FrameId::get_new_id()};
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      geometry_state_.DisallowSelfCollisions(group_bad_frame), std::logic_error,
+      "Collision group includes a frame id that doesn't belong to the "
+          "SceneGraph: \\d+");
+
+  CollisionGroup group_bad_geometry{GeometryId::get_new_id(),
+                                    GeometryId::get_new_id()};
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      geometry_state_.DisallowSelfCollisions(group_bad_geometry),
+      std::logic_error,
+      "Collision group includes a geometry id that doesn't belong to the "
+          "SceneGraph: \\d+");
+}
+
+// Tests the documented error conditions of DisallowSelfCollisions.
+TEST_F(GeometryStateTest, CrossCollisionFilterExceptions) {
+  SetUpSingleSourceTree();
+
+  CollisionGroup group_bad_frame{FrameId::get_new_id()};
+  CollisionGroup group_good_frame{frames_[0]};
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      geometry_state_.DisallowCrossCollisions(group_bad_frame,
+                                              group_good_frame),
+      std::logic_error,
+      "Collision group includes a frame id that doesn't belong to the "
+          "SceneGraph: \\d+");
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      geometry_state_.DisallowCrossCollisions(group_good_frame,
+                                              group_bad_frame),
+      std::logic_error,
+      "Collision group includes a frame id that doesn't belong to the "
+          "SceneGraph: \\d+");
+
+  CollisionGroup group_bad_geometry{GeometryId::get_new_id()};
+  CollisionGroup group_good_geometry{geometries_[0]};
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      geometry_state_.DisallowCrossCollisions(group_bad_geometry,
+                                              group_good_geometry),
+      std::logic_error,
+      "Collision group includes a geometry id that doesn't belong to the "
+          "SceneGraph: \\d+");
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      geometry_state_.DisallowCrossCollisions(group_good_geometry,
+                                              group_bad_geometry),
+      std::logic_error,
+      "Collision group includes a geometry id that doesn't belong to the "
+          "SceneGraph: \\d+");
+}
+
 }  // namespace
 }  // namespace geometry
 }  // namespace drake

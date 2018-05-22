@@ -431,8 +431,12 @@ const FrameIdSet& GeometryState<T>::GetFramesForSource(
 template <typename T>
 void GeometryState<T>::DisallowSelfCollisions(
     const CollisionGroup& group) {
-  // A group consisting of a single frame already does self-collision.
-  if (group.num_frames() == 1 && group.num_geometries() == 0) return;
+  // There are _definitely_ no self-collisions to cull if the group has a single
+  // frame or a single geometry.
+  if ((group.num_frames() == 1 && group.num_geometries() == 0) ||
+      (group.num_frames() == 0 && group.num_geometries() == 1)) {
+    return;
+  }
 
   std::unordered_set<GeometryIndex> dynamic;
   std::unordered_set<AnchoredGeometryIndex> anchored;
