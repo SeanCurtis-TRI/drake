@@ -8,9 +8,24 @@
 
 #include <gtest/gtest.h>
 
+#include "drake/common/test_utilities/expect_throws_message.h"
+
 namespace drake {
 namespace geometry {
 namespace {
+
+// NOTE: There are *no* unit tests confirming the intended property that only
+// signed integral values are acceptable type parameters for the BaseIdentifier.
+// The reason for this is the use of the static_assert renders the typical
+// SFINAE tricks untenable. We're using static_assert to give the earliest
+// compile-time error against using a bad integral type.
+//
+// However, using static_assert is *not* particularly compatible with the tricks
+// used to convert compilation failures into runtime tests (like above on the
+// binary operations). The SFINAE tricks are looking for methods on compilable
+// instances. Absence of methods is testable. Compilability of the actual
+// classes, not so much. So, until we have some reliable mechanism for
+// confirming this design behavior, it must remain absent from unit tests.
 
 
 // Creates various dummy index types to test.
@@ -140,6 +155,19 @@ TEST_F(IdentifierTests, StreamOperator) {
 TEST_F(IdentifierTests, ToString) {
   using std::to_string;
   EXPECT_EQ(to_string(a2_), to_string(a2_.get_value()));
+}
+
+TEST_F(IdentifierTests, OutOfValues) {
+  // Char is valid in the range [-128, 127]. There are 128 non-negative values.
+  // BaseIdentifier will produce 127 valid ids. The 128th will throw an
+  // exception.
+  using SmallId = BaseIdentifier<class SmallTag, char>;
+  for (int i = 0; i < 126; ++i) {
+    SmallId::get_new_id();
+  }
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      SmallId::get_new_id(), std::runtime_error,
+      "Calls to get_new_id\\(\\) have exhausted the available unique ids");
 }
 
 // These tests confirm that behavior that *shouldn't* be compilable isn't.

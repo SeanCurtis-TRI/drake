@@ -3,6 +3,7 @@
 #include <atomic>
 #include <cstdint>
 #include <functional>
+#include <limits>
 #include <string>
 
 #include "drake/common/drake_assert.h"
@@ -16,20 +17,19 @@ namespace geometry {
  A simple identifier class.
 
  This class serves as an upgrade to the standard practice of passing `int`s
- around as unique identifiers (or, as in this case, `int64_t`s). In the common
- practice, a method that takes identifiers to different types of objects would
- have an interface like:
+ around as unique identifiers. In the common practice, a method that takes
+ identifiers to different types of objects would have an interface like:
 
  @code
- void foo(int64_t bar_id, int64_t thing_id);
+ void foo(int bar_id, int thing_id);
  @endcode
 
  It is possible for a programmer to accidentally switch the two ids in an
  invocation. This mistake would still be _syntactically_ correct; it will
- successfully compile but  lead to inscrutable run-time errors. This identifier
- class provides the same speed and efficiency of passing `int64_t`s, but
- enforces unique types and limits the valid operations, providing compile-time
- checking. The function would now look like:
+ successfully compile but lead to inscrutable run-time errors. This class
+ defines an identifier with the same speed and efficiency of passing `int`s, but
+ enforces unique types (enabling compile-time testing) and limits the valid
+ operations. The function would now look like:
 
  @code
  void foo(BarId bar_id, ThingId thing_id)
@@ -37,18 +37,18 @@ namespace geometry {
 
  and the compiler will catch instances where the order is reversed.
 
- The identifier is a _stripped down_ 64-bit int. Each uniquely declared
- identifier type has the following properties:
+ The identifier is a _stripped down_ signed integral value. Each uniquely
+ declared identifier type has the following properties:
 
    - The identifier's default constructor produces _invalid_ identifiers.
-   - Valid identifiers must be constructed via the copy constructor or through
-     Identifier::get_new_id().
+   - _Valid_ identifiers must be constructed via the copy/move constructors or
+     through Identifier::get_new_id().
    - The identifier is immutable.
-   - The identifier can only be tested for equality/inequality with other
-     identifiers of the _same_ type.
+   - The identifier can only be "compared" (=, !=, <) with other identifiers of
+     the _same_ type.
    - Identifiers of different types are _not_ interconvertible.
-   - The identifier can be queried for its underlying `int64_t` value.
-   - The identifier can be written to an output stream; its underlying `int64_t`
+   - The identifier can be queried for its underlying integral value.
+   - The identifier can be written to an output stream; its underlying integral
      value gets written.
    - Identifiers are not guaranteed to possess _meaningful_ ordering. I.e.,
      identifiers for two objects created sequentially may not have sequential
@@ -68,33 +68,11 @@ namespace geometry {
  be passed and returned by value. Passing ids by const reference should be
  considered a misuse.
 
- The following alias will create a unique identifier type for class `Foo`:
- @code{.cpp}
- using FooId = Identifier<class FooTag>;
- @endcode
-
- __Examples of valid and invalid operations__
-
- The Identifier guarantees that id instances of different types can't be
- compared or combined. Efforts to do so will cause a compile-time failure.
- For example:
-
- @code
-    using AId = Identifier<class ATag>;
-    using BId = Identifier<class BTag>;
-    AId a1;                              // Compiler error; there is no
-                                         //   default constructor.
-    AId a2 = AId::get_new_id();          // Ok.
-    AId a3(a2);                          // Ok.
-    AId a4 = AId::get_new_id();          // Ok.
-    BId b = BId::get_new_id();           // Ok.
-    if ( a2 == 1 ) { ... }               // Compiler error.
-    if ( a2 == a4 ) { ... }              // Ok, evaluates to false.
-    if ( a2 == a3 ) { ... }              // Ok, evaluates to true.
-    if ( a2 == b ) { ... }               // Compiler error.
-    a4 = a2;                             // Ok.
-    a3 = 7;                              // Compiler error.
- @endcode
+ This class serves as the most generic incarnation of the the identifier class;
+ end users can specify the integral type if there is a need to save identifier
+ space. In most cases, using the aliased Identifier class is preferred. See
+ the documentation for Identifier for examples of usage. If creating a unique
+ instantiation, be warned that the data type must be a _signed_ integral type.
 
  __Type-safe Index vs Identifier__
 
@@ -128,20 +106,26 @@ namespace geometry {
 
  @tparam Tag              The name of the tag that uniquely segregates one
                           instantiation from another.
- */
-template <class Tag>
-class Identifier {
+ @tparam Type             The underlying integral type which defines the
+                          space of unique identifiers. The number of unique
+                          identifiers is the size of the strictly positive
+                          values supported by Type __minus one__.  */
+template <class Tag, class Type>
+class BaseIdentifier {
  public:
-  DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(Identifier)
+  DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(BaseIdentifier)
+
+  static_assert(std::is_integral<Type>::value && std::is_signed<Type>::value,
+                "Identifiers must use signed, integral types");
 
   /** Default constructor; the result is an _invalid_ identifier. This only
    exists to satisfy demands of working with various container classes. */
-  Identifier() : value_(0) {}
+  BaseIdentifier() : value_(0) {}
 
   /** Extracts the underlying representation from the identifier. This is
    considered invalid for invalid ids and is strictly enforced in Debug builds.
    */
-  int64_t get_value() const {
+  Type get_value() const {
     DRAKE_ASSERT(is_valid());
     return value_; }
 
@@ -151,7 +135,7 @@ class Identifier {
   /** Compares one identifier with another of the same type for equality. This
    is considered invalid for invalid ids and is strictly enforced in Debug
    builds. */
-  bool operator==(Identifier other) const {
+  bool operator==(BaseIdentifier other) const {
     DRAKE_ASSERT(is_valid() && other.is_valid());
     return value_ == other.value_;
   }
@@ -159,7 +143,7 @@ class Identifier {
   /** Compares one identifier with another of the same type for inequality. This
    is considered invalid for invalid ids and is strictly enforced in Debug
    builds. */
-  bool operator!=(Identifier other) const {
+  bool operator!=(BaseIdentifier other) const {
     DRAKE_ASSERT(is_valid() && other.is_valid());
     return value_ != other.value_ && is_valid() && other.is_valid();
   }
@@ -176,30 +160,36 @@ class Identifier {
    different from all previous identifiers created. This method does _not_
    make any guarantees about the values of ids from successive invocations.
    This method is guaranteed to be thread safe.
+   @throws std::runtime_error if the number of calls to get_new_id() exceeds the
+   number of ids supported by Type.
    */
-  static Identifier get_new_id() {
+  static BaseIdentifier get_new_id() {
     // Note that id 0 is reserved for uninitialized variable which is created
     // by the default constructor. As a result, we have an invariant that
     // get_new_id() > 0.
-    static never_destroyed<std::atomic<int64_t>> next_index(1);
-    return Identifier(next_index.access()++);
+    static never_destroyed<std::atomic<Type>> next_index(1);
+    if (next_index.access() >= std::numeric_limits<Type>::max()) {
+      throw std::runtime_error(
+          "Calls to get_new_id() have exhausted the available unique ids");
+    }
+    return BaseIdentifier(next_index.access()++);
   }
 
  private:
   // Instantiates an identifier from the underlying representation type.
-  explicit Identifier(int64_t val) : value_(val) {}
+  explicit BaseIdentifier(Type val) : value_(val) {}
 
   // The underlying value.
-  int64_t value_;
+  Type value_{0};
 };
 
 /** Streaming output operator.   This is considered invalid for invalid ids and
  is strictly enforced in Debug builds.
  @relates Identifier
  */
-template <typename Tag>
+template <typename Tag, typename Type>
 inline std::ostream& operator<<(std::ostream& out,
-                                const Identifier<Tag>& id) {
+                                const BaseIdentifier<Tag, Type>& id) {
   out << id.get_value();
   return out;
 }
@@ -207,10 +197,45 @@ inline std::ostream& operator<<(std::ostream& out,
 /** Enables use of identifiers with to_string. It requires ADL to work. So,
  it should be invoked as: `to_string(id);` and should be preceded by
  `using std::to_string`.*/
-template <typename Tag> inline
-std::string to_string(const drake::geometry::Identifier<Tag>& id) {
+template <typename Tag, typename Type> inline
+std::string to_string(const drake::geometry::BaseIdentifier<Tag, Type>& id) {
   return std::to_string(id.get_value());
 }
+
+/** The preferred instantiation of the BaseIdentifier. This provides access to
+ a functionally inexhausitble supply of identifiers by using the int64_t type
+ as the underlying representation.
+
+ The following alias will create a unique identifier type for class `Foo`:
+ @code{.cpp}
+ using FooId = Identifier<class FooTag>;
+ @endcode
+
+ __Examples of valid and invalid operations__
+
+ The Identifier guarantees that id instances of different types can't be
+ compared or combined. Efforts to do so will cause a compile-time failure.
+ For example:
+
+ @code
+    using AId = Identifier<class ATag>;
+    using BId = Identifier<class BTag>;
+    AId a1;                              // Compiler error; there is no
+                                         //   default constructor.
+    AId a2 = AId::get_new_id();          // Ok.
+    AId a3(a2);                          // Ok.
+    AId a4 = AId::get_new_id();          // Ok.
+    BId b = BId::get_new_id();           // Ok.
+    if ( a2 == 1 ) { ... }               // Compiler error.
+    if ( a2 == a4 ) { ... }              // Ok, evaluates to false.
+    if ( a2 == a3 ) { ... }              // Ok, evaluates to true.
+    if ( a2 == b ) { ... }               // Compiler error.
+    a4 = a2;                             // Ok.
+    a3 = 7;                              // Compiler error.
+ @endcode
+ */
+template <class Tag>
+using Identifier = BaseIdentifier<Tag, int64_t>;
 
 }  // namespace geometry
 
@@ -220,10 +245,11 @@ namespace std {
 /** Enables use of the identifier to serve as a key in STL containers.
  @relates Identifier
  */
-template <typename Tag>
-struct hash<drake::geometry::Identifier<Tag>> {
-  size_t operator()(const drake::geometry::Identifier<Tag>& id) const {
-    return std::hash<int64_t>()(id.get_value());
+template <typename Tag, typename Type>
+struct hash<drake::geometry::BaseIdentifier<Tag, Type>> {
+  size_t operator()(
+      const drake::geometry::BaseIdentifier<Tag, Type>& id) const {
+    return std::hash<Type>()(id.get_value());
   }
 };
 
