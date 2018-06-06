@@ -1076,6 +1076,29 @@ class RigidBodyTree {
                                       bool throw_if_missing_gradient = true);
 
   /**
+   * Forces the collision model to update its state from the state of the
+   * collision::Element instances in the %RigidBodyTree. Without calling
+   * updateDynamicCollisionElements() or updateCollisionElements(), this
+   * operation will have no functional effect.
+   *
+   * This is an *advanced* feature intended for users who are using RBT in
+   * order to perform collision queries, assuming that the caller is responsible
+   * for computing world-space poses for the elements and simply need to
+   * propagate those changes down into the underlying collision model.
+   *
+   * The expected work flow is:
+   *   1. instantiate rigid body (adding it to the tree)
+   *   2. add one or more collision elements to the body
+   *   3. repeat lines 1 & 2 for all collision objects
+   *   4. update collision element pose in the world frame by posing its
+   *      corresponding body (via updateCollisionElements()).
+   *   5. Repeat 4 for every body with collision elements.
+   *   6. Call forceModelUpdate()
+   *   7. Perform query.
+   */
+  void forceModelUpdate();
+
+  /**
    * Gets the contact points defined by a body's collision elements.
    *
    * @param[in] body The body who's collision elements are searched.
@@ -1567,6 +1590,7 @@ class RigidBodyTree {
    */
   // TODO(eric.cousineau): Rename to `AddRigidBody`.
   RigidBody<T>* add_rigid_body(std::unique_ptr<RigidBody<T>> body);
+
 
   /**
    * Attempts to define a new collision filter group.  The given name *must*

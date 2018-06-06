@@ -941,6 +941,11 @@ void RigidBodyTree<T>::updateDynamicCollisionElements(
           throw_if_missing_gradient);
     }
   }
+  forceModelUpdate();
+}
+
+template <typename T>
+void RigidBodyTree<T>::forceModelUpdate() {
   collision_model_->UpdateModel();
 }
 
