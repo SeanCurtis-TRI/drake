@@ -82,8 +82,11 @@ void ContactResultsToLcmSystem<T>::CalcLcmContactOutput(
 
     PRINT_VAR(info_msg.body1_name);
     PRINT_VAR(info_msg.body2_name);
+    PRINT_VAR(contact_info.point_pair().p_WCa.transpose());
+    PRINT_VAR(contact_info.point_pair().p_WCb.transpose());
     PRINT_VAR(contact_info.point_pair().nhat_BA_W.transpose());
     PRINT_VAR(contact_info.contact_force().transpose());
+    PRINT_VAR(contact_info.contact_point().transpose());
     PRINT_VAR(contact_info.point_pair().depth);
 
     auto write_double3 = [](const Vector3<T>& src, double* dest) {

@@ -120,14 +120,24 @@ int do_main() {
 
   // Build model.
   const double radius = 0.0015;
-  const RigidTransform<double> X_WSphere(RollPitchYaw<double>(
+  RigidTransform<double> X_WSphere(RollPitchYaw<double>(
       Vector3d(-3.04739982050051, -1.57079632679489, -3.13972548667908)).ToRotationMatrix(),
                                    {0.184010155136233, 0.0278488077094353, 0.0100348279363227});
 
   const Vector3d box_size(0.115, 0.01, 0.0025);
-  const RigidTransform<double> X_WBox(RollPitchYaw<double>(
+  RigidTransform<double> X_WBox(RollPitchYaw<double>(
       Vector3d(-3.13860212217648, -1.53862510693394, -1.57380202520141)).ToRotationMatrix(),
                                    {0.183005780540596, 0.0314497444837003, -0.0394187438155612});
+
+  PRINT_VARn(X_WBox.GetAsIsometry3().matrix());
+  PRINT_VARn(X_WSphere.GetAsIsometry3().matrix());
+
+  X_WSphere = X_WBox.inverse() * X_WSphere;
+  X_WBox = RigidTransform<double>::Identity();
+  PRINT_VARn(X_WBox.GetAsIsometry3().matrix());
+  PRINT_VARn(X_WSphere.GetAsIsometry3().matrix());
+
+  std::cout << "Sphere position: " << X_WSphere.translation().transpose() << "\n";
 
   double box_mass = 0.094;
   SpatialInertia<double> Mbox_B =
@@ -144,8 +154,7 @@ int do_main() {
 
   const RigidBody<double>& box = plant.AddRigidBody("Box", Mbox_B);
   plant.AddJoint<WeldJoint>("WeldBox", plant.world_body(), {}, box, {}, X_WBox.GetAsIsometry3());
-  PRINT_VARn(X_WBox.GetAsIsometry3().matrix());
-  const geometry::VisualMaterial red(Vector4<double>(1.0, 0.0, 0.0, 1.0));
+  const geometry::VisualMaterial red(Vector4<double>(1.0, 0.0, 0.0, 0.5));
   plant.RegisterVisualGeometry(
       box, Isometry3d::Identity(), Box(box_size(0),box_size(1),box_size(2)), red, &scene_graph);
   plant.RegisterCollisionGeometry(
