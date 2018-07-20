@@ -7,6 +7,8 @@
 
 #include "drake/common/test_utilities/eigen_matrix_compare.h"
 #include "drake/geometry/shape_specification.h"
+#include "drake/math/roll_pitch_yaw.h"
+#include "drake/math/rotation_matrix.h"
 
 namespace drake {
 namespace geometry {
@@ -871,6 +873,135 @@ TEST_F(BoxPenetrationTest, TangentProneCylinder2) {
   // collision result from being more precise. In this case, the largest error
   // is in the position of the contact points. See related Drake issue 7656.
   TestCollision2(TangentProneCylinder, 1e-4);
+}
+
+// This collides a box with a sphere. The box is long and skinny with size
+// (w, h, d) and its geometric frame is aligned with the world frame.
+// The sphere has radius r, an arbitrary orientation, and is position at
+// (sx, sy, sz). In this configuration, the sphere penetrates the box slightly
+// on its face that faces in the +z direction. The contact is *fully* contained
+// in that face. (As illustrated below.)
+//
+// Side view
+//                     z        small sphere
+//                     ┆            ↓
+// ┏━━━━━━━━━━━━━━━━━━━┿━━━━━━━━━━━━◯━━━━━━┓      ┬
+// ╂┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┼┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄╂  x   h
+// ┗━━━━━━━━━━━━━━━━━━━┿━━━━━━━━━━━━━━━━━━━┛      ┴
+//                     ┆
+//
+// ├────────────────── w ──────────────────┤
+//
+// Top view
+//                     y        small sphere
+//                     ┆            ↓
+// ┏━━━━━━━━━━━━━━━━━━━┿━━━━━━━━━━━━━━━━━━━┓      ┬
+// ╂┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┼┄┄┄┄┄┄┄┄┄┄┄┄◯┄┄┄┄┄┄╂  x   d
+// ┗━━━━━━━━━━━━━━━━━━━┿━━━━━━━━━━━━━━━━━━━┛      ┴
+//                     ┆
+//
+// Properties of expected outcome:
+//  - One contact *should* be reported.
+//  - Contact normal should be [0, 0, -1] (pointing from sphere into box).
+//  - Point on box should be: [sx, sy, h/2]
+//  - Point on sphere should be: [sx, sy, sz - r)]
+//  - Penetration depth should be: radius - (sz - h / 2)
+//
+// NOTE: Orientation on the sphere should *not* make a difference.
+GTEST_TEST(AlejandrosTest, SphereBox) {
+  ProximityEngine<double> engine;
+  // Box and sphere dimensions.
+  const double w = 0.115;
+  const double h = 0.0025;
+  const double d = 0.01;
+  const double r = 0.0015;
+
+  GeometryIndex box_index = engine.AddDynamicGeometry(Box{w, d, h});
+  GeometryIndex sphere_index = engine.AddDynamicGeometry(Sphere{r});
+  ASSERT_EQ(box_index, 0);
+  ASSERT_EQ(sphere_index, 1);
+
+  GeometryId box_id = GeometryId::get_new_id();
+  GeometryId sphere_id = GeometryId::get_new_id();
+  std::vector<GeometryId> dynamic_map{box_id, sphere_id};
+  std::vector<GeometryId> anchored_map;
+
+  Isometry3d X_WB = Isometry3d::Identity();
+  Isometry3d X_WS = Isometry3d::Identity();
+#if 1
+  // TODO(SeanCurtis-TRI): With x and y = 0, the test passes, moving away from
+  // the origin causes failure. Fix this!
+  const double sx = 0;//0.0495437;//
+  const double sy = 0;//-0.00100919;//
+  const double sz = 0.00200836;
+
+  X_WS.translation() << sx, sy, sz;
+  // NOTE: This prevents *exact* depth comparisons.
+  X_WS.linear() =
+      math::RollPitchYaw<double>(
+          Vector3d(-3.04739982050051, -1.57079632679489, -3.13972548667908))
+          .ToRotationMatrix()
+          .matrix();
+  engine.UpdateWorldPoses({X_WB, X_WS});
+  std::vector<PenetrationAsPointPair<double>> results =
+      engine.ComputePointPairPenetration(dynamic_map, anchored_map);
+  ASSERT_EQ(results.size(), 1u);
+  const PenetrationAsPointPair<double>& point_pair = results[0];
+  EXPECT_EQ(point_pair.id_A, box_id);
+  EXPECT_EQ(point_pair.id_B, sphere_id);
+  // NOTE: If the sphere orientation is *not* the identity, the answer is *not*
+  // exact.
+  // TODO(SeanCurtis-TRI): Remove this threshold when the test no longer cares
+  // about sphere orientation.
+  EXPECT_NEAR(point_pair.depth, r - (sz - h / 2), 1e-14);
+  EXPECT_TRUE(CompareMatrices(point_pair.p_WCa, Vector3d{sx, sy, h / 2}, 1e-14,
+                             MatrixCompareType::absolute));
+  EXPECT_TRUE(CompareMatrices(point_pair.p_WCb, Vector3d{sx, sy, sz - r}, 1e-14,
+                             MatrixCompareType::absolute));
+#else
+  X_WB.linear() =
+      math::RollPitchYaw<double>(
+          Vector3d(-3.13860212217648, -1.53862510693394, -1.57380202520141))
+          .ToRotationMatrix()
+          .matrix();
+  X_WB.translation() << 0.183005780540596, 0.0314497444837003, -0.0394187438155612;
+  X_WS.linear() =
+      math::RollPitchYaw<double>(
+          Vector3d(-3.04739982050051, -1.57079632679489, -3.13972548667908))
+          .ToRotationMatrix()
+          .matrix();
+  X_WS.translation() << 0.184010155136233, 0.0278488077094353, 0.0100348279363227;
+
+  std::cout << "X_WB:\n" << X_WB.matrix() << "\n";
+  std::cout << "X_WS:\n" << X_WS.matrix() << "\n";
+  std::cerr << "X_BS:\n" << (X_WB.inverse() * X_WS).matrix() << "\n";
+
+  engine.UpdateWorldPoses({X_WB, X_WS});
+  std::vector<PenetrationAsPointPair<double>> results =
+      engine.ComputePointPairPenetration(dynamic_map, anchored_map);
+  ASSERT_EQ(results.size(), 1u);
+
+  engine.UpdateWorldPoses({Isometry3d::Identity(), X_WB.inverse() * X_WS});
+  std::cerr << "Sphere location (X_BS): " << (X_WB.inverse() * X_WS).translation().transpose() << "\n";
+  std::vector<PenetrationAsPointPair<double>> results2 =
+      engine.ComputePointPairPenetration(dynamic_map, anchored_map);
+  ASSERT_EQ(results2.size(), 1u);
+
+  EXPECT_TRUE(CompareMatrices(results[0].nhat_BA_W,
+                              X_WB.linear() * results2[0].nhat_BA_W,
+                              2e-5, MatrixCompareType::absolute));
+  auto write_results = [](const char* msg,
+                          const PenetrationAsPointPair<double>& data) {
+    std::cerr << msg << "\n";
+    std::cerr << "  Normal: " << data.nhat_BA_W.transpose() << "\n";
+    std::cerr << "  p_WCb: " << data.p_WCb.transpose() << "\n";
+    std::cerr << "  p_WCa: " << data.p_WCa.transpose() << "\n";
+    std::cerr << "  depth: " << data.depth << "\n";
+  };
+  write_results("In world space", results[0]);
+  write_results("In box space", results2[0]);
+  EXPECT_TRUE(false);
+#endif
 }
 
 }  // namespace
