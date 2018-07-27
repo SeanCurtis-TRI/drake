@@ -1,0 +1,78 @@
+<?xml version="1.0"?>
+<robot xmlns="http://drake.mit.edu"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://drake.mit.edu ../../../../doc/drakeURDF.xsd" name="BoxCar">
+
+    <!-- A simple car model with three degrees of freedom: x, y, θ. This is,
+    essentially a free body in SE(2). We emulate this floating joint.
+    Drake only allows actuators to be applied to single-dof joints (see issue
+     #4153).  So, we composite the three degrees of freedom as a hierarchy of
+      joints.  The hierarchy looks like this:
+
+    world -F-
+      xtrans -Px-
+        ytrans -Py-
+          rot -Rx-
+            Car
+
+    The names refer to links and the "-X-" symbols represent one-dof joints
+    between the parent body to its left and the child body below it. The value
+    of X is one of:
+       F: A fixed joint
+       Pi: A prismatic joint along the world frame's axis i, i ∈ {x, y, z}
+       Ri: A revolute joint along the world frame's axis i, i ∈ {x, y, z}
+
+    The fixed joint is implied by how the URDF is added to the tree.  In all
+    other cases, the joint of the body and the name of the body's parent are
+    coordinated.
+    -->
+    <material name="red">
+        <color rgba="1.0 0.2 0.2 1.0"/>
+    </material>
+    <link name="xtrans"/>
+    <link name="ytrans"/>
+    <link name="rot"/>
+    <link name="car">
+        <!-- arbitrary non-zero inertial properties -->
+        <inertial>
+            <mass value="50"/>
+            <inertia ixx="50" ixy="0" ixz="0" iyy="100" iyz="0" izz="100"/>
+        </inertial>
+        <!-- the car's origin is around the "back" axle. At the zero
+        configuration, the car length is aligned with the x-axis and forward is
+        the +x direction.  -->
+        <visual>
+            <origin rpy="0 0 0" xyz="1.25 0 0.75"/>
+            <geometry>
+                <box size="4.5 2 1.5" />
+            </geometry>
+            <material name="red"/>
+        </visual>
+        <collision>
+            <origin rpy="0 0 0" xyz="1.25 0 0.75"/>
+            <geometry>
+                <box size="4.5 2 1.5" />
+            </geometry>
+        </collision>
+    </link>
+
+    <joint name="xslide" type="prismatic">
+        <origin rpy="0 0 0" xyz="0 0 0"/>
+        <axis xyz="1 0 0"/>
+        <parent link="xtrans"/>
+        <child link="ytrans"/>
+    </joint>
+    <joint name="yslide" type="prismatic">
+        <origin rpy="0 0 0" xyz="0 0 0"/>
+        <axis xyz="0 1 0"/>
+        <parent link="ytrans"/>
+        <child link="rot"/>
+    </joint>
+    <joint name="thetaspin" type="revolute">
+        <origin rpy="0 0 0" xyz="0 0 0"/>
+        <axis xyz="0 0 1"/>
+        <parent link="rot"/>
+        <child link="car"/>
+    </joint>
+</robot>
+
