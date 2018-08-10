@@ -1198,36 +1198,34 @@ RigidBodyTree<T>::ComputeMaximumDepthCollisionPoints(
   // frame.
   for (size_t i = 0; i < contact_points.size(); ++i) {
     auto& pair = contact_points[i];
-    if (pair.elementA->CanCollideWith(pair.elementB)) {
-      // For the autodiff version, throw if collision gradients are being
-      // arbitrarily set to zero.  Intelligent callers (that are careful to
-      // handle the gradients) may disable this with the throw_if_missing
-      // argument.
-      if (!std::is_same<U, double>::value && throw_if_missing_gradient) {
-        std::runtime_error(
-            "Potential collisions exist, but the collision engine does not "
-            "support autodiff.  Gradients would have been inaccurate.");
-      }
-
-      drake::multibody::collision::PointPair<U> pair_in_body_frame(pair);
-
-      // Get bodies' transforms.
-      const int bodyA_id = pair.elementA->get_body()->get_body_index();
-      const Isometry3<U>& TA = cache.get_element(bodyA_id).transform_to_world;
-
-      const int bodyB_id = pair.elementB->get_body()->get_body_index();
-      const Isometry3<U>& TB = cache.get_element(bodyB_id).transform_to_world;
-
-      // Transform to bodies' frames.
-      // Note: Eigen assumes aliasing by default and therefore this operation
-      // is safe.
-      pair_in_body_frame.ptA = TA.inverse() * contact_points[i].ptA.cast<U>();
-      pair_in_body_frame.ptB = TB.inverse() * contact_points[i].ptB.cast<U>();
-
-      // TODO(russt): Shouldn't the normal be transformed, too?
-
-      contact_points_in_body_frame.push_back(pair_in_body_frame);
+    // For the autodiff version, throw if collision gradients are being
+    // arbitrarily set to zero.  Intelligent callers (that are careful to
+    // handle the gradients) may disable this with the throw_if_missing
+    // argument.
+    if (!std::is_same<U, double>::value && throw_if_missing_gradient) {
+      std::runtime_error(
+          "Potential collisions exist, but the collision engine does not "
+          "support autodiff.  Gradients would have been inaccurate.");
     }
+
+    drake::multibody::collision::PointPair<U> pair_in_body_frame(pair);
+
+    // Get bodies' transforms.
+    const int bodyA_id = pair.elementA->get_body()->get_body_index();
+    const Isometry3<U>& TA = cache.get_element(bodyA_id).transform_to_world;
+
+    const int bodyB_id = pair.elementB->get_body()->get_body_index();
+    const Isometry3<U>& TB = cache.get_element(bodyB_id).transform_to_world;
+
+    // Transform to bodies' frames.
+    // Note: Eigen assumes aliasing by default and therefore this operation
+    // is safe.
+    pair_in_body_frame.ptA = TA.inverse() * contact_points[i].ptA.cast<U>();
+    pair_in_body_frame.ptB = TB.inverse() * contact_points[i].ptB.cast<U>();
+
+    // TODO(russt): Shouldn't the normal be transformed, too?
+
+    contact_points_in_body_frame.push_back(pair_in_body_frame);
   }
   return contact_points_in_body_frame;
 }
