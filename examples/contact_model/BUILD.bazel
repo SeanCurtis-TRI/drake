@@ -77,7 +77,12 @@ drake_cc_binary(
         "//lcm",
         "//multibody:rigid_body_tree_construction",
         "//systems/analysis",
+        "//systems/lcm:lcm_pubsub_system",
+        "//systems/rendering:pose_bundle_to_draw_message",
+        "//systems/sensors",
+        "@fmt",
         "@gflags",
+        "@vtk//:vtkIOImage",
     ],
 )
 
