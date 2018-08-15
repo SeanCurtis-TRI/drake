@@ -39,6 +39,7 @@
 #include <vtkWindowToImageFilter.h>
 
 #include "drake/common/drake_assert.h"
+#include "drake/common/text_logging.h"
 #include "drake/common/unused.h"
 #include "drake/systems/sensors/depth_shaders.h"
 #include "drake/systems/sensors/vtk_util.h"
@@ -396,9 +397,10 @@ RgbdRendererOSPRay::Impl::ImplRegisterVisual(
         auto f = file.substr(file.find_last_of("/") + 1);
         prop->SetMaterialName(f.c_str());
       } else {
-        throw std::runtime_error("Found no material file.");
-      }
+        drake::log()->warn("Found no material file for " + mesh.resolved_filename_);
+//        throw std::runtime_error("Found no material file for " + mesh.resolved_filename_);
       break;
+      }
     }
     case DrakeShapes::CAPSULE: {
       // TODO(kunimatsu-tri) Implement this as needed.

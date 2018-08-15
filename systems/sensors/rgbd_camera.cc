@@ -180,6 +180,13 @@ void RgbdCamera::InitRenderer() {
 
   if (flat_terrain_)
     renderer_->AddFlatTerrain();
+
+  if (camera_fixed_) {
+    renderer_->UpdateViewpoint(X_WB_initial_ * X_BC_);
+    std::cout << "Fixed X_WB:\n" << X_WB_initial_.matrix() << "\n";
+    std::cout << "      X_BC_:\n" << X_BC_.matrix() << "\n";
+    std::cout << "      X_WC:\n" << (X_WB_initial_ * X_BC_).matrix() << "\n";
+  }
 }
 
 const InputPort<double>& RgbdCamera::state_input_port() const {
