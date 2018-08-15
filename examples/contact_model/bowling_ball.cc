@@ -59,6 +59,8 @@ using drake::lcm::DrakeLcm;
 using multibody::joints::kQuaternion;
 using Eigen::VectorXd;
 using std::make_unique;
+using std::move;
+using std::unique_ptr;
 using systems::lcm::LcmPublisherSystem;
 using systems::lcm::Serializer;
 using systems::rendering::PoseBundleToDrawMessage;
@@ -66,6 +68,7 @@ using systems::sensors::Image;
 using systems::sensors::ImageRgba8U;
 using systems::sensors::RenderingConfig;
 using systems::sensors::RgbdCamera;
+using systems::sensors::RgbdRenderer;
 using systems::sensors::RgbdRendererOSPRay;
 using systems::sensors::RgbdRendererVTK;
 using systems::sensors::PixelType;
@@ -98,6 +101,7 @@ DEFINE_double(cam_r, 0, "Camera roll value");
 DEFINE_double(cam_p, M_PI_2, "Camera pitch value");
 DEFINE_double(cam_yaw, M_PI_2, "Camera yaw value");
 DEFINE_double(fps, 10, "Camera fps");
+DEFINE_bool(ospray, false, "WHen present, use the ospray renderer (isntead of vtk");
 
 template <PixelType kPixelType>
 void SaveToFile(const std::string& filepath, const Image<kPixelType>& image) {
@@ -258,11 +262,16 @@ int main() {
   const auto& tree = plant.get_rigid_body_tree();
 
   RenderingConfig config(640, 480, M_PI / 4, 0.1, 40.0, true);
+  unique_ptr<RgbdRenderer> renderer;
+  if (FLAGS_ospray) {
+    renderer = make_unique<RgbdRendererOSPRay>(config);
+  } else {
+    renderer = make_unique<RgbdRendererVTK>(config);
+  }
   auto camera = builder.AddSystem<RgbdCamera>(
       "camera", tree, Vector3<double>{FLAGS_cam_x, FLAGS_cam_y, FLAGS_cam_z},
       Vector3<double>{FLAGS_cam_r, FLAGS_cam_p, FLAGS_cam_yaw},
-      make_unique<RgbdRendererVTK>(config), false);
-//      make_unique<RgbdRendererOSPRay>(config), false);
+      move(renderer), false);
 
   auto image_writer = builder.AddSystem<ImageToFile>("/home/sean/temp/rendering/image");
   image_writer->set_publish_period(1. / FLAGS_fps);
