@@ -261,7 +261,7 @@ int main() {
 
   const auto& tree = plant.get_rigid_body_tree();
 
-  RenderingConfig config(640, 480, M_PI / 4, 0.1, 40.0, true);
+  RenderingConfig config(640, 480, M_PI / 4, 0.1, 40.0, false);
   unique_ptr<RgbdRenderer> renderer;
   if (FLAGS_ospray) {
     renderer = make_unique<RgbdRendererOSPRay>(config);
