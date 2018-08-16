@@ -164,9 +164,6 @@ void RgbdCamera::InitRenderer() {
   std::cout << "Init renderer\n";
   // Creates rendering world.
   for (const auto& body : tree_.get_bodies()) {
-//    if (body->get_name() == std::string(RigidBodyTreeConstants::kWorldName)) {
-//      continue;
-//    }
     std::cout << "  body: " <<  body->get_name() << "\n";
     const int body_id = body->get_body_index();
     auto& body_visual_indices = body_visual_indices_map_[body_id];
@@ -204,12 +201,7 @@ void RgbdCamera::InitRenderer() {
   if (flat_terrain_)
     renderer_->AddFlatTerrain();
 
-  if (camera_fixed_) {
-    renderer_->UpdateViewpoint(X_WB_initial_ * X_BC_);
-    std::cout << "Fixed X_WB:\n" << X_WB_initial_.matrix() << "\n";
-    std::cout << "      X_BC_:\n" << X_BC_.matrix() << "\n";
-    std::cout << "      X_WC:\n" << (X_WB_initial_ * X_BC_).matrix() << "\n";
-  }
+  if (camera_fixed_) renderer_->UpdateViewpoint(X_WB_initial_ * X_BC_);
 }
 
 const InputPort<double>& RgbdCamera::state_input_port() const {
@@ -278,6 +270,7 @@ void RgbdCamera::UpdateModelPoses(
 
   // Updates body poses.
   for (const auto& body : tree_.get_bodies()) {
+    // Skip the world body, because it doesn't require updating.
     if (body->get_name() == std::string(RigidBodyTreeConstants::kWorldName)) {
       continue;
     }

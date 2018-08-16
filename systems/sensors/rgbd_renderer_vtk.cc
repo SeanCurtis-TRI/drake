@@ -551,7 +551,7 @@ optional<RgbdRenderer::VisualIndex> RgbdRendererVTK::Impl::ImplRegisterVisual(
     label_actor->GetProperty()->SetColor(color.r, color.g, color.b);
 
     vtkSmartPointer<vtkTransform> vtk_transform =
-        ConvertToVtkTransform(visual.getWorldTransform());
+        ConvertToVtkTransform(visual.getLocalTransform());
     auto& actor_collections = id_object_maps_[body_id];
     for (size_t i = 0; i < actors.size(); ++i) {
       actors[i]->SetMapper(mappers[i].GetPointer());

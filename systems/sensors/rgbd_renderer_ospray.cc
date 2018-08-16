@@ -152,8 +152,6 @@ class RgbdRendererOSPRay::Impl : private ModuleInitVtkRenderingOpenGL2 {
   std::map<int, std::array<ActorCollection, kNumOutputImage>> id_object_maps_;
 
   vtkNew<vtkOSPRayPass> ospray_;
-  std::array<vtkNew<vtkActor>, kNumOutputImage> actors_;
-  std::array<vtkNew<vtkPolyDataMapper>, kNumOutputImage> mappers_;
 };
 
 void RgbdRendererOSPRay::Impl::SetBackground(
@@ -312,6 +310,9 @@ RgbdRendererOSPRay::Impl::Impl(RgbdRendererOSPRay* parent,
 optional<RgbdRenderer::VisualIndex>
 RgbdRendererOSPRay::Impl::ImplRegisterVisual(
     const DrakeShapes::VisualElement& visual, int body_id) {
+  std::array<vtkNew<vtkActor>, kNumOutputImage> actors_;
+  std::array<vtkNew<vtkPolyDataMapper>, kNumOutputImage> mappers_;
+
   bool shape_matched = true;
   const DrakeShapes::Geometry& geometry = visual.getGeometry();
   switch (visual.getShape()) {
@@ -425,7 +426,7 @@ RgbdRendererOSPRay::Impl::ImplRegisterVisual(
     }
 
     vtkSmartPointer<vtkTransform> vtk_transform =
-        ConvertToVtkTransform(visual.getWorldTransform());
+        ConvertToVtkTransform(visual.getLocalTransform());
     auto& actor_collections = id_object_maps_[body_id];
     for (size_t i = 0; i < actors_.size(); ++i) {
       actors_[i]->SetMapper(mappers_[i].GetPointer());
