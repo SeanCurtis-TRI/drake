@@ -102,6 +102,7 @@ DEFINE_double(cam_p, M_PI_2, "Camera pitch value");
 DEFINE_double(cam_yaw, M_PI_2, "Camera yaw value");
 DEFINE_double(fps, 10, "Camera fps");
 DEFINE_bool(ospray, false, "WHen present, use the ospray renderer (isntead of vtk");
+DEFINE_string(name, "image", "Base of image name");
 
 template <PixelType kPixelType>
 void SaveToFile(const std::string& filepath, const Image<kPixelType>& image) {
@@ -273,7 +274,8 @@ int main() {
       Vector3<double>{FLAGS_cam_r, FLAGS_cam_p, FLAGS_cam_yaw},
       move(renderer), false);
 
-  auto image_writer = builder.AddSystem<ImageToFile>("/home/sean/temp/rendering/image");
+  auto image_writer =
+      builder.AddSystem<ImageToFile>("/home/sean/temp/rendering/" + FLAGS_name);
   image_writer->set_publish_period(1. / FLAGS_fps);
 
   builder.Connect(plant.state_output_port(), camera->state_input_port());
