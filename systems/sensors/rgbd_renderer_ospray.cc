@@ -367,6 +367,8 @@ RgbdRendererOSPRay::Impl::ImplRegisterVisual(
       const auto& mesh = dynamic_cast<const DrakeShapes::Mesh&>(geometry);
       const auto* mesh_filename = mesh.resolved_filename_.c_str();
 
+      // TODO(SeanCurtis-TRI): Don't redundantly read the same file over and
+      // over again.
       // TODO(kunimatsu-tri) Add support for other file formats.
       vtkNew<vtkOBJReader> mesh_reader;
       mesh_reader->SetFileName(mesh_filename);
