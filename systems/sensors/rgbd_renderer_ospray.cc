@@ -17,6 +17,7 @@
 #include <vtkImageExport.h>
 #include <vtkJPEGReader.h>
 #include <vtkLight.h>
+#include <vtkLightCollection.h>
 #include <vtkNew.h>
 #include <vtkOBJReader.h>
 #include <vtkOSPRayLightNode.h>
@@ -268,14 +269,15 @@ RgbdRendererOSPRay::Impl::Impl(RgbdRendererOSPRay* parent,
   // OSPRay specific configuration.
   cp->renderer->SetPass(ospray_);
   vtkOSPRayRendererNode::SetRendererType("pathtracer", cp->renderer);
-  vtkOSPRayRendererNode::SetSamplesPerPixel(1, cp->renderer);
+  // TODO(SeanCurtis-TRI): This integer must be externally configurable; it
+  // defines the quality (and computation cost) of the image.
+  vtkOSPRayRendererNode::SetSamplesPerPixel(10, cp->renderer);
 
   double np[3] = {0, 0, 1};
   double ep[3] = {0, 1, 0};
   vtkOSPRayRendererNode::SetNorthPole(np, cp->renderer);
   vtkOSPRayRendererNode::SetEastPole(ep, cp->renderer);
   vtkOSPRayRendererNode::SetMaterialLibrary(materials_, cp->renderer);
-  vtkOSPRayRendererNode::SetMaxFrames(10, cp->renderer);
 
   const vtkSmartPointer<vtkTransform> vtk_X_WC = ConvertToVtkTransform(X_WC);
 
@@ -297,14 +299,32 @@ RgbdRendererOSPRay::Impl::Impl(RgbdRendererOSPRay* parent,
   }
 
   // TODO(kunimatsu-tri) Add API to handle lighting stuff.
-  light_->SetPosition(-2, 0, 10);
-  light_->SetFocalPoint(0, 0, 0);
-  light_->PositionalOff();
-  // OSPRay specific control, radius to get soft shadows.
-  vtkOSPRayLightNode::SetRadius(2.0, light_);
-  light_->SetTransformMatrix(vtk_X_WC->GetMatrix());
 
-  cp->renderer->AddLight(light_);
+  // Current light configuration:
+  //  A single directional light that follows the camera.
+  //  The light is intended to be over the right shoulder of the camera.
+
+  // Detect if the renderer already has a default light and set *that* light.
+  // If not, we use the light we've created.
+  // TODO(SeanCurtis-TRI): We should only create the light if we *need* it.
+  // We need a vector of lights that are owned by the RgbdRendererOspray.
+  auto* lights = cp->renderer->GetLights();
+  vtkLight* default_light = dynamic_cast<vtkLight*>(lights->GetItemAsObject(0));
+  if (default_light == nullptr) {
+    default_light = light_;
+    cp->renderer->AddLight(light_);
+  }
+  // Simple white light.
+  default_light->SetDiffuseColor(1.0, 1.0, 1.0);
+
+  // Configure as directional light, in camera frame, up and to the right.
+  default_light->PositionalOff();
+  default_light->SetPosition(.5, .5, 1);
+  default_light->SetFocalPoint(0, 0, 0);
+  default_light->SetLightTypeToCameraLight();
+
+  // OSPRay specific control, radius to get soft
+  vtkOSPRayLightNode::SetRadius(1.0, default_light);
 }
 
 optional<RgbdRenderer::VisualIndex>
@@ -399,11 +419,12 @@ RgbdRendererOSPRay::Impl::ImplRegisterVisual(
         auto prop = actors_[ImageType::kColor]->GetProperty();
         auto f = file.substr(file.find_last_of("/") + 1);
         prop->SetMaterialName(f.c_str());
-      } else {
-        drake::log()->warn("Found no material file for " + mesh.resolved_filename_);
+//      } else {
+//        drake::log()->warn(
+//            "Found no material file for " + mesh.resolved_filename_);
 //        throw std::runtime_error("Found no material file for " + mesh.resolved_filename_);
-      break;
       }
+      break;
     }
     case DrakeShapes::CAPSULE: {
       // TODO(kunimatsu-tri) Implement this as needed.

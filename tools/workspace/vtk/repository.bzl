@@ -553,6 +553,7 @@ licenses([
             "vtkActorCollection.h",
             "vtkCamera.h",
             "vtkLight.h",
+            "vtkLightCollection.h",
             "vtkMapper.h",
             "vtkPolyDataMapper.h",
             "vtkProp.h",
