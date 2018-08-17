@@ -16,7 +16,7 @@
         <mesh filename="./pin.obj" />
       </geometry>
       <material name="">
-        <color rgba="0 0 1 1" />
+        <color rgba="0.9 0.9 1 1" />
       </material>
     </visual>
     <collision group="pin">
