@@ -164,32 +164,32 @@ void RgbdCamera::InitRenderer() {
   std::cout << "Init renderer\n";
   // Creates rendering world.
   for (const auto& body : tree_.get_bodies()) {
-    std::cout << "  body: " <<  body->get_name() << "\n";
+//    std::cout << "  body: " <<  body->get_name() << "\n";
     const int body_id = body->get_body_index();
     auto& body_visual_indices = body_visual_indices_map_[body_id];
     for (const auto& visual : body->get_visual_elements()) {
-      std::cout << "    visual: ";
-      switch (visual.getShape()) {
-        case DrakeShapes::BOX:
-          std::cout << "BOX";
-          break;
-        case DrakeShapes::SPHERE:
-          std::cout << "SPHERE";
-          break;
-        case DrakeShapes::CYLINDER:
-          std::cout << "CYLINDER";
-          break;
-        case DrakeShapes::MESH:
-          std::cout << "MESH";
-          break;
-        case DrakeShapes::CAPSULE:
-          std::cout << "CAPSULE";
-          break;
-        default:
-        std::cout << "OTHER";
-          break;
-      }
-      std::cout << "\n";
+//      std::cout << "    visual: ";
+//      switch (visual.getShape()) {
+//        case DrakeShapes::BOX:
+//          std::cout << "BOX";
+//          break;
+//        case DrakeShapes::SPHERE:
+//          std::cout << "SPHERE";
+//          break;
+//        case DrakeShapes::CYLINDER:
+//          std::cout << "CYLINDER";
+//          break;
+//        case DrakeShapes::MESH:
+//          std::cout << "MESH";
+//          break;
+//        case DrakeShapes::CAPSULE:
+//          std::cout << "CAPSULE";
+//          break;
+//        default:
+//        std::cout << "OTHER";
+//          break;
+//      }
+//      std::cout << "\n";
       optional<VisualIndex> visual_index =
           renderer_->RegisterVisual(visual, body_id);
       if (visual_index) {

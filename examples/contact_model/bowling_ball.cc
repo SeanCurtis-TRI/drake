@@ -100,6 +100,7 @@ DEFINE_double(cam_z, 20, "Camera position on the z-axis");
 DEFINE_double(cam_r, 0, "Camera roll value");
 DEFINE_double(cam_p, M_PI_2, "Camera pitch value");
 DEFINE_double(cam_yaw, M_PI_2, "Camera yaw value");
+DEFINE_double(cam_start, 0, "The simulation time at which rendering starts");
 DEFINE_double(fps, 10, "Camera fps");
 DEFINE_bool(ospray, false, "WHen present, use the ospray renderer (isntead of vtk");
 DEFINE_string(name, "image", "Base of image name");
@@ -153,11 +154,16 @@ class ImageToFile : public LeafSystem<double> {
   /** Constructs the image-to-file system.
    @param image_name  The base name of the files to write. Images will be
                       written as `image_name_%0xd` where x is `padding`.
+   @param start_time  The earliest time at which an image will be written. NOTE:
+                      it is *not* guaranteed that a frame will be written at
+                      start time.
    @param padding     The minimum number of digits in the output file (with
                       the total value padded by zeros).
    */
-  ImageToFile(const std::string& image_name, int padding = 4) :
+  ImageToFile(const std::string& image_name, double start_time = 0,
+              int padding = 4) :
       image_name_base_(image_name),
+      start_time_(start_time),
       padding_(padding) {
     image_port_index_ =
         DeclareAbstractInputPort(systems::Value<ImageRgba8U>()).get_index();
@@ -179,19 +185,22 @@ class ImageToFile : public LeafSystem<double> {
   void DoPublish(
       const systems::Context<double>& context,
       const std::vector<const PublishEvent<double>*>&) const override {
-    const AbstractValue* image_value =
-        this->EvalAbstractInput(context, image_port_index_);
-    if (image_value) {
-      const ImageRgba8U& image = image_value->GetValue<ImageRgba8U>();
-      // TODO(SeanCurtis-TRI): Write image.
-      std::string image_name = fmt::format(
-          "{0}_{1:0{2}d}.png", image_name_base_, ++frame_number_, padding_);
-      SaveToFile(image_name, image);
+    if (context.get_time() >= start_time_) {
+      const AbstractValue* image_value =
+          this->EvalAbstractInput(context, image_port_index_);
+      if (image_value) {
+        const ImageRgba8U& image = image_value->GetValue<ImageRgba8U>();
+        // TODO(SeanCurtis-TRI): Write image.
+        std::string image_name = fmt::format(
+            "{0}_{1:0{2}d}.png", image_name_base_, ++frame_number_, padding_);
+        SaveToFile(image_name, image);
+      }
     }
   }
 
   // Output parameters.
   const std::string image_name_base_;
+  const double start_time_;
   const int padding_{4};
 
   int image_port_index_{-1};
@@ -275,7 +284,8 @@ int main() {
       move(renderer), false);
 
   auto image_writer =
-      builder.AddSystem<ImageToFile>("/home/sean/temp/rendering/" + FLAGS_name);
+      builder.AddSystem<ImageToFile>("/home/sean/temp/rendering/" + FLAGS_name,
+                                     FLAGS_cam_start);
   image_writer->set_publish_period(1. / FLAGS_fps);
 
   builder.Connect(plant.state_output_port(), camera->state_input_port());
