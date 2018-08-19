@@ -119,11 +119,18 @@ class RgbdRendererOSPRay::Impl : private ModuleInitVtkRenderingOpenGL2 {
        const Eigen::Isometry3d& X_WC);
 
   Impl(RgbdRendererOSPRay* parent,
+       const std::unordered_map<std::string, RgbdMaterial>& materials,
+       const Eigen::Isometry3d& X_WC);
+
+  Impl(RgbdRendererOSPRay* parent,
        const std::string& material_file,
        const Eigen::Isometry3d& X_WC);
   ~Impl() {}
 
   void SetBackground(const std::string& filepath);
+
+  void SetMaterials(
+      const std::unordered_map<std::string, RgbdMaterial>& materials);
 
   void ImplAddFlatTerrain();
 
@@ -178,6 +185,70 @@ void RgbdRendererOSPRay::Impl::SetBackground(
   tex->SetInputConnection(jpg_reader->GetOutputPort(0));
   pipelines_[ImageType::kColor]->renderer->TexturedBackgroundOn();
   pipelines_[ImageType::kColor]->renderer->SetBackgroundTexture(tex);
+}
+
+void RgbdRendererOSPRay::Impl::SetMaterials(
+    const std::unordered_map<std::string, RgbdMaterial>& materials) {
+  for (const auto& pair : materials) {
+    const std::string& name = pair.first;
+    const RgbdMaterial& mat = pair.second;
+    auto add_scalar = [this, &name, &mat](const std::string& prop_name) {
+      if (mat.has_scalar(prop_name)) {
+        double value = mat.GetScalar(prop_name);
+        std::cout << "  " << prop_name << " set to " << value << "\n";
+        materials_->AddShaderVariable(name, prop_name, 1,
+                                      const_cast<double*>(&mat.GetScalar(prop_name)));
+      }
+    };
+    auto add_vector3 = [this, &name, &mat](const std::string& prop_name) {
+      if (mat.has_vector3(prop_name)) {
+        const Vector3<double>& prop = mat.GetVector3(prop_name);
+//        double values[] = {prop(0), prop(1), prop(2)};
+        std::cout << "  " << prop_name << " set to " << prop.transpose() << "\n";
+        materials_->AddShaderVariable(name, prop_name, 3,
+                                      const_cast<double*>(prop.data()));
+      }
+    };
+
+    std::cout << "Material: " << name << "\n";
+    add_scalar("unused");
+#if 0
+    materials_->AddMaterial(name, "OBJMaterial");
+    add_vector3("Kd");
+    add_vector3("Ks");
+    add_scalar("Ns");
+    add_scalar("d");
+    add_vector3("Tf");
+#else
+    materials_->AddMaterial(name, "Principled");
+    add_vector3("baseColor");
+    add_vector3("edgeColor");
+    add_scalar("metallic");
+    add_scalar("diffuse");
+    add_scalar("specular");
+    add_scalar("ior");
+    add_scalar("transmission");
+    add_vector3("transmissionColor");
+    add_scalar("transmissionDepth");
+    add_scalar("roughness");
+    add_scalar("anisotropy");
+    add_scalar("rotation");
+    add_scalar("normal");
+    //add_bool("thing");
+    add_scalar("thickness");
+    add_scalar("backlight");
+    add_scalar("coat");
+    add_scalar("coatIor");
+    add_vector3("coatColor");
+    add_scalar("coatThickness");
+    add_scalar("coatRoughness");
+    add_scalar("coatNormal");
+    add_scalar("sheen");
+    add_vector3("sheenColor");
+    add_scalar("sheenRoughness");
+    add_scalar("opacity");
+#endif
+  }
 }
 
 void RgbdRendererOSPRay::Impl::ImplAddFlatTerrain() {
@@ -330,6 +401,14 @@ RgbdRendererOSPRay::Impl::Impl(RgbdRendererOSPRay* parent,
 
   // OSPRay specific control, radius to get soft
   vtkOSPRayLightNode::SetRadius(1.0, default_light);
+}
+
+RgbdRendererOSPRay::Impl::Impl(
+    RgbdRendererOSPRay* parent,
+    const std::unordered_map<std::string, RgbdMaterial>& materials,
+    const Eigen::Isometry3d& X_WC)
+    : RgbdRendererOSPRay::Impl::Impl(parent, X_WC) {
+  SetMaterials(materials);
 }
 
 RgbdRendererOSPRay::Impl::Impl(RgbdRendererOSPRay* parent,
@@ -487,9 +566,10 @@ RgbdRendererOSPRay::Impl::ImplRegisterVisual(
 }
 
 RgbdRendererOSPRay::RgbdRendererOSPRay(const RenderingConfig& config,
+                                       const std::unordered_map<std::string, RgbdMaterial>& materials,
                                        const Eigen::Isometry3d& X_WC)
     : RgbdRenderer(config, X_WC),
-      impl_(new RgbdRendererOSPRay::Impl(this, X_WC)) {}
+      impl_(new RgbdRendererOSPRay::Impl(this, materials, X_WC)) {}
 
 RgbdRendererOSPRay::RgbdRendererOSPRay(
     const RenderingConfig& config,
@@ -535,6 +615,11 @@ void RgbdRendererOSPRay::ImplRenderLabelImage(
 
 void RgbdRendererOSPRay::SetBackground(const std::string& filepath) {
   impl_->SetBackground(filepath);
+}
+
+void RgbdRendererOSPRay::SetMaterials(
+    const std::unordered_map<std::string, RgbdMaterial>& materials) {
+  impl_->SetMaterials(materials);
 }
 }  // namespace sensors
 }  // namespace systems

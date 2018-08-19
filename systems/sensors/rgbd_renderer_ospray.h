@@ -3,6 +3,7 @@
 #include <memory>
 #include <string>
 
+#include "drake/systems/sensors/rgbd_material.h"
 #include "drake/systems/sensors/rgbd_renderer.h"
 
 namespace drake {
@@ -16,6 +17,11 @@ class RgbdRendererOSPRay final : public RgbdRenderer {
 
   RgbdRendererOSPRay(
       const RenderingConfig& config,
+      const std::unordered_map<std::string, RgbdMaterial>& materials,
+      const Eigen::Isometry3d& X_WC = Eigen::Isometry3d::Identity());
+
+  RgbdRendererOSPRay(
+      const RenderingConfig& config,
       const std::string& material_file,
       const Eigen::Isometry3d& X_WC = Eigen::Isometry3d::Identity());
 
@@ -26,6 +32,9 @@ class RgbdRendererOSPRay final : public RgbdRenderer {
   ///
   /// @throws std::runtime_error if the file doesn't exist or is not jpeg.
   void SetBackground(const std::string& filepath);
+
+  void SetMaterials(
+      const std::unordered_map<std::string, RgbdMaterial>& materials);
 
  private:
   void ImplAddFlatTerrain() override;

@@ -49,6 +49,7 @@
 #include "drake/systems/rendering/pose_bundle_to_draw_message.h"
 #include "drake/systems/sensors/image.h"
 #include "drake/systems/sensors/rgbd_camera.h"
+#include "drake/systems/sensors/rgbd_material.h"
 #include "drake/systems/sensors/rgbd_renderer_ospray.h"
 #include "drake/systems/sensors/rgbd_renderer_vtk.h"
 
@@ -68,6 +69,7 @@ using systems::sensors::Image;
 using systems::sensors::ImageRgba8U;
 using systems::sensors::RenderingConfig;
 using systems::sensors::RgbdCamera;
+using systems::sensors::RgbdMaterial;
 using systems::sensors::RgbdRenderer;
 using systems::sensors::RgbdRendererOSPRay;
 using systems::sensors::RgbdRendererVTK;
@@ -271,11 +273,40 @@ int main() {
 
   const auto& tree = plant.get_rigid_body_tree();
 
+  std::unordered_map<std::string, RgbdMaterial> materials;
+  materials["box"] = RgbdMaterial();
+  materials["box"].AddParameter("baseColor", Vector3<double>{0.5, 0.33, 0});
+//  materials["box"].AddParameter("roughness", 0.8);
+//  materials["box"].AddParameter("metallic", 0.1);
+  materials["box"].AddParameter("Kd", Vector3<double>{0.5, 0.33, 0});
+  materials["box"].AddParameter("Ks", Vector3<double>{1, 1, 1});
+  materials["box"].AddParameter("Ns", 3);
+  materials["box"].AddParameter("d", 1.0);
+
+  materials["sphere"] = RgbdMaterial();
+  materials["sphere"].AddParameter("baseColor", Vector3<double>{0.25, 0.25, 0.9});
+//  materials["sphere"].AddParameter("roughness", 0.2);
+//  materials["sphere"].AddParameter("metallic", 0.4);
+  materials["sphere"].AddParameter("Kd", Vector3<double>{0.25, 0.25, 0.9});
+  materials["sphere"].AddParameter("Ks", Vector3<double>{0, 0, 1.0});
+  materials["sphere"].AddParameter("Ns", 1000);
+  materials["sphere"].AddParameter("d", 1.0);
+
+  materials["mesh"] = RgbdMaterial();
+  materials["mesh"].AddParameter("baseColor", Vector3<double>{0.5, 0.5, 0.6});
+  materials["mesh"].AddParameter("roughness", 0);
+  materials["mesh"].AddParameter("metallic", 0);
+  materials["mesh"].AddParameter("Kd", Vector3<double>{0.9, 0.9, 1.});
+  materials["mesh"].AddParameter("Ks", Vector3<double>{1, 0, 0});
+  materials["mesh"].AddParameter("Ns", 60);
+  materials["mesh"].AddParameter("d", 0.5);
+
   RenderingConfig config(640, 480, M_PI / 4, 0.1, 40.0, false);
   unique_ptr<RgbdRenderer> renderer;
   if (FLAGS_ospray) {
     const std::string& matFile =
         FindResourceOrThrow("drake/examples/contact_model/pin.json");
+    renderer = make_unique<RgbdRendererOSPRay>(config, matFile);
   } else {
     renderer = make_unique<RgbdRendererVTK>(config);
   }
