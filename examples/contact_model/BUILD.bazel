@@ -90,6 +90,7 @@ filegroup(
     name = "bowling_models",
     srcs = [
         "bowling_ball.urdf",
+        "pin.json",
         "pin.obj",
         "pin.urdf",
     ],

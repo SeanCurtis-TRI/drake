@@ -274,7 +274,8 @@ int main() {
   RenderingConfig config(640, 480, M_PI / 4, 0.1, 40.0, false);
   unique_ptr<RgbdRenderer> renderer;
   if (FLAGS_ospray) {
-    renderer = make_unique<RgbdRendererOSPRay>(config);
+    const std::string& matFile =
+        FindResourceOrThrow("drake/examples/contact_model/pin.json");
   } else {
     renderer = make_unique<RgbdRendererVTK>(config);
   }

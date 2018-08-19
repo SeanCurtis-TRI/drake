@@ -16,6 +16,7 @@ class RgbdRendererOSPRay final : public RgbdRenderer {
 
   RgbdRendererOSPRay(
       const RenderingConfig& config,
+      const std::string& material_file,
       const Eigen::Isometry3d& X_WC = Eigen::Isometry3d::Identity());
 
   ~RgbdRendererOSPRay();

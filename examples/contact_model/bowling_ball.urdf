@@ -37,7 +37,7 @@
     <!-- These are simple visual markers so rotation motion of the ball is
       easier to see.
       TODO(SeanCurtis-TRI): Replace these with a textured mesh.
-     -->
+
     <visual>
       <origin xyz="0 .1085 0" rpy="0 0 0"/>
       <geometry>
@@ -92,7 +92,7 @@
         <color rgba="1 0 0 1" />
       </material>
     </visual>
-
+  -->
     <collision group="ball">
       <geometry>
         <!-- Note: This radius must agree with the radius referenced in

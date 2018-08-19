@@ -82,13 +82,13 @@ struct RenderingPipeline {
 
 using ActorCollection = std::vector<vtkSmartPointer<vtkActor>>;
 
-std::string RemoveFileExtension(const std::string& filepath) {
-  const size_t last_dot = filepath.find_last_of(".");
-  if (last_dot == std::string::npos) {
-    DRAKE_ABORT_MSG("File has no extension.");
-  }
-  return filepath.substr(0, last_dot);
-}
+//std::string RemoveFileExtension(const std::string& filepath) {
+//  const size_t last_dot = filepath.find_last_of(".");
+//  if (last_dot == std::string::npos) {
+//    DRAKE_ABORT_MSG("File has no extension.");
+//  }
+//  return filepath.substr(0, last_dot);
+//}
 
 void SetModelTransformMatrixToVtkCamera(
     vtkCamera* camera, const vtkSmartPointer<vtkTransform>& X_WC) {
@@ -115,7 +115,12 @@ class RgbdRendererOSPRay::Impl : private ModuleInitVtkRenderingOpenGL2 {
  public:
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(Impl)
 
-  Impl(RgbdRendererOSPRay* parent, const Eigen::Isometry3d& X_WC);
+  Impl(RgbdRendererOSPRay* parent,
+       const Eigen::Isometry3d& X_WC);
+
+  Impl(RgbdRendererOSPRay* parent,
+       const std::string& material_file,
+       const Eigen::Isometry3d& X_WC);
   ~Impl() {}
 
   void SetBackground(const std::string& filepath);
@@ -254,7 +259,7 @@ void RgbdRendererOSPRay::Impl::ImplRenderLabelImage(
 }
 
 RgbdRendererOSPRay::Impl::Impl(RgbdRendererOSPRay* parent,
-                            const Eigen::Isometry3d& X_WC)
+                               const Eigen::Isometry3d& X_WC)
     : parent_(parent),
       pipelines_{{std::make_unique<RenderingPipeline>()}} {
   auto& cp = pipelines_[ImageType::kColor];
@@ -271,7 +276,7 @@ RgbdRendererOSPRay::Impl::Impl(RgbdRendererOSPRay* parent,
   vtkOSPRayRendererNode::SetRendererType("pathtracer", cp->renderer);
   // TODO(SeanCurtis-TRI): This integer must be externally configurable; it
   // defines the quality (and computation cost) of the image.
-  vtkOSPRayRendererNode::SetSamplesPerPixel(10, cp->renderer);
+  vtkOSPRayRendererNode::SetSamplesPerPixel(100, cp->renderer);
 
   double np[3] = {0, 0, 1};
   double ep[3] = {0, 1, 0};
@@ -327,6 +332,18 @@ RgbdRendererOSPRay::Impl::Impl(RgbdRendererOSPRay* parent,
   vtkOSPRayLightNode::SetRadius(1.0, default_light);
 }
 
+RgbdRendererOSPRay::Impl::Impl(RgbdRendererOSPRay* parent,
+                               const std::string& material_file,
+                               const Eigen::Isometry3d& X_WC)
+    : RgbdRendererOSPRay::Impl::Impl(parent, X_WC) {
+  std::cout << "Instantiating materials from file: " << material_file << "\n";
+  materials_->ReadFile(material_file.c_str());
+  std::cout << "Parsed materials\n";
+  for (const auto& name : materials_->GetMaterialNames()) {
+    std::cout << " " << name << "\n";
+  }
+}
+
 optional<RgbdRenderer::VisualIndex>
 RgbdRendererOSPRay::Impl::ImplRegisterVisual(
     const DrakeShapes::VisualElement& visual, int body_id) {
@@ -339,6 +356,7 @@ RgbdRendererOSPRay::Impl::ImplRegisterVisual(
     // TODO(kunimatsu-tri) Load material property for primitive shapes.
     // Material properties can be loaded only for mesh at this point.
     case DrakeShapes::BOX: {
+      actors_[ImageType::kColor]->GetProperty()->SetMaterialName("box");
       const auto& box = dynamic_cast<const DrakeShapes::Box&>(geometry);
       vtkNew<vtkCubeSource> vtk_cube;
       vtk_cube->SetXLength(box.size(0));
@@ -351,11 +369,13 @@ RgbdRendererOSPRay::Impl::ImplRegisterVisual(
       break;
     }
     case DrakeShapes::SPHERE: {
+      // TODO(SeanCurtis-TRI): OSPRay supports sphere primtives; use them here.
+      actors_[ImageType::kColor]->GetProperty()->SetMaterialName("sphere");
       const auto& sphere = dynamic_cast<const DrakeShapes::Sphere&>(geometry);
       vtkNew<vtkSphereSource> vtk_sphere;
       vtk_sphere->SetRadius(sphere.radius);
-      vtk_sphere->SetThetaResolution(50);
-      vtk_sphere->SetPhiResolution(50);
+      vtk_sphere->SetThetaResolution(100);
+      vtk_sphere->SetPhiResolution(100);
 
       for (auto& mapper : mappers_) {
         mapper->SetInputConnection(vtk_sphere->GetOutputPort());
@@ -363,6 +383,7 @@ RgbdRendererOSPRay::Impl::ImplRegisterVisual(
       break;
     }
     case DrakeShapes::CYLINDER: {
+      // TODO(SeanCurtis-TRI): OSPRay supports cylinder primitives; use it here.
       const auto& cylinder =
           dynamic_cast<const DrakeShapes::Cylinder&>(geometry);
       vtkNew<vtkCylinderSource> vtk_cylinder;
@@ -385,6 +406,8 @@ RgbdRendererOSPRay::Impl::ImplRegisterVisual(
       break;
     }
     case DrakeShapes::MESH: {
+
+      actors_[ImageType::kColor]->GetProperty()->SetMaterialName("mesh");
       const auto& mesh = dynamic_cast<const DrakeShapes::Mesh&>(geometry);
       const auto* mesh_filename = mesh.resolved_filename_.c_str();
 
@@ -413,17 +436,17 @@ RgbdRendererOSPRay::Impl::ImplRegisterVisual(
       // TODO(kunimatsu-tri) Guessing the material file name is bad. Instead,
       // load .mtl file referred from the .obj file when
       // vtkOSPRayMaterialLibrary::ReadFile for .mtl is released.
-      const std::string file = RemoveFileExtension(mesh_filename);
-      bool success = materials_->ReadFile(std::string(file + ".json").c_str());
-      if (success) {
-        auto prop = actors_[ImageType::kColor]->GetProperty();
-        auto f = file.substr(file.find_last_of("/") + 1);
-        prop->SetMaterialName(f.c_str());
+//      const std::string file = RemoveFileExtension(mesh_filename);
+//      bool success = materials_->ReadFile(std::string(file + ".json").c_str());
+//      if (success) {
+//        auto prop = actors_[ImageType::kColor]->GetProperty();
+//        auto f = file.substr(file.find_last_of("/") + 1);
+//        prop->SetMaterialName(f.c_str());
 //      } else {
 //        drake::log()->warn(
 //            "Found no material file for " + mesh.resolved_filename_);
 //        throw std::runtime_error("Found no material file for " + mesh.resolved_filename_);
-      }
+//      }
       break;
     }
     case DrakeShapes::CAPSULE: {
@@ -439,12 +462,12 @@ RgbdRendererOSPRay::Impl::ImplRegisterVisual(
 
   // Registers actors.
   if (shape_matched) {
-    auto& color_actor = actors_[ImageType::kColor];
-    if (color_actor->GetProperty()->GetNumberOfTextures() == 0) {
-      // Taken from diffuse color.
-      const auto color = visual.getMaterial();
-      color_actor->GetProperty()->SetColor(color[0], color[1], color[2]);
-    }
+//    auto& color_actor = actors_[ImageType::kColor];
+//    if (color_actor->GetProperty()->GetNumberOfTextures() == 0) {
+//      // Taken from diffuse color.
+//      const auto color = visual.getMaterial();
+//      color_actor->GetProperty()->SetColor(color[0], color[1], color[2]);
+//    }
 
     vtkSmartPointer<vtkTransform> vtk_transform =
         ConvertToVtkTransform(visual.getLocalTransform());
@@ -467,6 +490,13 @@ RgbdRendererOSPRay::RgbdRendererOSPRay(const RenderingConfig& config,
                                        const Eigen::Isometry3d& X_WC)
     : RgbdRenderer(config, X_WC),
       impl_(new RgbdRendererOSPRay::Impl(this, X_WC)) {}
+
+RgbdRendererOSPRay::RgbdRendererOSPRay(
+    const RenderingConfig& config,
+    const std::string& material_file,
+    const Eigen::Isometry3d& X_WC)
+    : RgbdRenderer(config, X_WC),
+      impl_(new RgbdRendererOSPRay::Impl(this, material_file, X_WC)) {}
 
 RgbdRendererOSPRay::~RgbdRendererOSPRay() {}
 
