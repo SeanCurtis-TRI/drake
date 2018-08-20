@@ -307,6 +307,8 @@ int main() {
     const std::string& matFile =
         FindResourceOrThrow("drake/examples/contact_model/pin.json");
     renderer = make_unique<RgbdRendererOSPRay>(config, matFile);
+    static_cast<RgbdRendererOSPRay*>(renderer.get())->SetBackground(
+        FindResourceOrThrow("drake/examples/contact_model/light_room.jpg"));
   } else {
     renderer = make_unique<RgbdRendererVTK>(config);
   }

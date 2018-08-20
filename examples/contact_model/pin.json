@@ -1,1 +1,34 @@
-{"version": "0.0", "family": "OSPRay", "materials": {"box": {"doubles": {"baseColor": [0.5, 0.33, 0], "metallic": [0.0], "roughness": [1]}, "type": "Principled"}, "sphere": {"doubles": {"baseColor": [0.25, 0.2, 0.9], "metallic": [0.0], "roughness": [1]}, "type": "Principled"}, "mesh": {"doubles": {"Ks": [1.0, 0.0, 0.0], "Ns": [100], "Kd": [0.75, 0.75, 0.75]}, "type": "OBJMaterial"}}}
+{
+  "version": "0.0",
+  "family": "OSPRay",
+  "materials": {
+    "box": {
+      "doubles": {
+        "baseColor": [0.5, 0.33, 0],
+        "metallic": [0.0],
+        "roughness": [0.7],
+        "coat": [0.6],
+        "coatRoughness": [0.1]
+      },
+      "type": "Principled"
+    },
+    "sphere": {
+      "doubles": {
+        "baseColor": [0.25, 0.2, 0.9],
+        "metallic": [0.0],
+        "roughness": [0.1],
+        "coat": [1.0],
+        "coatRoughness": [0.05]
+      },
+      "type": "Principled"
+    },
+    "mesh": {
+      "doubles": {
+        "metallic": [0.1],
+        "roughness": [0.25],
+        "baseColor": [0.75, 0.75, 0.75]
+      },
+      "type": "Principled"
+    }
+  }
+}

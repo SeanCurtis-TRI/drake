@@ -90,6 +90,7 @@ filegroup(
     name = "bowling_models",
     srcs = [
         "bowling_ball.urdf",
+        "light_room.jpg",
         "pin.json",
         "pin.obj",
         "pin.urdf",
