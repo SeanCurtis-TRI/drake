@@ -34,6 +34,8 @@ drake_cc_binary(
     srcs = ["monolithic_pick_and_place_demo.cc"],
     add_test_rule = 1,
     data = [
+        "kitchen_environment.jpg",
+        "monolithic_materials.json",
         "//examples/kuka_iiwa_arm:models",
         "//examples/kuka_iiwa_arm/pick_and_place:configuration",
         "//manipulation/models/iiwa_description:models",
@@ -57,6 +59,7 @@ drake_cc_binary(
         "//lcm",
         "//lcmtypes:iiwa",
         "//systems/analysis:simulator",
+        "//systems/sensors",
         "@gflags",
         "@lcmtypes_bot2_core",
     ],

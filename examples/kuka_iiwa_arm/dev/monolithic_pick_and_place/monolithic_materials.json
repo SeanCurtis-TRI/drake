@@ -1,0 +1,67 @@
+{
+  "version": "0.0",
+  "family": "OSPRay",
+  "materials": {
+    "Grey" : {
+      "type": "Principled",
+      "doubles": {
+        "baseColor": [0.63, 0.63, 0.63],
+        "roughness": [0.6],
+        "coat": [1],
+        "coatRoughness":[0.5]
+      }
+    },
+    "Orange": {
+      "type": "Principled",
+      "doubles": {
+        "baseColor": [0.9647058823529412, 0.4705882352941176, 0.1568627450980392],
+        "roughness": [0.6],
+        "coat": [1],
+        "coatRoughness":[0.45]
+      }
+    },
+    "bright green": {
+      "type": "Principled",
+      "doubles": {
+        "baseColor": [0, 0.7, 0],
+        "metallic": [0],
+        "specular": [1],
+        "diffuse": [1]
+      }
+    },
+    "Black": {
+      "type": "Principled",
+      "doubles": {
+        "baseColor": [0.05, 0.05, 0.05],
+        "metallic": [0],
+        "specular": [1],
+        "diffuse": [1]
+      }
+    },
+    "Yellow": {
+      "type": "Principled",
+      "doubles": {
+        "baseColor": [0.8, 0.8, 0.0],
+        "metallic": [0],
+        "specular": [1],
+        "diffuse": [1]
+      }
+    },
+    "rgba": {
+      "type": "Principled",
+      "doubles": {
+        "baseColor": [0.55, 0.55, 0.6],
+        "metallic": [0.35],
+        "roughness": [0.4]
+      }
+    },
+    "ground": {
+      "type": "Principled",
+      "doubles": {
+        "baseColor": [0.4697, 0.3950, 0.3375],
+        "roughness": [1],
+        "metallic": [0]
+      }
+    }
+  }
+}

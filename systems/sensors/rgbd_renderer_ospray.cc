@@ -413,12 +413,12 @@ RgbdRendererOSPRay::Impl::Impl(RgbdRendererOSPRay* parent,
 
   // Configure as directional light, in camera frame, up and to the right.
   default_light->PositionalOff();
-  default_light->SetPosition(.5, .5, 1);
+  default_light->SetPosition(.5, .5, 5);
   default_light->SetFocalPoint(0, 0, 0);
-  default_light->SetLightTypeToCameraLight();
+  default_light->SetLightTypeToSceneLight();
 
   // OSPRay specific control, radius to get soft
-  vtkOSPRayLightNode::SetRadius(1.0, default_light);
+  vtkOSPRayLightNode::SetRadius(5.0, default_light);
 }
 
 RgbdRendererOSPRay::Impl::Impl(
@@ -448,14 +448,8 @@ RgbdRendererOSPRay::Impl::ImplRegisterVisual(
   std::array<vtkNew<vtkPolyDataMapper>, kNumOutputImage> mappers_;
   std::array<vtkNew<vtkTransform>, kNumOutputImage> transforms;
 
-  if (visual.get_name() == "rgba") {
-    const auto& color = visual.getMaterial();
-    actors_[ImageType::kColor]->GetProperty()->SetColor(color[0], color[1],
-                                                        color[2]);
-  } else {
-    actors_[ImageType::kColor]->GetProperty()->SetMaterialName(
-        visual.get_name().c_str());
-  }
+  actors_[ImageType::kColor]->GetProperty()->SetMaterialName(
+      visual.get_name().c_str());
 
   bool shape_matched = true;
   const DrakeShapes::Geometry& geometry = visual.getGeometry();

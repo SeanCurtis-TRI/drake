@@ -19,6 +19,9 @@
 #include "drake/systems/framework/diagram.h"
 #include "drake/systems/framework/diagram_builder.h"
 #include "drake/systems/lcm/lcm_publisher_system.h"
+#include "drake/systems/sensors/png_writer.h"
+#include "drake/systems/sensors/rgbd_camera.h"
+#include "drake/systems/sensors/rgbd_renderer_ospray.h"
 
 DEFINE_double(simulation_sec, std::numeric_limits<double>::infinity(),
               "Number of seconds to simulate.");
@@ -35,6 +38,17 @@ DEFINE_string(configuration_file,
               "yellow_posts.pick_and_place_configuration",
               "Path to the configuration file.");
 
+DEFINE_double(cam_x, -2.05, "Camera position on the x-axis");
+DEFINE_double(cam_y, 0.8, "Camera position on the y-axis");
+DEFINE_double(cam_z, 2, "Camera position on the z-axis");
+DEFINE_double(cam_r, 0, "Camera roll value");
+DEFINE_double(cam_p, 0.5, "Camera pitch value");
+DEFINE_double(cam_yaw, -0.35, "Camera yaw value");
+DEFINE_double(cam_start, 0, "The simulation time at which rendering starts");
+DEFINE_double(fps, 10, "Camera fps");
+DEFINE_string(name, "image", "Base of image name");
+DEFINE_int32(spp, 1, "Sample rays per pixel");
+
 namespace drake {
 namespace examples {
 namespace kuka_iiwa_arm {
@@ -44,8 +58,24 @@ namespace {
 using manipulation::planner::InterpolatorType;
 using systems::RungeKutta2Integrator;
 using systems::Simulator;
+using systems::sensors::PngWriter;
+using systems::sensors::RenderingConfig;
+using systems::sensors::RgbdCamera;
+using systems::sensors::RgbdRenderer;
+using systems::sensors::RgbdRendererOSPRay;
 
 int DoMain(void) {
+  using std::cout;
+
+  cout << "Parameters:\n";
+  cout << "\tDuration:        " << FLAGS_simulation_sec << "\n";
+  cout << "\tcamera:\n";
+  cout << "\t  pose:           " << FLAGS_cam_x << ", " << FLAGS_cam_y << ", "
+       << FLAGS_cam_z << "\n";
+  cout << "\t  rpy:            " << FLAGS_cam_r << ", " << FLAGS_cam_p << ", "
+       << FLAGS_cam_yaw << "\n";
+  cout << "\t  fps:            " << FLAGS_fps << "\n";
+
   // Parse configuration file
   const pick_and_place::SimulatedPlantConfiguration plant_configuration =
       pick_and_place::ParseSimulatedPlantConfigurationOrThrow(
@@ -81,6 +111,33 @@ int DoMain(void) {
   builder.Connect(plant->get_output_port_plant_state(),
                   drake_visualizer->get_input_port(0));
 
+  // Add renderer.
+  RenderingConfig config(640, 480, M_PI / 4, 0.1, 40.0, false);
+  const std::string& matFile =
+      FindResourceOrThrow("drake/examples/kuka_iiwa_arm/dev/monolithic_pick_and_place/monolithic_materials.json");
+  std::unique_ptr<RgbdRenderer> renderer
+      = std::make_unique<RgbdRendererOSPRay>(config, matFile);
+  auto ospray = static_cast<RgbdRendererOSPRay*>(renderer.get());
+  ospray->SetBackground(
+      FindResourceOrThrow("drake/examples/kuka_iiwa_arm/dev/monolithic_pick_and_place/kitchen_environment.jpg"));
+  ospray->SetSamplesPerPixel(FLAGS_spp);
+
+  auto camera = builder.AddSystem<RgbdCamera>(
+      "camera", plant->get_tree(),
+      Vector3<double>{FLAGS_cam_x, FLAGS_cam_y, FLAGS_cam_z},
+      Vector3<double>{FLAGS_cam_r, FLAGS_cam_p, FLAGS_cam_yaw},
+      move(renderer), false);
+
+  auto image_writer =
+      builder.AddSystem<PngWriter>("/home/sean/temp/rendering/" + FLAGS_name,
+                                   FLAGS_cam_start);
+  image_writer->set_publish_period(1. / FLAGS_fps);
+
+  builder.Connect(plant->get_output_port_plant_state(),
+                  camera->state_input_port());
+  builder.Connect(camera->color_image_output_port(),
+                  image_writer->color_image_input_port());
+
   auto sys = builder.Build();
   Simulator<double> simulator(*sys);
   simulator.set_target_realtime_rate(FLAGS_realtime_rate);
@@ -104,6 +161,7 @@ int DoMain(void) {
   const double simulation_step = FLAGS_quick ? 0.01 : 0.1;
   bool done{false};
   while (!done) {
+    if (simulator.get_context().get_time() > FLAGS_simulation_sec) return 0;
     simulator.StepTo(simulator.get_context().get_time() + simulation_step);
     if (FLAGS_quick) {
       // We've run a single step, just get out now since we won't have
