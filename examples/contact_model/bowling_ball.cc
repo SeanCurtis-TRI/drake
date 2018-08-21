@@ -27,10 +27,6 @@
 #include <memory>
 
 #include <gflags/gflags.h>
-#include "fmt/ostream.h"
-#include <vtkImageData.h>
-#include <vtkNew.h>
-#include <vtkPNGWriter.h>
 
 #include "drake/common/eigen_types.h"
 #include "drake/common/find_resource.h"
@@ -49,6 +45,7 @@
 #include "drake/systems/rendering/pose_bundle_to_draw_message.h"
 #include "drake/systems/sensors/image.h"
 #include "drake/systems/sensors/rgbd_camera.h"
+#include "drake/systems/sensors/png_writer.h"
 #include "drake/systems/sensors/rgbd_material.h"
 #include "drake/systems/sensors/rgbd_renderer_ospray.h"
 #include "drake/systems/sensors/rgbd_renderer_vtk.h"
@@ -65,15 +62,13 @@ using std::unique_ptr;
 using systems::lcm::LcmPublisherSystem;
 using systems::lcm::Serializer;
 using systems::rendering::PoseBundleToDrawMessage;
-using systems::sensors::Image;
-using systems::sensors::ImageRgba8U;
+using systems::sensors::PngWriter;
 using systems::sensors::RenderingConfig;
 using systems::sensors::RgbdCamera;
 using systems::sensors::RgbdMaterial;
 using systems::sensors::RgbdRenderer;
 using systems::sensors::RgbdRendererOSPRay;
 using systems::sensors::RgbdRendererVTK;
-using systems::sensors::PixelType;
 using systems::LeafSystem;
 
 // Simulation parameters.
@@ -106,110 +101,6 @@ DEFINE_double(cam_start, 0, "The simulation time at which rendering starts");
 DEFINE_double(fps, 10, "Camera fps");
 DEFINE_bool(ospray, false, "WHen present, use the ospray renderer (isntead of vtk");
 DEFINE_string(name, "image", "Base of image name");
-
-template <PixelType kPixelType>
-void SaveToFile(const std::string& filepath, const Image<kPixelType>& image) {
-  const int width = image.width();
-  const int height = image.height();
-  const int num_channels = Image<kPixelType>::kNumChannels;
-
-  vtkNew<vtkImageData> vtk_image;
-  vtk_image->SetDimensions(width, height, 1);
-
-  switch (kPixelType) {
-    case PixelType::kRgba8U:
-      vtk_image->AllocateScalars(VTK_UNSIGNED_CHAR, num_channels);
-      break;
-    case PixelType::kDepth32F:
-      vtk_image->AllocateScalars(VTK_FLOAT, num_channels);
-      break;
-    case PixelType::kLabel16I:
-      vtk_image->AllocateScalars(VTK_UNSIGNED_SHORT, num_channels);
-      break;
-  }
-
-  auto image_ptr = reinterpret_cast<
-      typename Image<kPixelType>::T*>(vtk_image->GetScalarPointer());
-  const int num_scalar_components = vtk_image->GetNumberOfScalarComponents();
-
-  for (int v = height - 1; v >= 0; --v) {
-    for (int u = 0; u < width; ++u) {
-      for (int c = 0; c < num_channels; ++c) {
-        image_ptr[c] =
-            static_cast<typename Image<kPixelType>::T>(image.at(u, v)[c]);
-      }
-      image_ptr += num_scalar_components;
-    }
-  }
-
-  vtkNew<vtkPNGWriter> writer;
-  writer->SetFileName(filepath.c_str());
-  writer->SetInputData(vtk_image.GetPointer());
-  writer->Write();
-};
-
-// System for outputting images from an RgbdCamera
-class ImageToFile : public LeafSystem<double> {
- public:
-  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(ImageToFile)
-
-  /** Constructs the image-to-file system.
-   @param image_name  The base name of the files to write. Images will be
-                      written as `image_name_%0xd` where x is `padding`.
-   @param start_time  The earliest time at which an image will be written. NOTE:
-                      it is *not* guaranteed that a frame will be written at
-                      start time.
-   @param padding     The minimum number of digits in the output file (with
-                      the total value padded by zeros).
-   */
-  ImageToFile(const std::string& image_name, double start_time = 0,
-              int padding = 4) :
-      image_name_base_(image_name),
-      start_time_(start_time),
-      padding_(padding) {
-    image_port_index_ =
-        DeclareAbstractInputPort(systems::Value<ImageRgba8U>()).get_index();
-
-  }
-
-  /**
-   * The period at which images are written.
-   */
-  void set_publish_period(double period) {
-    LeafSystem<double>::DeclarePeriodicPublish(period);
-  }
-
-  const InputPort<double>& color_image_input_port() const {
-    return this->get_input_port(image_port_index_);
-  }
-
- private:
-  void DoPublish(
-      const systems::Context<double>& context,
-      const std::vector<const PublishEvent<double>*>&) const override {
-    if (context.get_time() >= start_time_) {
-      const AbstractValue* image_value =
-          this->EvalAbstractInput(context, image_port_index_);
-      if (image_value) {
-        const ImageRgba8U& image = image_value->GetValue<ImageRgba8U>();
-        // TODO(SeanCurtis-TRI): Write image.
-        std::string image_name = fmt::format(
-            "{0}_{1:0{2}d}.png", image_name_base_, ++frame_number_, padding_);
-        SaveToFile(image_name, image);
-      }
-    }
-  }
-
-  // Output parameters.
-  const std::string image_name_base_;
-  const double start_time_;
-  const int padding_{4};
-
-  int image_port_index_{-1};
-
-  // This is a *hack*. This should be as part of discrete state.
-  mutable int frame_number_{-1};
-};
 
 // Bowling ball rolled down a conceptual lane to strike pins.
 int main() {
@@ -318,8 +209,8 @@ int main() {
       move(renderer), false);
 
   auto image_writer =
-      builder.AddSystem<ImageToFile>("/home/sean/temp/rendering/" + FLAGS_name,
-                                     FLAGS_cam_start);
+      builder.AddSystem<PngWriter>("/home/sean/temp/rendering/" + FLAGS_name,
+                                   FLAGS_cam_start);
   image_writer->set_publish_period(1. / FLAGS_fps);
 
   builder.Connect(plant.state_output_port(), camera->state_input_port());
