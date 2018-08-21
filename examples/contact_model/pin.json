@@ -16,9 +16,9 @@
       "doubles": {
         "baseColor": [0.25, 0.2, 0.9],
         "metallic": [0.0],
-        "roughness": [0.1],
+        "roughness": [0.65],
         "coat": [1.0],
-        "coatRoughness": [0.05]
+        "coatRoughness": [0.25]
       },
       "type": "Principled"
     },
