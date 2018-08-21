@@ -81,6 +81,7 @@ struct RenderingPipeline {
 };
 
 using ActorCollection = std::vector<vtkSmartPointer<vtkActor>>;
+using PoseCollection = std::vector<vtkSmartPointer<vtkTransform>>;
 
 //std::string RemoveFileExtension(const std::string& filepath) {
 //  const size_t last_dot = filepath.find_last_of(".");
@@ -163,6 +164,12 @@ class RgbdRendererOSPRay::Impl : private ModuleInitVtkRenderingOpenGL2 {
   // respectively. Each vtkActor corresponds to an visual element specified in
   // SDF / URDF.
   std::map<int, std::array<ActorCollection, kNumOutputImage>> id_object_maps_;
+
+  // Due to underlying bugs in VTK simply repositioning the *actor* via its
+  // user transform leads to erroneous rendering artifacts. Instead, we must
+  // explicitly transform the *geometry*. We do this by having a polydata
+  // transform -- this is what we pose.
+  std::map<int, std::array<PoseCollection, kNumOutputImage>> id_pose_maps_;
 
   vtkNew<vtkOSPRayPass> ospray_;
 };
@@ -280,9 +287,15 @@ void RgbdRendererOSPRay::Impl::ImplUpdateVisualPose(
   // `id_object_maps_` is modified here. This is OK because 1) we are just
   // copying data to the memory spaces allocated at construction time
   // and 2) we are not outputting these data to outside the class.
-  auto& actor_collections = id_object_maps_.at(body_id);
-  for (auto& actor_collection : actor_collections) {
-    actor_collection.at(visual_id)->SetUserTransform(vtk_X_WV);
+  // TODO(SeanCurtis-TRI): Put this back when the vtk-ospray bug is fixed that
+  // allows us to pose the *actor* and still get good normals.
+//  auto& actor_collections = id_object_maps_.at(body_id);
+//  for (auto& actor_collection : actor_collections) {
+//    actor_collection.at(visual_id)->SetUserTransform(vtk_X_WV);
+//  }
+  auto& pose_collections = id_pose_maps_.at(body_id);
+  for (auto& pose_collection : pose_collections) {
+    pose_collection.at(visual_id)->SetMatrix(vtk_X_WV->GetMatrix());
   }
 }
 
@@ -428,6 +441,7 @@ RgbdRendererOSPRay::Impl::ImplRegisterVisual(
     const DrakeShapes::VisualElement& visual, int body_id) {
   std::array<vtkNew<vtkActor>, kNumOutputImage> actors_;
   std::array<vtkNew<vtkPolyDataMapper>, kNumOutputImage> mappers_;
+  std::array<vtkNew<vtkTransform>, kNumOutputImage> transforms;
 
   bool shape_matched = true;
   const DrakeShapes::Geometry& geometry = visual.getGeometry();
@@ -442,8 +456,11 @@ RgbdRendererOSPRay::Impl::ImplRegisterVisual(
       vtk_cube->SetYLength(box.size(1));
       vtk_cube->SetZLength(box.size(2));
 
-      for (auto& mapper : mappers_) {
-        mapper->SetInputConnection(vtk_cube->GetOutputPort());
+      for (int i = 0; i < kNumOutputImage; ++i) {
+        auto transform_filter = vtkSmartPointer<vtkTransformPolyDataFilter>::New();
+        transform_filter->SetTransform(transforms[i]);
+        transform_filter->SetInputConnection(vtk_cube->GetOutputPort());
+        mappers_[i]->SetInputConnection(transform_filter->GetOutputPort());
       }
       break;
     }
@@ -456,8 +473,11 @@ RgbdRendererOSPRay::Impl::ImplRegisterVisual(
       vtk_sphere->SetThetaResolution(100);
       vtk_sphere->SetPhiResolution(100);
 
-      for (auto& mapper : mappers_) {
-        mapper->SetInputConnection(vtk_sphere->GetOutputPort());
+      for (int i = 0; i < kNumOutputImage; ++i) {
+        auto transform_filter = vtkSmartPointer<vtkTransformPolyDataFilter>::New();
+        transform_filter->SetTransform(transforms[i]);
+        transform_filter->SetInputConnection(vtk_sphere->GetOutputPort());
+        mappers_[i]->SetInputConnection(transform_filter->GetOutputPort());
       }
       break;
     }
@@ -474,13 +494,16 @@ RgbdRendererOSPRay::Impl::ImplRegisterVisual(
       // to rotate it to be z-axis aligned because that is what Drake uses.
       vtkNew<vtkTransform> transform;
       transform->RotateX(90);
-      vtkNew<vtkTransformPolyDataFilter> transform_filter;
-      transform_filter->SetInputConnection(vtk_cylinder->GetOutputPort());
-      transform_filter->SetTransform(transform.GetPointer());
-      transform_filter->Update();
+      vtkNew<vtkTransformPolyDataFilter> reorient_filter;
+      reorient_filter->SetInputConnection(vtk_cylinder->GetOutputPort());
+      reorient_filter->SetTransform(transform.GetPointer());
+      reorient_filter->Update();
 
-      for (auto& mapper : mappers_) {
-        mapper->SetInputConnection(transform_filter->GetOutputPort());
+      for (int i = 0; i < kNumOutputImage; ++i) {
+        auto transform_filter = vtkSmartPointer<vtkTransformPolyDataFilter>::New();
+        transform_filter->SetTransform(transforms[i]);
+        transform_filter->SetInputConnection(reorient_filter->GetOutputPort());
+        mappers_[i]->SetInputConnection(transform_filter->GetOutputPort());
       }
       break;
     }
@@ -503,13 +526,16 @@ RgbdRendererOSPRay::Impl::ImplRegisterVisual(
       const double scale_z = mesh.scale_[2];
       vtkNew<vtkTransform> transform;
       transform->Scale(scale_x, scale_y, scale_z);
-      vtkNew<vtkTransformPolyDataFilter> transform_filter;
-      transform_filter->SetInputConnection(mesh_reader->GetOutputPort());
-      transform_filter->SetTransform(transform.GetPointer());
-      transform_filter->Update();
+      vtkNew<vtkTransformPolyDataFilter> scale_filter;
+      scale_filter->SetInputConnection(mesh_reader->GetOutputPort());
+      scale_filter->SetTransform(transform.GetPointer());
+      scale_filter->Update();
 
-      for (auto& mapper : mappers_) {
-        mapper->SetInputConnection(transform_filter->GetOutputPort());
+      for (int i = 0; i < kNumOutputImage; ++i) {
+        auto transform_filter = vtkSmartPointer<vtkTransformPolyDataFilter>::New();
+        transform_filter->SetTransform(transforms[i]);
+        transform_filter->SetInputConnection(scale_filter->GetOutputPort());
+        mappers_[i]->SetInputConnection(transform_filter->GetOutputPort());
       }
 
       // TODO(kunimatsu-tri) Guessing the material file name is bad. Instead,
@@ -550,10 +576,17 @@ RgbdRendererOSPRay::Impl::ImplRegisterVisual(
 
     vtkSmartPointer<vtkTransform> vtk_transform =
         ConvertToVtkTransform(visual.getLocalTransform());
+    auto& pose_collections = id_pose_maps_[body_id];
+    for (size_t i = 0; i < transforms.size(); ++i) {
+      transforms[i]->SetMatrix(vtk_transform->GetMatrix());
+      pose_collections[i].push_back(transforms[i].GetPointer());
+    }
     auto& actor_collections = id_object_maps_[body_id];
     for (size_t i = 0; i < actors_.size(); ++i) {
       actors_[i]->SetMapper(mappers_[i].GetPointer());
-      actors_[i]->SetUserTransform(vtk_transform);
+      // TODO(SeanCurtis-TRI): Put this back when the vtk-ospray bug is fixed
+      // and actors can be posed directly and still produce good normals.
+//      actors_[i]->SetUserTransform(vtk_transform);
       pipelines_[i]->renderer->AddActor(actors_[i].GetPointer());
       actor_collections[i].push_back(actors_[i].GetPointer());
     }
