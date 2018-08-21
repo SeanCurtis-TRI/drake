@@ -36,6 +36,9 @@ class RgbdRendererOSPRay final : public RgbdRenderer {
   void SetMaterials(
       const std::unordered_map<std::string, RgbdMaterial>& materials);
 
+  /// Sets the number of ray samples per pixel.
+  void SetSamplesPerPixel(int sample_count = 1);
+
  private:
   void ImplAddFlatTerrain() override;
 

@@ -133,6 +133,8 @@ class RgbdRendererOSPRay::Impl : private ModuleInitVtkRenderingOpenGL2 {
   void SetMaterials(
       const std::unordered_map<std::string, RgbdMaterial>& materials);
 
+  void SetSamplesPerPixel(int sample_count = 1);
+
   void ImplAddFlatTerrain();
 
   optional<VisualIndex> ImplRegisterVisual(
@@ -258,6 +260,11 @@ void RgbdRendererOSPRay::Impl::SetMaterials(
   }
 }
 
+void RgbdRendererOSPRay::Impl::SetSamplesPerPixel(int sample_count) {
+  auto& cp = pipelines_[ImageType::kColor];
+  vtkOSPRayRendererNode::SetSamplesPerPixel(sample_count, cp->renderer);
+}
+
 void RgbdRendererOSPRay::Impl::ImplAddFlatTerrain() {
   vtkSmartPointer<vtkPlaneSource> plane =
       vtk_util::CreateSquarePlane(kTerrainSize);
@@ -358,9 +365,7 @@ RgbdRendererOSPRay::Impl::Impl(RgbdRendererOSPRay* parent,
   // OSPRay specific configuration.
   cp->renderer->SetPass(ospray_);
   vtkOSPRayRendererNode::SetRendererType("pathtracer", cp->renderer);
-  // TODO(SeanCurtis-TRI): This integer must be externally configurable; it
-  // defines the quality (and computation cost) of the image.
-  vtkOSPRayRendererNode::SetSamplesPerPixel(100, cp->renderer);
+  vtkOSPRayRendererNode::SetSamplesPerPixel(1, cp->renderer);
 
   double np[3] = {0, 0, 1};
   double ep[3] = {0, 1, 0};
@@ -443,13 +448,21 @@ RgbdRendererOSPRay::Impl::ImplRegisterVisual(
   std::array<vtkNew<vtkPolyDataMapper>, kNumOutputImage> mappers_;
   std::array<vtkNew<vtkTransform>, kNumOutputImage> transforms;
 
+  if (visual.get_name() == "rgba") {
+    const auto& color = visual.getMaterial();
+    actors_[ImageType::kColor]->GetProperty()->SetColor(color[0], color[1],
+                                                        color[2]);
+  } else {
+    actors_[ImageType::kColor]->GetProperty()->SetMaterialName(
+        visual.get_name().c_str());
+  }
+
   bool shape_matched = true;
   const DrakeShapes::Geometry& geometry = visual.getGeometry();
   switch (visual.getShape()) {
     // TODO(kunimatsu-tri) Load material property for primitive shapes.
     // Material properties can be loaded only for mesh at this point.
     case DrakeShapes::BOX: {
-      actors_[ImageType::kColor]->GetProperty()->SetMaterialName("box");
       const auto& box = dynamic_cast<const DrakeShapes::Box&>(geometry);
       vtkNew<vtkCubeSource> vtk_cube;
       vtk_cube->SetXLength(box.size(0));
@@ -466,7 +479,6 @@ RgbdRendererOSPRay::Impl::ImplRegisterVisual(
     }
     case DrakeShapes::SPHERE: {
       // TODO(SeanCurtis-TRI): OSPRay supports sphere primtives; use them here.
-      actors_[ImageType::kColor]->GetProperty()->SetMaterialName("sphere");
       const auto& sphere = dynamic_cast<const DrakeShapes::Sphere&>(geometry);
       vtkNew<vtkSphereSource> vtk_sphere;
       vtk_sphere->SetRadius(sphere.radius);
@@ -508,8 +520,6 @@ RgbdRendererOSPRay::Impl::ImplRegisterVisual(
       break;
     }
     case DrakeShapes::MESH: {
-
-      actors_[ImageType::kColor]->GetProperty()->SetMaterialName("mesh");
       const auto& mesh = dynamic_cast<const DrakeShapes::Mesh&>(geometry);
       const auto* mesh_filename = mesh.resolved_filename_.c_str();
 
@@ -654,6 +664,11 @@ void RgbdRendererOSPRay::SetMaterials(
     const std::unordered_map<std::string, RgbdMaterial>& materials) {
   impl_->SetMaterials(materials);
 }
+
+void RgbdRendererOSPRay::SetSamplesPerPixel(int sample_count) {
+  impl_->SetSamplesPerPixel(sample_count);
+}
+
 }  // namespace sensors
 }  // namespace systems
 }  // namespace drake

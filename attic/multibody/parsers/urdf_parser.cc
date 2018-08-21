@@ -424,6 +424,7 @@ void ParseVisual(RigidBody<double>* body, XMLElement* node,
           }
         }
       }
+      if (name_specified) element.setName(material_name);
     }
 
     // Throws a std::runtime_error if the material was not set for this

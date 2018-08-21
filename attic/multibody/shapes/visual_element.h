@@ -36,14 +36,19 @@ class VisualElement final : public Element {
   */
   void setMaterial(const Eigen::Vector4d& material);
 
+  void setName(const std::string& name_in);
+
   /**
   * Retrieves the element's material color, in RGBA format.
   */
   const Eigen::Vector4d& getMaterial() const;
 
+  const std::string& get_name() const;
+
  protected:
   Eigen::Vector4d material;
-  std::string name;
+  // TODO(SeanCurtis-TRI): I'm currently hijacking this to mean material name.
+  std::string name{"rgba"};
 
  public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW

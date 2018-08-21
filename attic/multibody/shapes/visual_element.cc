@@ -19,8 +19,16 @@ void VisualElement::setMaterial(const Eigen::Vector4d& material_in) {
   material = material_in;
 }
 
+void VisualElement::setName(const std::string& name_in) {
+  name = name_in;
+}
+
 const Eigen::Vector4d& VisualElement::getMaterial() const {
   return material;
+}
+
+const std::string& VisualElement::get_name() const {
+  return name;
 }
 
 }  // namespace DrakeShapes
