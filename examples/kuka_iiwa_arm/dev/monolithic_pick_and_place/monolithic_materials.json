@@ -11,6 +11,16 @@
         "coatRoughness":[0.5]
       }
     },
+    "Silver" : {
+      "type": "Principled",
+      "doubles": {
+        "baseColor": [0.75, 0.75, 0.75],
+        "roughness": [0.5],
+        "metallic": [0.3],
+        "coat": [1],
+        "coatRoughness":[0.5]
+      }
+    },
     "Orange": {
       "type": "Principled",
       "doubles": {
