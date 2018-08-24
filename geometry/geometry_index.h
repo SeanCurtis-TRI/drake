@@ -5,6 +5,9 @@
 namespace drake {
 namespace geometry {
 
+/** Type used to locate any geometry in the render engine. */
+using RenderIndex = TypeSafeIndex<class RenderTag>;
+
 /** Type used to locate a dynamic geometry in the geometry engine. */
 using GeometryIndex = TypeSafeIndex<class GeometryTag>;
 

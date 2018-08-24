@@ -1,0 +1,131 @@
+# -*- python -*-
+
+load(
+    "//tools:drake.bzl",
+    "drake_cc_binary",
+    "drake_cc_googletest",
+    "drake_cc_library",
+)
+load(
+    "@drake//tools/vector_gen:vector_gen.bzl",
+    "drake_cc_vector_gen_library",
+)
+load("//tools/lint:lint.bzl", "add_lint_tests")
+
+package(default_visibility = ["//visibility:public"])
+
+drake_cc_library(
+    name = "image",
+    srcs = ["image.cc"],
+    hdrs = [
+        "image.h",
+        "pixel_types.h",
+    ],
+    deps = [
+        "//common:essential",
+        "//common:reset_after_move",
+        "//common:symbolic",
+    ],
+)
+
+drake_cc_library(
+    name = "render_engine",
+    deps = [
+        ":render_engine_vtk",
+    ],
+)
+
+drake_cc_library(
+    name = "render_engine_vtk",
+    srcs = ["render_engine_vtk.cc"],
+    hdrs = [
+        "camera_properties.h",
+        "color_palette.h",
+        "render_engine.h",
+        "render_engine_vtk.h",
+    ],
+    deps = [
+        ":image",
+        ":vtk_util",
+        "//common",
+        "//geometry:geometry_index",
+        "//geometry:render_material",
+        "//geometry:shape_specification",
+        "@eigen",
+        "@vtk//:vtkCommonCore",
+        "@vtk//:vtkCommonDataModel",
+        "@vtk//:vtkCommonTransforms",
+        "@vtk//:vtkFiltersGeneral",
+        "@vtk//:vtkFiltersSources",
+        "@vtk//:vtkIOGeometry",
+        "@vtk//:vtkIOImage",
+        "@vtk//:vtkRenderingCore",
+        "@vtk//:vtkRenderingOpenGL2",
+    ],
+)
+
+drake_cc_library(
+    name = "render_label",
+    srcs = ["render_label.cc"],
+    hdrs = ["render_label.h"],
+    deps = [
+        "//common:essential",
+        "//common:hash",
+    ],
+)
+
+drake_cc_library(
+    name = "vtk_util",
+    srcs = ["vtk_util.cc"],
+    hdrs = ["vtk_util.h"],
+    # We must not expose `#include <vtk/...>` in any of our installed headers;
+    # vtk_util.h is only included internally within this package.
+    install_hdrs_exclude = ["vtk_util.h"],
+    visibility = ["//visibility:private"],
+    deps = [
+        "//common:essential",
+        "@eigen",
+        "@vtk//:vtkCommonCore",
+        "@vtk//:vtkCommonTransforms",
+        "@vtk//:vtkFiltersSources",
+    ],
+)
+
+# === test/ ===
+
+drake_cc_googletest(
+    name = "image_test",
+    deps = [
+        ":image",
+    ],
+)
+
+drake_cc_googletest(
+    name = "render_engine_vtk_test",
+    data = [
+        "//systems/sensors:test_models",
+    ],
+    # Mitigates driver-related issues when running under `bazel test`. For more
+    # information, see #7004.
+    local = 1,
+    # Disable under LeakSanitizer and Valgrind Memcheck due to driver-related
+    # leaks. For more information, see #7520.
+    tags = [
+        "no_lsan",
+        "no_memcheck",
+    ],
+    deps = [
+        ":render_engine_vtk",
+        "//common:find_resource",
+        "//common/test_utilities:eigen_matrix_compare",
+        "//common/test_utilities:expect_throws_message",
+        "//math:geometric_transform",
+    ],
+)
+
+drake_cc_googletest(
+    name = "render_label_test",
+    deps = [":render_label"],
+)
+
+add_lint_tests()

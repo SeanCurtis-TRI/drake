@@ -129,9 +129,27 @@ drake_cc_library(
     # library will eventually contain multiple types of materials (e.g.,
     # contact, rendering, depth, etc.)
     name = "materials",
+    deps = [
+        ":render_material",
+        ":visual_material",
+    ],
+)
+
+drake_cc_library(
+    name = "visual_material",
     srcs = ["visual_material.cc"],
     hdrs = ["visual_material.h"],
     deps = ["//common"],
+)
+
+drake_cc_library(
+    name = "render_material",
+    srcs = ["render_material.cc"],
+    hdrs = ["render_material.h"],
+    deps = [
+        "//common",
+        "//geometry/render:render_label",
+    ],
 )
 
 drake_cc_library(
@@ -148,6 +166,9 @@ drake_cc_library(
         ":internal_frame",
         ":internal_geometry",
         ":proximity_engine",
+        "//common",
+        "//common:unused",
+        "//geometry/render:render_engine",
     ],
 )
 
