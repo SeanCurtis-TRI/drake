@@ -5,7 +5,6 @@
 
 #include "drake/geometry/geometry_index.h"
 #include "drake/geometry/render/camera_properties.h"
-#include "drake/geometry/render/color_palette.h"
 #include "drake/geometry/render/image.h"
 #include "drake/geometry/render_material.h"
 #include "drake/geometry/shape_specification.h"
@@ -49,6 +48,10 @@ class RenderEngine : public ShapeReifier {
 
   virtual ~RenderEngine() {}
 
+  /** Clones the render engine -- making the RenderEngine compatible with
+   copyable_unique_ptr. */
+  virtual std::unique_ptr<RenderEngine> Clone() const = 0;
+
   /** Adds a flat terrain to the render engine; it renders to a default render
    color and the RenderLabel::terrain_label() label value. */
   virtual void AddFlatTerrain() = 0;
@@ -69,11 +72,10 @@ class RenderEngine : public ShapeReifier {
 
   /** Updates the pose of a render geometry with given pose X_WG.
 
-   @param X_WG          The pose of the render geometry in the world frame.
-   @param geometry_id   The index of the render geometry whose pose is being
-                        set. */
+   @param X_WG     The pose of the render geometry in the world frame.
+   @param index    The index of the render geometry whose pose is being set. */
   virtual void UpdateVisualPose(const Eigen::Isometry3d& X_WG,
-                                RenderIndex geometry_id) const = 0;
+                                RenderIndex index) const = 0;
 
   /** Updates the renderer's viewpoint with given pose X_WR.
 
@@ -92,16 +94,17 @@ class RenderEngine : public ShapeReifier {
    @param show_window           If true, the render window will be displayed. */
   virtual void RenderColorImage(const CameraProperties& camera,
                                 ImageRgba8U* color_image_out,
-                                bool show_window = false) const = 0;
+                                bool show_window) const = 0;
 
-  /** Renders and outputs the rendered depth image.
+  /** Renders and outputs the rendered depth image. In contrast to the other
+   rendering operations, depth images don't have an option to display the
+   window; generally, basic depth images are not readily communicative to
+   humans.
 
    @param camera                The intrinsic properties of the camera.
-   @param[out] depth_image_out  The rendered depth image.
-   @param show_window           If true, the render window will be displayed. */
+   @param[out] depth_image_out  The rendered depth image. */
   virtual void RenderDepthImage(const DepthCameraProperties& camera,
-                                ImageDepth32F* depth_image_out,
-                                bool show_window = false) const = 0;
+                                ImageDepth32F* depth_image_out) const = 0;
 
   /** Renders and outputs the rendered label image.
 
@@ -110,7 +113,7 @@ class RenderEngine : public ShapeReifier {
    @param show_window           If true, the render window will be displayed. */
   virtual void RenderLabelImage(const CameraProperties& camera,
                                 ImageLabel16I* label_image_out,
-                                bool show_window = false) const = 0;
+                                bool show_window) const = 0;
 };
 
 }  // namespace render

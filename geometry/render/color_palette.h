@@ -36,6 +36,12 @@ struct Color {
   }
 };
 
+template <typename T>
+std::ostream& operator<<(std::ostream& out, const Color<T>& color) {
+  out << "(" << color.r << ", " << color.g << ", " << color.b << ")";
+  return out;
+}
+
 }  // namespace render
 }  // namespace geometry
 }  // namespace drake

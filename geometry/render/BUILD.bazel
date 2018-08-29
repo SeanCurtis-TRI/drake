@@ -28,29 +28,44 @@ drake_cc_library(
     ],
 )
 
+# A build target for code that wants to interact with the *idea* of a render
+# engine but doesn't want any build dependencies on the implementation details.
 drake_cc_library(
     name = "render_engine",
+    hdrs = [
+        "camera_properties.h",
+        "render_engine.h",
+    ],
+    deps = [
+        ":image",
+        "//geometry:geometry_index",
+        "//geometry:render_material",
+        "//geometry:shape_specification",
+    ],
+)
+
+# A build target for code that needs to interact with details of the various
+# render engine implementations.
+drake_cc_library(
+    name = "render_engine_impl",
     deps = [
         ":render_engine_vtk",
     ],
 )
 
+# The VTK-OpenGL-based render engine implementation.
 drake_cc_library(
     name = "render_engine_vtk",
     srcs = ["render_engine_vtk.cc"],
     hdrs = [
-        "camera_properties.h",
         "color_palette.h",
-        "render_engine.h",
         "render_engine_vtk.h",
     ],
     deps = [
-        ":image",
+        ":render_engine",
         ":vtk_util",
         "//common",
-        "//geometry:geometry_index",
-        "//geometry:render_material",
-        "//geometry:shape_specification",
+        "//geometry/render/shaders:depth_shaders",
         "@eigen",
         "@vtk//:vtkCommonCore",
         "@vtk//:vtkCommonDataModel",

@@ -4,19 +4,22 @@
 
 #include <vtkActor.h>
 #include <vtkAutoInit.h>
+#include <vtkCommand.h>
 #include <vtkImageExport.h>
 #include <vtkNew.h>
 #include <vtkPolyDataAlgorithm.h>
 #include <vtkRenderer.h>
 #include <vtkRenderWindow.h>
+#include <vtkShaderProgram.h>
 #include <vtkSmartPointer.h>
 #include <vtkWindowToImageFilter.h>
 
 #include "drake/common/drake_copyable.h"
+#include "drake/geometry/render/color_palette.h"
 #include "drake/geometry/render/render_engine.h"
 
 #ifndef DRAKE_DOXYGEN_CXX
-// This, and the ModuuleInitVtkRenderingOpenGL2, provide the basis for enabling
+// This, and the ModuleInitVtkRenderingOpenGL2, provide the basis for enabling
 // VTK's OpenGL2 infrastructure.
 VTK_AUTOINIT_DECLARE(vtkRenderingOpenGL2)
 #endif
@@ -32,21 +35,54 @@ struct ModuleInitVtkRenderingOpenGL2 {
     VTK_AUTOINIT_CONSTRUCT(vtkRenderingOpenGL2)
   }
 };
+
+// A callback class for setting uniform variables used in shader programs,
+// namely z_near and z_far, when vtkCommand::UpdateShaderEvent is caught.
+// See also shaders::kDepthFS, this is where the variables are used.
+// For the detail of VTK's callback mechanism, please refer to:
+// https://www.vtk.org/doc/nightly/html/classvtkCommand.html#details
+class ShaderCallback : public vtkCommand {
+ public:
+  DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(ShaderCallback);
+
+  ShaderCallback();
+
+  static ShaderCallback* New() { return new ShaderCallback; }
+
+  // NOLINTNEXTLINE(runtime/int): To match pre-existing APIs.
+  void Execute(vtkObject*, unsigned long, void* callback_object) VTK_OVERRIDE {
+    vtkShaderProgram* program =
+        reinterpret_cast<vtkShaderProgram*>(callback_object);
+    program->SetUniformf("z_near", z_near_);
+    program->SetUniformf("z_far", z_far_);
+  }
+
+  void set_z_near(float z_near) {
+    z_near_ = z_near;
+  }
+
+  void set_z_far(float z_far) {
+    z_far_ = z_far;
+  }
+
+ private:
+  float z_near_{0.f};
+  float z_far_{0.f};
+};
+
 }  // namespace detail
+
 #endif
 
 /** Implementation of the RenderEngine using the VTK OpenGL renderer. */
-class RenderEngineVtk : public RenderEngine,
-                        private detail::ModuleInitVtkRenderingOpenGL2 {
+class RenderEngineVtk final : public RenderEngine,
+                              private detail::ModuleInitVtkRenderingOpenGL2 {
  public:
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(RenderEngineVtk);
 
   RenderEngineVtk();
 
-  std::unique_ptr<RenderEngineVtk> Clone() const;
-
-  // TODO(SeanCurtis-TRI): Figure out what I'm doing with constructor and
-  // cloning.
+  std::unique_ptr<RenderEngine> Clone() const override;
 
   /** Inherits RenderEngine::AddFlatTerrain().  */
   void AddFlatTerrain() override;
@@ -60,7 +96,7 @@ class RenderEngineVtk : public RenderEngine,
 
   /** Inherits RenderEngine::RegisterVisual().  */
   void UpdateVisualPose(const Eigen::Isometry3d& X_WG,
-                        RenderIndex geometry_id) const override;
+                        RenderIndex index) const override;
 
   /** Inherits RenderEngine::UpdateViewpoint().  */
   void UpdateViewpoint(const Eigen::Isometry3d& X_WR) const override;
@@ -68,17 +104,16 @@ class RenderEngineVtk : public RenderEngine,
   /** Inherits RenderEngine::RenderColorImage().  */
   void RenderColorImage(const CameraProperties& camera,
                         ImageRgba8U* color_image_out,
-                        bool show_window = false) const override;
+                        bool show_window) const override;
 
   /** Inherits RenderEngine::RenderDepthImage().  */
   void RenderDepthImage(const DepthCameraProperties& camera,
-                        ImageDepth32F* depth_image_out,
-                        bool show_window = false) const override;
+                        ImageDepth32F* depth_image_out) const override;
 
   /** Inherits RenderEngine::RenderLabelImage().  */
   void RenderLabelImage(const CameraProperties& camera,
                         ImageLabel16I* label_image_out,
-                        bool show_window = false) const override;
+                        bool show_window) const override;
   
   /** @name    Shape reification  */
   //@{
@@ -99,25 +134,55 @@ class RenderEngineVtk : public RenderEngine,
   // Performs the common setup for all shape types.
   void ImplementGeometry(vtkPolyDataAlgorithm* source, void* user_data);
 
-  std::vector<vtkSmartPointer<vtkActor>> rgbd_actors_;
-  std::vector<vtkSmartPointer<vtkActor>> label_actors_;
-
-  vtkNew<vtkRenderer> rgbd_renderer_;
-  vtkNew<vtkRenderer> label_renderer_;
-  vtkNew<vtkRenderWindow> rgbd_window_;
-  vtkNew<vtkRenderWindow> label_window_;
-  vtkNew<vtkWindowToImageFilter> rgb_filter_;
-  vtkNew<vtkWindowToImageFilter> d_filter_;
-  vtkNew<vtkWindowToImageFilter> label_filter_;
-  vtkNew<vtkImageExport> rgb_exporter_;
-  vtkNew<vtkImageExport> d_exporter_;
-  vtkNew<vtkImageExport> label_exporter_;
-
   // TODO(SeanCurtis-TRI): Do away with this color palette; RenderLabel values
   // should be mangled into an rgb color and then the rgb color should be
   // mangled back into a 16-bit int without doing lookups. The labels can be
   // mapped to human-distinguishable colors as a post-processing operation.
   const ColorPalette color_palette_;
+
+  // The rendering pipeline for a single image type (color, depth, or label).
+  struct RenderingPipeline {
+    vtkNew<vtkRenderer> renderer;
+    vtkNew<vtkRenderWindow> window;
+    vtkNew<vtkWindowToImageFilter> filter;
+    vtkNew<vtkImageExport> exporter;
+  };
+
+  // Updates VTK rendering related objects including vtkRenderWindow,
+  // vtkWindowToImageFilter and vtkImageExporter, so that VTK reflects
+  // vtkActors' pose update for rendering.
+  static void PerformVTKUpdate(const RenderingPipeline& p);
+
+  // This actually modifies internal state; the pointer to a const pipeline
+  // allows mutation via the contained vtkNew pointers.
+  void UpdateWindow(const CameraProperties& camera, bool show_window,
+                    const RenderingPipeline* p, const char* name) const;
+
+  // Modifies the camera for the special case of the depth camera.
+  void UpdateWindow(const DepthCameraProperties& camera,
+                    const RenderingPipeline* p) const;
+
+  std::array<std::unique_ptr<RenderingPipeline>, 3> pipelines_;
+
+  // By design, all of the geometry is shared across clones of the render
+  // engine. This is predicated upon the idea that the geometry is *not*
+  // deformable and does *not* depend on the system's pose information.
+  // (If there is deformable geometry, it will have to be handled differently.)
+  // Having "shared geometry" means having shared vtkPolyDataAlgorithm and
+  // vtkOpenGLPolyDataMapper instances. The shader callback gets registered to
+  // the *mapper* instances, so they all, implicitly, share the same callback.
+  // Making this member static facilitates that but it does preclude the
+  // possibility of simultaneous renderings with different uniform parameters.
+  // Currently, this doesn't happen because drake isn't particularly thread safe
+  // (or executed in such a context). However, this renderer will need some
+  // formal thread safe mechanism so that it doesn't rely on that in the future.
+  // TODO(SeanCurtis-TRI): Add thread safety mechanisms to the renderings to
+  // preclude collisions if this code is executed in a multi-thread context.
+  static vtkNew<detail::ShaderCallback> uniform_setting_callback_;
+
+  // The collection of per-geometry actors (one actor per pipeline (color,
+  // depth, and label) indexed by the geometry's RenderIndex.
+  std::vector<std::array<vtkSmartPointer<vtkActor>, 3>> actors_;
 };
 
 }  // namespace render

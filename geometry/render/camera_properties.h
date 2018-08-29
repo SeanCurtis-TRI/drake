@@ -19,9 +19,9 @@ struct CameraProperties {
   CameraProperties(int width_in, int height_in, double fov_y_in)
       : width(width_in), height(height_in), fov_y(fov_y_in) {}
 
-  int width{};   ///< The width of the image (in pixels) to be rendered.
-  int height{};  ///< The height of the image (in pixels) to be rendered.
-  double fov_y;  ///< The camera's vertical field of view (in radians).
+  int width{};     ///< The width of the image (in pixels) to be rendered.
+  int height{};    ///< The height of the image (in pixels) to be rendered.
+  double fov_y{};  ///< The camera's vertical field of view (in radians).
 };
 
 /** The intrinsic properties for a render _depth_ camera. Consists of all of the
