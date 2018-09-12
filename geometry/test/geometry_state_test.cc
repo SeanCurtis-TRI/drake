@@ -1440,6 +1440,108 @@ TEST_F(GeometryStateTest, AssignRolesToGeometry) {
   EXPECT_TRUE(has_expected_roles(anchored_geometry_, true, false, true));
 }
 
+// Tests that the property values created get correctly propagated to the
+// target geometry.
+TEST_F(GeometryStateTest, RolePropertyValueAssignment) {
+  SetUpSingleSourceTree();
+  // Tests for proximity properties and assumes the same holds true for the
+  // other role property types.
+
+  ProximityProperties source;
+  const std::string& default_group = source.default_group_name();
+  source.AddProperty(default_group, "prop1", 7);
+  source.AddProperty(default_group, "prop2", 10);
+  const std::string group1("group1");
+  source.AddGroup(group1);
+  source.AddProperty(group1, "propA", 7.5);
+  source.AddProperty(group1, "propB", "test");
+
+  geometry_state_.AssignRole(source_id_, geometries_[0], source);
+  const ProximityProperties* read =
+      gs_tester_.GetGeometry(geometries_[0])->proximity_properties();
+  ASSERT_NE(read, nullptr);
+
+  // Test groups.
+  ASSERT_EQ(source.num_groups(), read->num_groups());
+  ASSERT_TRUE(read->has_group(group1));
+  ASSERT_TRUE(read->has_group(default_group));
+
+  // Test properties.
+  EXPECT_EQ(source.NumProperties(), read->NumProperties());
+
+  EXPECT_EQ(source.NumProperties(default_group),
+            read->NumProperties(default_group));
+  EXPECT_EQ(source.GetProperty<int>(default_group, "prop1"),
+            read->GetProperty<int>(default_group, "prop1"));
+  EXPECT_EQ(source.GetProperty<int>(default_group, "prop2"),
+            read->GetProperty<int>(default_group, "prop2"));
+
+  EXPECT_EQ(source.NumProperties(group1), read->NumProperties(group1));
+  EXPECT_EQ(source.GetProperty<double>(group1, "propA"),
+            read->GetProperty<double>(group1, "propA"));
+  EXPECT_EQ(source.GetProperty<std::string>(group1, "propB"),
+            read->GetProperty<std::string>(group1, "propB"));
+
+}
+
+// Tests the conditions in which `AssignRole()` throws an exception.
+TEST_F(GeometryStateTest, RoleAssignExceptions) {
+  SetUpSingleSourceTree();
+
+  // NOTE: On the basis that all AssignRole variants ultimately call the same
+  // underlying method, this only exercises one variant to represent all. If
+  // they no longer invoke the same underlying method, this test should change
+  // accordingly.
+
+  // Invalid source.
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      geometry_state_.AssignRole(SourceId::get_new_id(), geometries_[0],
+                                 ProximityProperties()),
+      std::logic_error,
+      "Referenced geometry source \\d+ is not registered.");
+
+  // Invalid geometry id.
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      geometry_state_.AssignRole(source_id_, GeometryId::get_new_id(),
+                                 ProximityProperties()),
+      std::logic_error,
+      "Referenced geometry \\d+ has not been registered.");
+
+  // Geometry not owned by source.
+  SourceId other_source = geometry_state_.RegisterNewSource("alt_source");
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      geometry_state_.AssignRole(other_source, geometries_[0],
+                                 ProximityProperties()),
+      std::logic_error,
+      "Given geometry id \\d+ does not belong to the given source .*");
+
+  // Redefinition of role - test each role individually to make sure it has
+  // the right error message.
+  EXPECT_NO_THROW(geometry_state_.AssignRole(source_id_, geometries_[0],
+                                             ProximityProperties()));
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      geometry_state_.AssignRole(source_id_, geometries_[0],
+                                 ProximityProperties()),
+      std::logic_error,
+      "Geometry already has proximity role assigned");
+
+  EXPECT_NO_THROW(geometry_state_.AssignRole(source_id_, geometries_[0],
+                                             PerceptionProperties()));
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      geometry_state_.AssignRole(source_id_, geometries_[0],
+                                 PerceptionProperties()),
+      std::logic_error,
+      "Geometry already has perception role assigned");
+
+  EXPECT_NO_THROW(geometry_state_.AssignRole(source_id_, geometries_[0],
+                                             IllustrationProperties()));
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      geometry_state_.AssignRole(source_id_, geometries_[0],
+                                 IllustrationProperties()),
+      std::logic_error,
+      "Geometry already has illustration role assigned");
+}
+
 }  // namespace
 }  // namespace geometry
 }  // namespace drake

@@ -762,12 +762,9 @@ void GeometryState<T>::AssignRoleInternal(SourceId source_id,
   }
 
   InternalGeometryBase* geometry = GetMutableGeometry(geometry_id);
-  if (geometry != nullptr) {
-    geometry->SetRole(std::move(properties));
-  } else {
-    throw std::logic_error("No geometry available for invalid geometry id: " +
-        to_string(geometry_id));
-  }
+  // Otherwise, we never would've gotten past the `BelongsToSource()` call.
+  DRAKE_DEMAND(geometry != nullptr);
+  geometry->SetRole(std::move(properties));
 }
 
 }  // namespace geometry

@@ -396,7 +396,7 @@ class GeometryState {
    @param properties    The proximity properties for this geometry.
    @throws std::logic_error if 1. source id is invalid,
                                2. geometry id is invalid,
-                               3. geometry id ior not owned by the source id,
+                               3. geometry id is not owned by the source id,
                                4. geometry has already had a proximity role
                                   assigned.    */
   void AssignRole(SourceId source_id, GeometryId geometry_id,
@@ -410,7 +410,7 @@ class GeometryState {
    @param properties    The perception properties for this geometry.
    @throws std::logic_error if 1. source id is invalid,
                                2. geometry id is invalid,
-                               3. geometry id ior not owned by the source id,
+                               3. geometry id is not owned by the source id,
                                4. geometry has already had a perception role
                                   assigned.    */
   void AssignRole(SourceId source_id, GeometryId geometry_id,
@@ -424,7 +424,7 @@ class GeometryState {
    @param properties    The illustration properties for this geometry.
    @throws std::logic_error if 1. source id is invalid,
                                2. geometry id is invalid,
-                               3. geometry id ior not owned by the source id,
+                               3. geometry id is not owned by the source id,
                                4. geometry has already had a illustration role
                                   assigned.    */
   void AssignRole(SourceId source_id, GeometryId geometry_id,
