@@ -11,6 +11,7 @@
 #include "drake/geometry/geometry_frame.h"
 #include "drake/geometry/geometry_instance.h"
 #include "drake/geometry/proximity_engine.h"
+#include "drake/geometry/render/render_engine_vtk.h"
 #include "drake/geometry/utilities.h"
 
 namespace drake {
@@ -20,6 +21,7 @@ using internal::GeometryStateCollisionFilterAttorney;
 using internal::InternalAnchoredGeometry;
 using internal::InternalFrame;
 using internal::InternalGeometry;
+using internal::InternalGeometryBase;
 using internal::ProximityEngine;
 using std::make_pair;
 using std::make_unique;
@@ -99,7 +101,8 @@ std::string get_missing_id_message<GeometryId>(const GeometryId& key) {
 
 template <typename T>
 GeometryState<T>::GeometryState()
-    : geometry_engine_(make_unique<internal::ProximityEngine<T>>()) {}
+    : geometry_engine_(make_unique<internal::ProximityEngine<T>>()),
+      low_render_engine_(make_unique<render::RenderEngineVtk>()) {}
 
 template <typename T>
 bool GeometryState<T>::source_is_registered(SourceId source_id) const {
@@ -126,15 +129,8 @@ const std::string& GeometryState<T>::get_frame_name(FrameId frame_id) const {
 
 template <typename T>
 const std::string& GeometryState<T>::get_name(GeometryId geometry_id) const {
-  const auto& dynamic_iterator = geometries_.find(geometry_id);
-  if (dynamic_iterator != geometries_.end()) {
-    return dynamic_iterator->second.get_name();
-  }
-
-  const auto& anchored_iterator = anchored_geometries_.find(geometry_id);
-  if (anchored_iterator != anchored_geometries_.end()) {
-    return anchored_iterator->second.get_name();
-  }
+  const InternalGeometryBase* geometry = GetGeometry(geometry_id);
+  if (geometry != nullptr) return geometry->get_name();
 
   throw std::logic_error("No geometry available for invalid geometry id: " +
       to_string(geometry_id));
@@ -257,6 +253,30 @@ const VisualMaterial* GeometryState<T>::get_visual_material(
 }
 
 template <typename T>
+const ProximityProperties* GeometryState<T>::get_proximity_properties(
+    GeometryId id) const {
+  const InternalGeometryBase* geometry = GetGeometry(id);
+  if (geometry != nullptr) return geometry->proximity_properties();
+  return nullptr;
+}
+
+template <typename T>
+const IllustrationProperties* GeometryState<T>::get_illustration_properties(
+    GeometryId id) const {
+  const InternalGeometryBase* geometry = GetGeometry(id);
+  if (geometry != nullptr) return geometry->illustration_properties();
+  return nullptr;
+}
+
+template <typename T>
+const PerceptionProperties* GeometryState<T>::get_perception_properties(
+    GeometryId id) const {
+  const InternalGeometryBase* geometry = GetGeometry(id);
+  if (geometry != nullptr) return geometry->perception_properties();
+  return nullptr;
+}
+
+template <typename T>
 SourceId GeometryState<T>::RegisterNewSource(const std::string& name) {
   SourceId source_id = SourceId::get_new_id();
   const std::string final_name =
@@ -348,6 +368,10 @@ GeometryId GeometryState<T>::RegisterGeometry(
       geometry_engine_->AddDynamicGeometry(geometry->shape());
   DRAKE_DEMAND(engine_index == geometry_index_id_map_.size());
   geometry_index_id_map_.push_back(geometry_id);
+  // TODO(SeanCurtis-TRI): Make use of this index. I should store it in my
+  // InternalGeometry (distinguishing between proximity_index and render_index.
+//  GeometryIndex render_index = render_engine_->RegisterVisual(geometry->shape(),
+//                                                              material);
 
   // Configure topology.
   // TODO(SeanCurtis-TRI): Once geometry roles are implemented, test for
@@ -421,7 +445,8 @@ GeometryId GeometryState<T>::RegisterGeometryWithParent(
   // This implicitly confirms that source_id is registered (condition #2) and
   // that frame_id belongs to source_id. By construction, geometry_id must
   // belong to the same source as frame_id, so this tests  condition #3.
-  GeometryId new_id = RegisterGeometry(source_id, frame_id, move(geometry));
+  GeometryId new_id =
+      RegisterGeometry(source_id, frame_id, move(geometry));
 
   // RegisterGeometry stores X_PG into X_FG_ (having assumed that  the
   // parent was a frame). This replaces the stored X_PG value with the
@@ -492,6 +517,30 @@ bool GeometryState<T>::IsValidGeometryName(
   });
   // TODO(SeanCurtis-TRI): Test for uniquness after geometry roles are added.
   return !detail::CanonicalizeStringName(candidate_name).empty();
+}
+
+template <typename T>
+void GeometryState<T>::AssignRole(SourceId source_id,
+                                  GeometryId geometry_id,
+                                  ProximityProperties properties) {
+  AssignRoleInternal(source_id, geometry_id, std::move(properties));
+  // TODO(SeanCurtis-TRI): Assign to proximity engine.
+}
+
+template <typename T>
+void GeometryState<T>::AssignRole(SourceId source_id,
+                                  GeometryId geometry_id,
+                                  PerceptionProperties properties) {
+  AssignRoleInternal(source_id, geometry_id, std::move(properties));
+  // TODO(SeanCurtis-TRI): Assign to render engine.
+}
+
+template <typename T>
+void GeometryState<T>::AssignRole(SourceId source_id,
+                                  GeometryId geometry_id,
+                                  IllustrationProperties properties) {
+  AssignRoleInternal(source_id, geometry_id, std::move(properties));
+  // NOTE: No need to assign to any engines.
 }
 
 template <typename T>
@@ -677,6 +726,47 @@ void GeometryState<T>::UpdatePosesRecursively(
   for (auto child_id : frame.get_child_frames()) {
     auto& child_frame = frames_[child_id];
     UpdatePosesRecursively(child_frame, X_WF, poses);
+  }
+}
+
+template <typename T>
+const InternalGeometryBase* GeometryState<T>::GetGeometry(GeometryId id) const {
+  const auto& dynamic_iterator = geometries_.find(id);
+  if (dynamic_iterator != geometries_.end()) {
+    return &dynamic_iterator->second;
+  }
+
+  const auto& anchored_iterator = anchored_geometries_.find(id);
+  if (anchored_iterator != anchored_geometries_.end()) {
+    return &anchored_iterator->second;
+  }
+  return nullptr;
+}
+
+template <typename T>
+InternalGeometryBase* GeometryState<T>::GetMutableGeometry(
+    GeometryId id) {
+  const InternalGeometryBase* geometry = GetGeometry(id);
+  return const_cast<InternalGeometryBase*>(geometry);
+}
+
+template <typename T>
+template <typename PropertyType>
+void GeometryState<T>::AssignRoleInternal(SourceId source_id,
+                                          GeometryId geometry_id,
+                                          PropertyType properties) {
+  if (!BelongsToSource(geometry_id, source_id)) {
+    throw std::logic_error("Given geometry id " + to_string(geometry_id) +
+        " does not belong to the given source id " +
+        to_string(source_id));
+  }
+
+  InternalGeometryBase* geometry = GetMutableGeometry(geometry_id);
+  if (geometry != nullptr) {
+    geometry->SetRole(std::move(properties));
+  } else {
+    throw std::logic_error("No geometry available for invalid geometry id: " +
+        to_string(geometry_id));
   }
 }
 

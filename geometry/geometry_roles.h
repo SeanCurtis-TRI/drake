@@ -128,7 +128,9 @@ namespace geometry {
 class ProximityProperties final : public GeometryProperties{
  public:
   DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(ProximityProperties);
+  // TODO(SeanCurtis-TRI): Should this have the physical properties built in?
 
+  // TODO(SeanCurtis-TRI): Consider adding ProximityIndex to this.
   ProximityProperties() = default;
 };
 
@@ -136,7 +138,9 @@ class ProximityProperties final : public GeometryProperties{
 class PerceptionProperties final : public GeometryProperties{
  public:
   DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(PerceptionProperties);
+  // TODO(SeanCurtis-TRI): Should this have a render label built in?
 
+  // TODO(SeanCurtis-TRI): Consider adding PerceptionIndex to this.
   PerceptionProperties() = default;
 };
 

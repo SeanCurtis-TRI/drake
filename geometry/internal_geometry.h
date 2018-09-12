@@ -10,6 +10,7 @@
 #include "drake/common/drake_optional.h"
 #include "drake/geometry/geometry_ids.h"
 #include "drake/geometry/geometry_index.h"
+#include "drake/geometry/geometry_roles.h"
 #include "drake/geometry/shape_specification.h"
 #include "drake/geometry/visual_material.h"
 
@@ -80,7 +81,63 @@ class InternalGeometryBase {
 
   const Isometry3<double>& get_pose_in_parent() const { return X_PG_; }
 
-  const VisualMaterial& get_visual_material() const { return visual_material_; }
+  void SetRole(ProximityProperties properties) {
+    if (proximity_props_) {
+      throw std::logic_error("Geometry already has proximity role assigned");
+    }
+    proximity_props_ = std::move(properties);
+  }
+
+  void SetRole(IllustrationProperties properties) {
+    if (illustration_props_) {
+      throw std::logic_error("Geometry already has illustration role assigned");
+    }
+    illustration_props_ = std::move(properties);
+  }
+
+  void SetRole(PerceptionProperties properties) {
+    if (perception_props_) {
+      throw std::logic_error("Geometry already has perception role assigned");
+    }
+    perception_props_ = std::move(properties);
+  }
+
+  /** Returns a pointer to the geometry's proximity properties (if they are
+   defined. Nullptr otherwise.  */
+  const ProximityProperties* proximity_properties() const {
+    if (proximity_props_) return &*proximity_props_;
+    return nullptr;
+  }
+
+  /** Returns a pointer to the geometry's illustration properties (if they are
+   defined. Nullptr otherwise.  */
+  const IllustrationProperties* illustration_properties() const {
+    if (illustration_props_) return &*illustration_props_;
+    return nullptr;
+  }
+
+  /** Returns a pointer to the geometry's perception properties (if they are
+   defined. Nullptr otherwise.  */
+  const PerceptionProperties* perception_properties() const {
+    if (perception_props_) return &*perception_props_;
+    return nullptr;
+  }
+
+  // TODO(SeanCurtis-TRI): Consider an enum of roles and methods that accept
+  // the enum as an argument to define queries.
+  bool has_visual_material() const {
+    return static_cast<bool>(visual_material_);
+  }
+
+  /** Returns a reference to the registered visual material -- throwing an
+   exception if none exists. */
+  const VisualMaterial& get_visual_material() const {
+    if (visual_material_) {
+      return *visual_material_;
+    } else {
+      throw std::logic_error("Geometry has no visual material");
+    }
+  }
 
  private:
   // The specification for this instance's shape.
@@ -97,10 +154,16 @@ class InternalGeometryBase {
   // another registered geometry.
   Isometry3<double> X_PG_;
 
+  // The optional property sets tied to the roles that the geometry plays.
+  optional<ProximityProperties> proximity_props_{nullopt};
+  optional<IllustrationProperties> illustration_props_{nullopt};
+  optional<PerceptionProperties> perception_props_{nullopt};
+  RenderIndex render_index_;
+
   // TODO(SeanCurtis-TRI): Consider making this "optional" so that the values
   // can be assigned at the frame level.
   // The "rendering" material -- e.g., OpenGl contexts and the like.
-  VisualMaterial visual_material_;
+  optional<VisualMaterial> visual_material_{nullopt};
 };
 
 /** This class represents the internal representation of registered _dynamic_

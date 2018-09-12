@@ -12,6 +12,7 @@
 #include "drake/common/test_utilities/expect_throws_message.h"
 #include "drake/geometry/geometry_frame.h"
 #include "drake/geometry/geometry_instance.h"
+#include "drake/geometry/geometry_roles.h"
 #include "drake/geometry/geometry_set.h"
 #include "drake/geometry/internal_frame.h"
 #include "drake/geometry/shape_specification.h"
@@ -111,6 +112,10 @@ class GeometryStateTester {
 
   int peek_next_clique() const {
     return state_->peek_next_clique();
+  }
+
+  internal::InternalGeometryBase* GetGeometry(GeometryId id) {
+    return state_->GetMutableGeometry(id);
   }
 
  private:
@@ -1352,6 +1357,87 @@ TEST_F(GeometryStateTest, GeometryNameValidation) {
   for (const std::string& s : {"\n", " \n\t", " \f", "\v", "\r", "\ntest"}) {
     EXPECT_TRUE(geometry_state_.IsValidGeometryName(frames_[0], s));
   }
+}
+
+// Tests simple that when a role is assigned to a geometry, that it successfully
+// reports that it has that role.
+TEST_F(GeometryStateTest, AssignRolesToGeometry) {
+  SetUpSingleSourceTree();
+
+  // We need at least 8 geometries to run through all role permutations. Add
+  // geometries until we're there.
+  const Isometry3<double> pose = Isometry3<double>::Identity();
+  for (int i = 0; i < 8 - single_tree_geometry_count(); ++i) {
+    const std::string name = "new_geom" + std::to_string(i);
+    geometries_.push_back(geometry_state_.RegisterGeometry(
+        source_id_, frames_[0],
+        make_unique<GeometryInstance>(pose, make_unique<Sphere>(1), name)));
+  }
+
+  auto set_roles = [this](GeometryId id, bool set_proximity,
+                          bool set_perception, bool set_illustration) {
+    if (set_proximity) {
+      geometry_state_.AssignRole(source_id_, id, ProximityProperties());
+    }
+    if (set_perception) {
+      geometry_state_.AssignRole(source_id_, id, PerceptionProperties());
+    }
+    if (set_illustration) {
+      geometry_state_.AssignRole(source_id_, id, IllustrationProperties());
+    }
+  };
+
+  auto has_expected_roles = [this](
+      GeometryId id, bool has_proximity, bool has_perception,
+      bool has_illustration) -> ::testing::AssertionResult {
+    const internal::InternalGeometryBase* geometry =
+        gs_tester_.GetGeometry(id);
+    bool passes = true;
+    ::testing::AssertionResult failure = ::testing::AssertionFailure();
+    if (has_proximity != (geometry->proximity_properties() != nullptr)) {
+      failure << "Proximity role: "
+              << (has_proximity ? " expected, but not found"
+                                : " not expected, but found. ");
+      passes = false;
+    }
+    if (has_perception != (geometry->perception_properties() != nullptr)) {
+      failure << "Perception role: "
+              << (has_perception ? " expected, but not found"
+                                 : " not expected, but found. ");
+      passes = false;
+    }
+    if (has_illustration != (geometry->illustration_properties() != nullptr)) {
+      failure << "Illustration role: "
+              << (has_illustration ? " expected, but not found"
+                                   : " not expected, but found. ");
+      passes = false;
+    }
+    if (passes)
+      return ::testing::AssertionSuccess();
+    else
+      return failure;
+  };
+
+  // Given three role types, assign all eight types of assignments.
+  for (int i = 0; i < 8; ++i) {
+    const bool proximity = i & 0x1;
+    const bool perception = i & 0x2;
+    const bool illustration = i & 0x4;
+    const GeometryId id = geometries_[i];
+    EXPECT_TRUE(has_expected_roles(id, false, false, false))
+              << "Geometry " << id << " at index (" << i
+              << ") didn't start without roles";
+    set_roles(id, proximity, perception, illustration);
+    EXPECT_TRUE(has_expected_roles(id, proximity, perception, illustration))
+              << "Incorrect roles for geometry " << id << " at index (" << i
+              << ").";
+  }
+
+  // Confirm it works on anchored geometry. Pick, arbitrarily, assigning
+  // proximity and illustration roles.
+  EXPECT_TRUE(has_expected_roles(anchored_geometry_, false, false, false));
+  set_roles(anchored_geometry_, true, false, true);
+  EXPECT_TRUE(has_expected_roles(anchored_geometry_, true, false, true));
 }
 
 }  // namespace

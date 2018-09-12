@@ -13,10 +13,12 @@
 #include "drake/geometry/frame_kinematics_vector.h"
 #include "drake/geometry/geometry_ids.h"
 #include "drake/geometry/geometry_index.h"
+#include "drake/geometry/geometry_roles.h"
 #include "drake/geometry/geometry_set.h"
 #include "drake/geometry/internal_frame.h"
 #include "drake/geometry/internal_geometry.h"
 #include "drake/geometry/proximity_engine.h"
+#include "drake/geometry/render/render_engine.h"
 
 namespace drake {
 namespace geometry {
@@ -254,6 +256,22 @@ class GeometryState {
                             GeometryInstance. */
   const VisualMaterial* get_visual_material(GeometryId geometry_id) const;
 
+  /** Returns the proximity propertes for the given geometry, if it exists.
+   @throws std::logic_error if the `geometry_id` does not map to a valid
+                            geometry instance.  */
+  const ProximityProperties* get_proximity_properties(GeometryId id) const;
+
+  /** Returns the illustration propertes for the given geometry, if it exists.
+   @throws std::logic_error if the `geometry_id` does not map to a valid
+                            geometry instance.  */
+  const IllustrationProperties* get_illustration_properties(
+      GeometryId id) const;
+
+  /** Returns the perception propertes for the given geometry, if it exists.
+   @throws std::logic_error if the `geometry_id` does not map to a valid
+                            geometry instance.  */
+  const PerceptionProperties* get_perception_properties(GeometryId id) const;
+
   //@}
 
   /** @name        State management
@@ -369,6 +387,48 @@ class GeometryState {
    @throws if `frame_id` does not refer to a valid frame.  */
   bool IsValidGeometryName(FrameId frame_id,
                            const std::string& candidate_name) const;
+
+  /** Assigns the given geometry id the proximity role by assigning it the given
+   set of proximity properties.
+
+   @param source_id     The id of the geometry source that owns the geometry.
+   @param geometry_id   The geometry to assign a role.
+   @param properties    The proximity properties for this geometry.
+   @throws std::logic_error if 1. source id is invalid,
+                               2. geometry id is invalid,
+                               3. geometry id ior not owned by the source id,
+                               4. geometry has already had a proximity role
+                                  assigned.    */
+  void AssignRole(SourceId source_id, GeometryId geometry_id,
+                  ProximityProperties properties);
+
+  /** Assigns the given geometry id the perception role by assigning it the
+   given set of proximity properties.
+
+   @param source_id     The id of the geometry source that owns the geometry.
+   @param geometry_id   The geometry to assign a role.
+   @param properties    The perception properties for this geometry.
+   @throws std::logic_error if 1. source id is invalid,
+                               2. geometry id is invalid,
+                               3. geometry id ior not owned by the source id,
+                               4. geometry has already had a perception role
+                                  assigned.    */
+  void AssignRole(SourceId source_id, GeometryId geometry_id,
+                  PerceptionProperties properties);
+
+  /** Assigns the given geometry id the illustration role by assigning it the
+   given set of proximity properties.
+
+   @param source_id     The id of the geometry source that owns the geometry.
+   @param geometry_id   The geometry to assign a role.
+   @param properties    The illustration properties for this geometry.
+   @throws std::logic_error if 1. source id is invalid,
+                               2. geometry id is invalid,
+                               3. geometry id ior not owned by the source id,
+                               4. geometry has already had a illustration role
+                                  assigned.    */
+  void AssignRole(SourceId source_id, GeometryId geometry_id,
+                  IllustrationProperties properties);
 
   //@}
 
@@ -593,6 +653,16 @@ class GeometryState {
     return geometries_.count(id) > 0;
   }
 
+  // Convenience function for accessing geometry whether dynamic or anchored.
+  const internal::InternalGeometryBase* GetGeometry(GeometryId id) const;
+
+  // Convenience function for accessing geometry whether dynamic or anchored.
+  internal::InternalGeometryBase* GetMutableGeometry(GeometryId id);
+
+  template <typename PropertyType>
+  void AssignRoleInternal(SourceId source_id, GeometryId geometry_id,
+                          PropertyType properties);
+
   // ---------------------------------------------------------------------
   // Maps from registered source ids to the entities registered to those
   // sources (e.g., frames and geometries). This lives in the state to support
@@ -704,6 +774,14 @@ class GeometryState {
   // rely on temporal coherency to speed up the calculations. Thus we persist
   // and copy it.
   copyable_unique_ptr<internal::ProximityEngine<T>> geometry_engine_;
+
+  // The *simple* render engine; provides the low-fidelity visual representation
+  // of the *color* image.
+  copyable_unique_ptr<render::RenderEngine> low_render_engine_;
+
+  // TODO(SeanCurtis-TRI): Provide renderers with improved rendering fidelity:
+  // medium- and high-fidelity renderers. The former will be a PBR game-engine-
+  // style renderer and the latter a path-tracer/ray tracer.
 };
 }  // namespace geometry
 }  // namespace drake

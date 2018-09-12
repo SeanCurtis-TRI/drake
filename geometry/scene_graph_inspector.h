@@ -2,6 +2,7 @@
 
 #include <string>
 
+#include "drake/geometry/geometry_roles.h"
 #include "drake/geometry/geometry_state.h"
 
 namespace drake {
@@ -109,6 +110,24 @@ class SceneGraphInspector {
                                  const std::string& name) const {
     DRAKE_DEMAND(state_ != nullptr);
     return state_->GetGeometryFromName(frame_id, name);
+  }
+
+  const ProximityProperties* GetProximityProperties(
+      GeometryId geometry_id) const {
+    DRAKE_DEMAND(state_ != nullptr);
+    return state_->get_proximity_properties(geometry_id);
+  }
+
+  const IllustrationProperties* GetPerceptionProperties(
+      GeometryId geometry_id) const {
+    DRAKE_DEMAND(state_ != nullptr);
+    return state_->get_illustration_properties(geometry_id);
+  }
+
+  const PerceptionProperties* GetIllustrationProperties(
+      GeometryId geometry_id) const {
+    DRAKE_DEMAND(state_ != nullptr);
+    return state_->get_perception_properties(geometry_id);
   }
 
   //@}
