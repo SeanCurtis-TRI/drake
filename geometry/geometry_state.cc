@@ -191,14 +191,14 @@ const Isometry3<T>& GeometryState<T>::get_pose_in_world(
 template <typename T>
 const Isometry3<T>& GeometryState<T>::get_pose_in_world(
     GeometryId geometry_id) const {
-  // TODO(SeanCurtis-TRI): This is an BUG! If you pass in the id of an
+  // TODO(SeanCurtis-TRI): This is a BUG! If you pass in the id of an
   // anchored geometry, this will throw an exception. See
   // https://github.com/RobotLocomotion/drake/issues/9145.
   FindOrThrow(geometry_id, geometries_, [geometry_id]() {
     return "No world pose available for invalid geometry id: " +
            to_string(geometry_id);
   });
-  return X_WG_[geometries_.at(geometry_id).get_engine_index()];
+  return X_WG_[geometries_.at(geometry_id).pose_index()];
 }
 
 template <typename T>
@@ -222,7 +222,7 @@ template <typename T>
 const Isometry3<double>& GeometryState<T>::GetPoseInFrame(
     GeometryId geometry_id) const {
   const auto& geometry = GetValueOrThrow(geometry_id, geometries_);
-  return X_FG_[geometry.get_engine_index()];
+  return X_FG_[geometry.pose_index()];
 }
 
 template <typename T>
@@ -230,26 +230,6 @@ const Isometry3<double>& GeometryState<T>::GetPoseInParent(
     GeometryId geometry_id) const {
   const auto& geometry = GetValueOrThrow(geometry_id, geometries_);
   return geometry.get_pose_in_parent();
-}
-
-template <typename T>
-const VisualMaterial* GeometryState<T>::get_visual_material(
-    GeometryId geometry_id) const {
-  // TODO(SeanCurtis-TRI): Wrap this in a function accessible to all geometry
-  // property introspection functions.
-  {
-    auto iterator = geometries_.find(geometry_id);
-    if (iterator != geometries_.end()) {
-      return &iterator->second.get_visual_material();
-    }
-  }
-  {
-    auto iterator = anchored_geometries_.find(geometry_id);
-    if (iterator != anchored_geometries_.end()) {
-      return &iterator->second.get_visual_material();
-    }
-  }
-  throw std::logic_error(get_missing_id_message(geometry_id));
 }
 
 template <typename T>
@@ -364,10 +344,8 @@ GeometryId GeometryState<T>::RegisterGeometry(
   });
 
   // Pass the geometry to the engine.
-  GeometryIndex engine_index =
-      geometry_engine_->AddDynamicGeometry(geometry->shape());
-  DRAKE_DEMAND(engine_index == geometry_index_id_map_.size());
-  geometry_index_id_map_.push_back(geometry_id);
+//  GeometryIndex engine_index =
+//      geometry_engine_->AddDynamicGeometry(geometry->shape());
   // TODO(SeanCurtis-TRI): Make use of this index. I should store it in my
   // InternalGeometry (distinguishing between proximity_index and render_index.
 //  GeometryIndex render_index = render_engine_->RegisterVisual(geometry->shape(),
@@ -376,19 +354,27 @@ GeometryId GeometryState<T>::RegisterGeometry(
   // Configure topology.
   // TODO(SeanCurtis-TRI): Once geometry roles are implemented, test for
   // uniqueness of the canonical name in that role for the given frame.
-  // NOTE: It is important to test for name validity *before* adding this
-  // geometry to the frame.
 
   InternalFrame& frame = frames_[frame_id];
   frame.add_child(geometry_id);
 
+  // TODO(SeanCurtis-TRI): Enforcing the invariant that the indices are
+  // compactly distributed. Is there a more robust way to do this?
+  DRAKE_ASSERT(geometry_index_id_map_.size() == X_FG_.size());
+  PoseIndex pose_index(static_cast<int>(X_FG_.size()));
+  X_WG_.push_back(Isometry3<T>::Identity());
+  X_FG_.emplace_back(geometry->pose());
+  geometry_index_id_map_.push_back(geometry_id);
+
   geometries_.emplace(
       geometry_id,
       InternalGeometry(geometry->release_shape(), frame_id, geometry_id,
-                       geometry->name(), geometry->pose(), engine_index,
-                       geometry->visual_material()));
+                       geometry->name(), geometry->pose(), pose_index));
 
 
+  // TODO(SeanCurtis-TRI): Move this into the logic that assigns collision role
+  // to the geometry.
+#if 0
   int child_count = static_cast<int>(frame.get_child_geometries().size());
   if (child_count > 1) {
     // Filter collisions between geometries affixed to the same frame. We only
@@ -408,14 +394,7 @@ GeometryId GeometryState<T>::RegisterGeometry(
       }
     }
   }
-
-  // TODO(SeanCurtis-TRI): Enforcing the invariant that the indices are
-  // compactly distributed. Is there a more robust way to do this?
-  DRAKE_ASSERT(static_cast<int>(X_FG_.size()) == engine_index);
-  DRAKE_ASSERT(static_cast<int>(geometry_index_id_map_.size()) - 1 ==
-               engine_index);
-  X_WG_.push_back(Isometry3<T>::Identity());
-  X_FG_.emplace_back(geometry->pose());
+#endif
   return geometry_id;
 }
 
@@ -455,10 +434,12 @@ GeometryId GeometryState<T>::RegisterGeometryWithParent(
   // Transform pose relative to geometry, to pose relative to frame.
   const InternalGeometry& new_geometry = geometries_[new_id];
   // The call to `RegisterGeometry()` above stashed the pose X_PG into the
-  // X_FG_ vector.
-  const Isometry3<double>& X_PG = X_FG_[new_geometry.get_engine_index()];
-  const Isometry3<double>& X_FP = X_FG_[parent_geometry.get_engine_index()];
-  X_FG_[new_geometry.get_engine_index()] = X_FP * X_PG;
+  // X_FG_ vector assuming the parent was the frame. Replace it by concatenating
+  // its pose in parent, with its parent's pose in frame. NOTE: the pose is no
+  // longer available from geometry because of the `move(geometry)`.
+  const Isometry3<double>& X_PG = X_FG_[new_geometry.pose_index()];
+  const Isometry3<double>& X_FP = X_FG_[parent_geometry.pose_index()];
+  X_FG_[new_geometry.pose_index()] = X_FP * X_PG;
 
   geometries_[new_id].set_parent_id(geometry_id);
   parent_geometry.add_child(new_id);
@@ -488,8 +469,8 @@ GeometryId GeometryState<T>::RegisterAnchoredGeometry(
   set.emplace(geometry_id);
 
   // Pass the geometry to the engine.
-  auto engine_index = geometry_engine_->AddAnchoredGeometry(geometry->shape(),
-                                                            geometry->pose());
+//  auto engine_index = geometry_engine_->AddAnchoredGeometry(geometry->shape(),
+//                                                            geometry->pose());
 
 
   // TODO(SeanCurtis-TRI): Once geometry roles are implemented, test for
@@ -497,15 +478,14 @@ GeometryId GeometryState<T>::RegisterAnchoredGeometry(
   // NOTE: It is important to test for name validity *before* adding this
   // geometry to the frame.
 
-  DRAKE_ASSERT(static_cast<int>(anchored_geometry_index_id_map_.size()) ==
-               engine_index);
-  anchored_geometry_index_id_map_.push_back(geometry_id);
+//  DRAKE_ASSERT(static_cast<int>(anchored_geometry_index_id_map_.size()) ==
+//               engine_index);
+//  anchored_geometry_index_id_map_.push_back(geometry_id);
 
   anchored_geometries_.emplace(
       geometry_id,
       InternalAnchoredGeometry(geometry->release_shape(), geometry_id,
-                               geometry->name(), geometry->pose(), engine_index,
-                               geometry->visual_material()));
+                               geometry->name(), geometry->pose()));
   return geometry_id;
 }
 
@@ -634,15 +614,15 @@ void GeometryState<T>::CollectIndices(
 
     const auto& frame = iterator->second;
     for (auto geometry_id : frame.get_child_geometries()) {
-      dynamic->insert(geometries_[geometry_id].get_engine_index());
+      dynamic->insert(geometries_[geometry_id].proximity_index());
     }
   }
 
   for (auto geometry_id : geometry_set.geometries()) {
     if (geometries_.count(geometry_id) == 1) {
-      dynamic->insert(geometries_[geometry_id].get_engine_index());
+      dynamic->insert(geometries_[geometry_id].proximity_index());
     } else if (anchored_geometries_.count(geometry_id) == 1) {
-      anchored->insert(anchored_geometries_[geometry_id].get_engine_index());
+      anchored->insert(anchored_geometries_[geometry_id].proximity_index());
     } else {
       throw std::logic_error(
           "Geometry set includes a geometry id that doesn't belong to the "
@@ -712,7 +692,7 @@ void GeometryState<T>::UpdatePosesRecursively(
   // Update the geometry which belong to *this* frame.
   for (auto child_id : frame.get_child_geometries()) {
     auto& child_geometry = geometries_[child_id];
-    auto child_index = child_geometry.get_engine_index();
+    auto child_index = child_geometry.pose_index();
     // TODO(SeanCurtis-TRI): See note above about replacing this when we have a
     // transform that supports autodiff * double.
     X_FG_[child_index].makeAffine();

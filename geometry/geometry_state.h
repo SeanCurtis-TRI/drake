@@ -250,24 +250,18 @@ class GeometryState {
                              GeometryInstance. */
   const Isometry3<double>& GetPoseInParent(GeometryId geometry_id) const;
 
-  /** Returns the visual material defined for geometry indicated by the given
-   `geometry_id` (if defined).
-   @throws std::logic_error If the `geometry_id` does _not_ map to a valid
-                            GeometryInstance. */
-  const VisualMaterial* get_visual_material(GeometryId geometry_id) const;
-
-  /** Returns the proximity propertes for the given geometry, if it exists.
+  /** Returns the proximity properties for the given geometry, if it exists.
    @throws std::logic_error if the `geometry_id` does not map to a valid
                             geometry instance.  */
   const ProximityProperties* get_proximity_properties(GeometryId id) const;
 
-  /** Returns the illustration propertes for the given geometry, if it exists.
+  /** Returns the illustration properties for the given geometry, if it exists.
    @throws std::logic_error if the `geometry_id` does not map to a valid
                             geometry instance.  */
   const IllustrationProperties* get_illustration_properties(
       GeometryId id) const;
 
-  /** Returns the perception propertes for the given geometry, if it exists.
+  /** Returns the perception properties for the given geometry, if it exists.
    @throws std::logic_error if the `geometry_id` does not map to a valid
                             geometry instance.  */
   const PerceptionProperties* get_perception_properties(GeometryId id) const;
@@ -717,10 +711,10 @@ class GeometryState {
   std::vector<GeometryId> anchored_geometry_index_id_map_;
 
   // The pose of each dynamic geometry relative to the frame to which it
-  // belongs. Each geometry has an "engine index". That geometry's pose is
-  // stored in this vector at that engine index. Because the geometries are
-  // _rigidly_ fixed to frames, these values are a property of the topology and
-  // _not_ the time-dependent frame kinematics.
+  // belongs. Each geometry has a "pose index". That geometry's pose is stored
+  // in this vector at that index. Because the geometries are _rigidly_ fixed to
+  // frames, these values are a property of the topology and _not_ the
+  // time-dependent frame kinematics.
   std::vector<Isometry3<double>> X_FG_;
 
   // This *implicitly* maps each extant frame's pose index to its corresponding
@@ -742,8 +736,8 @@ class GeometryState {
   // so that inputs can be pulled independently. This work will be done when
   // the cache PR lands. For now, they are big blobs of memory.
 
-  // Map from the frame id to the *current* pose of the frame it identifies, F,
-  // relative to its parent frame, P: X_PF.
+  // Map from a frame's pose index to the *current* pose of the frame F relative
+  // to its parent frame P, i.e., X_PF.
   std::vector<Isometry3<T>> X_PF_;
 
   // The pose of each geometry relative to the *world* frame.

@@ -78,8 +78,7 @@ class GeometryInstance {
  public:
   DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(GeometryInstance)
 
-  /** Constructor with default visual material (see VisualMaterial default
-   constructor for details on what that color is).
+  /** Constructs a geometry instance specification.
    @param X_PG   The pose of this geometry (`G`) in its parent's frame (`P`).
    @param shape  The underlying shape for this geometry instance.
    @param name   The name of the geometry (must satisfy the name requirements).
@@ -87,16 +86,6 @@ class GeometryInstance {
    */
   GeometryInstance(const Isometry3<double>& X_PG, std::unique_ptr<Shape> shape,
                    const std::string& name);
-
-  /** Constructor.
-   @param X_PG   The pose of this geometry (`G`) in its parent's frame (`P`).
-   @param shape  The underlying shape for this geometry instance.
-   @param name   The name of the geometry (must satisfy the name requirements).
-   @param vis_material The visual material to apply to this geometry.
-   @throws std::logic_error if the canonicalized version of `name` is empty.  */
-  GeometryInstance(const Isometry3<double>& X_PG, std::unique_ptr<Shape> shape,
-                   const std::string& name,
-                   const VisualMaterial& vis_material);
 
   /** Returns the globally unique id for this geometry specification. Every
    instantiation of %GeometryInstance will contain a unique id value. The id
@@ -116,8 +105,6 @@ class GeometryInstance {
   /** Releases the shape from the instance. */
   std::unique_ptr<Shape> release_shape() { return std::move(shape_); }
 
-  const VisualMaterial& visual_material() const { return visual_material_; }
-
   /** Returns the *canonicalized* name for the instance. */
   const std::string& name() const { return name_; }
 
@@ -135,9 +122,7 @@ class GeometryInstance {
 
   // The name of the geometry instance.
   std::string name_;
-
-  // The "rendering" material -- e.g., OpenGl contexts and the like.
-  VisualMaterial visual_material_;
 };
+
 }  // namespace geometry
 }  // namespace drake

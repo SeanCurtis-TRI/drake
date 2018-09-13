@@ -249,7 +249,7 @@ class GeometryStateTest : public ::testing::Test {
   // Reports characteristics of the dummy tree.
   int single_tree_frame_count() const { return kFrameCount; }
 
-  int single_tree_geometry_count() const {
+  int single_tree_dynamic_geometry_count() const {
     return kFrameCount * kGeometryCount;
   }
 
@@ -380,7 +380,8 @@ TEST_F(GeometryStateTest, GeometryStatistics) {
   EXPECT_TRUE(geometry_state_.source_is_registered(dummy_source));
   EXPECT_EQ(geometry_state_.get_num_sources(), 1);
   EXPECT_EQ(geometry_state_.get_num_frames(), single_tree_frame_count());
-  EXPECT_EQ(geometry_state_.get_num_geometries(), single_tree_geometry_count());
+  EXPECT_EQ(geometry_state_.get_num_geometries(),
+            single_tree_dynamic_geometry_count());
   EXPECT_EQ(geometry_state_.get_num_anchored_geometries(),
             anchored_geometry_count());
   SourceId false_id = SourceId::get_new_id();
@@ -533,15 +534,16 @@ TEST_F(GeometryStateTest, ValidateSingleSourceTree) {
   // The internal geometries are what and where they should be.
   {
     const auto& internal_geometries = gs_tester_.get_geometries();
-    EXPECT_EQ(internal_geometries.size(), kFrameCount * kGeometryCount);
-    for (int i = 0; i < kFrameCount * kGeometryCount; ++i) {
+    EXPECT_EQ(internal_geometries.size(), single_tree_dynamic_geometry_count());
+    for (int i = 0; i < single_tree_dynamic_geometry_count(); ++i) {
       const auto& geometry = internal_geometries.at(geometries_[i]);
       EXPECT_EQ(geometry.get_frame_id(), frames_[i / kGeometryCount]);
       EXPECT_EQ(geometry.get_id(), geometries_[i]);
       EXPECT_EQ(geometry.get_child_geometry_ids().size(), 0);
       EXPECT_FALSE(geometry.get_parent_id());
-      // TODO(SeanCurtis-TRI): Update this when names are being used.
-      EXPECT_EQ(geometry.get_engine_index(), i);
+      EXPECT_EQ(geometry.get_name(), geometry_names_[i]);
+      EXPECT_EQ(geometry.pose_index(), i);
+      EXPECT_FALSE(geometry.render_index().is_valid());
       EXPECT_EQ(geometry.get_child_geometry_ids().size(), 0);
       EXPECT_FALSE(geometry.get_parent_id());
 
@@ -556,7 +558,7 @@ TEST_F(GeometryStateTest, ValidateSingleSourceTree) {
           X_FG_[i].matrix()));
 
       EXPECT_EQ(
-          gs_tester_.get_geometry_index_id_map()[geometry.get_engine_index()],
+          gs_tester_.get_geometry_index_id_map()[geometry.pose_index()],
           geometry.get_id());
     }
   }
@@ -1367,7 +1369,7 @@ TEST_F(GeometryStateTest, AssignRolesToGeometry) {
   // We need at least 8 geometries to run through all role permutations. Add
   // geometries until we're there.
   const Isometry3<double> pose = Isometry3<double>::Identity();
-  for (int i = 0; i < 8 - single_tree_geometry_count(); ++i) {
+  for (int i = 0; i < 8 - single_tree_dynamic_geometry_count(); ++i) {
     const std::string name = "new_geom" + std::to_string(i);
     geometries_.push_back(geometry_state_.RegisterGeometry(
         source_id_, frames_[0],
@@ -1482,6 +1484,12 @@ TEST_F(GeometryStateTest, RolePropertyValueAssignment) {
   EXPECT_EQ(source.GetProperty<std::string>(group1, "propB"),
             read->GetProperty<std::string>(group1, "propB"));
 
+}
+
+// Tests that the internal indexing for a role is correct -- i.e., adding a
+// proximity role gives it a proximity index, perception role gives it a
+// perception index, and illustration role has no effect.
+TEST_F(GeometryStateTest, RoleIndexAssignment) {
 }
 
 // Tests the conditions in which `AssignRole()` throws an exception.
