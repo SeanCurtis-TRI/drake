@@ -1193,6 +1193,68 @@ TEST_F(GeometryStateTest, ExcludeCollisionsBetween) {
   ASSERT_EQ(static_cast<int>(pairs.size()), expected_collisions);
 }
 
+// Test collision filtering configuration when the input GeometrySet includes
+// geometries that *do not* have a proximity role.
+TEST_F(GeometryStateTest, NonProximityRoleInCollisionFilter) {
+  // Default tree *all* has proximity queries.
+  SetUpSingleSourceTree(true  /* add proximity roles */);
+
+  // Pose all of the frames to the specified poses in their parent frame.
+  FramePoseVector<double> poses(source_id_, frames_);
+  poses.clear();
+  for (int f = 0; f < static_cast<int>(frames_.size()); ++f) {
+    poses.set_value(frames_[f], X_PF_[f]);
+  }
+  gs_tester_.SetFramePoses(poses);
+  gs_tester_.FinalizePoseUpdate();
+
+  // This is *non* const; we'll decrement it as we filter more and more
+  // collisions.
+  int expected_collisions = default_collision_pair_count();
+
+  // Baseline collision - the unfiltered collisions.
+  auto pairs = geometry_state_.ComputePointPairPenetration();
+  EXPECT_EQ(static_cast<int>(pairs.size()), expected_collisions);
+
+  // Now add a new collision element to the third frame that *should* put it
+  // in contact with the anchored geometry -- if it had a proximity role.
+  Isometry3<double> pose = Isometry3<double>::Identity();
+  // Place the new sphere so that it would collide with both of the current
+  // spheres -- this confirm that adding the proximity role will still properly
+  // include it in the collision filter for geometries under the same frame.
+  pose.translation() << 5.5, 0, 0;
+  // Have the name reflect the frame and the index in the geometry.
+  const std::string& name("added_frame");
+  GeometryId added_id = geometry_state_.RegisterGeometry(
+      source_id_, frames_[2],
+      make_unique<GeometryInstance>(pose, make_unique<Sphere>(1), name));
+  gs_tester_.FinalizePoseUpdate();
+
+  // No change in number of collisions.
+  pairs = geometry_state_.ComputePointPairPenetration();
+  EXPECT_EQ(static_cast<int>(pairs.size()), expected_collisions);
+
+  // Attempting to collision filter between a geometry with no proximity role
+  // and other geometry should have no effect on the number of collisions.
+  geometry_state_.ExcludeCollisionsBetween(GeometrySet{added_id},
+                                           GeometrySet{anchored_geometry_});
+  pairs = geometry_state_.ComputePointPairPenetration();
+  EXPECT_EQ(static_cast<int>(pairs.size()), expected_collisions);
+
+  // If we assign a role, the collisions go up by one -- the previous attempt
+  // to filter collisions had no affect and we increase the number of
+  // collisions.
+  geometry_state_.AssignRole(source_id_, added_id, ProximityProperties());
+  pairs = geometry_state_.ComputePointPairPenetration();
+  EXPECT_EQ(static_cast<int>(pairs.size()), expected_collisions + 1);
+
+  // Now if we filter it, it should get removed.
+  geometry_state_.ExcludeCollisionsBetween(GeometrySet{added_id},
+                                           GeometrySet{anchored_geometry_});
+  pairs = geometry_state_.ComputePointPairPenetration();
+  EXPECT_EQ(static_cast<int>(pairs.size()), expected_collisions);
+}
+
 // Tests the documented error conditions of ExcludeCollisionsWithin.
 TEST_F(GeometryStateTest, SelfCollisionFilterExceptions) {
   SetUpSingleSourceTree();

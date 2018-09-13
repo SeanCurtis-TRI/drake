@@ -285,7 +285,9 @@ class SimplePenetrationTest : public ::testing::Test {
                                          Isometry3<double>::Identity());
     const double x_pos = is_colliding ? colliding_x_ : free_x_;
     poses[index] = Isometry3<double>(Translation3d{x_pos, 0, 0});
-    engine->UpdateWorldPoses(poses);
+    std::vector<PoseIndex> pose_indices(poses.size());
+    std::iota(pose_indices.begin(), pose_indices.end(), PoseIndex(0));
+    engine->UpdateWorldPoses(poses, pose_indices);
   }
 
   // Compute penetration and confirm that a single penetration with the expected
@@ -470,7 +472,9 @@ TEST_F(SimplePenetrationTest, PenetrationDynamicAndDynamicSingleSource) {
   dynamic_map_.push_back(origin_id);
   EXPECT_EQ(origin_index, 0);
   std::vector<Isometry3<double>> poses{Isometry3<double>::Identity()};
-  engine_.UpdateWorldPoses(poses);
+  std::vector<PoseIndex> pose_indices(poses.size());
+  std::iota(pose_indices.begin(), pose_indices.end(), PoseIndex(0));
+  engine_.UpdateWorldPoses(poses, pose_indices);
 
   GeometryIndex collide_index = engine_.AddDynamicGeometry(sphere_);
   GeometryId collide_id = GeometryId::get_new_id();
@@ -541,7 +545,9 @@ TEST_F(SimplePenetrationTest, ExcludeCollisionsWithin) {
   dynamic_map_.push_back(origin_id);
   EXPECT_EQ(origin_index, 0);
   std::vector<Isometry3<double>> poses{Isometry3<double>::Identity()};
-  engine_.UpdateWorldPoses(poses);
+  std::vector<PoseIndex> pose_indices(poses.size());
+  std::iota(pose_indices.begin(), pose_indices.end(), PoseIndex(0));
+  engine_.UpdateWorldPoses(poses, pose_indices);
 
   GeometryIndex collide_index = engine_.AddDynamicGeometry(sphere_);
   GeometryId collide_id = GeometryId::get_new_id();
@@ -630,7 +636,9 @@ TEST_F(SimplePenetrationTest, ExcludeCollisionsBetween) {
   dynamic_map_.push_back(origin_id);
   EXPECT_EQ(origin_index, 0);
   std::vector<Isometry3<double>> poses{Isometry3<double>::Identity()};
-  engine_.UpdateWorldPoses(poses);
+  std::vector<PoseIndex> pose_indices(poses.size());
+  std::iota(pose_indices.begin(), pose_indices.end(), PoseIndex(0));
+  engine_.UpdateWorldPoses(poses, pose_indices);
 
   GeometryIndex collide_index = engine_.AddDynamicGeometry(sphere_);
   GeometryId collide_id = GeometryId::get_new_id();
@@ -760,9 +768,11 @@ GTEST_TEST(ProximityEngineCollisionTest, SpherePunchThroughBox) {
       {"sphere's center has crossed the box's origin - flipped normal",
        {-eps, 0, 0}, 1, {1, 0, 0}, radius + half_w - eps}};
   // clang-format on
+  std::vector<PoseIndex> pose_indices(poses.size());
+  std::iota(pose_indices.begin(), pose_indices.end(), PoseIndex(0));
   for (const auto& test : test_data) {
     poses[1].translation() = test.sphere_pose;
-    engine.UpdateWorldPoses(poses);
+    engine.UpdateWorldPoses(poses, pose_indices);
     std::vector<PenetrationAsPointPair<double>> results =
         engine.ComputePointPairPenetration(dynamic_map, anchored_map);
 
@@ -923,7 +933,9 @@ class BoxPenetrationTest : public ::testing::Test {
 
     // Update the poses of the geometry.
     std::vector<Isometry3d> poses{shape_pose(shape_type), X_WB};
-    engine_.UpdateWorldPoses(poses);
+    std::vector<PoseIndex> pose_indices(poses.size());
+    std::iota(pose_indices.begin(), pose_indices.end(), PoseIndex(0));
+    engine_.UpdateWorldPoses(poses, pose_indices);
     std::vector<PenetrationAsPointPair<double>> results =
         engine_.ComputePointPairPenetration(dynamic_map_, anchored_map_);
 

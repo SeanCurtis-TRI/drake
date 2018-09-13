@@ -107,16 +107,21 @@ class ProximityEngine {
   /** Updates the poses for all of the dynamic geometries in the engine. It
    is an invariant that _every_ registered dynamic geometry, across _all_
    geometry sources, has a _unique_ index that lies in the range
-   [0, num_dynamic() - 1]. Therefore, `X_WG` should have size equal to
+   [0, num_dynamic() - 1]. `pose_indices` should have size equal to
    num_dynamics() and any other length will cause program failure. The iᵗʰ entry
-   contains the pose for the geometry whose GeometryIndex value is `i`.
-   @param X_WG     The poses of each geometry `G` measured and expressed in the
-                   world frame `W`. */
+   of `pose_indices` is an index into `X_WG` which contains contains the pose
+   for the geometry whose GeometryIndex value is `i`.
+   @param X_WG          The poses of each geometry `G` measured and expressed in
+                        the world frame `W` (including geometries which may
+                        *not* be registered with the proximity engine.
+   @param pose_indices  Indices into `X_WG` mapping engine index into pose
+                        index. */
   // TODO(SeanCurtis-TRI): I could do things here differently a number of ways:
   //  1. I could make this move semantics (or swap semantics).
   //  2. I could simply have a method that returns a mutable reference to such
   //    a vector and the caller sets values there directly.
-  void UpdateWorldPoses(const std::vector<Isometry3<T>>& X_WG);
+  void UpdateWorldPoses(const std::vector<Isometry3<T>>& X_WG,
+                        const std::vector<PoseIndex>& pose_indices);
 
   // ----------------------------------------------------------------------
   /**@name              Signed Distance Queries

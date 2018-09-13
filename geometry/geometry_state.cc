@@ -476,6 +476,8 @@ void GeometryState<T>::AssignRole(SourceId source_id,
     GeometryIndex index =
         geometry_engine_->AddDynamicGeometry(geometry->shape());
     dynamic_geometry->set_proximity_index(index);
+    DRAKE_DEMAND(static_cast<int>(X_WG_proximity_.size()) == index);
+    X_WG_proximity_.push_back(dynamic_geometry->pose_index());
 
     InternalFrame& frame = frames_[dynamic_geometry->frame_id()];
 
@@ -637,15 +639,24 @@ void GeometryState<T>::CollectIndices(
 
     const auto& frame = iterator->second;
     for (auto geometry_id : frame.get_child_geometries()) {
-      dynamic->insert(geometries_[geometry_id].proximity_index());
+      InternalGeometry& geometry = geometries_[geometry_id];
+      if (geometry.has_proximity_role()) {
+        dynamic->insert(geometry.proximity_index());
+      }
     }
   }
 
   for (auto geometry_id : geometry_set.geometries()) {
     if (geometries_.count(geometry_id) == 1) {
-      dynamic->insert(geometries_[geometry_id].proximity_index());
+      InternalGeometry& geometry = geometries_[geometry_id];
+      if (geometry.has_proximity_role()) {
+        dynamic->insert(geometry.proximity_index());
+      }
     } else if (anchored_geometries_.count(geometry_id) == 1) {
-      anchored->insert(anchored_geometries_[geometry_id].proximity_index());
+      InternalAnchoredGeometry& geometry = anchored_geometries_[geometry_id];
+      if (geometry.has_proximity_role()) {
+        anchored->insert(geometry.proximity_index());
+      }
     } else {
       throw std::logic_error(
           "Geometry set includes a geometry id that doesn't belong to the "

@@ -485,18 +485,25 @@ class GeometryState {
 
   //@}
 
-  /** @name               Collision filters
+  /** @name               Proximity filters
 
    This interface allows control over which pairs of geometries can even be
-   considered for collision.
+   considered for proximity queries. This affects all queries that depend on
+   geometries with a proximity role.
 
    See @ref scene_graph_collision_filtering "Scene Graph Collision Filtering"
    for more details.   */
   //@{
 
+  // TODO(SeanCurtis-TRI): Rename these functions to reflect the larger role
+  // in proximity queries *or* change the scope of the filters.
+
   /** Excludes geometry pairs from collision evaluation by updating the
    candidate pair set `C = C - P`, where `P = {(gᵢ, gⱼ)}, ∀ gᵢ, gⱼ ∈ G` and
    `G = {g₀, g₁, ..., gₘ}` is the input `set` of geometries.
+
+   If the set include geometries which have *not* been assigned a proximity
+   role, those geometries will be ignored.
 
    @throws std::logic_error if the set includes ids that don't exist in the
                             scene graph.  */
@@ -507,6 +514,9 @@ class GeometryState {
    `A = {a₀, a₁, ..., aₘ}` and `B = {b₀, b₁, ..., bₙ}` are the input sets of
    geometries `setA` and `setB`, respectively. This does _not_ preclude
    collisions between members of the _same_ set.
+
+   If the sets include geometries which have *not* been assigned a proximity
+   role, those geometries will be ignored.
 
    @throws std::logic_error if the groups include ids that don't exist in the
                             scene graph.   */
@@ -628,7 +638,9 @@ class GeometryState {
 
   // Method that performs any final book-keeping/updating on the state after
   // _all_ of the state's frames have had their poses updated.
-  void FinalizePoseUpdate() { geometry_engine_->UpdateWorldPoses(X_WG_); }
+  void FinalizePoseUpdate() {
+    geometry_engine_->UpdateWorldPoses(X_WG_, X_WG_proximity_);
+  }
 
   // Gets the source id for the given frame id. Throws std::logic_error if the
   // frame belongs to no registered source.
@@ -742,15 +754,23 @@ class GeometryState {
   // to its parent frame P, i.e., X_PF.
   std::vector<Isometry3<T>> X_PF_;
 
-  // The pose of each geometry relative to the *world* frame.
-  // X_FG_.size() == X_WG_.size() is an invariant. Furthermore, after
+  // The pose of every geometry relative to the *world* frame (regardless of
+  // roles) X_FG_.size() == X_WG_.size() is an invariant. Furthermore, after
   // a complete state update from input poses,
-  //   X_WG_[i] == X_WFₙ X_FₙFₙ₋₁ ... X_F₁F₀ X_FG_[i]
-  // Where F₀ is the parent frame of geometry i, Fₖ₊₁ is the parent frame of
+  //   X_WG_[i] == X_WFₙ · X_FₙFₙ₋₁ · ... · X_F₁F · X_FG_[i]
+  // Where F is the parent frame of geometry i, Fₖ₊₁ is the parent frame of
   // frame Fₖ, and the world frame W is the parent of frame Fₙ.
   // In other words, it is the full evaluation of the kinematic chain from the
   // geometry to the world frame.
   std::vector<Isometry3<T>> X_WG_;
+
+  // This contains pose indices into X_WG_. If a geometry G has a proximity
+  // role, it will have both a pose index and a proximity index. It must be the
+  // case that G.pose_index == X_WG_proximity_[G.proximity_index] even
+  // though pose_index is not necessarily equal to proximity_index. This allows
+  // just those geometries with the proximity role to be provided to the
+  // proximity engine.
+  std::vector<PoseIndex> X_WG_proximity_;
 
   // The pose of each frame relative to the *world* frame.
   // frames_.size() == X_WF_.size() is an invariant. Furthermore, after a
