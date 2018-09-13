@@ -838,7 +838,7 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
   friend class ProximityEngine;
 
   // TODO(SeanCurtis-TRI): Convert these to scalar type T when I know how to
-  // transmogrify them. Otherwise, while the engine can be transmogrified, the
+  // transmogrify them. Otherwise, while the engine can't be transmogrified, the
   // results on an <AutoDiffXd> type will still be double.
 
   // Helper method called by the various ImplementGeometry overrides to

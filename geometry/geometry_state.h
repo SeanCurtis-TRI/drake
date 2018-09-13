@@ -702,6 +702,8 @@ class GeometryState {
   //   2. geometry_index_id_map_.size() == geometries_.size().
   std::vector<GeometryId> geometry_index_id_map_;
 
+  // THis is, apparently, only indices of anchored geometries that have
+  // collision role. CLean this up.
   // This *implicitly* maps each extant anchored geometry engine index to its
   // corresponding unique geometry identifier. It assumes that the index in the
   // vector *is* the index in the engine.

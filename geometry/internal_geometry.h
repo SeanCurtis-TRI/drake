@@ -30,10 +30,7 @@ class InternalGeometryBase {
    be nullptr, and the pose will be uninitialized. */
   InternalGeometryBase() {}
 
-  // TODO(SeanCurtis-TRI): Resolve the issue inherent in having a copyable class
-  // (with subclasses) that has no virtual destructor. In its current
-  // incarnation this is *not* used polymorphically; it is used for code
-  // re-use purposes. This should be made more rigorous.
+  virtual ~InternalGeometryBase() {}
 
   /** Constructs the base internal geometry without any assigned roles.
    @param shape         The shape specification for this instance.
@@ -63,13 +60,13 @@ class InternalGeometryBase {
     return !(*this == other);
   }
 
-  const Shape& get_shape() const { return *shape_spec_; }
+  const Shape& shape() const { return *shape_spec_; }
 
-  GeometryId get_id() const { return id_; }
+  GeometryId id() const { return id_; }
 
-  const std::string& get_name() const { return name_; }
+  const std::string& name() const { return name_; }
 
-  const Isometry3<double>& get_pose_in_parent() const { return X_PG_; }
+  const Isometry3<double>& pose_in_parent() const { return X_PG_; }
 
   void SetRole(ProximityProperties properties) {
     if (proximity_props_) {
@@ -92,6 +89,9 @@ class InternalGeometryBase {
     perception_props_ = std::move(properties);
   }
 
+  /** Reports if the geometry has a proximity role. */
+  bool has_proximity_role() const { return proximity_props_ != nullopt; }
+
   /** Returns a pointer to the geometry's proximity properties (if they are
    defined. Nullptr otherwise.  */
   const ProximityProperties* proximity_properties() const {
@@ -99,12 +99,18 @@ class InternalGeometryBase {
     return nullptr;
   }
 
+  /** Reports if the geometry has a illustration role. */
+  bool has_illustration_role() const { return illustration_props_ != nullopt; }
+
   /** Returns a pointer to the geometry's illustration properties (if they are
    defined. Nullptr otherwise.  */
   const IllustrationProperties* illustration_properties() const {
     if (illustration_props_) return &*illustration_props_;
     return nullptr;
   }
+
+  /** Reports if the geometry has a perception role. */
+  bool has_perception_role() const { return perception_props_ != nullopt; }
 
   /** Returns a pointer to the geometry's perception properties (if they are
    defined. Nullptr otherwise.  */
@@ -144,7 +150,7 @@ class InternalGeometryBase {
 /** This class represents the internal representation of registered _dynamic_
  geometry. It includes the user-specified meta data (e.g., name) and internal
  topology representations. */
-class InternalGeometry : public InternalGeometryBase {
+class InternalGeometry final : public InternalGeometryBase {
  public:
   DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(InternalGeometry)
 
@@ -167,9 +173,9 @@ class InternalGeometry : public InternalGeometryBase {
                    const Isometry3<double>& X_PG, PoseIndex pose_index,
                    const optional<GeometryId>& parent_id = {});
 
-  FrameId get_frame_id() const { return frame_id_; }
+  FrameId frame_id() const { return frame_id_; }
 
-  optional<GeometryId> get_parent_id() const { return parent_id_; }
+  optional<GeometryId> parent_id() const { return parent_id_; }
 
   PoseIndex pose_index() const { return pose_index_; }
 
@@ -191,10 +197,10 @@ class InternalGeometry : public InternalGeometryBase {
     return frame_id == frame_id_;
   }
 
-  const std::unordered_set<GeometryId>& get_child_geometry_ids() const {
+  const std::unordered_set<GeometryId>& child_geometry_ids() const {
     return child_geometry_ids_;
   }
-  std::unordered_set<GeometryId>* get_mutable_child_geometry_ids() {
+  std::unordered_set<GeometryId>* mutable_child_geometry_ids() {
     return &child_geometry_ids_;
   }
 
@@ -240,7 +246,7 @@ class InternalGeometry : public InternalGeometryBase {
 /** This class represents the internal representation of registered _anchored_
  geometry. It includes the user-specified meta data (e.g., name) and internal
  topology representations. */
-class InternalAnchoredGeometry : public InternalGeometryBase {
+class InternalAnchoredGeometry final : public InternalGeometryBase {
  public:
   DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(InternalAnchoredGeometry)
 

@@ -186,7 +186,7 @@ class GeometryStateTest : public ::testing::Test {
   //  Although the sibling geometries affixed to each frame overlap, the pairs
   //  (g0, g1), (g2, g3), and (g4, g5) are implicitly filtered because they are
   //  sibling geometries affixed to the same frame.
-  SourceId SetUpSingleSourceTree() {
+  SourceId SetUpSingleSourceTree(bool assign_proximity_role = false) {
     using std::to_string;
 
     source_id_ = NewSource();
@@ -232,6 +232,10 @@ class GeometryStateTest : public ::testing::Test {
         geometries_[g_count] = geometry_state_.RegisterGeometry(
             source_id_, frame_id,
             make_unique<GeometryInstance>(pose, make_unique<Sphere>(1), name));
+        if (assign_proximity_role) {
+          geometry_state_.AssignRole(source_id_, geometries_[g_count],
+                                     ProximityProperties());
+        }
         X_FG_.push_back(pose);
         ++g_count;
       }
@@ -243,6 +247,10 @@ class GeometryStateTest : public ::testing::Test {
     anchored_geometry_ = geometry_state_.RegisterAnchoredGeometry(
         source_id_, make_unique<GeometryInstance>(
                         pose, make_unique<Box>(100, 100, 2), anchored_name_));
+    if (assign_proximity_role) {
+      geometry_state_.AssignRole(source_id_, anchored_geometry_,
+                                 ProximityProperties());
+    }
     return source_id_;
   }
 
@@ -537,29 +545,28 @@ TEST_F(GeometryStateTest, ValidateSingleSourceTree) {
     EXPECT_EQ(internal_geometries.size(), single_tree_dynamic_geometry_count());
     for (int i = 0; i < single_tree_dynamic_geometry_count(); ++i) {
       const auto& geometry = internal_geometries.at(geometries_[i]);
-      EXPECT_EQ(geometry.get_frame_id(), frames_[i / kGeometryCount]);
-      EXPECT_EQ(geometry.get_id(), geometries_[i]);
-      EXPECT_EQ(geometry.get_child_geometry_ids().size(), 0);
-      EXPECT_FALSE(geometry.get_parent_id());
-      EXPECT_EQ(geometry.get_name(), geometry_names_[i]);
+      EXPECT_EQ(geometry.frame_id(), frames_[i / kGeometryCount]);
+      EXPECT_EQ(geometry.id(), geometries_[i]);
+      EXPECT_EQ(geometry.child_geometry_ids().size(), 0);
+      EXPECT_FALSE(geometry.parent_id());
+      EXPECT_EQ(geometry.name(), geometry_names_[i]);
       EXPECT_EQ(geometry.pose_index(), i);
       EXPECT_FALSE(geometry.render_index().is_valid());
-      EXPECT_EQ(geometry.get_child_geometry_ids().size(), 0);
-      EXPECT_FALSE(geometry.get_parent_id());
+      EXPECT_EQ(geometry.child_geometry_ids().size(), 0);
 
       // Note: There are no geometries parented to other geometries. The results
       // of GetPoseInFrame() and GetPoseInParent() must be the identical (as
       // the documentation for GeometryState::GetPoseInParent() indicates).
       EXPECT_TRUE(CompareMatrices(
-          geometry_state_.GetPoseInFrame(geometry.get_id()).matrix(),
+          geometry_state_.GetPoseInFrame(geometry.id()).matrix(),
           X_FG_[i].matrix()));
       EXPECT_TRUE(CompareMatrices(
-          geometry_state_.GetPoseInParent(geometry.get_id()).matrix(),
+          geometry_state_.GetPoseInParent(geometry.id()).matrix(),
           X_FG_[i].matrix()));
 
       EXPECT_EQ(
           gs_tester_.get_geometry_index_id_map()[geometry.pose_index()],
-          geometry.get_id());
+          geometry.id());
     }
   }
   EXPECT_EQ(gs_tester_.get_geometry_frame_poses().size(),
@@ -693,7 +700,7 @@ TEST_F(GeometryStateTest, RegisterGeometryGoodSource) {
   EXPECT_TRUE(gs_tester_.get_frames().at(f_id).has_child(g_id));
   const auto& geometry = gs_tester_.get_geometries().at(g_id);
   EXPECT_TRUE(geometry.is_child_of_frame(f_id));
-  EXPECT_FALSE(geometry.get_parent_id());
+  EXPECT_FALSE(geometry.parent_id());
 }
 
 // Confirms that registering two geometries with the same id causes failure.
@@ -778,7 +785,7 @@ TEST_F(GeometryStateTest, RegisterGeometryonValidGeometry) {
 
   EXPECT_TRUE(gs_tester_.get_frames().at(frame_id).has_child(g_id));
   const auto& geometry = gs_tester_.get_geometries().at(g_id);
-  EXPECT_EQ(geometry.get_frame_id(), frame_id);
+  EXPECT_EQ(geometry.frame_id(), frame_id);
   EXPECT_TRUE(geometry.is_child_of_geometry(parent_id));
   EXPECT_TRUE(gs_tester_.get_geometries().at(parent_id).has_child(g_id));
 }
@@ -1093,7 +1100,7 @@ TEST_F(GeometryStateTest, QueryFrameProperties) {
 
 // Test disallowing collisions among members of a group (self collisions).
 TEST_F(GeometryStateTest, ExcludeCollisionsWithin) {
-  SetUpSingleSourceTree();
+  SetUpSingleSourceTree(true /* assign proximity roles */);
 
   // Pose all of the frames to the specified poses in their parent frame.
   FramePoseVector<double> poses(source_id_, frames_);
@@ -1149,7 +1156,7 @@ TEST_F(GeometryStateTest, ExcludeCollisionsWithin) {
 
 // Test disallowing collision between members fo two groups.
 TEST_F(GeometryStateTest, ExcludeCollisionsBetween) {
-  SetUpSingleSourceTree();
+  SetUpSingleSourceTree(true  /* add proximity roles */);
 
   // Pose all of the frames to the specified poses in their parent frame.
   FramePoseVector<double> poses(source_id_, frames_);
@@ -1351,7 +1358,7 @@ TEST_F(GeometryStateTest, GeometryNameValidation) {
   // are no longer valid, update this test.
   EXPECT_TRUE(geometry_state_.IsValidGeometryName(
       frames_[0],
-      gs_tester_.get_geometries().at(geometries_[0]).get_name()));
+      gs_tester_.get_geometries().at(geometries_[0]).name()));
 
   // Case: Whitespace that SDF nevertheless considers not whitespace.
   // Update this when the following sdformat issue is resolved:

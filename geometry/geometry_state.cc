@@ -130,7 +130,7 @@ const std::string& GeometryState<T>::get_frame_name(FrameId frame_id) const {
 template <typename T>
 const std::string& GeometryState<T>::get_name(GeometryId geometry_id) const {
   const InternalGeometryBase* geometry = GetGeometry(geometry_id);
-  if (geometry != nullptr) return geometry->get_name();
+  if (geometry != nullptr) return geometry->name();
 
   throw std::logic_error("No geometry available for invalid geometry id: " +
       to_string(geometry_id));
@@ -150,7 +150,7 @@ GeometryId GeometryState<T>::GetGeometryFromName(
     frame_name = "world";
     for (const auto& pair : anchored_geometries_) {
       const InternalAnchoredGeometry& geometry = pair.second;
-      if (geometry.get_name() == canonical_name) {
+      if (geometry.name() == canonical_name) {
         ++count;
         result = pair.first;
       }
@@ -160,7 +160,7 @@ GeometryId GeometryState<T>::GetGeometryFromName(
     frame_name = frame.get_name();
     for (GeometryId geometry_id : frame.get_child_geometries()) {
       const InternalGeometry& geometry = geometries_.at(geometry_id);
-      if (geometry.get_name() == canonical_name) {
+      if (geometry.name() == canonical_name) {
         ++count;
         result = geometry_id;
       }
@@ -229,7 +229,7 @@ template <typename T>
 const Isometry3<double>& GeometryState<T>::GetPoseInParent(
     GeometryId geometry_id) const {
   const auto& geometry = GetValueOrThrow(geometry_id, geometries_);
-  return geometry.get_pose_in_parent();
+  return geometry.pose_in_parent();
 }
 
 template <typename T>
@@ -343,14 +343,6 @@ GeometryId GeometryState<T>::RegisterGeometry(
         to_string(source_id) + ", but the frame doesn't belong to the source.";
   });
 
-  // Pass the geometry to the engine.
-//  GeometryIndex engine_index =
-//      geometry_engine_->AddDynamicGeometry(geometry->shape());
-  // TODO(SeanCurtis-TRI): Make use of this index. I should store it in my
-  // InternalGeometry (distinguishing between proximity_index and render_index.
-//  GeometryIndex render_index = render_engine_->RegisterVisual(geometry->shape(),
-//                                                              material);
-
   // Configure topology.
   // TODO(SeanCurtis-TRI): Once geometry roles are implemented, test for
   // uniqueness of the canonical name in that role for the given frame.
@@ -371,30 +363,6 @@ GeometryId GeometryState<T>::RegisterGeometry(
       InternalGeometry(geometry->release_shape(), frame_id, geometry_id,
                        geometry->name(), geometry->pose(), pose_index));
 
-
-  // TODO(SeanCurtis-TRI): Move this into the logic that assigns collision role
-  // to the geometry.
-#if 0
-  int child_count = static_cast<int>(frame.get_child_geometries().size());
-  if (child_count > 1) {
-    // Filter collisions between geometries affixed to the same frame. We only
-    // add a clique to a frame's geometries when there are *multiple* child
-    // geometries.
-    ProximityEngine<T>& engine = *geometry_engine_.get_mutable();
-    if (child_count > 2) {
-      // Assume all previous geometries have had the clique assigned.
-      GeometryStateCollisionFilterAttorney::set_dynamic_geometry_clique(
-          &engine, engine_index, frame.clique());
-    } else {  // child_count == 2.
-      // We *now* have multiple child geometries -- assign to clique.
-      for (GeometryId child_id : frame.get_child_geometries()) {
-        GeometryIndex child_index = geometries_[child_id].get_engine_index();
-        GeometryStateCollisionFilterAttorney::set_dynamic_geometry_clique(
-            &engine, child_index, frame.clique());
-      }
-    }
-  }
-#endif
   return geometry_id;
 }
 
@@ -419,7 +387,7 @@ GeometryId GeometryState<T>::RegisterGeometryWithParent(
   // This confirms that geometry_id exists at all.
   InternalGeometry& parent_geometry =
       GetMutableValueOrThrow(geometry_id, &geometries_);
-  FrameId frame_id = parent_geometry.get_frame_id();
+  FrameId frame_id = parent_geometry.frame_id();
 
   // This implicitly confirms that source_id is registered (condition #2) and
   // that frame_id belongs to source_id. By construction, geometry_id must
@@ -468,19 +436,10 @@ GeometryId GeometryState<T>::RegisterAnchoredGeometry(
 
   set.emplace(geometry_id);
 
-  // Pass the geometry to the engine.
-//  auto engine_index = geometry_engine_->AddAnchoredGeometry(geometry->shape(),
-//                                                            geometry->pose());
-
-
   // TODO(SeanCurtis-TRI): Once geometry roles are implemented, test for
   // uniqueness of the canonical name in that role for the given frame.
   // NOTE: It is important to test for name validity *before* adding this
   // geometry to the frame.
-
-//  DRAKE_ASSERT(static_cast<int>(anchored_geometry_index_id_map_.size()) ==
-//               engine_index);
-//  anchored_geometry_index_id_map_.push_back(geometry_id);
 
   anchored_geometries_.emplace(
       geometry_id,
@@ -495,7 +454,7 @@ bool GeometryState<T>::IsValidGeometryName(
   FindOrThrow(frame_id, frames_, [frame_id]() {
     return "Given frame id is not valid: " + to_string(frame_id);
   });
-  // TODO(SeanCurtis-TRI): Test for uniquness after geometry roles are added.
+  // TODO(SeanCurtis-TRI): Test for uniqueness after geometry roles are added.
   return !detail::CanonicalizeStringName(candidate_name).empty();
 }
 
@@ -504,7 +463,71 @@ void GeometryState<T>::AssignRole(SourceId source_id,
                                   GeometryId geometry_id,
                                   ProximityProperties properties) {
   AssignRoleInternal(source_id, geometry_id, std::move(properties));
-  // TODO(SeanCurtis-TRI): Assign to proximity engine.
+
+  InternalGeometryBase* geometry = GetMutableGeometry(geometry_id);
+  // This *must* be no-null, otherwise the role assignment would have failed.
+  DRAKE_DEMAND(geometry != nullptr);
+
+  // NOTE: This is evidence that the division between anchored and dynamic
+  // geometry *at this level* may be erroneous.
+  auto dynamic_geometry = dynamic_cast<InternalGeometry*>(geometry);
+  if (dynamic_geometry != nullptr) {
+    // Pass the geometry to the engine.
+    GeometryIndex index =
+        geometry_engine_->AddDynamicGeometry(geometry->shape());
+    dynamic_geometry->set_proximity_index(index);
+
+    InternalFrame& frame = frames_[dynamic_geometry->frame_id()];
+
+    int child_count = static_cast<int>(frame.get_child_geometries().size());
+    if (child_count > 1) {
+      // Multiple children does *not* imply the need for collision filtering.
+      // Only operate on those children which have a proximity role.
+      // TODO(SeanCurtis-TRI): Perhaps refactor this elsewhere?
+      std::vector<GeometryId> proximity_geometries;
+      proximity_geometries.reserve(child_count);
+      std::copy_if(frame.get_child_geometries().begin(),
+                   frame.get_child_geometries().end(),
+                   std::back_inserter(proximity_geometries),
+                   [this](GeometryId id) {
+                     return geometries_[id].has_proximity_role();
+                   });
+      int proximity_count = static_cast<int>(proximity_geometries.size());
+
+      if (proximity_count > 1) {
+        // Filter collisions between geometries affixed to the same frame. We
+        // only add a clique to a frame's geometries when there are *multiple*
+        // child geometries.
+        ProximityEngine<T>& engine = *geometry_engine_.get_mutable();
+        if (proximity_count > 2) {
+          // Assume all previous geometries have already had the clique
+          // assigned.
+          GeometryStateCollisionFilterAttorney::set_dynamic_geometry_clique(
+              &engine, index, frame.clique());
+        } else {  // proximity_count == 2.
+          // We *now* have multiple child geometries with proximity role --
+          // assign to clique.
+          for (GeometryId child_id : proximity_geometries) {
+            GeometryIndex child_index = geometries_[child_id].proximity_index();
+            GeometryStateCollisionFilterAttorney::set_dynamic_geometry_clique(
+                &engine, child_index, frame.clique());
+          }
+        }
+      }
+    }
+  } else {
+    auto anchored_geometry = dynamic_cast<InternalAnchoredGeometry*>(geometry);
+    // If it's not dynamic, it must be anchored.
+    DRAKE_DEMAND(anchored_geometry != nullptr);
+    AnchoredGeometryIndex index = geometry_engine_->AddAnchoredGeometry(
+        geometry->shape(), geometry->pose_in_parent());
+    anchored_geometry->set_proximity_index(index);
+    DRAKE_DEMAND(
+        static_cast<int>(anchored_geometry_index_id_map_.size()) == index);
+    // TODO(SeanCurtis-TRI): Apparently this is only anchored geometries that
+    // *have collision roles*.
+    anchored_geometry_index_id_map_.push_back(geometry_id);
+  }
 }
 
 template <typename T>
@@ -546,13 +569,13 @@ bool GeometryState<T>::BelongsToSource(GeometryId geometry_id,
   // If not anchored, geometry must be dynamic. If this fails, the geometry_id
   // is not valid and an exception is thrown.
   const auto& geometry = GetValueOrThrow(geometry_id, geometries_);
-  return BelongsToSource(geometry.get_frame_id(), source_id);
+  return BelongsToSource(geometry.frame_id(), source_id);
 }
 
 template <typename T>
 FrameId GeometryState<T>::GetFrameId(GeometryId geometry_id) const {
   const auto& geometry = GetValueOrThrow(geometry_id, geometries_);
-  return geometry.get_frame_id();
+  return geometry.frame_id();
 }
 
 template <typename T>
@@ -740,9 +763,9 @@ void GeometryState<T>::AssignRoleInternal(SourceId source_id,
         " does not belong to the given source id " +
         to_string(source_id));
   }
-
   InternalGeometryBase* geometry = GetMutableGeometry(geometry_id);
-  // Otherwise, we never would've gotten past the `BelongsToSource()` call.
+  // Must be non-null, otherwise, we never would've gotten past the
+  // `BelongsToSource()` call.
   DRAKE_DEMAND(geometry != nullptr);
   geometry->SetRole(std::move(properties));
 }
