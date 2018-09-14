@@ -74,13 +74,19 @@ class ProximityEngine {
   /** @name Topology management */
   //@{
 
-  /** Adds the given `shape` to the engine's dynamic geometry.  */
-  GeometryIndex AddDynamicGeometry(const Shape& shape);
+  /** Adds the given `shape` to the engine's dynamic geometry. Also provides the
+   dynamic geometry's internal index for the shape so it can be mapped back into
+   the world. */
+  DynamicProximityIndex AddDynamicGeometry(const Shape& shape,
+                                           InternalIndex index);
 
   /** Adds the given `shape` to the engine's anchored geometry at the fixed
-   pose given by `X_WG` (in the world frame W).  */
-  AnchoredGeometryIndex AddAnchoredGeometry(const Shape& shape,
-                                            const Isometry3<double>& X_WG);
+   pose given by `X_WG` (in the world frame W). Also provides the
+   dynamic geometry's internal index for the shape so it can be mapped back into
+   the world. */
+  AnchoredProximityIndex AddAnchoredGeometry(const Shape& shape,
+                                             const Isometry3<double>& X_WG,
+                                             InternalIndex index);
 
   /** Reports the _total_ number of geometries in the engine -- dynamic and
    anchored (spanning all sources).  */
@@ -111,17 +117,16 @@ class ProximityEngine {
    num_dynamics() and any other length will cause program failure. The iᵗʰ entry
    of `pose_indices` is an index into `X_WG` which contains contains the pose
    for the geometry whose GeometryIndex value is `i`.
-   @param X_WG          The poses of each geometry `G` measured and expressed in
-                        the world frame `W` (including geometries which may
-                        *not* be registered with the proximity engine.
-   @param pose_indices  Indices into `X_WG` mapping engine index into pose
-                        index. */
+   @param X_WG      The poses of each geometry `G` measured and expressed in the
+                    world frame `W` (including geometries which may *not* be
+                    registered with the proximity engine.
+   @param indices   Indices into `X_WG` mapping engine index into pose index. */
   // TODO(SeanCurtis-TRI): I could do things here differently a number of ways:
   //  1. I could make this move semantics (or swap semantics).
   //  2. I could simply have a method that returns a mutable reference to such
   //    a vector and the caller sets values there directly.
   void UpdateWorldPoses(const std::vector<Isometry3<T>>& X_WG,
-                        const std::vector<PoseIndex>& pose_indices);
+                        const std::vector<InternalIndex>& indices);
 
   // ----------------------------------------------------------------------
   /**@name              Signed Distance Queries
@@ -213,8 +218,8 @@ class ProximityEngine {
    @param[in]   anchored    The set of _anchored_ geometry indices for which no
                             collisions can be reported.  */
   void ExcludeCollisionsWithin(
-      const std::unordered_set<GeometryIndex>& dynamic,
-      const std::unordered_set<AnchoredGeometryIndex>& anchored);
+      const std::unordered_set<InternalIndex>& dynamic,
+      const std::unordered_set<InternalIndex>& anchored);
 
   /** Excludes geometry pairs from collision evaluation by updating the
    candidate pair set `C = C - P`, where `P = {(a, b)}, ∀ a ∈ A, b ∈ B` and
@@ -222,10 +227,10 @@ class ProximityEngine {
    `B = dynamic2 ⋃ anchored2 = {b₀, b₁, ..., bₙ}`. This does _not_
    preclude collisions between members of the _same_ set.   */
   void ExcludeCollisionsBetween(
-      const std::unordered_set<GeometryIndex>& dynamic1,
-      const std::unordered_set<AnchoredGeometryIndex>& anchored1,
-      const std::unordered_set<GeometryIndex>& dynamic2,
-      const std::unordered_set<AnchoredGeometryIndex>& anchored2);
+      const std::unordered_set<InternalIndex>& dynamic1,
+      const std::unordered_set<InternalIndex>& anchored1,
+      const std::unordered_set<InternalIndex>& dynamic2,
+      const std::unordered_set<InternalIndex>& anchored2);
 
   //@}
 
@@ -239,7 +244,7 @@ class ProximityEngine {
   // Assigns the given clique to the dynamic geometry indicated by `index`.
   // This is exposed via the GeometryStateCollisionFilterAttorney to allow
   // GeometryState to set up cliques between sibling geometries.
-  void set_clique(GeometryIndex index, int clique);
+  void set_clique(int index, int clique);
 
   ////////////////////////////////////////////////////////////////////////////
 
@@ -312,7 +317,7 @@ class GeometryStateCollisionFilterAttorney {
   // and gⱼ are affixed to the same frame.
   template <typename T>
   static void set_dynamic_geometry_clique(ProximityEngine<T>* engine,
-                                          GeometryIndex geometry_index,
+                                          InternalIndex geometry_index,
                                           int clique) {
     engine->set_clique(geometry_index, clique);
   }

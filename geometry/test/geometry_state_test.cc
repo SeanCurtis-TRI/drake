@@ -78,7 +78,7 @@ class GeometryStateTester {
   }
 
   const vector<FrameId>& get_pose_index_frame_id_map() const {
-    return state_->pose_index_to_frame_map_;
+    return state_->frame_index_to_frame_map_;
   }
 
   const vector<Isometry3<double>>& get_geometry_frame_poses() const {
@@ -520,7 +520,7 @@ TEST_F(GeometryStateTest, ValidateSingleSourceTree) {
       EXPECT_EQ(frame.get_id(), frames_[i]);
       EXPECT_EQ(frame.get_name(), "f" + to_string(i));
       EXPECT_EQ(frame.get_frame_group(), 0);  // Defaults to zero.
-      EXPECT_EQ(frame.get_pose_index(), i);   // ith frame added.
+      EXPECT_EQ(frame.internal_index(), i);   // ith frame added.
       EXPECT_EQ(frame.get_parent_frame_id(), parent_id);
       EXPECT_EQ(frame.get_child_frames().size(), num_child_frames);
       const auto& child_geometries = frame.get_child_geometries();
@@ -531,7 +531,7 @@ TEST_F(GeometryStateTest, ValidateSingleSourceTree) {
                                       child_geometries.end());
       const auto& frame_in_parent = gs_tester_.get_frame_parent_poses();
       EXPECT_TRUE(
-          CompareMatrices(frame_in_parent[frame.get_pose_index()].matrix(),
+          CompareMatrices(frame_in_parent[frame.internal_index()].matrix(),
                           X_PF_[i].matrix()));
     };
     test_frame(0, gs_tester_.get_world_frame(), 0);
@@ -550,7 +550,7 @@ TEST_F(GeometryStateTest, ValidateSingleSourceTree) {
       EXPECT_EQ(geometry.child_geometry_ids().size(), 0);
       EXPECT_FALSE(geometry.parent_id());
       EXPECT_EQ(geometry.name(), geometry_names_[i]);
-      EXPECT_EQ(geometry.pose_index(), i);
+      EXPECT_EQ(geometry.internal_index(), i);
       EXPECT_FALSE(geometry.render_index().is_valid());
       EXPECT_EQ(geometry.child_geometry_ids().size(), 0);
 
@@ -565,7 +565,7 @@ TEST_F(GeometryStateTest, ValidateSingleSourceTree) {
           X_FG_[i].matrix()));
 
       EXPECT_EQ(
-          gs_tester_.get_geometry_index_id_map()[geometry.pose_index()],
+          gs_tester_.get_geometry_index_id_map()[geometry.internal_index()],
           geometry.id());
     }
   }

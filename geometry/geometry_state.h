@@ -585,7 +585,7 @@ class GeometryState {
         geometry_index_id_map_(source.geometry_index_id_map_),
         anchored_geometry_index_id_map_(source.anchored_geometry_index_id_map_),
         X_FG_(source.X_FG_),
-        pose_index_to_frame_map_(source.pose_index_to_frame_map_),
+        frame_index_to_frame_map_(source.frame_index_to_frame_map_),
         geometry_engine_(std::move(source.geometry_engine_->ToAutoDiffXd())) {
     // NOTE: Can't assign Isometry3<double> to Isometry3<AutoDiff>. But we *can*
     // assign Matrix<double> to Matrix<AutoDiff>, so that's what we're doing.
@@ -626,8 +626,8 @@ class GeometryState {
   // geometries implied by the group. Ids that can't be identified will cause
   // an exception to be thrown.
   void CollectIndices(const GeometrySet& geometry_set,
-                      std::unordered_set<GeometryIndex>* dynamic,
-                      std::unordered_set<AnchoredGeometryIndex>* anchored);
+                      std::unordered_set<InternalIndex>* dynamic,
+                      std::unordered_set<InternalIndex>* anchored);
 
   // Sets the kinematic poses for the frames indicated by the given ids.
   // @param poses The frame id and pose values.
@@ -712,40 +712,49 @@ class GeometryState {
   std::unordered_map<GeometryId, internal::InternalAnchoredGeometry>
       anchored_geometries_;
 
-  // This *implicitly* maps each extant geometry engine index to its
-  // corresponding unique geometry identifier. It assumes that the index in the
-  // vector *is* the index in the engine.
+  // This provides the look up from internal index to geometry id for *dynamic*
+  // geometries. It assumes that the index value of any position in the vector
+  // *is* the internal index of the corresponding geometry.
   // The following invariants should always be true:
-  //   1. geometries_[geometry_index_id_map_[i]].get_engine_index() == i.
+  //   1. geometries_[geometry_index_id_map_[i]].internal_index() == i.
   //   2. geometry_index_id_map_.size() == geometries_.size().
   std::vector<GeometryId> geometry_index_id_map_;
 
-  // THis is, apparently, only indices of anchored geometries that have
-  // collision role. CLean this up.
-  // This *implicitly* maps each extant anchored geometry engine index to its
-  // corresponding unique geometry identifier. It assumes that the index in the
-  // vector *is* the index in the engine.
-  // It should be an invariant that:
-  //   1. geometries_[geometry_index_id_map_[i]].get_engine_index() == i is
-  //      true.
+  // This provides the look up from internal index to geometry id for *anchored*
+  // geometries. It assumes that the index value of any position in the vector
+  // *is* the internal index of the corresponding anchored geometry.
+  // It should be invariant that:
+  // anchored_geometry_[anchored_geometry_index_id_map_[i]].internal_index() ==
+  //     i
   std::vector<GeometryId> anchored_geometry_index_id_map_;
 
   // The pose of each dynamic geometry relative to the frame to which it
-  // belongs. Each geometry has a "pose index". That geometry's pose is stored
-  // in this vector at that index. Because the geometries are _rigidly_ fixed to
-  // frames, these values are a property of the topology and _not_ the
+  // belongs. Each geometry has an internal index. That geometry's pose is
+  // stored in this vector at that index. Because the geometries are _rigidly_
+  // fixed to frames, these values are a property of the topology and _not_ the
   // time-dependent frame kinematics.
   std::vector<Isometry3<double>> X_FG_;
 
-  // This *implicitly* maps each extant frame's pose index to its corresponding
-  // frame identifier. It assumes that the index in the vector *is* the pose
-  // index stored in the InternalFrame.
+  // This provides the look up from the internal index of a frame to its frame
+  // id. It assumes that the index value of any position in the vector *is* the
+  // internal index of the corresponding frame.
   // It should be invariant that:
-  //   1. frames_.size() == pose_index_to_frame_map_.size();
-  //   2. pose_index_to_frame_map_.size() == biggest_index(frames_) + 1
+  //   1. frames_.size() == frame_index_to_frame_map_.size();
+  //   2. frame_index_to_frame_map_.size() == biggest_index(frames_) + 1
   //      i.e. the largest pose index associated with frames_ is the last valid
   //      index of this vector.
-  std::vector<FrameId> pose_index_to_frame_map_;
+  std::vector<FrameId> frame_index_to_frame_map_;
+
+  // This contains internal indices into X_WG_. If a *dynamic* geometry G has a
+  // proximity role, in addition to its internal index, it will also have a
+  // proximity index. It must be the case that
+  // G.pose_index == X_WG_proximity_[G.proximity_index]
+  // Generally, internal_index is not equal to proximity_index. This allows
+  // just those geometries with the proximity role to be provided to the
+  // proximity engine.
+  // NOTE: There is no equivalent for anchored geometries because anchored
+  // geometries do not need updating.
+  std::vector<InternalIndex> X_WG_proximity_;
 
   // ---------------------------------------------------------------------
   // These values depend on time-dependent input values (e.g., current frame
@@ -760,23 +769,16 @@ class GeometryState {
   // to its parent frame P, i.e., X_PF.
   std::vector<Isometry3<T>> X_PF_;
 
-  // The pose of every geometry relative to the *world* frame (regardless of
-  // roles) X_FG_.size() == X_WG_.size() is an invariant. Furthermore, after
-  // a complete state update from input poses,
+  // The pose of every *dynamic* geometry relative to the *world* frame
+  // (regardless of roles).
+  // X_FG_.size() == X_WG_.size() == geometries_.size() is an invariant.
+  // Furthermore, after a complete state update from input poses,
   //   X_WG_[i] == X_WFₙ · X_FₙFₙ₋₁ · ... · X_F₁F · X_FG_[i]
   // Where F is the parent frame of geometry i, Fₖ₊₁ is the parent frame of
   // frame Fₖ, and the world frame W is the parent of frame Fₙ.
   // In other words, it is the full evaluation of the kinematic chain from the
   // geometry to the world frame.
   std::vector<Isometry3<T>> X_WG_;
-
-  // This contains pose indices into X_WG_. If a geometry G has a proximity
-  // role, it will have both a pose index and a proximity index. It must be the
-  // case that G.pose_index == X_WG_proximity_[G.proximity_index] even
-  // though pose_index is not necessarily equal to proximity_index. This allows
-  // just those geometries with the proximity role to be provided to the
-  // proximity engine.
-  std::vector<PoseIndex> X_WG_proximity_;
 
   // The pose of each frame relative to the *world* frame.
   // frames_.size() == X_WF_.size() is an invariant. Furthermore, after a

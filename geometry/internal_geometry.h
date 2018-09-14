@@ -12,7 +12,6 @@
 #include "drake/geometry/geometry_index.h"
 #include "drake/geometry/geometry_roles.h"
 #include "drake/geometry/shape_specification.h"
-#include "drake/geometry/visual_material.h"
 
 namespace drake {
 namespace geometry {
@@ -40,13 +39,17 @@ class InternalGeometryBase {
                         be the frame of another geometry and not the dynamic
                         frame this geometry is ultimately rigidly affixed to.
                         It simply refers to whatever parent with respect to
-                        which the instance was originally specified. */
+                        which the instance was originally specified.
+   @param index         The internal index of this internal geometry (w.r.t.
+                        its anchored/dynamic status).  */
   InternalGeometryBase(std::unique_ptr<Shape> shape, GeometryId geometry_id,
-                       const std::string& name, const Isometry3<double>& X_PG)
+                       const std::string& name, const Isometry3<double>& X_PG,
+                       InternalIndex index)
       : shape_spec_(std::move(shape)),
         id_(geometry_id),
         name_(name),
-        X_PG_(X_PG) {}
+        X_PG_(X_PG),
+        internal_index_(index) {}
 
   /** Compares two %InternalGeometryBase instances for "equality". Two internal
    geometries are considered equal if they have the same geometry identifier. */
@@ -67,6 +70,8 @@ class InternalGeometryBase {
   const std::string& name() const { return name_; }
 
   const Isometry3<double>& pose_in_parent() const { return X_PG_; }
+
+  InternalIndex internal_index() const { return internal_index_; }
 
   void SetRole(ProximityProperties properties) {
     if (proximity_props_) {
@@ -140,6 +145,11 @@ class InternalGeometryBase {
   // another registered geometry.
   Isometry3<double> X_PG_;
 
+  // The index of this geometry in the "full" set of geometries (regardless of
+  // role). However, its scope is limited to either the dynamic set or the
+  // anchored set.
+  InternalIndex internal_index_{};
+
   // TODO(SeanCurtis-TRI): Consider introducing a mechanism where these are
   // defined at the frame level, and all child geometries inherit.
 
@@ -162,31 +172,31 @@ class InternalGeometry final : public InternalGeometryBase {
   InternalGeometry();
 
   /** Constructs internal geometry without any assigned role.
-   @param shape         The shape specification for this instance.
-   @param frame_id      The identifier of the frame this belongs to.
-   @param geometry_id   The identifier for _this_ geometry.
-   @param name          The name of the geometry.
-   @param X_PG          The pose of the geometry G in the parent frame P. The
-                        parent may be a frame, or another registered geometry.
-   @param pose_index    The index of this geometry's pose relative to its parent
-                        frame.
-   @param parent_id     The optional id of the parent geometry. */
+   @param shape           The shape specification for this instance.
+   @param frame_id        The identifier of the frame this belongs to.
+   @param geometry_id     The identifier for _this_ geometry.
+   @param name            The name of the geometry.
+   @param X_PG            The pose of the geometry G in the parent frame P. The
+                          parent may be a frame, or another registered geometry.
+   @param internal_index  The internal index of this geometry (in the dynamic
+                          set).
+   @param parent_id       The optional id of the parent geometry. */
   InternalGeometry(std::unique_ptr<Shape> shape, FrameId frame_id,
                    GeometryId geometry_id, const std::string& name,
-                   const Isometry3<double>& X_PG, PoseIndex pose_index,
+                   const Isometry3<double>& X_PG, InternalIndex internal_index,
                    const optional<GeometryId>& parent_id = {});
 
   FrameId frame_id() const { return frame_id_; }
 
   optional<GeometryId> parent_id() const { return parent_id_; }
 
-  PoseIndex pose_index() const { return pose_index_; }
-
   void set_parent_id(GeometryId id) { parent_id_ = id; }
 
-  GeometryIndex proximity_index() const { return proximity_index_; }
+  DynamicProximityIndex proximity_index() const { return proximity_index_; }
 
-  void set_proximity_index(GeometryIndex index) { proximity_index_ = index; }
+  void set_proximity_index(DynamicProximityIndex index) {
+    proximity_index_ = index;
+  }
 
   /** Returns true if this geometry has a geometry parent and the parent has the
    given `geometry_id`. */
@@ -230,14 +240,7 @@ class InternalGeometry final : public InternalGeometryBase {
   FrameId frame_id_;
 
   // The index of the geometry in the engine.
-  GeometryIndex proximity_index_{};
-
-  // The index of this geometry into the full geometry state's data mapping
-  // dynamic geometries to their pose in the dynamic *frame*. If this geometry's
-  // pose has been defined to relative to another *geometry*, then X_PG_ will
-  // not necessarily be the same as that stored in the state's
-  // X_FG[pose_index_].
-  PoseIndex pose_index_{};
+  DynamicProximityIndex proximity_index_{};
 
   // The identifier for this frame's parent frame.
   optional<GeometryId> parent_id_;
@@ -258,26 +261,29 @@ class InternalAnchoredGeometry final : public InternalGeometryBase {
   InternalAnchoredGeometry();
 
   /** Constructs anchored internal geometry without any role assigned.
-   @param shape         The shape specification for this instance.
-   @param geometry_id   The identifier for _this_ geometry.
-   @param name          The name of the geometry.
-   @param X_WG          The pose of the geometry G in the world frame W. */
+   @param shape           The shape specification for this instance.
+   @param geometry_id     The identifier for _this_ geometry.
+   @param name            The name of the geometry.
+   @param X_WG            The pose of the geometry G in the world frame W.
+   @param internal_index  The internal index of this geometry (in the dynamic
+                          set). */
   InternalAnchoredGeometry(std::unique_ptr<Shape> shape, GeometryId geometry_id,
                            const std::string& name,
-                           const Isometry3<double> X_WG);
-
-  AnchoredGeometryIndex proximity_index() const { return proximity_index_; }
+                           const Isometry3<double> X_WG,
+                           InternalIndex internal_index);
 
   /** Sets the geometry's proximity index -- if it has a geometry role. This
-   should always be called in conjunction with assigning the proximty
+   should always be called in conjunction with assigning the proximity
    properties.  */
-  void set_proximity_index(AnchoredGeometryIndex index) {
+  void set_proximity_index(AnchoredProximityIndex index) {
     proximity_index_ = index;
   }
 
+  AnchoredProximityIndex proximity_index() const { return proximity_index_; }
+
  private:
   // The index of the geometry in the engine.
-  AnchoredGeometryIndex proximity_index_{};
+  AnchoredProximityIndex proximity_index_{};
 };
 
 }  // namespace internal

@@ -27,19 +27,19 @@ class InternalFrame {
   InternalFrame();
 
   /** Full constructor.
-   @param source_id     The identifier of the source this belongs to.
-   @param frame_id      The identifier of _this_ frame.
-   @param name          The name of the frame.
-   @param frame_group   The frame's frame group membership.
-   @param pose_index    The position in the pose vector of this frame's last
-                        known pose.
-   @param parent_id     The id of the parent frame.
-   @param clique        The clique that will be used to prevent self-collision
-                        among geomtries rigidly affixed to this frame.
+   @param source_id       The identifier of the source this belongs to.
+   @param frame_id        The identifier of _this_ frame.
+   @param name            The name of the frame.
+   @param frame_group     The frame's frame group membership.
+   @param internal_index  The position in the pose vector of this frame's last
+                          known pose.
+   @param parent_id       The id of the parent frame.
+   @param clique          The clique that will be used to prevent self-collision
+                          among geometries rigidly affixed to this frame.
    */
   InternalFrame(SourceId source_id, FrameId frame_id, const std::string &name,
-                int frame_group, PoseIndex pose_index, FrameId parent_id,
-                int clique);
+                int frame_group, InternalIndex internal_index,
+                FrameId parent_id, int clique);
 
   /** Compares two %InternalFrame instances for "equality". Two internal frames
    are considered equal if they have the same frame identifier. */
@@ -53,8 +53,8 @@ class InternalFrame {
   FrameId get_id() const { return id_; }
   const std::string& get_name() const { return name_; }
   int get_frame_group() const { return frame_group_; }
-  PoseIndex get_pose_index() const { return pose_index_; }
-  void set_pose_index(PoseIndex index) { pose_index_ = index; }
+  InternalIndex internal_index() const { return internal_index_; }
+  void set_internal_index(InternalIndex index) { internal_index_ = index; }
 
   /** Returns true if this frame is the child of the identified frame. */
   bool has_parent(FrameId parent) const { return parent_id_ == parent; }
@@ -131,7 +131,7 @@ class InternalFrame {
   // TODO(SeanCurtis-TRI): Use default constructor when the type safe index
   // default value PR lands.
   // The index in the pose vector where this frame's pose lives.
-  PoseIndex pose_index_{0};
+  InternalIndex internal_index_{0};
 
   // The identifier of this frame's parent frame.
   FrameId parent_id_;

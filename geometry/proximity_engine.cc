@@ -75,15 +75,15 @@ class EncodedData {
   explicit EncodedData(const fcl::CollisionObject<double>& fcl_object)
       : data_(reinterpret_cast<uintptr_t>(fcl_object.getUserData())) {}
 
-  // Factory method for creating EncodedData from the given `index`. By
-  // definition, the GeometryIndex only applies to dynamic geometry.
-  static EncodedData encode_dynamic(GeometryIndex index) {
+  // Factory method for creating EncodedData from the given `index` for a
+  // dynamic geometry.
+  static EncodedData encode_dynamic(InternalIndex index) {
     return EncodedData(index, true);
   }
 
-  // Factory method for creating EncodedData from the given `index`. By
-  // definition, the AchoredGeometryIndex only applies to anchored geometry.
-  static EncodedData encode_anchored(AnchoredGeometryIndex index) {
+  // Factory method for creating EncodedData from the given `index` for a
+  // anchored geometry.
+  static EncodedData encode_anchored(InternalIndex index) {
     return EncodedData(index, false);
   }
 
@@ -103,14 +103,17 @@ class EncodedData {
   bool is_dynamic() const { return (data_ & kIsDynamicMask) != 0; }
 
   // Reports the stored index.
-  int index() const { return static_cast<int>(data_ & ~kIsDynamicMask); }
+  InternalIndex index() const {
+    return static_cast<InternalIndex>(data_ & ~kIsDynamicMask);
+  }
 
   // Given an fcl object and maps from index to id of both dynamic and anchored
   // geometry, returns the geometry id for the given fcl object.
   GeometryId id(const std::vector<GeometryId>& dynamic_map,
                 const std::vector<GeometryId>& anchored_map) const {
-    const uintptr_t i = index();
-    return is_dynamic() ? dynamic_map[i] : anchored_map[i];
+    const InternalIndex i = index();
+    GeometryId id = is_dynamic() ? dynamic_map[i] : anchored_map[i];
+    return id;
   }
 
   // Reports the encoded data.
@@ -546,35 +549,41 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
     return engine;
   }
 
-  GeometryIndex AddDynamicGeometry(const Shape& shape) {
+  DynamicProximityIndex AddDynamicGeometry(const Shape& shape,
+                                           InternalIndex index) {
     // The collision object gets instantiated in the reification process and
     // placed in this unique pointer.
     std::unique_ptr<fcl::CollisionObject<double>> fcl_object;
     shape.Reify(this, &fcl_object);
     dynamic_tree_.registerObject(fcl_object.get());
-    GeometryIndex index(static_cast<int>(dynamic_objects_.size()));
+    DynamicProximityIndex proximity_index(
+        static_cast<int>(dynamic_objects_.size()));
+    // Encode the *global* pose index so that the geometry id can be looked up
+    // in the event of a collision.
     EncodedData encoding(index, true /* is dynamic */);
     encoding.store_in(fcl_object.get());
     dynamic_objects_.emplace_back(std::move(fcl_object));
     collision_filter_.AddGeometry(encoding.encoded_data());
-    return index;
+    return proximity_index;
   }
 
-  AnchoredGeometryIndex AddAnchoredGeometry(const Shape& shape,
-                                            const Isometry3<double>& X_WG) {
+  AnchoredProximityIndex AddAnchoredGeometry(const Shape& shape,
+                                             const Isometry3<double>& X_WG,
+                                             InternalIndex index) {
     // The collision object gets instantiated in the reification process and
     // placed in this unique pointer.
     std::unique_ptr<fcl::CollisionObject<double>> fcl_object;
     shape.Reify(this, &fcl_object);
     fcl_object->setTransform(X_WG);
     anchored_tree_.registerObject(fcl_object.get());
-    AnchoredGeometryIndex index(static_cast<int>(anchored_objects_.size()));
+    AnchoredProximityIndex proximity_index(
+        static_cast<int>(anchored_objects_.size()));
     EncodedData encoding(index, false /* is dynamic */);
     encoding.store_in(fcl_object.get());
     anchored_objects_.emplace_back(std::move(fcl_object));
     collision_filter_.AddGeometry(encoding.encoded_data());
 
-    return index;
+    return proximity_index;
   }
 
   int num_geometries() const {
@@ -596,10 +605,10 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
   //  2. I could simply have a method that returns a mutable reference to such
   //    a vector and the caller sets values there directly.
   void UpdateWorldPoses(const std::vector<Isometry3<T>>& X_WG,
-                        const std::vector<PoseIndex>& pose_indices) {
-    DRAKE_DEMAND(pose_indices.size() == dynamic_objects_.size());
-    for (size_t i = 0; i < pose_indices.size(); ++i) {
-      dynamic_objects_[i]->setTransform(convert(X_WG[pose_indices[i]]));
+                        const std::vector<InternalIndex>& indices) {
+    DRAKE_DEMAND(indices.size() == dynamic_objects_.size());
+    for (size_t i = 0; i < indices.size(); ++i) {
+      dynamic_objects_[i]->setTransform(convert(X_WG[indices[i]]));
     }
     dynamic_tree_.update();
   }
@@ -693,8 +702,8 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
 
   // TODO(SeanCurtis-TRI): Update this with the new collision filter method.
   void ExcludeCollisionsWithin(
-      const std::unordered_set<GeometryIndex>& dynamic,
-      const std::unordered_set<AnchoredGeometryIndex>& anchored) {
+      const std::unordered_set<InternalIndex>& dynamic,
+      const std::unordered_set<InternalIndex>& anchored) {
     // Preventing collision between members in a single set is simple: assign
     // every geometry to the same clique.
 
@@ -723,10 +732,10 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
   }
 
   void ExcludeCollisionsBetween(
-      const std::unordered_set<GeometryIndex>& dynamic1,
-      const std::unordered_set<AnchoredGeometryIndex>& anchored1,
-      const std::unordered_set<GeometryIndex>& dynamic2,
-      const std::unordered_set<AnchoredGeometryIndex>& anchored2) {
+      const std::unordered_set<InternalIndex>& dynamic1,
+      const std::unordered_set<InternalIndex>& anchored1,
+      const std::unordered_set<InternalIndex>& dynamic2,
+      const std::unordered_set<InternalIndex>& anchored2) {
     // TODO(SeanCurtis-TRI): Update this with the new collision filter method.
 
     // NOTE: This is a brute-force implementation. It does not claim to be
@@ -779,7 +788,7 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
 
   int get_next_clique() { return collision_filter_.next_clique_id(); }
 
-  void set_clique(GeometryIndex index, int clique) {
+  void set_clique(int index, int clique) {
     EncodedData encoding(index, true /* is dynamic */);
     collision_filter_.AddToCollisionClique(encoding.encoded_data(), clique);
   }
@@ -921,14 +930,15 @@ ProximityEngine<T>& ProximityEngine<T>::operator=(
 }
 
 template <typename T>
-GeometryIndex ProximityEngine<T>::AddDynamicGeometry(const Shape& shape) {
-  return impl_->AddDynamicGeometry(shape);
+DynamicProximityIndex ProximityEngine<T>::AddDynamicGeometry(
+    const Shape& shape, InternalIndex pose_index) {
+  return impl_->AddDynamicGeometry(shape, pose_index);
 }
 
 template <typename T>
-AnchoredGeometryIndex ProximityEngine<T>::AddAnchoredGeometry(
-    const Shape& shape, const Isometry3<double>& X_WG) {
-  return impl_->AddAnchoredGeometry(shape, X_WG);
+AnchoredProximityIndex ProximityEngine<T>::AddAnchoredGeometry(
+    const Shape& shape, const Isometry3<double>& X_WG, InternalIndex index) {
+  return impl_->AddAnchoredGeometry(shape, X_WG, index);
 }
 
 template <typename T>
@@ -966,8 +976,8 @@ std::unique_ptr<ProximityEngine<AutoDiffXd>> ProximityEngine<T>::ToAutoDiffXd()
 template <typename T>
 void ProximityEngine<T>::UpdateWorldPoses(
     const std::vector<Isometry3<T>>& X_WG,
-    const std::vector<PoseIndex>& pose_indices) {
-  impl_->UpdateWorldPoses(X_WG, pose_indices);
+    const std::vector<InternalIndex>& indices) {
+  impl_->UpdateWorldPoses(X_WG, indices);
 }
 
 template <typename T>
@@ -989,17 +999,17 @@ ProximityEngine<T>::ComputePointPairPenetration(
 
 template <typename T>
 void ProximityEngine<T>::ExcludeCollisionsWithin(
-    const std::unordered_set<GeometryIndex>& dynamic,
-    const std::unordered_set<AnchoredGeometryIndex>& anchored) {
+    const std::unordered_set<InternalIndex>& dynamic,
+    const std::unordered_set<InternalIndex>& anchored) {
   impl_->ExcludeCollisionsWithin(dynamic, anchored);
 }
 
 template <typename T>
 void ProximityEngine<T>::ExcludeCollisionsBetween(
-    const std::unordered_set<GeometryIndex>& dynamic1,
-    const std::unordered_set<AnchoredGeometryIndex>& anchored1,
-    const std::unordered_set<GeometryIndex>& dynamic2,
-    const std::unordered_set<AnchoredGeometryIndex>& anchored2) {
+    const std::unordered_set<InternalIndex>& dynamic1,
+    const std::unordered_set<InternalIndex>& anchored1,
+    const std::unordered_set<InternalIndex>& dynamic2,
+    const std::unordered_set<InternalIndex>& anchored2) {
   impl_->ExcludeCollisionsBetween(dynamic1, anchored1, dynamic2, anchored2);
 }
 
@@ -1011,7 +1021,7 @@ int ProximityEngine<T>::get_next_clique() {
 }
 
 template <typename T>
-void ProximityEngine<T>::set_clique(GeometryIndex index, int clique) {
+void ProximityEngine<T>::set_clique(int index, int clique) {
   impl_->set_clique(index, clique);
 }
 

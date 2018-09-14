@@ -56,7 +56,8 @@ using std::move;
 GTEST_TEST(ProximityEngineTests, AddDynamicGeometry) {
   ProximityEngine<double> engine;
   Sphere sphere{0.5};
-  GeometryIndex index = engine.AddDynamicGeometry(sphere);
+  DynamicProximityIndex index = engine.AddDynamicGeometry(sphere,
+                                                          InternalIndex(0));
   EXPECT_EQ(index, 0);
   EXPECT_EQ(engine.num_geometries(), 1);
   EXPECT_EQ(engine.num_anchored(), 0);
@@ -64,11 +65,12 @@ GTEST_TEST(ProximityEngineTests, AddDynamicGeometry) {
 }
 
 // Tests simple addition of anchored geometry.
-GTEST_TEST(ProximityEngineTests, AddAchoredGeometry) {
+GTEST_TEST(ProximityEngineTests, AddAnchoredGeometry) {
   ProximityEngine<double> engine;
   Sphere sphere{0.5};
   Isometry3<double> pose = Isometry3<double>::Identity();
-  AnchoredGeometryIndex index = engine.AddAnchoredGeometry(sphere, pose);
+  AnchoredProximityIndex index = engine.AddAnchoredGeometry(sphere, pose,
+                                                            InternalIndex(0));
   EXPECT_EQ(index, 0);
   EXPECT_EQ(engine.num_geometries(), 1);
   EXPECT_EQ(engine.num_anchored(), 1);
@@ -80,9 +82,11 @@ GTEST_TEST(ProximityEngineTests, AddMixedGeometry) {
   ProximityEngine<double> engine;
   Sphere sphere{0.5};
   Isometry3<double> pose = Isometry3<double>::Identity();
-  AnchoredGeometryIndex a_index = engine.AddAnchoredGeometry(sphere, pose);
+  AnchoredProximityIndex a_index = engine.AddAnchoredGeometry(sphere, pose,
+                                                              InternalIndex(0));
   EXPECT_EQ(a_index, 0);
-  GeometryIndex g_index = engine.AddDynamicGeometry(sphere);
+  DynamicProximityIndex g_index = engine.AddDynamicGeometry(sphere,
+                                                            InternalIndex(0));
   EXPECT_EQ(g_index, 0);
   EXPECT_EQ(engine.num_geometries(), 2);
   EXPECT_EQ(engine.num_anchored(), 1);
@@ -97,9 +101,11 @@ GTEST_TEST(ProximityEngineTests, CopySemantics) {
   ProximityEngine<double> ref_engine;
   Sphere sphere{0.5};
   Isometry3<double> pose = Isometry3<double>::Identity();
-  AnchoredGeometryIndex a_index = ref_engine.AddAnchoredGeometry(sphere, pose);
+  AnchoredProximityIndex a_index =
+      ref_engine.AddAnchoredGeometry(sphere, pose, InternalIndex(0));
   EXPECT_EQ(a_index, 0);
-  GeometryIndex g_index = ref_engine.AddDynamicGeometry(sphere);
+  DynamicProximityIndex g_index =
+      ref_engine.AddDynamicGeometry(sphere, InternalIndex(0));
   EXPECT_EQ(g_index, 0);
 
   ProximityEngine<double> copy_construct(ref_engine);
@@ -116,9 +122,11 @@ GTEST_TEST(ProximityEngineTests, MoveSemantics) {
   ProximityEngine<double> engine;
   Sphere sphere{0.5};
   Isometry3<double> pose = Isometry3<double>::Identity();
-  AnchoredGeometryIndex a_index = engine.AddAnchoredGeometry(sphere, pose);
+  AnchoredProximityIndex a_index = engine.AddAnchoredGeometry(sphere, pose,
+                                                              InternalIndex(0));
   EXPECT_EQ(a_index, 0);
-  GeometryIndex g_index = engine.AddDynamicGeometry(sphere);
+  DynamicProximityIndex g_index = engine.AddDynamicGeometry(sphere,
+                                                            InternalIndex(0));
   EXPECT_EQ(g_index, 0);
 
   ProximityEngine<double> move_construct(move(engine));
@@ -160,7 +168,8 @@ GTEST_TEST(ProximityEngineTests, SignedDistanceClosestPointsSingleAnchored) {
 
   Sphere sphere{0.5};
   Isometry3<double> pose = Isometry3<double>::Identity();
-  AnchoredGeometryIndex index = engine.AddAnchoredGeometry(sphere, pose);
+  AnchoredProximityIndex index = engine.AddAnchoredGeometry(sphere, pose,
+                                                            InternalIndex(0));
   anchored_map.push_back(GeometryId::get_new_id());
   EXPECT_EQ(index, 0);
   const auto results = engine.ComputeSignedDistancePairwiseClosestPoints(
@@ -177,11 +186,13 @@ GTEST_TEST(ProximityEngineTests, SignedDistanceClosestPointsMultipleAnchored) {
   const double radius = 0.5;
   Sphere sphere{radius};
   Isometry3<double> pose = Isometry3<double>::Identity();
-  AnchoredGeometryIndex index1 = engine.AddAnchoredGeometry(sphere, pose);
+  AnchoredProximityIndex index1 = engine.AddAnchoredGeometry(sphere, pose,
+                                                             InternalIndex(0));
   anchored_map.push_back(GeometryId::get_new_id());
   EXPECT_EQ(index1, 0);
   pose.translation() << 1.8 * radius, 0, 0;
-  AnchoredGeometryIndex index2 = engine.AddAnchoredGeometry(sphere, pose);
+  AnchoredProximityIndex index2 = engine.AddAnchoredGeometry(sphere, pose,
+                                                             InternalIndex(1));
   anchored_map.push_back(GeometryId::get_new_id());
   EXPECT_EQ(index2, 1);
   const auto results = engine.ComputeSignedDistancePairwiseClosestPoints(
@@ -208,7 +219,8 @@ GTEST_TEST(ProximityEngineTests, PenetrationSingleAnchored) {
 
   Sphere sphere{0.5};
   Isometry3<double> pose = Isometry3<double>::Identity();
-  AnchoredGeometryIndex index = engine.AddAnchoredGeometry(sphere, pose);
+  AnchoredProximityIndex index = engine.AddAnchoredGeometry(sphere, pose,
+                                                            InternalIndex(0));
   anchored_map.push_back(GeometryId::get_new_id());
   EXPECT_EQ(index, 0);
   auto results = engine.ComputePointPairPenetration(dynamic_map, anchored_map);
@@ -225,11 +237,13 @@ GTEST_TEST(ProximityEngineTests, PenetrationMultipleAnchored) {
   const double radius = 0.5;
   Sphere sphere{radius};
   Isometry3<double> pose = Isometry3<double>::Identity();
-  AnchoredGeometryIndex index1 = engine.AddAnchoredGeometry(sphere, pose);
+  AnchoredProximityIndex index1 = engine.AddAnchoredGeometry(sphere, pose,
+                                                             InternalIndex(0));
   anchored_map.push_back(GeometryId::get_new_id());
   EXPECT_EQ(index1, 0);
   pose.translation() << 1.8 * radius, 0, 0;
-  AnchoredGeometryIndex index2 = engine.AddAnchoredGeometry(sphere, pose);
+  AnchoredProximityIndex index2 = engine.AddAnchoredGeometry(sphere, pose,
+                                                             InternalIndex(1));
   anchored_map.push_back(GeometryId::get_new_id());
   EXPECT_EQ(index2, 1);
   auto results = engine.ComputePointPairPenetration(dynamic_map, anchored_map);
@@ -285,9 +299,9 @@ class SimplePenetrationTest : public ::testing::Test {
                                          Isometry3<double>::Identity());
     const double x_pos = is_colliding ? colliding_x_ : free_x_;
     poses[index] = Isometry3<double>(Translation3d{x_pos, 0, 0});
-    std::vector<PoseIndex> pose_indices(poses.size());
-    std::iota(pose_indices.begin(), pose_indices.end(), PoseIndex(0));
-    engine->UpdateWorldPoses(poses, pose_indices);
+    std::vector<InternalIndex> indices(poses.size());
+    std::iota(indices.begin(), indices.end(), InternalIndex(0));
+    engine->UpdateWorldPoses(poses, indices);
   }
 
   // Compute penetration and confirm that a single penetration with the expected
@@ -433,14 +447,15 @@ class SimplePenetrationTest : public ::testing::Test {
 TEST_F(SimplePenetrationTest, PenetrationDynamicAndAnchored) {
   // Set up anchored geometry
   Isometry3<double> pose = Isometry3<double>::Identity();
-  AnchoredGeometryIndex anchored_index =
-      engine_.AddAnchoredGeometry(sphere_, pose);
+  AnchoredProximityIndex anchored_index =
+      engine_.AddAnchoredGeometry(sphere_, pose, InternalIndex(0));
   GeometryId origin_id = GeometryId::get_new_id();
   anchored_map_.push_back(origin_id);
   EXPECT_EQ(anchored_index, 0);
 
   // Set up dynamic geometry
-  GeometryIndex dynamic_index = engine_.AddDynamicGeometry(sphere_);
+  DynamicProximityIndex dynamic_index =
+      engine_.AddDynamicGeometry(sphere_, InternalIndex(0));
   GeometryId dynamic_id = GeometryId::get_new_id();
   dynamic_map_.push_back(dynamic_id);
   EXPECT_EQ(dynamic_index, 0);
@@ -467,16 +482,18 @@ TEST_F(SimplePenetrationTest, PenetrationDynamicAndAnchored) {
 // Performs the same collision test between two dynamic spheres which belong to
 // the same source
 TEST_F(SimplePenetrationTest, PenetrationDynamicAndDynamicSingleSource) {
-  GeometryIndex origin_index = engine_.AddDynamicGeometry(sphere_);
+  DynamicProximityIndex origin_index =
+      engine_.AddDynamicGeometry(sphere_, InternalIndex(0));
   GeometryId origin_id = GeometryId::get_new_id();
   dynamic_map_.push_back(origin_id);
   EXPECT_EQ(origin_index, 0);
   std::vector<Isometry3<double>> poses{Isometry3<double>::Identity()};
-  std::vector<PoseIndex> pose_indices(poses.size());
-  std::iota(pose_indices.begin(), pose_indices.end(), PoseIndex(0));
-  engine_.UpdateWorldPoses(poses, pose_indices);
+  std::vector<InternalIndex> indices(poses.size());
+  std::iota(indices.begin(), indices.end(), InternalIndex(0));
+  engine_.UpdateWorldPoses(poses, indices);
 
-  GeometryIndex collide_index = engine_.AddDynamicGeometry(sphere_);
+  DynamicProximityIndex collide_index =
+      engine_.AddDynamicGeometry(sphere_, InternalIndex(1));
   GeometryId collide_id = GeometryId::get_new_id();
   dynamic_map_.push_back(collide_id);
   EXPECT_EQ(collide_index, 1);
@@ -504,12 +521,16 @@ TEST_F(SimplePenetrationTest, PenetrationDynamicAndDynamicSingleSource) {
 // generate cliques.
 TEST_F(SimplePenetrationTest, ExcludeCollisionsWithinCliqueGeneration) {
   using PET = ProximityEngineTester;
-  GeometryIndex dynamic1 = engine_.AddDynamicGeometry(sphere_);
-  GeometryIndex dynamic2 = engine_.AddDynamicGeometry(sphere_);
+  InternalIndex dynamic1(0);
+  engine_.AddDynamicGeometry(sphere_, dynamic1);
+  InternalIndex dynamic2(1);
+  engine_.AddDynamicGeometry(sphere_, dynamic2);
 
   Isometry3<double> pose{Isometry3<double>::Identity()};
-  AnchoredGeometryIndex anchored1 = engine_.AddAnchoredGeometry(sphere_, pose);
-  AnchoredGeometryIndex anchored2 = engine_.AddAnchoredGeometry(sphere_, pose);
+  InternalIndex anchored1(0);
+  engine_.AddAnchoredGeometry(sphere_, pose, anchored1);
+  InternalIndex anchored2(1);
+  engine_.AddAnchoredGeometry(sphere_, pose, anchored2);
 
   int expected_clique = PET::peek_next_clique(engine_);
 
@@ -522,7 +543,7 @@ TEST_F(SimplePenetrationTest, ExcludeCollisionsWithinCliqueGeneration) {
   ASSERT_EQ(PET::peek_next_clique(engine_), expected_clique);
 
   // Multiple dynamic and no anchored geometry --> cliques generated.
-  engine_.ExcludeCollisionsWithin({dynamic1, dynamic2}, {});
+  engine_.ExcludeCollisionsWithin({dynamic1, InternalIndex(1)}, {});
   ASSERT_EQ(PET::peek_next_clique(engine_), ++expected_clique);
 
   // Single dynamic and (one or more) anchored geometry --> cliques generated.
@@ -540,19 +561,20 @@ TEST_F(SimplePenetrationTest, ExcludeCollisionsWithinCliqueGeneration) {
 
 // Performs the same collision test where the geometries have been filtered.
 TEST_F(SimplePenetrationTest, ExcludeCollisionsWithin) {
-  GeometryIndex origin_index = engine_.AddDynamicGeometry(sphere_);
+  InternalIndex origin_index(0);
+  engine_.AddDynamicGeometry(sphere_, origin_index);
   GeometryId origin_id = GeometryId::get_new_id();
   dynamic_map_.push_back(origin_id);
-  EXPECT_EQ(origin_index, 0);
-  std::vector<Isometry3<double>> poses{Isometry3<double>::Identity()};
-  std::vector<PoseIndex> pose_indices(poses.size());
-  std::iota(pose_indices.begin(), pose_indices.end(), PoseIndex(0));
-  engine_.UpdateWorldPoses(poses, pose_indices);
 
-  GeometryIndex collide_index = engine_.AddDynamicGeometry(sphere_);
+  std::vector<Isometry3<double>> poses{Isometry3<double>::Identity()};
+  std::vector<InternalIndex> indices(poses.size());
+  std::iota(indices.begin(), indices.end(), InternalIndex(0));
+  engine_.UpdateWorldPoses(poses, indices);
+
+  InternalIndex collide_index(1);
+  engine_.AddDynamicGeometry(sphere_, collide_index);
   GeometryId collide_id = GeometryId::get_new_id();
   dynamic_map_.push_back(collide_id);
-  EXPECT_EQ(collide_index, 1);
   EXPECT_EQ(engine_.num_geometries(), 2);
 
   engine_.ExcludeCollisionsWithin({origin_index, collide_index}, {});
@@ -579,14 +601,20 @@ TEST_F(SimplePenetrationTest, ExcludeCollisionsWithin) {
 // generate cliques.
 TEST_F(SimplePenetrationTest, ExcludeCollisionsBetweenCliqueGeneration) {
   using PET = ProximityEngineTester;
-  GeometryIndex dynamic1 = engine_.AddDynamicGeometry(sphere_);
-  GeometryIndex dynamic2 = engine_.AddDynamicGeometry(sphere_);
-  GeometryIndex dynamic3 = engine_.AddDynamicGeometry(sphere_);
+  InternalIndex dynamic1(0);
+  engine_.AddDynamicGeometry(sphere_, dynamic1);
+  InternalIndex dynamic2(1);
+  engine_.AddDynamicGeometry(sphere_, dynamic2);
+  InternalIndex dynamic3(2);
+  engine_.AddDynamicGeometry(sphere_, dynamic3);
 
   Isometry3<double> pose{Isometry3<double>::Identity()};
-  AnchoredGeometryIndex anchored1 = engine_.AddAnchoredGeometry(sphere_, pose);
-  AnchoredGeometryIndex anchored2 = engine_.AddAnchoredGeometry(sphere_, pose);
-  AnchoredGeometryIndex anchored3 = engine_.AddAnchoredGeometry(sphere_, pose);
+  InternalIndex anchored1(0);
+  engine_.AddAnchoredGeometry(sphere_, pose, anchored1);
+  InternalIndex anchored2(1);
+  engine_.AddAnchoredGeometry(sphere_, pose, anchored2);
+  InternalIndex anchored3(2);
+  engine_.AddAnchoredGeometry(sphere_, pose, anchored3);
 
   int expected_clique = PET::peek_next_clique(engine_);
 
@@ -631,19 +659,20 @@ TEST_F(SimplePenetrationTest, ExcludeCollisionsBetweenCliqueGeneration) {
 }
 
 TEST_F(SimplePenetrationTest, ExcludeCollisionsBetween) {
-  GeometryIndex origin_index = engine_.AddDynamicGeometry(sphere_);
+  InternalIndex origin_index(0);
+  engine_.AddDynamicGeometry(sphere_, origin_index);
   GeometryId origin_id = GeometryId::get_new_id();
   dynamic_map_.push_back(origin_id);
-  EXPECT_EQ(origin_index, 0);
-  std::vector<Isometry3<double>> poses{Isometry3<double>::Identity()};
-  std::vector<PoseIndex> pose_indices(poses.size());
-  std::iota(pose_indices.begin(), pose_indices.end(), PoseIndex(0));
-  engine_.UpdateWorldPoses(poses, pose_indices);
 
-  GeometryIndex collide_index = engine_.AddDynamicGeometry(sphere_);
+  std::vector<Isometry3<double>> poses{Isometry3<double>::Identity()};
+  std::vector<InternalIndex> indices(poses.size());
+  std::iota(indices.begin(), indices.end(), InternalIndex(0));
+  engine_.UpdateWorldPoses(poses, indices);
+
+  InternalIndex collide_index(1);
+  engine_.AddDynamicGeometry(sphere_, collide_index);
   GeometryId collide_id = GeometryId::get_new_id();
   dynamic_map_.push_back(collide_id);
-  EXPECT_EQ(collide_index, 1);
   EXPECT_EQ(engine_.num_geometries(), 2);
 
   engine_.ExcludeCollisionsBetween({origin_index}, {}, {collide_index}, {});
@@ -742,10 +771,10 @@ GTEST_TEST(ProximityEngineCollisionTest, SpherePunchThroughBox) {
   const double h = 10 * radius;   // Box height much larger than sphere.
   const double d = 10 * radius;   // Box depth much larger than sphere.
   const double eps = std::numeric_limits<double>::epsilon();
-  GeometryIndex box_index = engine.AddDynamicGeometry(Box{w, h, d});
-  GeometryIndex sphere_index = engine.AddDynamicGeometry(Sphere{radius});
-  ASSERT_EQ(box_index, 0);
-  ASSERT_EQ(sphere_index, 1);
+  InternalIndex box_index(0);
+  engine.AddDynamicGeometry(Box{w, h, d}, box_index);
+  InternalIndex sphere_index(1);
+  engine.AddDynamicGeometry(Sphere{radius}, sphere_index);
 
   GeometryId box_id = GeometryId::get_new_id();
   GeometryId sphere_id = GeometryId::get_new_id();
@@ -768,11 +797,11 @@ GTEST_TEST(ProximityEngineCollisionTest, SpherePunchThroughBox) {
       {"sphere's center has crossed the box's origin - flipped normal",
        {-eps, 0, 0}, 1, {1, 0, 0}, radius + half_w - eps}};
   // clang-format on
-  std::vector<PoseIndex> pose_indices(poses.size());
-  std::iota(pose_indices.begin(), pose_indices.end(), PoseIndex(0));
+  std::vector<InternalIndex> indices(poses.size());
+  std::iota(indices.begin(), indices.end(), InternalIndex(0));
   for (const auto& test : test_data) {
     poses[1].translation() = test.sphere_pose;
-    engine.UpdateWorldPoses(poses, pose_indices);
+    engine.UpdateWorldPoses(poses, indices);
     std::vector<PenetrationAsPointPair<double>> results =
         engine.ComputePointPairPenetration(dynamic_map, anchored_map);
 
@@ -918,11 +947,13 @@ class BoxPenetrationTest : public ::testing::Test {
   // results to the given tolerance.
   void TestCollision(TangentShape shape_type, double tolerance,
                      const Isometry3d& X_WB) {
-    GeometryIndex tangent_index = engine_.AddDynamicGeometry(shape(shape_type));
+    InternalIndex tangent_index(0);
+    engine_.AddDynamicGeometry(shape(shape_type), tangent_index);
     GeometryId tangent_id = GeometryId::get_new_id();
     dynamic_map_.push_back(tangent_id);
 
-    GeometryIndex box_index = engine_.AddDynamicGeometry(box_);
+    InternalIndex box_index(1);
+    engine_.AddDynamicGeometry(box_, box_index);
     GeometryId box_id = GeometryId::get_new_id();
     dynamic_map_.push_back(box_id);
 
@@ -933,9 +964,9 @@ class BoxPenetrationTest : public ::testing::Test {
 
     // Update the poses of the geometry.
     std::vector<Isometry3d> poses{shape_pose(shape_type), X_WB};
-    std::vector<PoseIndex> pose_indices(poses.size());
-    std::iota(pose_indices.begin(), pose_indices.end(), PoseIndex(0));
-    engine_.UpdateWorldPoses(poses, pose_indices);
+    std::vector<InternalIndex> indices(poses.size());
+    std::iota(indices.begin(), indices.end(), InternalIndex(0));
+    engine_.UpdateWorldPoses(poses, indices);
     std::vector<PenetrationAsPointPair<double>> results =
         engine_.ComputePointPairPenetration(dynamic_map_, anchored_map_);
 

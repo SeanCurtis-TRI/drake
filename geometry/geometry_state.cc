@@ -186,7 +186,7 @@ const Isometry3<T>& GeometryState<T>::get_pose_in_world(
     return "No world pose available for invalid frame id: " +
            to_string(frame_id);
   });
-  return X_WF_[frames_.at(frame_id).get_pose_index()];
+  return X_WF_[frames_.at(frame_id).internal_index()];
 }
 
 template <typename T>
@@ -199,7 +199,7 @@ const Isometry3<T>& GeometryState<T>::get_pose_in_world(
     return "No world pose available for invalid geometry id: " +
            to_string(geometry_id);
   });
-  return X_WG_[geometries_.at(geometry_id).pose_index()];
+  return X_WG_[geometries_.at(geometry_id).internal_index()];
 }
 
 template <typename T>
@@ -208,7 +208,7 @@ const Isometry3<T>& GeometryState<T>::get_pose_in_parent(
   FindOrThrow(frame_id, frames_, [frame_id]() {
     return "No pose available for invalid frame id: " + to_string(frame_id);
   });
-  return X_PF_[frames_.at(frame_id).get_pose_index()];
+  return X_PF_[frames_.at(frame_id).internal_index()];
 }
 
 template <typename T>
@@ -223,7 +223,7 @@ template <typename T>
 const Isometry3<double>& GeometryState<T>::GetPoseInFrame(
     GeometryId geometry_id) const {
   const auto& geometry = GetValueOrThrow(geometry_id, geometries_);
-  return X_FG_[geometry.pose_index()];
+  return X_FG_[geometry.internal_index()];
 }
 
 template <typename T>
@@ -326,16 +326,18 @@ FrameId GeometryState<T>::RegisterFrame(SourceId source_id, FrameId parent_id,
     // The parent is the world frame; register it as a root frame.
     source_root_frame_map_[source_id].insert(frame_id);
   }
-  PoseIndex pose_index(X_PF_.size());
+
+  DRAKE_ASSERT(X_PF_.size() ==
+      static_cast<int>(frame_index_to_frame_map_.size()));
+  InternalIndex internal_index(X_PF_.size());
   X_PF_.emplace_back(frame.pose());
   X_WF_.emplace_back(Isometry3<double>::Identity());
-  DRAKE_ASSERT(pose_index == static_cast<int>(pose_index_to_frame_map_.size()));
-  pose_index_to_frame_map_.push_back(frame_id);
+  frame_index_to_frame_map_.push_back(frame_id);
   f_set.insert(frame_id);
   int clique = GeometryStateCollisionFilterAttorney::get_next_clique(
       geometry_engine_.get_mutable());
   frames_.emplace(frame_id, InternalFrame(source_id, frame_id, frame.name(),
-                                          frame.frame_group(), pose_index,
+                                          frame.frame_group(), internal_index,
                                           parent_id, clique));
   return frame_id;
 }
@@ -374,7 +376,7 @@ GeometryId GeometryState<T>::RegisterGeometry(
   // TODO(SeanCurtis-TRI): Enforcing the invariant that the indices are
   // compactly distributed. Is there a more robust way to do this?
   DRAKE_ASSERT(geometry_index_id_map_.size() == X_FG_.size());
-  PoseIndex pose_index(static_cast<int>(X_FG_.size()));
+  InternalIndex internal_index(static_cast<int>(X_FG_.size()));
   X_WG_.push_back(Isometry3<T>::Identity());
   X_FG_.emplace_back(geometry->pose());
   geometry_index_id_map_.push_back(geometry_id);
@@ -382,7 +384,7 @@ GeometryId GeometryState<T>::RegisterGeometry(
   geometries_.emplace(
       geometry_id,
       InternalGeometry(geometry->release_shape(), frame_id, geometry_id,
-                       geometry->name(), geometry->pose(), pose_index));
+                       geometry->name(), geometry->pose(), internal_index));
 
   return geometry_id;
 }
@@ -426,9 +428,9 @@ GeometryId GeometryState<T>::RegisterGeometryWithParent(
   // X_FG_ vector assuming the parent was the frame. Replace it by concatenating
   // its pose in parent, with its parent's pose in frame. NOTE: the pose is no
   // longer available from geometry because of the `move(geometry)`.
-  const Isometry3<double>& X_PG = X_FG_[new_geometry.pose_index()];
-  const Isometry3<double>& X_FP = X_FG_[parent_geometry.pose_index()];
-  X_FG_[new_geometry.pose_index()] = X_FP * X_PG;
+  const Isometry3<double>& X_PG = X_FG_[new_geometry.internal_index()];
+  const Isometry3<double>& X_FP = X_FG_[parent_geometry.internal_index()];
+  X_FG_[new_geometry.internal_index()] = X_FP * X_PG;
 
   geometries_[new_id].set_parent_id(geometry_id);
   parent_geometry.add_child(new_id);
@@ -462,10 +464,13 @@ GeometryId GeometryState<T>::RegisterAnchoredGeometry(
   // NOTE: It is important to test for name validity *before* adding this
   // geometry to the frame.
 
+  InternalIndex internal_index(anchored_geometries_.size());
   anchored_geometries_.emplace(
       geometry_id,
       InternalAnchoredGeometry(geometry->release_shape(), geometry_id,
-                               geometry->name(), geometry->pose()));
+                               geometry->name(), geometry->pose(),
+                               internal_index));
+
   return geometry_id;
 }
 
@@ -494,11 +499,12 @@ void GeometryState<T>::AssignRole(SourceId source_id,
   auto dynamic_geometry = dynamic_cast<InternalGeometry*>(geometry);
   if (dynamic_geometry != nullptr) {
     // Pass the geometry to the engine.
-    GeometryIndex index =
-        geometry_engine_->AddDynamicGeometry(geometry->shape());
+    const InternalIndex internal_index = dynamic_geometry->internal_index();
+    DynamicProximityIndex index =
+        geometry_engine_->AddDynamicGeometry(geometry->shape(), internal_index);
     dynamic_geometry->set_proximity_index(index);
     DRAKE_DEMAND(static_cast<int>(X_WG_proximity_.size()) == index);
-    X_WG_proximity_.push_back(dynamic_geometry->pose_index());
+    X_WG_proximity_.push_back(dynamic_geometry->internal_index());
 
     InternalFrame& frame = frames_[dynamic_geometry->frame_id()];
 
@@ -526,12 +532,12 @@ void GeometryState<T>::AssignRole(SourceId source_id,
           // Assume all previous geometries have already had the clique
           // assigned.
           GeometryStateCollisionFilterAttorney::set_dynamic_geometry_clique(
-              &engine, index, frame.clique());
+              &engine, internal_index, frame.clique());
         } else {  // proximity_count == 2.
           // We *now* have multiple child geometries with proximity role --
           // assign to clique.
           for (GeometryId child_id : proximity_geometries) {
-            GeometryIndex child_index = geometries_[child_id].proximity_index();
+            InternalIndex child_index = geometries_[child_id].internal_index();
             GeometryStateCollisionFilterAttorney::set_dynamic_geometry_clique(
                 &engine, child_index, frame.clique());
           }
@@ -542,8 +548,9 @@ void GeometryState<T>::AssignRole(SourceId source_id,
     auto anchored_geometry = dynamic_cast<InternalAnchoredGeometry*>(geometry);
     // If it's not dynamic, it must be anchored.
     DRAKE_DEMAND(anchored_geometry != nullptr);
-    AnchoredGeometryIndex index = geometry_engine_->AddAnchoredGeometry(
-        geometry->shape(), geometry->pose_in_parent());
+    AnchoredProximityIndex index = geometry_engine_->AddAnchoredGeometry(
+        geometry->shape(), geometry->pose_in_parent(),
+        geometry->internal_index());
     anchored_geometry->set_proximity_index(index);
     DRAKE_DEMAND(
         static_cast<int>(anchored_geometry_index_id_map_.size()) == index);
@@ -618,8 +625,8 @@ void GeometryState<T>::ExcludeCollisionsWithin(const GeometrySet& set) {
     return;
   }
 
-  std::unordered_set<GeometryIndex> dynamic;
-  std::unordered_set<AnchoredGeometryIndex> anchored;
+  std::unordered_set<InternalIndex> dynamic;
+  std::unordered_set<InternalIndex> anchored;
   CollectIndices(set, &dynamic, &anchored);
 
   geometry_engine_->ExcludeCollisionsWithin(dynamic, anchored);
@@ -628,11 +635,11 @@ void GeometryState<T>::ExcludeCollisionsWithin(const GeometrySet& set) {
 template <typename T>
 void GeometryState<T>::ExcludeCollisionsBetween(const GeometrySet& setA,
                                                 const GeometrySet& setB) {
-  std::unordered_set<GeometryIndex> dynamic1;
-  std::unordered_set<AnchoredGeometryIndex> anchored1;
+  std::unordered_set<InternalIndex> dynamic1;
+  std::unordered_set<InternalIndex> anchored1;
   CollectIndices(setA, &dynamic1, &anchored1);
-  std::unordered_set<GeometryIndex> dynamic2;
-  std::unordered_set<AnchoredGeometryIndex> anchored2;
+  std::unordered_set<InternalIndex> dynamic2;
+  std::unordered_set<InternalIndex> anchored2;
   CollectIndices(setB, &dynamic2, &anchored2);
 
   geometry_engine_->ExcludeCollisionsBetween(dynamic1, anchored1, dynamic2,
@@ -648,8 +655,8 @@ std::unique_ptr<GeometryState<AutoDiffXd>> GeometryState<T>::ToAutoDiffXd()
 
 template <typename T>
 void GeometryState<T>::CollectIndices(
-    const GeometrySet& geometry_set, std::unordered_set<GeometryIndex>* dynamic,
-    std::unordered_set<AnchoredGeometryIndex>* anchored) {
+    const GeometrySet& geometry_set, std::unordered_set<InternalIndex>* dynamic,
+    std::unordered_set<InternalIndex>* anchored) {
   for (auto frame_id : geometry_set.frames()) {
     auto iterator = frames_.find(frame_id);
     if (iterator == frames_.end()) {
@@ -662,7 +669,7 @@ void GeometryState<T>::CollectIndices(
     for (auto geometry_id : frame.get_child_geometries()) {
       InternalGeometry& geometry = geometries_[geometry_id];
       if (geometry.has_proximity_role()) {
-        dynamic->insert(geometry.proximity_index());
+        dynamic->insert(geometry.internal_index());
       }
     }
   }
@@ -671,12 +678,12 @@ void GeometryState<T>::CollectIndices(
     if (geometries_.count(geometry_id) == 1) {
       InternalGeometry& geometry = geometries_[geometry_id];
       if (geometry.has_proximity_role()) {
-        dynamic->insert(geometry.proximity_index());
+        dynamic->insert(geometry.internal_index());
       }
     } else if (anchored_geometries_.count(geometry_id) == 1) {
       InternalAnchoredGeometry& geometry = anchored_geometries_[geometry_id];
       if (geometry.has_proximity_role()) {
-        anchored->insert(geometry.proximity_index());
+        anchored->insert(geometry.internal_index());
       }
     } else {
       throw std::logic_error(
@@ -735,19 +742,19 @@ void GeometryState<T>::UpdatePosesRecursively(
   const auto frame_id = frame.get_id();
   const auto& X_PF = poses.value(frame_id);
   // Cache this transform for later use.
-  X_PF_[frame.get_pose_index()] = X_PF;
+  X_PF_[frame.internal_index()] = X_PF;
   Isometry3<T> X_WF = X_WP * X_PF;
   // TODO(SeanCurtis-TRI): Replace this when we have a transform object that
   // allows proper multiplication between an AutoDiff type and a double type.
   // For now, it allows me to perform the multiplication by multiplying the
   // fully-defined transformation (with [0 0 0 1] on the bottom row).
   X_WF.makeAffine();
-  X_WF_[frame.get_pose_index()] = X_WF;
+  X_WF_[frame.internal_index()] = X_WF;
 
   // Update the geometry which belong to *this* frame.
   for (auto child_id : frame.get_child_geometries()) {
     auto& child_geometry = geometries_[child_id];
-    auto child_index = child_geometry.pose_index();
+    auto child_index = child_geometry.internal_index();
     // TODO(SeanCurtis-TRI): See note above about replacing this when we have a
     // transform that supports autodiff * double.
     X_FG_[child_index].makeAffine();

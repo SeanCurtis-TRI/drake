@@ -26,19 +26,22 @@ InternalGeometry::InternalGeometry(std::unique_ptr<Shape> shape,
                                    FrameId frame_id, GeometryId geometry_id,
                                    const std::string& name,
                                    const Isometry3<double>& X_PG,
-                                   PoseIndex pose_index,
+                                   InternalIndex internal_index,
                                    const optional<GeometryId>& parent_id)
-    : InternalGeometryBase(std::move(shape), geometry_id, name, X_PG),
+    : InternalGeometryBase(std::move(shape), geometry_id, name, X_PG,
+                           internal_index),
       frame_id_(frame_id),
-      pose_index_(pose_index),
       parent_id_(parent_id) {}
 
 InternalAnchoredGeometry::InternalAnchoredGeometry() : InternalGeometryBase() {}
 
-InternalAnchoredGeometry::InternalAnchoredGeometry(
-    std::unique_ptr<Shape> shape, GeometryId geometry_id,
-    const std::string& name, const Isometry3<double> X_WG)
-    : InternalGeometryBase(std::move(shape), geometry_id, name, X_WG) {}
+InternalAnchoredGeometry::InternalAnchoredGeometry(std::unique_ptr<Shape> shape,
+                                                   GeometryId geometry_id,
+                                                   const std::string& name,
+                                                   const Isometry3<double> X_WG,
+                                                   InternalIndex internal_index)
+    : InternalGeometryBase(std::move(shape), geometry_id, name, X_WG,
+                           internal_index) {}
 
 }  // namespace internal
 }  // namespace geometry

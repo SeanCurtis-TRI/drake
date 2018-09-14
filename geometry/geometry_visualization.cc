@@ -207,7 +207,7 @@ lcmt_viewer_load_robot GeometryVisualizationImpl::BuildLoadMessage(
       const InternalGeometry& geometry = state.geometries_.at(geom_id);
       const IllustrationProperties* props = geometry.illustration_properties();
       if (props != nullptr) {
-        PoseIndex index = geometry.pose_index();
+        InternalIndex index = geometry.internal_index();
         const Isometry3<double>& X_FG = state.X_FG_[index];
         const Shape& shape = geometry.shape();
         const Eigen::Vector4d& color = props->GetPropertyOrDefault(

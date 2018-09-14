@@ -8,15 +8,17 @@ namespace geometry {
 /** Type used to locate any geometry in the render engine. */
 using RenderIndex = TypeSafeIndex<class RenderTag>;
 
-/** Type used to locate a dynamic geometry in the geometry engine. */
-using GeometryIndex = TypeSafeIndex<class GeometryTag>;
+/** Index into the dynamic geometries with a proximity role.  */
+using DynamicProximityIndex = TypeSafeIndex<class DynamicProximityTag>;
 
-/** Type used to locate an anchored geometry in the geometry engine. */
-using AnchoredGeometryIndex = TypeSafeIndex<class AnchoredGeometryTag>;
+/** Index into the anchored geometries with a proximity role.  */
+using AnchoredProximityIndex = TypeSafeIndex<class DynamicAnchoredTag>;
 
-/** Type used to locate a frame/dynamic geometry pose with respect to its parent
- frame in the geometry state. */
-using PoseIndex = TypeSafeIndex<class GeometryPoseTag>;
+/** Index into the global set of internal geometries -- spanning all roles. The
+ index can refer to either a dynamic geometry or an anchored geometry -- the
+ context determines which is valid.  In other words, the first InternalGeometry
+ and the first InternalAnchoredGeometry will have the same InternalIndex.  */
+using InternalIndex = TypeSafeIndex<class InternalGeometryTag>;
 
 }  // namespace geometry
 }  // namespace drake
