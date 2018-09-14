@@ -241,7 +241,7 @@ GTEST_TEST(GeometryProperties, PropertyIteration) {
 
   // Confirm that all properties have the right value and get visited.
   std::set<std::string> visited_properties;
-  for (const auto& pair: properties.GetGroupProperties(default_group)) {
+  for (const auto& pair : properties.GetGroupProperties(default_group)) {
     const std::string& name = pair.first;
     EXPECT_GT(reference.count(name), 0);
     EXPECT_EQ(reference[name],
@@ -249,7 +249,7 @@ GTEST_TEST(GeometryProperties, PropertyIteration) {
     visited_properties.insert(name);
   }
   EXPECT_EQ(reference.size(), visited_properties.size());
-} 
+}
 
 // Confirms that derived classes *can* be copied/moved.
 GTEST_TEST(GeometryProperties, CopyMoveSemantics) {
@@ -333,7 +333,7 @@ GTEST_TEST(GeometryProperties, CopyMoveSemantics) {
   // necessary. The move semantics aren't documented. However, given that this
   // is using default move semantics on unordered_map, we can assume that the
   // source is modified by the move. So, we'll go ahead and test that.
-  
+
   // Move construction.
   TestProperties move_construct(std::move(source));
   EXPECT_FALSE(properties_equal(reference, source));
@@ -345,7 +345,6 @@ GTEST_TEST(GeometryProperties, CopyMoveSemantics) {
   move_assign = std::move(move_construct);
   EXPECT_FALSE(properties_equal(reference, move_construct));
   EXPECT_TRUE(properties_equal(reference, move_assign));
-
 }
 
 }  // namespace

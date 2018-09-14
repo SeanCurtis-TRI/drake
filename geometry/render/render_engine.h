@@ -1,6 +1,8 @@
 
 #pragma once
 
+#include <memory>
+
 #include <Eigen/Dense>
 
 #include "drake/geometry/geometry_index.h"
@@ -31,10 +33,6 @@ namespace render {
      range finders (like that provided by DepthSensor) in which the depth
      value represents the distance from the sensor origin to the object's
      surface.
-<!--
-     TODO(SeanCurtis-TRI): Update when shaders can swap simple depth values
-     for actual distance calculations.
--->
 
    - Label (ImageLabel16I) : the label image has single channel represented
      by a int16_t. The value stored in the channel holds a RenderLabel value
@@ -43,9 +41,6 @@ namespace render {
      has already been defined for "terrain": RenderLabel::terrain_label(). */
 class RenderEngine : public ShapeReifier {
  public:
-  // TODO(SeanCurtis-TRI): Figure out what I'm doing with constructor and
-  // cloning.
-
   virtual ~RenderEngine() {}
 
   /** Clones the render engine -- making the RenderEngine compatible with

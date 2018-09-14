@@ -1,5 +1,7 @@
 #include "drake/geometry/render/render_engine_vtk.h"
 
+#include <limits>
+
 #include <vtkCamera.h>
 #include <vtkCubeSource.h>
 #include <vtkCylinderSource.h>

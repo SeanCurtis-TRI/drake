@@ -1552,7 +1552,6 @@ TEST_F(GeometryStateTest, RolePropertyValueAssignment) {
             read->GetProperty<double>(group1, "propA"));
   EXPECT_EQ(source.GetProperty<std::string>(group1, "propB"),
             read->GetProperty<std::string>(group1, "propB"));
-
 }
 
 // Tests that the internal indexing for a role is correct -- i.e., adding a

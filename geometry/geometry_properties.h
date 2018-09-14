@@ -4,6 +4,7 @@
 #include <set>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "fmt/ostream.h"
@@ -279,9 +280,10 @@ class GeometryProperties {
       PropertyGroup& group = iter->second;
       group[name] = std::make_unique<systems::Value<ValueType>>(value);
     } else {
-      throw std::logic_error(fmt::format(
-          "Trying to add property {} to group {}. But the group does not exist.",
-          name, group_name));
+      throw std::logic_error(
+          fmt::format("Trying to add property {} to group {}. But the group "
+                      "does not exist.",
+                      name, group_name));
     }
   }
 

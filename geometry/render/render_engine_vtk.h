@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <vector>
 
 #include <vtkActor.h>
 #include <vtkAutoInit.h>
@@ -8,8 +9,8 @@
 #include <vtkImageExport.h>
 #include <vtkNew.h>
 #include <vtkPolyDataAlgorithm.h>
-#include <vtkRenderer.h>
 #include <vtkRenderWindow.h>
+#include <vtkRenderer.h>
 #include <vtkShaderProgram.h>
 #include <vtkSmartPointer.h>
 #include <vtkWindowToImageFilter.h>
@@ -114,7 +115,7 @@ class RenderEngineVtk final : public RenderEngine,
   void RenderLabelImage(const CameraProperties& camera,
                         ImageLabel16I* label_image_out,
                         bool show_window) const override;
-  
+
   /** @name    Shape reification  */
   //@{
   void ImplementGeometry(const Sphere& sphere, void* user_data) override;

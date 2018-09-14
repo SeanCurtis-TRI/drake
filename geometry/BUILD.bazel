@@ -19,6 +19,8 @@ drake_cc_package_library(
         ":geometry_ids",
         ":geometry_index",
         ":geometry_instance",
+        ":geometry_properties",
+        ":geometry_roles",
         ":geometry_set",
         ":geometry_state",
         ":geometry_visualization",
@@ -27,10 +29,12 @@ drake_cc_package_library(
         ":internal_geometry",
         ":materials",
         ":proximity_engine",
+        ":render_material",
         ":scene_graph",
         ":scene_graph_inspector",
         ":shape_specification",
         ":utilities",
+        ":visual_material",
     ],
 )
 

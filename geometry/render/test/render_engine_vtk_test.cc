@@ -223,7 +223,6 @@ class RenderEngineVtkTest : public ::testing::Test {
             << "Expected depth at (" << coord.x << ", " << coord.y << ") to be "
             << expected_depth << ". Found " << actual_depth << ". Difference "
             << delta << "is greater than tolerance " << tolerance;
-
       }
     }
   }

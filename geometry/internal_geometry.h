@@ -265,7 +265,9 @@ class InternalAnchoredGeometry final : public InternalGeometryBase {
 
   AnchoredGeometryIndex proximity_index() const { return proximity_index_; }
 
-  // TODO: This should ideally be set when the property is set.
+  /** Sets the geometry's proximity index -- if it has a geometry role. This
+   should always be called in conjunction with assigning the proximty
+   properties.  */
   void set_proximity_index(AnchoredGeometryIndex index) {
     proximity_index_ = index;
   }
