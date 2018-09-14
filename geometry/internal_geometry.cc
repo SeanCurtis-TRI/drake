@@ -4,6 +4,22 @@ namespace drake {
 namespace geometry {
 namespace internal {
 
+bool InternalGeometryBase::has_role(Role role) const {
+  switch (role) {
+    case Role::kProximity:
+      return has_proximity_role();
+    case Role::kPerception:
+      return has_perception_role();
+    case Role::kIllustration:
+      return has_illustration_role();
+    default:
+      // THis should never be reached. The switch statement should be exhaustive
+      // of all enumeration values.
+      DRAKE_DEMAND(false);
+      return false;
+  }
+}
+
 InternalGeometry::InternalGeometry() : InternalGeometryBase() {}
 
 InternalGeometry::InternalGeometry(std::unique_ptr<Shape> shape,

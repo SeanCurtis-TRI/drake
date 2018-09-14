@@ -89,6 +89,9 @@ class InternalGeometryBase {
     perception_props_ = std::move(properties);
   }
 
+  /** Reports if the geometry has the indicated `role`.  */
+  bool has_role(Role role) const;
+
   /** Reports if the geometry has a proximity role. */
   bool has_proximity_role() const { return proximity_props_ != nullopt; }
 

@@ -1,5 +1,8 @@
 #pragma once
 
+#include <iostream>
+#include <string>
+
 #include "drake/common/drake_copyable.h"
 #include "drake/geometry/geometry_properties.h"
 
@@ -99,11 +102,18 @@ namespace geometry {
      representations of real-world object surfaces. The properties associated
      with this role are those necessary to draw the illustration.
 
+ Role assignment is achieved by assigning as set of role-related *properties*
+ to a geometry (see SceneGraph::AssignRole()). The set *can* be empty. Each
+ role has a specific property set associated with it:
+   - __Proximity role__: ProximityProperties
+   - __Percpetion role__: PerceptionProperties
+   - __Illustration role__: IllustrationProperties
+
  There can be multiple sets of properties associated with a single role. For
  example, in the Perception role, there are several mechanisms for synthesizing
- sensor data. They range from fast, low-fidelity images to slow, high-fidelity
- images. Each approach models the optical properties of objects differently and
- would require a different set of parameters.
+ sensor data. They range from cheap, low-fidelity images to expensive,
+ high-fidelity images. Each approach models the optical properties of objects
+ differently and would require a different set of parameters.
 
  Similarly, there can be multiple contact models that use both physical
  properties (e.g., stiffness and friction coefficients) as well as model
@@ -121,10 +131,18 @@ namespace geometry {
  always have at least one role to have any impact. But it can have multiple
  roles.
 
- Roles are assigned during geometry registration (see
- SceneGraph::RegisterGeometry()). */
+ Generally, any code that is dependent on geometry roles, should document the
+ type of role that is depends on, and the properties (if any) associated with
+ that role that id requires/prefers.
 
-/** The set of properties for geometry used in a *proximity* role.  */
+ Roles are assigned during geometry registration (see
+ SceneGraph::AssignRole()). */
+
+/** The set of properties for geometry used in a *proximity* role.
+
+ Examples of functionality that depends on the proximity role:
+   - n/a
+ */
 class ProximityProperties final : public GeometryProperties{
  public:
   DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(ProximityProperties);
@@ -134,7 +152,11 @@ class ProximityProperties final : public GeometryProperties{
   ProximityProperties() = default;
 };
 
-/** The set of properties for geometry used in a "perception" role.  */
+/** The set of properties for geometry used in a "perception" role.
+
+ Examples of functionality that depends on the perception role:
+   - n/a
+ */
 class PerceptionProperties final : public GeometryProperties{
  public:
   DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(PerceptionProperties);
@@ -144,13 +166,36 @@ class PerceptionProperties final : public GeometryProperties{
   PerceptionProperties() = default;
 };
 
-/** The set of properties for geometry used in an "illustration" role.  */
+/** The set of properties for geometry used in an "illustration" role.
+
+ Examples of functionality that depends on the illustration role:
+   - @ref geometry_visualization_role_dependency "drake::geometry::ConnectDrakeVisualizer()"
+ */
 class IllustrationProperties final : public GeometryProperties{
  public:
   DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(IllustrationProperties);
 
   IllustrationProperties() = default;
 };
+
+/** General enumeration for indicating geometry role.  */
+enum class Role {
+  kProximity,
+  kPerception,
+  kIllustration
+};
+
+/** @name  Geometry role to string conversions.
+
+ These are simply convenience functions for converting the Role enumeration into
+ a human-readable string. */
+//@{
+
+std::string to_string(const Role& role);
+
+std::ostream& operator<<(std::ostream& out, const Role& role);
+
+//@}
 
 }  // namespace geometry
 }  // namespace drake

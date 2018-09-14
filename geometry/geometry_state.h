@@ -266,6 +266,12 @@ class GeometryState {
                             geometry instance.  */
   const PerceptionProperties* get_perception_properties(GeometryId id) const;
 
+  /** Reports the number of child geometries for this frame that have the
+   indicated role assigned. This only includes the immediate child geometries of
+   *this* frame, and not those of child frames.
+   @throws std::logic_error if the `frame_id` does not map to a vliad frame.  */
+  int NumGeometryWithRole(FrameId frame_id, Role role) const;
+
   //@}
 
   /** @name        State management

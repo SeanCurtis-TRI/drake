@@ -1618,6 +1618,97 @@ TEST_F(GeometryStateTest, RoleAssignExceptions) {
       "Geometry already has illustration role assigned");
 }
 
+// Tests the functionality that counts the number of children geometry a frame
+// has for each role.
+TEST_F(GeometryStateTest, ChildGeometryRoleCount) {
+  // Defaults to *no* roles being set.
+  SetUpSingleSourceTree();
+
+  auto expected_roles = [this](
+      FrameId f_id, int num_proximity, int num_perception,
+      int num_illustration) -> ::testing::AssertionResult {
+    bool success = true;
+    ::testing::AssertionResult failure = ::testing::AssertionFailure();
+    std::vector<std::pair<Role, int>> roles{
+        {Role::kProximity, num_proximity},
+        {Role::kPerception, num_perception},
+        {Role::kIllustration, num_illustration}};
+    for (const auto& pair : roles) {
+      const Role role = pair.first;
+      const int expected_count = pair.second;
+      const int actual_count = geometry_state_.NumGeometryWithRole(f_id, role);
+      if (actual_count != expected_count) {
+        success = false;
+        failure << "\nExpected " << expected_count << " geometries with the "
+                << role << " role. Found " << actual_count;
+      }
+    }
+    if (success)
+      return ::testing::AssertionSuccess();
+    else
+      return failure;
+  };
+
+  // Assert initial conditions.
+  int proximity_count = 0;
+  int perception_count = 0;
+  int illustration_count = 0;
+  FrameId f_id = frames_[0];
+  ASSERT_TRUE(expected_roles(f_id, proximity_count, perception_count,
+                             illustration_count));
+
+  // Confirm the two geometries I'm going to play with belong to the same frame.
+  GeometryId g_id1 = geometries_[0];
+  GeometryId g_id2 = geometries_[1];
+  ASSERT_EQ(f_id, geometry_state_.GetFrameId(g_id1));
+  ASSERT_EQ(f_id, geometry_state_.GetFrameId(g_id2));
+
+  // Now start assigning roles and confirm results. Do *not* re-order these
+  // tests; the expected results accumulate.
+  geometry_state_.AssignRole(source_id_, g_id1, ProximityProperties());
+  ++proximity_count;
+  ASSERT_TRUE(expected_roles(f_id, proximity_count, perception_count,
+                             illustration_count));
+
+  geometry_state_.AssignRole(source_id_, g_id2, IllustrationProperties());
+  ++illustration_count;
+  ASSERT_TRUE(expected_roles(f_id, proximity_count, perception_count,
+                             illustration_count));
+
+  geometry_state_.AssignRole(source_id_, g_id1, IllustrationProperties());
+  ++illustration_count;
+  ASSERT_TRUE(expected_roles(f_id, proximity_count, perception_count,
+                             illustration_count));
+
+  geometry_state_.AssignRole(source_id_, g_id1, PerceptionProperties());
+  ++perception_count;
+  ASSERT_TRUE(expected_roles(f_id, proximity_count, perception_count,
+                             illustration_count));
+
+  geometry_state_.AssignRole(source_id_, g_id2, PerceptionProperties());
+  ++perception_count;
+  ASSERT_TRUE(expected_roles(f_id, proximity_count, perception_count,
+                             illustration_count));
+
+  geometry_state_.AssignRole(source_id_, g_id2, ProximityProperties());
+  ++proximity_count;
+  ASSERT_TRUE(expected_roles(f_id, proximity_count, perception_count,
+                             illustration_count));
+
+  // Now test against anchored geometry by passing in the world frame.
+  FrameId world_id = internal::InternalFrame::get_world_frame_id();
+  ASSERT_TRUE(expected_roles(world_id, 0, 0, 0));
+  geometry_state_.AssignRole(source_id_, anchored_geometry_,
+                             ProximityProperties());
+  ASSERT_TRUE(expected_roles(world_id, 1, 0, 0));
+  geometry_state_.AssignRole(source_id_, anchored_geometry_,
+                             PerceptionProperties());
+  ASSERT_TRUE(expected_roles(world_id, 1, 1, 0));
+  geometry_state_.AssignRole(source_id_, anchored_geometry_,
+                             IllustrationProperties());
+  ASSERT_TRUE(expected_roles(world_id, 1, 1, 1));
+}
+
 }  // namespace
 }  // namespace geometry
 }  // namespace drake

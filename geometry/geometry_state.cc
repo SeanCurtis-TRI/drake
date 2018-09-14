@@ -10,6 +10,7 @@
 #include "drake/common/default_scalars.h"
 #include "drake/geometry/geometry_frame.h"
 #include "drake/geometry/geometry_instance.h"
+#include "drake/geometry/geometry_roles.h"
 #include "drake/geometry/proximity_engine.h"
 #include "drake/geometry/render/render_engine_vtk.h"
 #include "drake/geometry/utilities.h"
@@ -254,6 +255,26 @@ const PerceptionProperties* GeometryState<T>::get_perception_properties(
   const InternalGeometryBase* geometry = GetGeometry(id);
   if (geometry != nullptr) return geometry->perception_properties();
   return nullptr;
+}
+
+template <typename T>
+int GeometryState<T>::NumGeometryWithRole(FrameId frame_id, Role role) const {
+  int count = 0;
+  if (frame_id == internal::InternalFrame::get_world_frame_id()) {
+    for (const auto& pair : anchored_geometries_) {
+      if (pair.second.has_role(role)) ++count;
+    }
+  } else {
+    FindOrThrow(frame_id, frames_, [frame_id, role]() {
+      return "Cannot report number of geometries with the " + to_string(role) +
+          " role for invalid frame id: " + to_string(frame_id);
+    });
+    const InternalFrame& frame = frames_.at(frame_id);
+    for (GeometryId id : frame.get_child_geometries()) {
+      if (geometries_.at(id).has_role(role)) ++count;
+    }
+  }
+  return count;
 }
 
 template <typename T>

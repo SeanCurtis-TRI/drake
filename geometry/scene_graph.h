@@ -371,6 +371,51 @@ class SceneGraph final : public systems::LeafSystem<T> {
   GeometryId RegisterAnchoredGeometry(
       SourceId source_id, std::unique_ptr<GeometryInstance> geometry);
 
+  /** Assigns the given geometry id the proximity role by assigning it the given
+   set of proximity properties.
+
+   @param source_id     The id of the geometry source that owns the geometry.
+   @param geometry_id   The geometry to assign a role.
+   @param properties    The proximity properties for this geometry.
+   @throws std::logic_error if 1. source id is invalid,
+                               2. geometry id is invalid,
+                               3. geometry id is not owned by the source id,
+                               4. geometry has already had a proximity role
+                                  assigned,
+                               5. a context has been allocated.  */
+  void AssignRole(SourceId source_id, GeometryId geometry_id,
+                  ProximityProperties properties);
+
+  /** Assigns the given geometry id the perception role by assigning it the
+   given set of proximity properties.
+
+   @param source_id     The id of the geometry source that owns the geometry.
+   @param geometry_id   The geometry to assign a role.
+   @param properties    The perception properties for this geometry.
+   @throws std::logic_error if 1. source id is invalid,
+                               2. geometry id is invalid,
+                               3. geometry id is not owned by the source id,
+                               4. geometry has already had a perception role
+                                  assigned,
+                               5. a context has been allocated.  */
+  void AssignRole(SourceId source_id, GeometryId geometry_id,
+                  PerceptionProperties properties);
+
+  /** Assigns the given geometry id the illustration role by assigning it the
+   given set of proximity properties.
+
+   @param source_id     The id of the geometry source that owns the geometry.
+   @param geometry_id   The geometry to assign a role.
+   @param properties    The illustration properties for this geometry.
+   @throws std::logic_error if 1. source id is invalid,
+                               2. geometry id is invalid,
+                               3. geometry id is not owned by the source id,
+                               4. geometry has already had a illustration role
+                                  assigned,
+                               5. a context has been allocated.  */
+  void AssignRole(SourceId source_id, GeometryId geometry_id,
+                  IllustrationProperties properties);
+
   //@}
 
   /** Reports the identifier for the world frame. */

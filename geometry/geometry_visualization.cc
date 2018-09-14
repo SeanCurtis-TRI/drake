@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "drake/common/drake_copyable.h"
@@ -135,15 +136,30 @@ lcmt_viewer_load_robot GeometryVisualizationImpl::BuildLoadMessage(
 
   lcmt_viewer_load_robot message{};
   // Populate the message.
-  const int frame_count = state.get_num_frames();
-  const int anchored_count =
-      static_cast<int>(state.anchored_geometry_index_id_map_.size());
 
-  // Include the world frame as one of the frames (if there are anchored
-  // geometries).
-  int total_link_count = frame_count + (anchored_count > 0 ? 1 : 0);
+  // Determine the number of frames that actually have illustration geometry.
+  // The list of all *dynamic* frames that have illustration geometry (and how
+  // many they have).
+  std::vector<std::pair<FrameId, int>> dynamic_frames;
+  // Count up the number of dynamic frames.
+  for (const auto& pair : state.frames_) {
+    const FrameId frame_id = pair.first;
+    const int count = state.NumGeometryWithRole(frame_id, Role::kIllustration);
+    if (count > 0) {
+      dynamic_frames.push_back({frame_id, count});
+    }
+  }
+  // Add the world frame if it has geometries with illustration role.
+  const int anchored_count = state.NumGeometryWithRole(
+      internal::InternalFrame::get_world_frame_id(), Role::kIllustration);
+  const int frame_count = static_cast<int>(dynamic_frames.size()) +
+      (anchored_count > 0 ? 1 : 0);
+
+  const int total_link_count = frame_count;
   message.num_links = total_link_count;
   message.link.resize(total_link_count);
+
+  const Eigen::Vector4d default_color({0.35, 0.75, 0.9, 1.0});
 
   int link_index = 0;
   // Load anchored geometry into the world frame.
@@ -156,20 +172,26 @@ lcmt_viewer_load_robot GeometryVisualizationImpl::BuildLoadMessage(
       int geom_index = 0;
       for (const auto& pair : state.anchored_geometries_) {
         const InternalAnchoredGeometry& geometry = pair.second;
-        const Shape& shape = geometry.get_shape();
-        const Eigen::Vector4d& color =
-            geometry.get_visual_material().diffuse();
-        message.link[0].geom[geom_index] = MakeGeometryData(
-            shape, geometry.get_pose_in_parent(), color);
-        ++geom_index;
+        const IllustrationProperties* props =
+            geometry.illustration_properties();
+        if (props != nullptr) {
+          const Shape& shape = geometry.shape();
+          const Eigen::Vector4d& color = props->GetPropertyOrDefault(
+              "drake_visualizer", "diffuse", default_color);
+          message.link[0].geom[geom_index] = MakeGeometryData(
+              shape, geometry.pose_in_parent(), color);
+          ++geom_index;
+        }
       }
       link_index = 1;
     }
   }
 
   // Load dynamic geometry into their own frames.
-  for (const auto& pair : state.frames_) {
-    const internal::InternalFrame& frame = pair.second;
+  for (const auto& pair : dynamic_frames) {
+    const FrameId frame_id = pair.first;
+    const int geometry_count = pair.second;
+    const internal::InternalFrame& frame = state.frames_.at(frame_id);
     SourceId s_id = state.get_source_id(frame.get_id());
     const std::string& src_name = state.get_source_name(s_id);
     // TODO(SeanCurtis-TRI): The name in the load message *must* match the name
@@ -177,21 +199,23 @@ lcmt_viewer_load_robot GeometryVisualizationImpl::BuildLoadMessage(
     // use a common code-base to translate (source_id, frame) -> name.
     message.link[link_index].name = src_name + "::" + frame.get_name();
     message.link[link_index].robot_num = frame.get_frame_group();
-    const int geom_count = static_cast<int>(
-        frame.get_child_geometries().size());
-    message.link[link_index].num_geom = geom_count;
-    message.link[link_index].geom.resize(geom_count);
+    message.link[link_index].num_geom = geometry_count;
+    message.link[link_index].geom.resize(geometry_count);
     int geom_index = 0;
     for (GeometryId geom_id : frame.get_child_geometries()) {
+      // TODO(SeanCurtis-TRI): SKip geometries without illustration role.
       const InternalGeometry& geometry = state.geometries_.at(geom_id);
-      GeometryIndex index = geometry.get_engine_index();
-      const Isometry3<double> X_FG = state.X_FG_.at(index);
-      const Shape& shape = geometry.get_shape();
-      const Eigen::Vector4d& color =
-          geometry.get_visual_material().diffuse();
-      message.link[link_index].geom[geom_index] =
-          MakeGeometryData(shape, X_FG, color);
-      ++geom_index;
+      const IllustrationProperties* props = geometry.illustration_properties();
+      if (props != nullptr) {
+        PoseIndex index = geometry.pose_index();
+        const Isometry3<double>& X_FG = state.X_FG_[index];
+        const Shape& shape = geometry.shape();
+        const Eigen::Vector4d& color = props->GetPropertyOrDefault(
+            "drake_visualizer", "diffuse", default_color);
+        message.link[link_index].geom[geom_index] =
+            MakeGeometryData(shape, X_FG, color);
+        ++geom_index;
+      }
     }
     ++link_index;
   }

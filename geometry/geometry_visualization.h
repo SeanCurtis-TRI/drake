@@ -43,6 +43,19 @@ class GeometryVisualizationImpl {
    system, and
  - sets the publishing rate to 1/60 of a second (simulated time).
 
+ @anchor geometry_visualization_role_dependency
+ The visualization mechanism depends on the illustration role (see
+ @ref geometry_roles for details). Specifically, only geometries with
+ the illustration role assigned will be included. The visualization function
+ looks for the following properties in the IllustrationProperties instance:
+ |    Group name    | Property Name |  Property Type  | Property Description |
+ | :--------------: | :-----------: | :-------------: | :------------------- |
+ | drake_visualizer | diffuse       | Eigen::Vector4d | The rgba value of the object surface |
+
+ a property group called "drake_visualizer" and consumes a single property:
+ an Eigen::Vector4d with the name "diffuse". It is the rgba value of the
+ corresponding geometry.
+
  You can then connect source output ports for visualization like this:
  @code
    builder->Connect(pose_output_port,

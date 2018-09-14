@@ -191,6 +191,30 @@ GeometryId SceneGraph<T>::RegisterAnchoredGeometry(
 }
 
 template <typename T>
+void SceneGraph<T>::AssignRole(SourceId source_id,
+                               GeometryId geometry_id,
+                               ProximityProperties properties) {
+  GS_THROW_IF_CONTEXT_ALLOCATED
+  initial_state_->AssignRole(source_id, geometry_id, properties);
+}
+
+template <typename T>
+void SceneGraph<T>::AssignRole(SourceId source_id,
+                               GeometryId geometry_id,
+                               PerceptionProperties properties) {
+  GS_THROW_IF_CONTEXT_ALLOCATED
+  initial_state_->AssignRole(source_id, geometry_id, properties);
+}
+
+template <typename T>
+void SceneGraph<T>::AssignRole(SourceId source_id,
+                               GeometryId geometry_id,
+                               IllustrationProperties properties) {
+  GS_THROW_IF_CONTEXT_ALLOCATED
+  initial_state_->AssignRole(source_id, geometry_id, properties);
+}
+
+template <typename T>
 const SceneGraphInspector<T>& SceneGraph<T>::model_inspector() const {
   GS_THROW_IF_CONTEXT_ALLOCATED
   return model_inspector_;
