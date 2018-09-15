@@ -818,10 +818,10 @@ class MultibodyPlant : public systems::LeafSystem<T> {
   ///   The geometry::Shape used for visualization. E.g.: geometry::Sphere,
   ///   geometry::Cylinder, etc.
   /// @param[in] name
-  ///   The name for the geometry. It must satsify the requirements defined in
+  ///   The name for the geometry. It must satisfy the requirements defined in
   ///   drake::geometry::GeometryInstance.
-  /// @param[in] material
-  ///   The visual material to assign to the geometry.
+  /// @param[in] properties
+  ///   The illustration properties for this geometry.
   /// @param[out] scene_graph
   ///   A valid non nullptr to a SceneGraph on which geometry will get
   ///   registered.
@@ -833,7 +833,16 @@ class MultibodyPlant : public systems::LeafSystem<T> {
   geometry::GeometryId RegisterVisualGeometry(
       const Body<T>& body, const Isometry3<double>& X_BG,
       const geometry::Shape& shape, const std::string& name,
-      const geometry::VisualMaterial& material,
+      const geometry::IllustrationProperties& properties,
+      geometry::SceneGraph<T>* scene_graph);
+
+  /// Overload for visual geometry registration; it converts the diffuse_color
+  /// into a geometry::ConnectDrakeVisualizer()-compatible set of
+  /// geometry::IllustrationProperties.
+  geometry::GeometryId RegisterVisualGeometry(
+      const Body<T>& body, const Isometry3<double>& X_BG,
+      const geometry::Shape& shape, const std::string& name,
+      const Vector4<double>& diffuse_color,
       geometry::SceneGraph<T>* scene_graph);
 
   /// Overload for visual geometry registration; it implicitly assigns the
@@ -1471,7 +1480,6 @@ class MultibodyPlant : public systems::LeafSystem<T> {
       const Body<T>& body, const Isometry3<double>& X_BG,
       const geometry::Shape& shape,
       const std::string& name,
-      const optional<geometry::VisualMaterial>& material,
       geometry::SceneGraph<T>* scene_graph);
 
   // Helper method to register anchored geometry to the world, either visual or
@@ -1484,7 +1492,6 @@ class MultibodyPlant : public systems::LeafSystem<T> {
   geometry::GeometryId RegisterAnchoredGeometry(
       const Isometry3<double>& X_WG, const geometry::Shape& shape,
       const std::string& name,
-      const optional<geometry::VisualMaterial>& material,
       geometry::SceneGraph<T>* scene_graph);
 
   bool body_has_registered_frame(const Body<T>& body) const {

@@ -34,7 +34,6 @@ drake_cc_package_library(
         ":scene_graph_inspector",
         ":shape_specification",
         ":utilities",
-        ":visual_material",
     ],
 )
 
@@ -149,6 +148,8 @@ drake_cc_library(
     deps = [":geometry_ids"],
 )
 
+# TODO(SeanCurtis-TRI): kill this and have the render engine use the
+# PercpetionProperties instead.
 drake_cc_library(
     # NOTE: The material library and file name don't appear to match. This
     # library will eventually contain multiple types of materials (e.g.,
@@ -156,15 +157,7 @@ drake_cc_library(
     name = "materials",
     deps = [
         ":render_material",
-        ":visual_material",
     ],
-)
-
-drake_cc_library(
-    name = "visual_material",
-    srcs = ["visual_material.cc"],
-    hdrs = ["visual_material.h"],
-    deps = ["//common"],
 )
 
 drake_cc_library(
@@ -390,13 +383,6 @@ drake_cc_googletest(
 drake_cc_googletest(
     name = "utilities_test",
     deps = ["utilities"],
-)
-
-drake_cc_googletest(
-    name = "visual_material_test",
-    deps = [
-        ":materials",
-    ],
 )
 
 add_lint_tests()

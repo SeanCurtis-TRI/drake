@@ -420,6 +420,9 @@ class GeometryProperties {
   // The collection of property groups.
   std::unordered_map<std::string, PropertyGroup> values_;
 
+  friend std::ostream& operator<<(std::ostream& out,
+                                  const GeometryProperties& props);
+
   // An arbitrary name of the "default" nameless group.
   static const std::string kDefaultGroup;
 };

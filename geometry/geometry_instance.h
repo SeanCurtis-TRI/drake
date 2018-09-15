@@ -9,7 +9,6 @@
 #include "drake/common/eigen_types.h"
 #include "drake/geometry/geometry_ids.h"
 #include "drake/geometry/shape_specification.h"
-#include "drake/geometry/visual_material.h"
 
 namespace drake {
 namespace geometry {

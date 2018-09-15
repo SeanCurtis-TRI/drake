@@ -380,13 +380,14 @@ void AddLinksFromSpecification(
             *link.VisualByIndex(visual_index), package_map, root_dir);
         unique_ptr<GeometryInstance> geometry_instance =
             detail::MakeGeometryInstanceFromSdfVisual(sdf_visual);
+        geometry::IllustrationProperties properties =
+            detail::MakeVisualPropertiesFromSdfVisual(sdf_visual);
         // We check for nullptr in case someone decided to specify an SDF
         // <empty/> geometry.
         if (geometry_instance) {
           plant->RegisterVisualGeometry(
               body, geometry_instance->pose(), geometry_instance->shape(),
-              geometry_instance->name(), geometry_instance->visual_material(),
-              scene_graph);
+              geometry_instance->name(), properties, scene_graph);
         }
       }
 

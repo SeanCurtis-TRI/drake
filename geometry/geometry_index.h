@@ -13,11 +13,11 @@ using DynamicProximityIndex = TypeSafeIndex<class DynamicProximityTag>;
 
 /** Index into the anchored geometries with a proximity role.  */
 using AnchoredProximityIndex = TypeSafeIndex<class DynamicAnchoredTag>;
-
-/** Index into the global set of internal geometries -- spanning all roles. The
- index can refer to either a dynamic geometry or an anchored geometry -- the
- context determines which is valid.  In other words, the first InternalGeometry
- and the first InternalAnchoredGeometry will have the same InternalIndex.  */
+/** Index into the global set of internal entities -- spanning all roles. The
+ index can refer to either a dynamic geometry, an anchored geometry, or a frame
+ -- the context determines which is valid.  In other words, the first
+ InternalGeometry, the first InternalAnchoredGeometry, and the first
+ InternalFrame will all have the same InternalIndex.  */
 using InternalIndex = TypeSafeIndex<class InternalGeometryTag>;
 
 }  // namespace geometry

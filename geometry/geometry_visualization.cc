@@ -159,7 +159,7 @@ lcmt_viewer_load_robot GeometryVisualizationImpl::BuildLoadMessage(
   message.num_links = total_link_count;
   message.link.resize(total_link_count);
 
-  const Eigen::Vector4d default_color({0.35, 0.75, 0.9, 1.0});
+  const Eigen::Vector4d default_color({0.9, 0.9, 0.9, 1.0});
 
   int link_index = 0;
   // Load anchored geometry into the world frame.
@@ -177,7 +177,7 @@ lcmt_viewer_load_robot GeometryVisualizationImpl::BuildLoadMessage(
         if (props != nullptr) {
           const Shape& shape = geometry.shape();
           const Eigen::Vector4d& color = props->GetPropertyOrDefault(
-              "drake_visualizer", "diffuse", default_color);
+              "phong", "diffuse", default_color);
           message.link[0].geom[geom_index] = MakeGeometryData(
               shape, geometry.pose_in_parent(), color);
           ++geom_index;
@@ -211,7 +211,7 @@ lcmt_viewer_load_robot GeometryVisualizationImpl::BuildLoadMessage(
         const Isometry3<double>& X_FG = state.X_FG_[index];
         const Shape& shape = geometry.shape();
         const Eigen::Vector4d& color = props->GetPropertyOrDefault(
-            "drake_visualizer", "diffuse", default_color);
+            "phong", "diffuse", default_color);
         message.link[link_index].geom[geom_index] =
             MakeGeometryData(shape, X_FG, color);
         ++geom_index;
@@ -272,6 +272,14 @@ void ConnectDrakeVisualizer(systems::DiagramBuilder<double>* builder,
   builder->Connect(scene_graph.get_pose_bundle_output_port(),
                    converter->get_input_port(0));
   builder->Connect(*converter, *publisher);
+}
+
+IllustrationProperties MakeDrakeVisualizerProperties(
+    const Vector4<double>& diffuse) {
+  IllustrationProperties props;
+  props.AddGroup("phong");
+  props.AddProperty("phong", "diffuse", diffuse);
+  return props;
 }
 
 }  // namespace geometry

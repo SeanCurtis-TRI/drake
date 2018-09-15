@@ -30,31 +30,46 @@ std::unique_ptr<geometry::Shape> MakeShapeFromSdfGeometry(
 std::unique_ptr<geometry::GeometryInstance> MakeGeometryInstanceFromSdfVisual(
     const sdf::Visual& sdf_visual);
 
-/// Given an sdf::Visual object representing a <visual> element from an SDF
-/// file, this method makes a new @ref drake::geometry::VisualMaterial
-/// "VisualMaterial" object from the specification.
-///
-/// The visual material comes from the child <material> tag. E.g.,
-/// ```xml
-/// <visual>
-///   <geometry>
-///   ...
-///   </geometry>
-///   <material>
-///     <ambient>r_a g_a b_a a_a</ambient>
-///     <diffuse>r_d g_d b_d a_d</diffuse>
-///     <specular>r_s g_s b_s a_s</specular>
-///     <emissive>r_e g_e b_e a_e</emissive>
-///   </material>
-/// </visual>
-/// ```
-/// If there is no material tag, the supported material tags are missing, or
-/// there is an error parsing the supported values, the instantiated
-/// VisualMaterial will use default values. (See geometry::VisualMaterial for
-/// description of the default color.)
-///
-/// @note Currently, only the diffuse value is included in the VisualMaterial.
-geometry::VisualMaterial MakeVisualMaterialFromSdfVisual(
+// NOTE: This doxygen style doesn't match the rest of the file because the
+// linter ignores line length in these style of comments, allowing the embedded
+// table to overflow the line length.
+/** Extracts the material properties from the given sdf::Visual object.
+ The sdf::Visual object represents a corresponding <visual> tag from an SDF
+ file. The material properties are placed into a
+ geometry::IllustrationProperties as follows:
+
+ | Group |   Name   |      Type      | Description |
+ | :---: | :------: | :------------: | :---------- |
+ | phong | diffuse  | Vector<double> | The normalized rgba values for the diffuse color |
+ | phong | ambient  | Vector<double> | The normalized rgba values for the ambient color |
+ | phong | specular | Vector<double> | The normalized rgba values for the specular color |
+ | phong | emissive | Vector<double> | The normalized rgba values for the emissive color |
+
+ These are properties to be used in the
+ <a href="https://en.wikipedia.org/wiki/Phong_reflection_model">Phong
+ lighting model</a> and are taken from the similarly named property tags (see
+ below). If any of `ambient`, `diffuse`, `specular`, or `emissive` tags are
+ missing, that property will be omitted from the property set and the result
+ will depend on the class that consumes the property set.
+
+ The material properties come from the child <material> tag. E.g.,
+ ```xml
+ <visual>
+   <geometry>
+   ...
+   </geometry>
+   <material>
+     <ambient>r_a g_a b_a a_a</ambient>
+     <diffuse>r_d g_d b_d a_d</diffuse>
+     <specular>r_s g_s b_s a_s</specular>
+     <emissive>r_e g_e b_e a_e</emissive>
+   </material>
+ </visual>
+ ```
+ If there is no material tag, the supported material tags are missing, or
+ there is an error parsing the supported values, the instantiated
+ properties will use default values. */
+geometry::IllustrationProperties MakeVisualPropertiesFromSdfVisual(
     const sdf::Visual& sdf_visual);
 
 /// Given `sdf_collision` stemming from the parsing of a `<collision>` element

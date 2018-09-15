@@ -6,8 +6,10 @@
 
 #include "drake/common/drake_assert.h"
 #include "drake/geometry/geometry_frame.h"
+#include "drake/geometry/geometry_ids.h"
 #include "drake/geometry/geometry_instance.h"
-#include "drake/geometry/visual_material.h"
+#include "drake/geometry/geometry_roles.h"
+#include "drake/geometry/geometry_visualization.h"
 #include "drake/systems/framework/basic_vector.h"
 #include "drake/systems/framework/framework_common.h"
 
@@ -19,12 +21,14 @@ using geometry::Cylinder;
 using geometry::FrameId;
 using geometry::FramePoseVector;
 using geometry::GeometryFrame;
+using geometry::GeometryId;
 using geometry::GeometryInstance;
+using geometry::IllustrationProperties;
+using geometry::MakeDrakeVisualizerProperties;
 using geometry::Mesh;
 using geometry::SceneGraph;
 using geometry::Shape;
 using geometry::Sphere;
-using geometry::VisualMaterial;
 
 template <typename T>
 RigidBodyPlantBridge<T>::RigidBodyPlantBridge(const RigidBodyTree<T>* tree,
@@ -128,10 +132,11 @@ void RigidBodyPlantBridge<T>::RegisterTree(SceneGraph<T>* scene_graph) {
           // Visual element's "material" is simply the diffuse rgba values.
           const Vector4<double>& diffuse = visual_element.getMaterial();
           const std::string name = "visual_" + std::to_string(visual_count++);
-          scene_graph->RegisterGeometry(
+          GeometryId id = scene_graph->RegisterGeometry(
               source_id_, body_id,
-              std::make_unique<GeometryInstance>(X_FG, std::move(shape), name,
-                                                 VisualMaterial(diffuse)));
+              std::make_unique<GeometryInstance>(X_FG, std::move(shape), name));
+          scene_graph->AssignRole(source_id_, id,
+                                  MakeDrakeVisualizerProperties(diffuse));
           DRAKE_DEMAND(shape == nullptr);
         }
       }

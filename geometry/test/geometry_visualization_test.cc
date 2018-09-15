@@ -47,11 +47,9 @@ GTEST_TEST(GeometryVisualization, SimpleScene) {
       source_id, frame_id,
       make_unique<GeometryInstance>(Isometry3d::Identity(),
                                     make_unique<Sphere>(radius), "sphere"));
-  IllustrationProperties properties;
-  properties.AddGroup("drake_visualizer");
   Vector4<double> color{r, g, b, a};
-  properties.AddProperty("drake_visualizer", "diffuse", color);
-  scene_graph.AssignRole(source_id, sphere_id, properties);
+  scene_graph.AssignRole(source_id, sphere_id,
+                         MakeDrakeVisualizerProperties(color));
 
   // Add a second frame and geometry that only has collision properties. It
   // should not impact the result.
