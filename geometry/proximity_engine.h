@@ -77,16 +77,15 @@ class ProximityEngine {
   /** Adds the given `shape` to the engine's dynamic geometry. Also provides the
    dynamic geometry's internal index for the shape so it can be mapped back into
    the world. */
-  DynamicProximityIndex AddDynamicGeometry(const Shape& shape,
-                                           InternalIndex index);
+  ProximityIndex AddDynamicGeometry(const Shape& shape, InternalIndex index);
 
   /** Adds the given `shape` to the engine's anchored geometry at the fixed
    pose given by `X_WG` (in the world frame W). Also provides the
    dynamic geometry's internal index for the shape so it can be mapped back into
    the world. */
-  AnchoredProximityIndex AddAnchoredGeometry(const Shape& shape,
-                                             const Isometry3<double>& X_WG,
-                                             InternalIndex index);
+  ProximityIndex AddAnchoredGeometry(const Shape& shape,
+                                     const Isometry3<double>& X_WG,
+                                     InternalIndex index);
 
   /** Reports the _total_ number of geometries in the engine -- dynamic and
    anchored (spanning all sources).  */

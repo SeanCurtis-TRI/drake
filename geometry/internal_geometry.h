@@ -128,7 +128,14 @@ class InternalGeometryBase {
   }
 
   RenderIndex render_index() const { return render_index_; }
+
   void set_render_index(RenderIndex index) { render_index_ = index; }
+
+  ProximityIndex proximity_index() const { return proximity_index_; }
+
+  void set_proximity_index(ProximityIndex index) {
+    proximity_index_ = index;
+  }
 
  private:
   // The specification for this instance's shape.
@@ -158,6 +165,12 @@ class InternalGeometryBase {
   optional<IllustrationProperties> illustration_props_{nullopt};
   optional<PerceptionProperties> perception_props_{nullopt};
   RenderIndex render_index_{};
+
+  // The index of the geometry in the engine. Note: is currently unused but will
+  // gain importance when the API for *removing* geometry is added. It is the
+  // mechanism by which we map a geometry to its instantiation in the proximity
+  // engine.
+  ProximityIndex proximity_index_{};
 };
 
 /** This class represents the internal representation of registered _dynamic_
@@ -191,12 +204,6 @@ class InternalGeometry final : public InternalGeometryBase {
   optional<GeometryId> parent_id() const { return parent_id_; }
 
   void set_parent_id(GeometryId id) { parent_id_ = id; }
-
-  DynamicProximityIndex proximity_index() const { return proximity_index_; }
-
-  void set_proximity_index(DynamicProximityIndex index) {
-    proximity_index_ = index;
-  }
 
   /** Returns true if this geometry has a geometry parent and the parent has the
    given `geometry_id`. */
@@ -239,9 +246,6 @@ class InternalGeometry final : public InternalGeometryBase {
   // The identifier of the frame to which this geometry belongs.
   FrameId frame_id_;
 
-  // The index of the geometry in the engine.
-  DynamicProximityIndex proximity_index_{};
-
   // The identifier for this frame's parent frame.
   optional<GeometryId> parent_id_;
 
@@ -271,19 +275,6 @@ class InternalAnchoredGeometry final : public InternalGeometryBase {
                            const std::string& name,
                            const Isometry3<double> X_WG,
                            InternalIndex internal_index);
-
-  /** Sets the geometry's proximity index -- if it has a geometry role. This
-   should always be called in conjunction with assigning the proximity
-   properties.  */
-  void set_proximity_index(AnchoredProximityIndex index) {
-    proximity_index_ = index;
-  }
-
-  AnchoredProximityIndex proximity_index() const { return proximity_index_; }
-
- private:
-  // The index of the geometry in the engine.
-  AnchoredProximityIndex proximity_index_{};
 };
 
 }  // namespace internal

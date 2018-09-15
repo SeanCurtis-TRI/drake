@@ -549,15 +549,14 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
     return engine;
   }
 
-  DynamicProximityIndex AddDynamicGeometry(const Shape& shape,
-                                           InternalIndex index) {
+  ProximityIndex AddDynamicGeometry(const Shape& shape,
+                                    InternalIndex index) {
     // The collision object gets instantiated in the reification process and
     // placed in this unique pointer.
     std::unique_ptr<fcl::CollisionObject<double>> fcl_object;
     shape.Reify(this, &fcl_object);
     dynamic_tree_.registerObject(fcl_object.get());
-    DynamicProximityIndex proximity_index(
-        static_cast<int>(dynamic_objects_.size()));
+    ProximityIndex proximity_index(static_cast<int>(dynamic_objects_.size()));
     // Encode the *global* pose index so that the geometry id can be looked up
     // in the event of a collision.
     EncodedData encoding(index, true /* is dynamic */);
@@ -567,17 +566,16 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
     return proximity_index;
   }
 
-  AnchoredProximityIndex AddAnchoredGeometry(const Shape& shape,
-                                             const Isometry3<double>& X_WG,
-                                             InternalIndex index) {
+  ProximityIndex AddAnchoredGeometry(const Shape& shape,
+                                     const Isometry3<double>& X_WG,
+                                     InternalIndex index) {
     // The collision object gets instantiated in the reification process and
     // placed in this unique pointer.
     std::unique_ptr<fcl::CollisionObject<double>> fcl_object;
     shape.Reify(this, &fcl_object);
     fcl_object->setTransform(X_WG);
     anchored_tree_.registerObject(fcl_object.get());
-    AnchoredProximityIndex proximity_index(
-        static_cast<int>(anchored_objects_.size()));
+    ProximityIndex proximity_index(static_cast<int>(anchored_objects_.size()));
     EncodedData encoding(index, false /* is dynamic */);
     encoding.store_in(fcl_object.get());
     anchored_objects_.emplace_back(std::move(fcl_object));
@@ -930,13 +928,13 @@ ProximityEngine<T>& ProximityEngine<T>::operator=(
 }
 
 template <typename T>
-DynamicProximityIndex ProximityEngine<T>::AddDynamicGeometry(
+ProximityIndex ProximityEngine<T>::AddDynamicGeometry(
     const Shape& shape, InternalIndex pose_index) {
   return impl_->AddDynamicGeometry(shape, pose_index);
 }
 
 template <typename T>
-AnchoredProximityIndex ProximityEngine<T>::AddAnchoredGeometry(
+ProximityIndex ProximityEngine<T>::AddAnchoredGeometry(
     const Shape& shape, const Isometry3<double>& X_WG, InternalIndex index) {
   return impl_->AddAnchoredGeometry(shape, X_WG, index);
 }

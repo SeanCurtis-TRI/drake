@@ -500,7 +500,7 @@ void GeometryState<T>::AssignRole(SourceId source_id,
   if (dynamic_geometry != nullptr) {
     // Pass the geometry to the engine.
     const InternalIndex internal_index = dynamic_geometry->internal_index();
-    DynamicProximityIndex index =
+    ProximityIndex index =
         geometry_engine_->AddDynamicGeometry(geometry->shape(), internal_index);
     dynamic_geometry->set_proximity_index(index);
     DRAKE_DEMAND(static_cast<int>(X_WG_proximity_.size()) == index);
@@ -548,7 +548,7 @@ void GeometryState<T>::AssignRole(SourceId source_id,
     auto anchored_geometry = dynamic_cast<InternalAnchoredGeometry*>(geometry);
     // If it's not dynamic, it must be anchored.
     DRAKE_DEMAND(anchored_geometry != nullptr);
-    AnchoredProximityIndex index = geometry_engine_->AddAnchoredGeometry(
+    ProximityIndex index = geometry_engine_->AddAnchoredGeometry(
         geometry->shape(), geometry->pose_in_parent(),
         geometry->internal_index());
     anchored_geometry->set_proximity_index(index);
