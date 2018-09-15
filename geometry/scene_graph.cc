@@ -273,9 +273,20 @@ void SceneGraph<T>::CalcQueryObject(const Context<T>& context,
 template <typename T>
 PoseBundle<T> SceneGraph<T>::MakePoseBundle() const {
   const auto& g_state = *initial_state_;
-  PoseBundle<T> bundle(g_state.get_num_frames());
+  // Collect only those frames that have illustration geometry -- based on the
+  // *model*.
+  // TODO(SeanCurtis-TRI): This happens *twice* now (once hear and once in
+  // CalcPoseBundle; might be worth refactoring/caching it.baz
+  std::vector<FrameId> dynamic_frames;
+  for (const auto& pair : g_state.frames_) {
+    const FrameId frame_id = pair.first;
+    if (g_state.NumGeometryWithRole(frame_id, Role::kIllustration) > 0) {
+      dynamic_frames.push_back(frame_id);
+    }
+  }
+  PoseBundle<T> bundle(static_cast<int>(dynamic_frames.size()));
   int i = 0;
-  for (FrameId f_id : g_state.get_frame_ids()) {
+  for (FrameId f_id : dynamic_frames) {
     int frame_group = g_state.get_frame_group(f_id);
     bundle.set_model_instance_id(i, frame_group);
 
@@ -303,7 +314,18 @@ void SceneGraph<T>::CalcPoseBundle(const Context<T>& context,
   // cache instead of this heavy-handed update.
   FullPoseUpdate(g_context);
   const auto& g_state = g_context.get_geometry_state();
-  for (FrameId f_id : g_state.get_frame_ids()) {
+
+  // Collect only those frames that have illustration geometry -- based on the
+  // *model*.
+  std::vector<FrameId> dynamic_frames;
+  for (const auto& pair : g_state.frames_) {
+    const FrameId frame_id = pair.first;
+    if (g_state.NumGeometryWithRole(frame_id, Role::kIllustration) > 0) {
+      dynamic_frames.push_back(frame_id);
+    }
+  }
+
+  for (FrameId f_id : dynamic_frames) {
     output->set_pose(i, g_state.get_pose_in_world(f_id));
     // TODO(SeanCurtis-TRI): Handle velocity.
     ++i;
