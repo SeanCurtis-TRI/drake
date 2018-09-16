@@ -26,10 +26,8 @@ namespace geometry {
    - the name should be unique in the scope of its frame and role. For example,
      two GeometryInstances can both be called "ball" as long as they are
      affixed to different frames or if one is a collision geometry and the
-     other is a visual geometry. This requirement is not *currently* enforced
-     but will be enforced in the future.
-     <!-- TODO(SeanCurtis-TRI): When geometry roles lands, change this to
-     indicate that this is enforced. -->
+     other is an illustration geometry. This is enforced when a role is assigned
+     to the geometry.
  If valid, the trimmed name will be assigned to the instance.
 
  Names *can* have internal whitespace (e.g., "my geometry name").

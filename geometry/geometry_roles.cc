@@ -13,6 +13,8 @@ std::string to_string(const Role& role) {
       return "perception";
     case Role::kIllustration:
       return "illustration";
+    case Role::kUnassigned:
+      return "unassigned";
     default:
       return "unknown";
   }

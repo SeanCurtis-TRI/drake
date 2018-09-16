@@ -194,17 +194,18 @@ class GeometryState {
   const std::string& get_name(GeometryId geometry_id) const;
 
   /** Reports the id for the uniquely named geometry affixed to the indicated
-   frame.
+   frame with the given role.
    @param frame_id  The id of the parent frame.
+   @param role      The assigned role of the desired geometry.
    @param name      The name of the geometry to query for. The name will be
                     canonicalized prior to lookup (see
                     @ref canonicalized_geometry_names "GeometryInstance" for
                     details).
-   @return The id of the requested frame.
+   @return The id of the requested geometry.
    @throws std::logic_error if no such geometry exists, multiple geometries have
                             that name, or if the frame doesn't exist. */
-  // TODO(SeanCurtis-TRI): Account for role when geometry roles exist.
   GeometryId GetGeometryFromName(FrameId frame_id,
+                                 Role role,
                                  const std::string& name) const;
 
   /** Reports the pose of the frame with the given id.
@@ -381,15 +382,17 @@ class GeometryState {
    the name can be tested prior to registering the geometry.
    @param frame_id        The id of the frame to which the geometry would be
                           assigned.
+   @param role            The role for the candidate name.
    @param candidate_name  The name to validate.
    @return true if the `candidate_name` can be given to a `GeometryInstance`
-   assigned to the indicated frame.
+   assigned to the indicated frame with the indicated role.
    @throws if `frame_id` does not refer to a valid frame.  */
-  bool IsValidGeometryName(FrameId frame_id,
+  bool IsValidGeometryName(FrameId frame_id, Role role,
                            const std::string& candidate_name) const;
 
   /** Assigns the given geometry id the proximity role by assigning it the given
-   set of proximity properties.
+   set of proximity properties. At this time, the geometry's name is tested for
+   uniqueness in *this* role.
 
    @param source_id     The id of the geometry source that owns the geometry.
    @param geometry_id   The geometry to assign a role.
@@ -398,12 +401,15 @@ class GeometryState {
                                2. geometry id is invalid,
                                3. geometry id is not owned by the source id,
                                4. geometry has already had a proximity role
-                                  assigned.    */
+                                  assigned,
+                               5. the geometry's name is *not* unique in this
+                                  role.  */
   void AssignRole(SourceId source_id, GeometryId geometry_id,
                   ProximityProperties properties);
 
   /** Assigns the given geometry id the perception role by assigning it the
-   given set of proximity properties.
+   given set of proximity properties. At this time, the geometry's name is
+   tested for uniqueness in *this* role.
 
    @param source_id     The id of the geometry source that owns the geometry.
    @param geometry_id   The geometry to assign a role.
@@ -412,12 +418,15 @@ class GeometryState {
                                2. geometry id is invalid,
                                3. geometry id is not owned by the source id,
                                4. geometry has already had a perception role
-                                  assigned.    */
+                                  assigned,
+                               5. the geometry's name is *not* unique in this
+                                  role.    */
   void AssignRole(SourceId source_id, GeometryId geometry_id,
                   PerceptionProperties properties);
 
   /** Assigns the given geometry id the illustration role by assigning it the
-   given set of proximity properties.
+   given set of proximity properties. At this time, the geometry's name is
+   tested for uniqueness in *this* role.
 
    @param source_id     The id of the geometry source that owns the geometry.
    @param geometry_id   The geometry to assign a role.
@@ -426,7 +435,9 @@ class GeometryState {
                                2. geometry id is invalid,
                                3. geometry id is not owned by the source id,
                                4. geometry has already had a illustration role
-                                  assigned.    */
+                                  assigned,
+                               5. the geometry's name is *not* unique in this
+                                  role.    */
   void AssignRole(SourceId source_id, GeometryId geometry_id,
                   IllustrationProperties properties);
 
@@ -671,9 +682,17 @@ class GeometryState {
   // Convenience function for accessing geometry whether dynamic or anchored.
   internal::InternalGeometryBase* GetMutableGeometry(GeometryId id);
 
+  // Reports if the given name is unique in the given frame and role.
+  bool NameIsUnique(FrameId id, Role role, const std::string& name) const;
+
+  // If the given name exists in the geometries affixed to the indicated frame
+  // for the given role, throws an exception.
+  void ThrowIfNameExistsInRole(FrameId id, Role role,
+                               const std::string& name) const;
+
   template <typename PropertyType>
   void AssignRoleInternal(SourceId source_id, GeometryId geometry_id,
-                          PropertyType properties);
+                          PropertyType properties, Role role);
 
   // ---------------------------------------------------------------------
   // Maps from registered source ids to the entities registered to those

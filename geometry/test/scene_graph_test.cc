@@ -390,10 +390,12 @@ TEST_F(SceneGraphTest, ModelInspector) {
 
   const SceneGraphInspector<double>& inspector = scene_graph_.model_inspector();
 
-  EXPECT_EQ(inspector.GetGeometryIdByName(frame_1, "sphere"), sphere_1);
-  EXPECT_EQ(inspector.GetGeometryIdByName(frame_2, "sphere"), sphere_2);
+  EXPECT_EQ(inspector.GetGeometryIdByName(frame_1, Role::kUnassigned, "sphere"),
+            sphere_1);
+  EXPECT_EQ(inspector.GetGeometryIdByName(frame_2, Role::kUnassigned, "sphere"),
+            sphere_2);
   EXPECT_EQ(inspector.GetGeometryIdByName(scene_graph_.world_frame_id(),
-                                          "sphere"),
+                                          Role::kUnassigned, "sphere"),
             anchored_id);
 }
 

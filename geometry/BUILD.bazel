@@ -253,6 +253,7 @@ drake_cc_library(
         ":geometry_ids",
         ":geometry_index",
         ":geometry_roles",
+        ":internal_frame",
         ":materials",
         ":shape_specification",
         "//common:copyable_unique_ptr",

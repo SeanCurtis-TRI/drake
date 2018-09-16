@@ -17,8 +17,13 @@ namespace drake {
 namespace geometry {
 namespace internal {
 
-// TODO(SeanCurtis-TRI): Include additional user-specified payload metadata when
-// added to the declaration of GeometryInstance.
+// TODO(SeanCurtis-TRI): Flatten both of these into just a single
+// InternalGeometry. The public API for registering geometry should not
+// distinguish between the two types. I should be able to register an anchored
+// geometry to another anchored geometry just as I can with dynamic geometry.
+// The fact that they are stored differently should be simply internal -- the
+// distinction is whether they are affixed to the world frame or a dynamic
+// frame.
 /** Base class for the internal representation of registered geometry. It
  includes the data common to both anchored and dynamic geometry. */
 class InternalGeometryBase {
@@ -33,6 +38,7 @@ class InternalGeometryBase {
 
   /** Constructs the base internal geometry without any assigned roles.
    @param shape         The shape specification for this instance.
+   @param frame_id      The id of the frame this belongs to.
    @param geometry_id   The identifier for _this_ geometry.
    @param name          The name of the geometry.
    @param X_PG          The pose of the geometry G in the parent frame P. P may
@@ -42,10 +48,11 @@ class InternalGeometryBase {
                         which the instance was originally specified.
    @param index         The internal index of this internal geometry (w.r.t.
                         its anchored/dynamic status).  */
-  InternalGeometryBase(std::unique_ptr<Shape> shape, GeometryId geometry_id,
-                       const std::string& name, const Isometry3<double>& X_PG,
-                       InternalIndex index)
+  InternalGeometryBase(std::unique_ptr<Shape> shape, FrameId frame_id,
+                       GeometryId geometry_id, const std::string& name,
+                       const Isometry3<double>& X_PG, InternalIndex index)
       : shape_spec_(std::move(shape)),
+        frame_id_(frame_id),
         id_(geometry_id),
         name_(name),
         X_PG_(X_PG),
@@ -61,6 +68,14 @@ class InternalGeometryBase {
    for the definition of equality. */
   bool operator!=(const InternalGeometryBase &other) const {
     return !(*this == other);
+  }
+
+  FrameId frame_id() const { return frame_id_; }
+
+  /** Returns true if the geometry is affixed to the frame with the given
+   `frame_id`. */
+  bool is_child_of_frame(FrameId frame_id) const {
+    return frame_id == frame_id_;
   }
 
   const Shape& shape() const { return *shape_spec_; }
@@ -141,6 +156,9 @@ class InternalGeometryBase {
   // The specification for this instance's shape.
   copyable_unique_ptr<Shape> shape_spec_;
 
+  // The identifier of the frame to which this geometry belongs.
+  FrameId frame_id_;
+
   // The identifier for this frame.
   GeometryId id_;
 
@@ -199,8 +217,6 @@ class InternalGeometry final : public InternalGeometryBase {
                    const Isometry3<double>& X_PG, InternalIndex internal_index,
                    const optional<GeometryId>& parent_id = {});
 
-  FrameId frame_id() const { return frame_id_; }
-
   optional<GeometryId> parent_id() const { return parent_id_; }
 
   void set_parent_id(GeometryId id) { parent_id_ = id; }
@@ -209,12 +225,6 @@ class InternalGeometry final : public InternalGeometryBase {
    given `geometry_id`. */
   bool is_child_of_geometry(GeometryId geometry_id) const {
     return parent_id_ && *parent_id_ == geometry_id;
-  }
-
-  /** Returns true if the geometry is affixed to the frame with the given
-   `frame_id`. */
-  bool is_child_of_frame(FrameId frame_id) const {
-    return frame_id == frame_id_;
   }
 
   const std::unordered_set<GeometryId>& child_geometry_ids() const {
@@ -243,9 +253,6 @@ class InternalGeometry final : public InternalGeometryBase {
   }
 
  private:
-  // The identifier of the frame to which this geometry belongs.
-  FrameId frame_id_;
-
   // The identifier for this frame's parent frame.
   optional<GeometryId> parent_id_;
 

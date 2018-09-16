@@ -1313,7 +1313,7 @@ TEST_F(GeometryStateTest, CrossCollisionFilterExceptions) {
 
 // Tests the ability to query for a geometry from the name of a geometry.
 TEST_F(GeometryStateTest, GetGeometryIdFromName) {
-  SetUpSingleSourceTree();
+  SetUpSingleSourceTree(true /* intialize with proximity role */);
   // Frame i has geometries f * kFrameCount + g, where g ∈ [0, kGeometryCount).
   for (int f = 0; f < kFrameCount; ++f) {
     for (int g = 0; g < kGeometryCount; ++g) {
@@ -1321,11 +1321,13 @@ TEST_F(GeometryStateTest, GetGeometryIdFromName) {
       GeometryId expected_id = geometries_[g_index];
       // Look up with the canonical name.
       EXPECT_EQ(geometry_state_.GetGeometryFromName(frames_[f],
+                                                    Role::kProximity,
                                                     geometry_names_[g_index]),
                 expected_id);
       // Look up with non-canonical name.
       EXPECT_EQ(geometry_state_.GetGeometryFromName(
-                    frames_[f], " " + geometry_names_[g_index]),
+                    frames_[f], Role::kProximity,
+                    " " + geometry_names_[g_index]),
                 expected_id);
     }
   }
@@ -1334,20 +1336,42 @@ TEST_F(GeometryStateTest, GetGeometryIdFromName) {
 
   // Bad frame id.
   DRAKE_EXPECT_THROWS_MESSAGE(
-      geometry_state_.GetGeometryFromName(FrameId::get_new_id(), "irrelevant"),
+      geometry_state_.GetGeometryFromName(FrameId::get_new_id(),
+                                          Role::kUnassigned, "irrelevant"),
       std::logic_error, "Referenced frame \\d+ has not been registered.");
 
   // Bad *anchored* geometry name.
   const FrameId world_id = internal::InternalFrame::get_world_frame_id();
   DRAKE_EXPECT_THROWS_MESSAGE(
-      geometry_state_.GetGeometryFromName(world_id, "bad"), std::logic_error,
-      "The frame 'world' .\\d+. has no geometry with the canonical name .+");
+      geometry_state_.GetGeometryFromName(world_id, Role::kUnassigned, "bad"),
+      std::logic_error,
+      "The frame 'world' .\\d+. has no geometry with the role 'unassigned' "
+      "and the canonical name '.+'");
 
   // Bad *dynamic* geometry name.
   DRAKE_EXPECT_THROWS_MESSAGE(
-      geometry_state_.GetGeometryFromName(frames_[0], "bad_name"),
+      geometry_state_.GetGeometryFromName(frames_[0], Role::kUnassigned,
+                                          "bad_name"),
       std::logic_error,
-      "The frame '.+?' .\\d+. has no geometry with the canonical name .+");
+      "The frame '.+?' .\\d+. has no geometry with the role 'unassigned' and "
+      "the canonical name '.+'");
+
+  // Multiple unassigned geometries with the same name.
+
+  const std::string dummy_name("duplicate");
+  for (int i = 0; i < 2; ++i) {
+    const Isometry3<double> pose = Isometry3<double>::Identity();
+    geometry_state_.RegisterGeometry(
+        source_id_, frames_[0],
+        make_unique<GeometryInstance>(pose, make_unique<Sphere>(1),
+                                      dummy_name));
+  }
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      geometry_state_.GetGeometryFromName(frames_[0], Role::kUnassigned,
+                                          dummy_name),
+      std::logic_error,
+      "The frame '.+?' .\\d+. has multiple geometries with the role "
+      "'unassigned' and the canonical name '.+'");
 }
 
 // Confirms that the name *stored* with the geometry is the trimmed version of
@@ -1380,17 +1404,19 @@ TEST_F(GeometryStateTest, GeometryNameStorage) {
 
 // Tests the logic for confirming if a name is valid or not.
 TEST_F(GeometryStateTest, GeometryNameValidation) {
-  SetUpSingleSourceTree();
+  SetUpSingleSourceTree(true /* Assign proximity roles */);
 
-  // Case: Invalid frame should throw (regardless of name contents).
+  // Case: Invalid frame should throw (regardless of name contents or role).
   DRAKE_EXPECT_THROWS_MESSAGE(
-      geometry_state_.IsValidGeometryName(FrameId::get_new_id(), ""),
+      geometry_state_.IsValidGeometryName(FrameId::get_new_id(),
+                                          Role::kProximity, ""),
       std::logic_error, "Given frame id is not valid: \\d+");
 
   auto expect_bad_name = [this](const std::string& name,
                                 const std::string& exception_message,
                                 const std::string& printable_name) {
-    EXPECT_FALSE(geometry_state_.IsValidGeometryName(frames_[0], name))
+    EXPECT_FALSE(geometry_state_.IsValidGeometryName(frames_[0],
+                                                     Role::kProximity, name))
         << "Failed on input name: " << printable_name;
   };
 
@@ -1407,26 +1433,34 @@ TEST_F(GeometryStateTest, GeometryNameValidation) {
 
   // Case: Valid (as a control case).
   const std::string unique = "unique";
-  EXPECT_TRUE(geometry_state_.IsValidGeometryName(frames_[0], unique));
+  EXPECT_TRUE(geometry_state_.IsValidGeometryName(frames_[0], Role::kProximity,
+                                                  unique));
 
   // Querying with non-canonical names test as the canonical name.
   vector<std::string> names{" " + unique, unique + " ", " " + unique + " "};
   for (const auto& name : names) {
-    EXPECT_TRUE(geometry_state_.IsValidGeometryName(frames_[0], name));
+    EXPECT_TRUE(geometry_state_.IsValidGeometryName(frames_[0],
+                                                    Role::kProximity, name));
   }
 
-  // Duplicate name is considered valid
-  // TODO(SeanCurtis-TRI): WHen geometry roles are introduced and duplicates
-  // are no longer valid, update this test.
+  // Test potential duplicates.
+
+  // A name with the same role will fail.
+  EXPECT_FALSE(geometry_state_.IsValidGeometryName(
+      frames_[0], Role::kProximity,
+      gs_tester_.get_geometries().at(geometries_[0]).name()));
+
+  // A name with the *different* role will fail.
   EXPECT_TRUE(geometry_state_.IsValidGeometryName(
-      frames_[0],
+      frames_[0], Role::kPerception,
       gs_tester_.get_geometries().at(geometries_[0]).name()));
 
   // Case: Whitespace that SDF nevertheless considers not whitespace.
   // Update this when the following sdformat issue is resolved:
   // https://bitbucket.org/osrf/sdformat/issues/194/string-trimming-only-considers-space-and
   for (const std::string& s : {"\n", " \n\t", " \f", "\v", "\r", "\ntest"}) {
-    EXPECT_TRUE(geometry_state_.IsValidGeometryName(frames_[0], s));
+    EXPECT_TRUE(geometry_state_.IsValidGeometryName(frames_[0],
+                                                    Role::kProximity, s));
   }
 }
 
@@ -1554,12 +1588,6 @@ TEST_F(GeometryStateTest, RolePropertyValueAssignment) {
             read->GetProperty<std::string>(group1, "propB"));
 }
 
-// Tests that the internal indexing for a role is correct -- i.e., adding a
-// proximity role gives it a proximity index, perception role gives it a
-// perception index, and illustration role has no effect.
-TEST_F(GeometryStateTest, RoleIndexAssignment) {
-}
-
 // Tests the conditions in which `AssignRole()` throws an exception.
 TEST_F(GeometryStateTest, RoleAssignExceptions) {
   SetUpSingleSourceTree();
@@ -1616,6 +1644,31 @@ TEST_F(GeometryStateTest, RoleAssignExceptions) {
                                  IllustrationProperties()),
       std::logic_error,
       "Geometry already has illustration role assigned");
+
+  // Addition of geometry with duplicate name -- no problem. Assigning it a
+  // duplicate role -- bad.
+  const Isometry3<double> pose = Isometry3<double>::Identity();
+  GeometryId new_id = geometry_state_.RegisterGeometry(
+      source_id_, frames_[0],
+      make_unique<GeometryInstance>(pose, make_unique<Sphere>(1),
+                                    geometry_names_[0]));
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      geometry_state_.AssignRole(source_id_, new_id, ProximityProperties()),
+      std::logic_error,
+      "The name .* has already been used by a geometry with the 'proximity' "
+      "role.");
+
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      geometry_state_.AssignRole(source_id_, new_id, IllustrationProperties()),
+      std::logic_error,
+      "The name .* has already been used by a geometry with the 'illustration' "
+      "role.");
+
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      geometry_state_.AssignRole(source_id_, new_id, PerceptionProperties()),
+      std::logic_error,
+      "The name .* has already been used by a geometry with the 'perception' "
+      "role.");
 }
 
 // Tests the functionality that counts the number of children geometry a frame

@@ -139,9 +139,8 @@ const std::string& GeometryState<T>::get_name(GeometryId geometry_id) const {
 
 template <typename T>
 GeometryId GeometryState<T>::GetGeometryFromName(
-    FrameId frame_id, const std::string& name) const {
+    FrameId frame_id, Role role, const std::string& name) const {
   const std::string canonical_name = detail::CanonicalizeStringName(name);
-  // TODO(SeanCurtis-TRI): Account for geometry role once implemented.
 
   GeometryId result;
   int count = 0;
@@ -151,7 +150,7 @@ GeometryId GeometryState<T>::GetGeometryFromName(
     frame_name = "world";
     for (const auto& pair : anchored_geometries_) {
       const InternalAnchoredGeometry& geometry = pair.second;
-      if (geometry.name() == canonical_name) {
+      if (geometry.has_role(role) && geometry.name() == canonical_name) {
         ++count;
         result = pair.first;
       }
@@ -161,7 +160,7 @@ GeometryId GeometryState<T>::GetGeometryFromName(
     frame_name = frame.get_name();
     for (GeometryId geometry_id : frame.get_child_geometries()) {
       const InternalGeometry& geometry = geometries_.at(geometry_id);
-      if (geometry.name() == canonical_name) {
+      if (geometry.has_role(role) && geometry.name() == canonical_name) {
         ++count;
         result = geometry_id;
       }
@@ -171,12 +170,14 @@ GeometryId GeometryState<T>::GetGeometryFromName(
   if (count == 1) return result;
   if (count < 1) {
     throw std::logic_error("The frame '" + frame_name + "' (" +
-        to_string(frame_id) + ") has no geometry with the canonical name '" +
-        canonical_name + "'");
+        to_string(frame_id) + ") has no geometry with the role '" +
+        to_string(role) + "' and the canonical name '" + canonical_name + "'");
   }
+  // This case should only be possible for unassigned geometries.
+  DRAKE_DEMAND(role == Role::kUnassigned);
   throw std::logic_error("The frame '" + frame_name + "' (" +
-      to_string(frame_id) + ") has multiple geometries with the canonical " +
-      "name'" + canonical_name + "'");
+      to_string(frame_id) + ") has multiple geometries with the role '" +
+      to_string(role) + "' and the canonical name '" + canonical_name + "'");
 }
 
 template <typename T>
@@ -476,19 +477,21 @@ GeometryId GeometryState<T>::RegisterAnchoredGeometry(
 
 template <typename T>
 bool GeometryState<T>::IsValidGeometryName(
-    FrameId frame_id, const std::string& candidate_name) const {
+    FrameId frame_id, Role role, const std::string& candidate_name) const {
   FindOrThrow(frame_id, frames_, [frame_id]() {
     return "Given frame id is not valid: " + to_string(frame_id);
   });
-  // TODO(SeanCurtis-TRI): Test for uniqueness after geometry roles are added.
-  return !detail::CanonicalizeStringName(candidate_name).empty();
+  const std::string name = detail::CanonicalizeStringName(candidate_name);
+  if (name.empty()) return false;
+  return NameIsUnique(frame_id, role, name);
 }
 
 template <typename T>
 void GeometryState<T>::AssignRole(SourceId source_id,
                                   GeometryId geometry_id,
                                   ProximityProperties properties) {
-  AssignRoleInternal(source_id, geometry_id, std::move(properties));
+  AssignRoleInternal(source_id, geometry_id, std::move(properties),
+                     Role::kProximity);
 
   InternalGeometryBase* geometry = GetMutableGeometry(geometry_id);
   // This *must* be no-null, otherwise the role assignment would have failed.
@@ -564,7 +567,8 @@ template <typename T>
 void GeometryState<T>::AssignRole(SourceId source_id,
                                   GeometryId geometry_id,
                                   PerceptionProperties properties) {
-  AssignRoleInternal(source_id, geometry_id, std::move(properties));
+  AssignRoleInternal(source_id, geometry_id, std::move(properties),
+                     Role::kPerception);
   // TODO(SeanCurtis-TRI): Assign to render engine.
 }
 
@@ -572,7 +576,8 @@ template <typename T>
 void GeometryState<T>::AssignRole(SourceId source_id,
                                   GeometryId geometry_id,
                                   IllustrationProperties properties) {
-  AssignRoleInternal(source_id, geometry_id, std::move(properties));
+  AssignRoleInternal(source_id, geometry_id, std::move(properties),
+                     Role::kIllustration);
   // NOTE: No need to assign to any engines.
 }
 
@@ -793,10 +798,44 @@ InternalGeometryBase* GeometryState<T>::GetMutableGeometry(
 }
 
 template <typename T>
+bool GeometryState<T>::NameIsUnique(FrameId id, Role role,
+                                    const std::string& name) const {
+  bool unique = true;
+  if (id == InternalFrame::get_world_frame_id()) {
+    for (const auto& pair : anchored_geometries_) {
+      const InternalAnchoredGeometry& geometry = pair.second;
+      if (geometry.has_role(role) && geometry.name() == name) {
+        unique = false;
+        break;
+      }
+    }
+  } else {
+    const InternalFrame& frame = GetValueOrThrow(id, frames_);
+    for (GeometryId geometry_id : frame.get_child_geometries()) {
+      const InternalGeometry& geometry = geometries_.at(geometry_id);
+      if (geometry.has_role(role) && geometry.name() == name) {
+        unique = false;
+        break;
+      }
+    }
+  }
+  return unique;
+}
+
+template <typename T>
+void GeometryState<T>::ThrowIfNameExistsInRole(FrameId id, Role role,
+                                               const std::string& name) const {
+  if (!NameIsUnique(id, role, name)) {
+    throw std::logic_error("The name " + name + " has already been used by "
+        "a geometry with the '" + to_string(role) + "' role.");
+  }
+}
+
+template <typename T>
 template <typename PropertyType>
 void GeometryState<T>::AssignRoleInternal(SourceId source_id,
                                           GeometryId geometry_id,
-                                          PropertyType properties) {
+                                          PropertyType properties, Role role) {
   if (!BelongsToSource(geometry_id, source_id)) {
     throw std::logic_error("Given geometry id " + to_string(geometry_id) +
         " does not belong to the given source id " +
@@ -806,6 +845,18 @@ void GeometryState<T>::AssignRoleInternal(SourceId source_id,
   // Must be non-null, otherwise, we never would've gotten past the
   // `BelongsToSource()` call.
   DRAKE_DEMAND(geometry != nullptr);
+
+  if (!geometry->has_role(role)) {
+    // Only test for name uniqueness if this geometry doesn't already have the
+    // specified role. This is here for two reasons:
+    //   1. If the role has already been assigned, we want that error to
+    //      have precedence -- i.e., the name is irrelevant if the role has
+    //      already been assigned. We rely on SetRole() to detect and throw.
+    //   2. We don't want this to *follow* SetRole(), because we only want to
+    //      set the role if the name is unique -- testing after would leave the
+    //      role assigned.
+    ThrowIfNameExistsInRole(geometry->frame_id(), role, geometry->name());
+  }
   geometry->SetRole(std::move(properties));
 }
 

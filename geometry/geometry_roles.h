@@ -182,7 +182,8 @@ class IllustrationProperties final : public GeometryProperties{
 enum class Role {
   kProximity,
   kPerception,
-  kIllustration
+  kIllustration,
+  kUnassigned
 };
 
 /** @name  Geometry role to string conversions.
