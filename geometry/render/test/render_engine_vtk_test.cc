@@ -21,6 +21,7 @@ namespace {
 
 using Eigen::Isometry3d;
 using Eigen::Translation3d;
+using Eigen::Vector4d;
 using std::make_unique;
 using std::unique_ptr;
 
@@ -264,13 +265,25 @@ class RenderEngineVtkTest : public ::testing::Test {
     if (add_terrain) renderer_->AddFlatTerrain();
   }
 
+  // Creates a simple perception properties set for fixed, known results.
+  PerceptionProperties simple_material() const {
+    PerceptionProperties material;
+    material.AddGroup("phong");
+    Vector4d color(kDefaultVisualColor.r / 255., kDefaultVisualColor.g / 255.,
+                   kDefaultVisualColor.b / 255., 1.);
+    material.AddProperty("phong", "diffuse", color);
+    material.AddGroup("label");
+    material.AddProperty("label", "id", expected_label_);
+    return material;
+  }
+
   // Populates the given renderer with the sphere required for
   // PerformCenterShapeTest().
   void PopulateSphereTest(RenderEngineVtk* renderer) {
     Sphere sphere{0.5};
     expected_label_ = RenderLabel::new_label();
-    RenderMaterial material(expected_label_);
-    RenderIndex geometry_index = renderer->RegisterVisual(sphere, material);
+    RenderIndex geometry_index = renderer->RegisterVisual(sphere,
+                                                          simple_material());
     Isometry3d X_WV{Eigen::Translation3d(0, 0, 0.5)};
     renderer->UpdateVisualPose(X_WV, geometry_index);
   }
@@ -306,7 +319,8 @@ class RenderEngineVtkTest : public ::testing::Test {
     EXPECT_EQ(label.at(x, y)[0], static_cast<int>(expected_label_)) << name;
   }
 
-  // This is the integer version of the RenderMaterial default diffuse color.
+  // Provide a default visual color for this tests -- it is intended to be
+  // different from the default color of the VTK render engine.
   const ColorI kDefaultVisualColor = {229u, 229u, 229u};
   const float kDefaultDistance{3.f};
 
@@ -328,16 +342,6 @@ class RenderEngineVtkTest : public ::testing::Test {
 
   unique_ptr<RenderEngineVtk> renderer_;
 };
-
-// A simple test to detect that the kDefaultVisualColor value stays in sync with
-// the default diffuse value of RenderMaterial.
-TEST_F(RenderEngineVtkTest, DefaultColorMatchesRenderMaterial) {
-  RenderMaterial material(RenderLabel::new_label());
-  const Eigen::Vector4d& diffuse = material.diffuse();
-  EXPECT_EQ(kDefaultVisualColor.r, static_cast<int>(diffuse(0) * 255));
-  EXPECT_EQ(kDefaultVisualColor.g, static_cast<int>(diffuse(1) * 255));
-  EXPECT_EQ(kDefaultVisualColor.b, static_cast<int>(diffuse(2) * 255));
-}
 
 // Tests an empty image -- confirms that it clears to the "empty" color -- no
 // use of "inlier" or "outlier" pixel locations.
@@ -437,8 +441,8 @@ TEST_F(RenderEngineVtkTest, BoxTest) {
   // Sets up a box.
   Box box(1, 1, 1);
   expected_label_ = RenderLabel::new_label();
-  RenderMaterial material(expected_label_);
-  RenderIndex geometry_index = renderer_->RegisterVisual(box, material);
+  RenderIndex geometry_index = renderer_->RegisterVisual(box,
+                                                         simple_material());
   Isometry3d X_WV{Eigen::Translation3d(0, 0, 0.5)};
   renderer_->UpdateVisualPose(X_WV, geometry_index);
 
@@ -461,8 +465,8 @@ TEST_F(RenderEngineVtkTest, CylinderTest) {
   // Sets up a cylinder.
   Cylinder cylinder(0.2, 1.2);
   expected_label_ = RenderLabel::new_label();
-  RenderMaterial material(expected_label_);
-  RenderIndex geometry_index = renderer_->RegisterVisual(cylinder, material);
+  RenderIndex geometry_index = renderer_->RegisterVisual(cylinder,
+                                                         simple_material());
   // Position the top of the cylinder to be 1 m above the terrain.
   Isometry3d X_WV{Eigen::Translation3d(0, 0, 0.4)};
   renderer_->UpdateVisualPose(X_WV, geometry_index);
@@ -479,8 +483,8 @@ TEST_F(RenderEngineVtkTest, MeshTest) {
       FindResourceOrThrow("drake/systems/sensors/test/models/meshes/box.obj");
   Mesh mesh(filename);
   expected_label_ = RenderLabel::new_label();
-  RenderMaterial material(expected_label_);
-  RenderIndex geometry_index = renderer_->RegisterVisual(mesh, material);
+  RenderIndex geometry_index = renderer_->RegisterVisual(mesh,
+                                                         simple_material());
   renderer_->UpdateVisualPose(Isometry3d::Identity(), geometry_index);
 
   PerformCenterShapeTest(renderer_.get(), "Mesh test");
@@ -589,6 +593,23 @@ TEST_F(RenderEngineVtkTest, DifferentCameras) {
                            "Camera change - z near clips mesh",
                            &clipping_near_plane);
   }
+}
+
+// Tests that registered geometry without specific values renders without error.
+// TODO(SeanCurtis-TRI): When the ability to set defaults is exposed through a
+// public API, actually test for the *default values*. Until then, error-free
+// rendering is sufficient.
+TEST_F(RenderEngineVtkTest, DefaultProperties) {
+  SetUp(X_WR_, false  /* no terrain */);
+
+  // Sets up a box.
+  Box box(1, 1, 1);
+  RenderIndex geometry_index = renderer_->RegisterVisual(
+      box, PerceptionProperties());
+  Isometry3d X_WV{Eigen::Translation3d(0, 0, 0.5)};
+  renderer_->UpdateVisualPose(X_WV, geometry_index);
+
+  EXPECT_NO_THROW(Render());
 }
 
 }  // namespace

@@ -6,9 +6,9 @@
 #include <Eigen/Dense>
 
 #include "drake/geometry/geometry_index.h"
+#include "drake/geometry/geometry_roles.h"
 #include "drake/geometry/render/camera_properties.h"
 #include "drake/geometry/render/image.h"
-#include "drake/geometry/render_material.h"
 #include "drake/geometry/shape_specification.h"
 
 namespace drake {
@@ -55,12 +55,12 @@ class RenderEngine : public ShapeReifier {
    render geometry. The geometry can be uniquely referenced in this engine (and
    copies of this engine) by its geometry index.
 
-   @param shape     The shape specification to add to the render engine.
-   @param material  The material to apply to the shape.
+   @param shape       The shape specification to add to the render engine.
+   @param properties  The perception properties provided for this geometry.
    @returns A unique index for the resultant render geometry.
    @throws std::runtime_error if the shape is an unsupported type. */
-  virtual RenderIndex RegisterVisual(const Shape& shape,
-                                     const RenderMaterial& material) = 0;
+  virtual RenderIndex RegisterVisual(
+      const Shape& shape, const PerceptionProperties& properties) = 0;
 
   // TODO(SeanCurtis-TRI): I need a super-secret RegisterVisual in which the
   // index is specified.

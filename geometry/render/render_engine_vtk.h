@@ -75,7 +75,26 @@ class ShaderCallback : public vtkCommand {
 
 #endif
 
-/** Implementation of the RenderEngine using the VTK OpenGL renderer. */
+/** Implementation of the RenderEngine using the VTK OpenGL renderer.
+
+ @anchor render_engine_vtk_properties
+ <h2>Low-fidelity geometry perception properties</h2>
+
+ RGB images
+ | Group name | Required | Property Name |  Property Type  | Property Description |
+ | :--------: | :------: | :-----------: | :-------------: | :------------------- |
+ |    phong   | no       | diffuse       | Eigen::Vector4d | The rgba value of the object surface |
+ <!-- TODO(SeanCurtis-TRI): Add diffuse_map as an optional property which will
+ use a texture map for diffuse colors in place of a solid color. -->
+
+ Depth images - no specific properties required.
+
+ Label images
+ | Group name | Required | Property Name |  Property Type  | Property Description |
+ | :--------: | :------: | :-----------: | :-------------: | :------------------- |
+ |   label    | no       | id            | RenderLabel     | The label to render into the image |
+ If no label is provided, it uses the terrain label.
+ */
 class RenderEngineVtk final : public RenderEngine,
                               private detail::ModuleInitVtkRenderingOpenGL2 {
  public:
@@ -90,7 +109,7 @@ class RenderEngineVtk final : public RenderEngine,
 
   /** Inherits RenderEngine::RegisterVisual().  */
   RenderIndex RegisterVisual(const Shape& shape,
-                             const RenderMaterial& material) override;
+                             const PerceptionProperties& properties) override;
 
   // TODO(SeanCurtis-TRI): I need a super-secret RegisterVisual in which the
   // index is specified.

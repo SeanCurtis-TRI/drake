@@ -80,7 +80,7 @@ enum ImageType {
 // TODO(SeanCurtis-TRI): Add X_PG pose to this data.
 // A package of data required to register a visual geometry.
 struct RegistrationData {
-  const RenderMaterial& material;
+  const PerceptionProperties& properties;
 };
 
 }  // namespace
@@ -206,19 +206,23 @@ std::unique_ptr<RenderEngine> RenderEngineVtk::Clone() const {
 void RenderEngineVtk::AddFlatTerrain() {
   ColorD terrain_color =
       color_palette_.get_normalized_color(RenderLabel::terrain_label());
-  RenderMaterial material(RenderLabel::terrain_label(),
-                          Eigen::Vector4d{terrain_color.r, terrain_color.g,
-                                          terrain_color.b, 1.0});
+  PerceptionProperties material;
+  material.AddGroup("label");
+  material.AddProperty("label", "id", RenderLabel::terrain_label());
+  material.AddGroup("phong");
+  material.AddProperty("phong", "diffuse",
+                       Eigen::Vector4d{terrain_color.r, terrain_color.g,
+                                       terrain_color.b, 1.0});
   // TODO(SeanCurtis-TRI): This is bad; I'm consuming an index for something
   // that isn't stored in SceneGraph. This should be killed in favor of actually
   // introducing managed geometry (and appropriate materials).
   RegisterVisual(HalfSpace(), material);
 }
 
-RenderIndex RenderEngineVtk::RegisterVisual(const Shape& shape,
-                                            const RenderMaterial& material) {
+RenderIndex RenderEngineVtk::RegisterVisual(
+    const Shape& shape, const PerceptionProperties& properties) {
   // Note: the user_data interface on reification requires a non-const pointer.
-  RegistrationData data{material};
+  RegistrationData data{properties};
   shape.Reify(this, &data);
   return RenderIndex(static_cast<int>(actors_.size()) - 1);
 }
@@ -418,17 +422,24 @@ void RenderEngineVtk::ImplementGeometry(vtkPolyDataAlgorithm* source,
   // This is to disable shadows and to get an object painted with a single
   // color.
   label_actor->GetProperty()->LightingOff();
-  const auto color = color_palette_.get_normalized_color(data.material.label());
+  const RenderLabel label = data.properties.GetPropertyOrDefault(
+      "label", "id", RenderLabel::terrain_label());
+  const auto color = color_palette_.get_normalized_color(label);
   label_actor->GetProperty()->SetColor(color.r, color.g, color.b);
 
   // Color actor
   // TODO(SeanCurtis-TRI): Handle texture application.
   auto& color_actor = actors[ImageType::kColor];
-  const auto& diffuse = data.material.diffuse();
+  // TODO(SeanCurtis-TRI): Make this default color part of the public API so it
+  // can be configured.
+  // Default is an obnoxious orange to help flag un-defined values.
+  const Eigen::Vector4d default_diffuse(0.9, 0.45, 0.1, 1.0);
+  const Eigen::Vector4d& diffuse =
+      data.properties.GetPropertyOrDefault("phong", "diffuse", default_diffuse);
   color_actor->GetProperty()->SetColor(diffuse(0), diffuse(1), diffuse(2));
   // TODO(SeanCurtis-TRI): It is not clear why this isn't illuminated. Document
   // this behavior when I change "terrain" label to "don't care" label.
-  if (data.material.label().is_terrain()) {
+  if (label.is_terrain()) {
     color_actor->GetProperty()->LightingOff();
   }
 

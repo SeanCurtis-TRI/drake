@@ -27,9 +27,7 @@ drake_cc_package_library(
         ":identifier",
         ":internal_frame",
         ":internal_geometry",
-        ":materials",
         ":proximity_engine",
-        ":render_material",
         ":scene_graph",
         ":scene_graph_inspector",
         ":shape_specification",
@@ -113,7 +111,6 @@ drake_cc_library(
     hdrs = ["geometry_instance.h"],
     deps = [
         ":geometry_ids",
-        ":materials",
         ":shape_specification",
         ":utilities",
         "//common:copyable_unique_ptr",
@@ -146,28 +143,6 @@ drake_cc_library(
     name = "geometry_set",
     hdrs = ["geometry_set.h"],
     deps = [":geometry_ids"],
-)
-
-# TODO(SeanCurtis-TRI): kill this and have the render engine use the
-# PercpetionProperties instead.
-drake_cc_library(
-    # NOTE: The material library and file name don't appear to match. This
-    # library will eventually contain multiple types of materials (e.g.,
-    # contact, rendering, depth, etc.)
-    name = "materials",
-    deps = [
-        ":render_material",
-    ],
-)
-
-drake_cc_library(
-    name = "render_material",
-    srcs = ["render_material.cc"],
-    hdrs = ["render_material.h"],
-    deps = [
-        "//common",
-        "//geometry/render:render_label",
-    ],
 )
 
 drake_cc_library(
@@ -254,7 +229,6 @@ drake_cc_library(
         ":geometry_index",
         ":geometry_roles",
         ":internal_frame",
-        ":materials",
         ":shape_specification",
         "//common:copyable_unique_ptr",
         "//common:essential",

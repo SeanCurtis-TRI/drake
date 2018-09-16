@@ -1,18 +1,26 @@
 # -*- python -*-
 
 load(
-    "//tools:drake.bzl",
-    "drake_cc_binary",
+    "@drake//tools/skylark:drake_cc.bzl",
     "drake_cc_googletest",
     "drake_cc_library",
-)
-load(
-    "@drake//tools/vector_gen:vector_gen.bzl",
-    "drake_cc_vector_gen_library",
+    "drake_cc_package_library",
 )
 load("//tools/lint:lint.bzl", "add_lint_tests")
 
 package(default_visibility = ["//visibility:public"])
+
+drake_cc_package_library(
+    name = "render",
+    deps = [
+        ":image",
+        ":render_engine",
+        ":render_engine_impl",
+        ":render_engine_vtk",
+        ":render_label",
+        ":vtk_util",
+    ],
+)
 
 drake_cc_library(
     name = "image",
@@ -38,8 +46,9 @@ drake_cc_library(
     ],
     deps = [
         ":image",
+        ":render_label",
         "//geometry:geometry_index",
-        "//geometry:render_material",
+        "//geometry:geometry_roles",
         "//geometry:shape_specification",
     ],
 )
