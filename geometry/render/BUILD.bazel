@@ -13,6 +13,7 @@ package(default_visibility = ["//visibility:public"])
 drake_cc_package_library(
     name = "render",
     deps = [
+        ":fidelity",
         ":image",
         ":render_engine",
         ":render_engine_impl",
@@ -20,6 +21,11 @@ drake_cc_package_library(
         ":render_label",
         ":vtk_util",
     ],
+)
+
+drake_cc_library(
+    name = "fidelity",
+    hdrs = ["fidelity.h"],
 )
 
 drake_cc_library(

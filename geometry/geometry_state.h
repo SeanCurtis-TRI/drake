@@ -18,6 +18,7 @@
 #include "drake/geometry/internal_frame.h"
 #include "drake/geometry/internal_geometry.h"
 #include "drake/geometry/proximity_engine.h"
+#include "drake/geometry/render/fidelity.h"
 #include "drake/geometry/render/render_engine.h"
 
 namespace drake {
@@ -541,7 +542,7 @@ class GeometryState {
                                 const GeometrySet& setB);
 
   //---------------------------------------------------------------------------
-  /**@name                Signed Distance Queries
+  /** @name                Signed Distance Queries
 
   Refer to @ref signed_distance_query "Signed Distance Queries" for more details.
   */
@@ -564,6 +565,81 @@ class GeometryState {
     return geometry_engine_->ComputeSignedDistancePairwiseClosestPoints(
         geometry_index_id_map_, anchored_geometry_index_id_map_);
   }
+  //@}
+
+  //---------------------------------------------------------------------------
+  /** @name                Render Queries
+
+   The methods support queries along the lines of "What do I see?" They support
+   simulation of sensors. External entities define a sensor camera -- its
+   extrinsic and intrinsic properties and %GeometryState renders into the
+   provided image.
+
+   Eventually, there will be multiple renderers that can be invoked which vary
+   in the fidelity of the images they produce. Currently, only the low fidelity
+   renderer is implemented. Invocation on a higher level of fidelity will throw
+   an exception. As additional renderers get added, they will be engaged via
+   this same interface.
+
+   <!-- TODO(SeanCurtis-TRI): Currently, pose is requested as a transform of
+   double. This puts the burden on the caller to be compatible. Provide
+   specializations for AutoDiff and symbolic (the former extracts a
+   double-valued transform and the latter throws).
+   */
+  //@{
+
+  /** Renders and outputs the rendered color image.
+
+   @param fidelity              The desired fidelity of the renderer to use.
+   @param camera                The intrinsic properties of the camera.
+   @param X_WC                  The pose of the camera in the world frame.
+   @param[out] color_image_out  The rendered color image.
+   @param show_window           If true, the render window will be displayed. */
+  void RenderColorImage(render::Fidelity fidelity,
+                        const render::CameraProperties& camera,
+                        const Isometry3<double>& X_WC,
+                        render::ImageRgba8U* color_image_out,
+                        bool show_window) const {
+    render::RenderEngine* engine = GetRenderEngineOrThrow(fidelity);
+    engine->UpdateViewpoint(X_WC);
+    engine->RenderColorImage(camera, color_image_out, show_window);
+  }
+
+  /** Renders and outputs the rendered depth image. In contrast to the other
+   rendering operations, depth images don't have an option to display the
+   window; generally, basic depth images are not readily communicative to
+   humans.
+
+   @param fidelity              The desired fidelity of the renderer to use.
+   @param camera                The intrinsic properties of the camera.
+   @param X_WC                  The pose of the camera in the world frame.
+   @param[out] depth_image_out  The rendered depth image. */
+  void RenderDepthImage(render::Fidelity fidelity,
+                        const render::DepthCameraProperties& camera,
+                        const Isometry3<double>& X_WC,
+                        render::ImageDepth32F* depth_image_out) const {
+    render::RenderEngine* engine = GetRenderEngineOrThrow(fidelity);
+    engine->UpdateViewpoint(X_WC);
+    engine->RenderDepthImage(camera, depth_image_out);
+  }
+
+  /** Renders and outputs the rendered label image.
+
+   @param fidelity              The desired fidelity of the renderer to use.
+   @param camera                The intrinsic properties of the camera.
+   @param X_WC                  The pose of the camera in the world frame.
+   @param[out] label_image_out  The rendered label image.
+   @param show_window           If true, the render window will be displayed. */
+  void RenderLabelImage(render::Fidelity fidelity,
+                        const render::CameraProperties& camera,
+                        const Isometry3<double>& X_WC,
+                        render::ImageLabel16I* label_image_out,
+                        bool show_window) const {
+    render::RenderEngine* engine = GetRenderEngineOrThrow(fidelity);
+    engine->UpdateViewpoint(X_WC);
+    engine->RenderLabelImage(camera, label_image_out, show_window);
+  }
+
   //@}
 
   /** @name Scalar conversion */
@@ -693,6 +769,26 @@ class GeometryState {
   template <typename PropertyType>
   void AssignRoleInternal(SourceId source_id, GeometryId geometry_id,
                           PropertyType properties, Role role);
+
+  // Retrieves the requested renderer (if supported), throwing otherwise.
+  render::RenderEngine* GetRenderEngineOrThrow(
+      render::Fidelity fidelity) const {
+    // NOTE: The render engines are contained in copyable unique pointers so
+    // that the geometry state can be copied. However, getting a mutable pointer
+    // triggers a copy. So, we const cast it as a short-term hack until we work
+    // out caching issues.
+    render::RenderEngine* engine{nullptr};
+    switch (fidelity) {
+      case render::Fidelity::kLow:
+        engine = const_cast<render::RenderEngine*>(low_render_engine_.get());
+        break;
+      case render::Fidelity::kMedium:
+        throw std::logic_error("Medium-fidelity engine not implemented");
+      case render::Fidelity::kHigh:
+        throw std::logic_error("High-fidelity engine not implemented");
+    }
+    return engine;
+  }
 
   // ---------------------------------------------------------------------
   // Maps from registered source ids to the entities registered to those

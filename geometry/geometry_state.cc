@@ -569,7 +569,14 @@ void GeometryState<T>::AssignRole(SourceId source_id,
                                   PerceptionProperties properties) {
   AssignRoleInternal(source_id, geometry_id, std::move(properties),
                      Role::kPerception);
-  // TODO(SeanCurtis-TRI): Assign to render engine.
+
+  // TODO(SeanCurtis-TRI): Add every render engine when they become available.
+  InternalGeometryBase* geometry = GetMutableGeometry(geometry_id);
+  // This *must* be no-null, otherwise the role assignment would have failed.
+  DRAKE_DEMAND(geometry != nullptr);
+  RenderIndex index = low_render_engine_->RegisterVisual(
+      geometry->shape(), *geometry->perception_properties());
+  geometry->set_render_index(index);
 }
 
 template <typename T>
