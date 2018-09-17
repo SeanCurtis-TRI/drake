@@ -77,6 +77,10 @@ drake_cc_binary(
         "//lcm",
         "//multibody:rigid_body_tree_construction",
         "//systems/analysis",
+        "//systems/sensors:png_writer",
+        "//systems/sensors:png_writer_old",
+        "//systems/sensors:rgbd_camera",
+        "//systems/sensors:rgbd_camera2",
         "@gflags",
     ],
 )

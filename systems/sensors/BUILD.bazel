@@ -361,6 +361,19 @@ drake_cc_library(
     srcs = ["png_writer.cc"],
     hdrs = ["png_writer.h"],
     deps = [
+        ":vtk_util",
+        "//geometry/render:image",
+        "//systems/framework",
+        "@vtk//:vtkCommonDataModel",
+        "@vtk//:vtkIOImage",
+    ],
+)
+
+drake_cc_library(
+    name = "png_writer_old",
+    srcs = ["png_writer_old.cc"],
+    hdrs = ["png_writer_old.h"],
+    deps = [
         ":image",
         ":vtk_util",
         "//systems/framework",

@@ -31,6 +31,7 @@
 #include "drake/common/eigen_types.h"
 #include "drake/common/find_resource.h"
 #include "drake/geometry/geometry_visualization.h"
+#include "drake/geometry/render/camera_properties.h"
 #include "drake/lcm/drake_lcm.h"
 #include "drake/multibody/parsers/urdf_parser.h"
 #include "drake/multibody/rigid_body_plant/rigid_body_plant.h"
@@ -39,12 +40,23 @@
 #include "drake/systems/analysis/runge_kutta2_integrator.h"
 #include "drake/systems/analysis/simulator.h"
 #include "drake/systems/framework/diagram_builder.h"
+#include "drake/systems/sensors/rgbd_camera2.h"
+#include "drake/systems/sensors/rgbd_camera.h"
+#include "drake/systems/sensors/png_writer.h"
+#include "drake/systems/sensors/png_writer_old.h"
 
 namespace drake {
 namespace systems {
 
+using geometry::render::DepthCameraProperties;
+using geometry::render::Fidelity;
 using lcm::DrakeLcm;
 using multibody::joints::kQuaternion;
+using systems::sensors::PngWriter;
+using systems::sensors::PngWriterOld;
+using systems::sensors::RenderingConfig;
+using systems::sensors::RgbdCamera;
+using systems::sensors::RgbdCamera2;
 using Eigen::VectorXd;
 using std::make_unique;
 
@@ -69,6 +81,17 @@ DEFINE_double(dt, 1e-3, "The step size to use for "
               "'system_type=discretized' (ignored for "
               "'system_type=continuous'");
 
+DEFINE_double(cam_x, 7.5, "Camera position on the x-axis");
+DEFINE_double(cam_y, 0, "Camera position on the y-axis");
+DEFINE_double(cam_z, 20, "Camera position on the z-axis");
+DEFINE_double(cam_r, 0, "Camera roll value");
+DEFINE_double(cam_p, M_PI_2, "Camera pitch value");
+DEFINE_double(cam_yaw, M_PI_2, "Camera yaw value");
+
+DEFINE_double(cam_start, 0, "The simulation time at which rendering starts");
+DEFINE_double(fps, 10, "Camera fps");
+DEFINE_string(name, "image", "Base of image name");
+
 // Bowling ball rolled down a conceptual lane to strike pins.
 int main() {
   using std::cerr;
@@ -85,6 +108,13 @@ int main() {
   cout << "\tContact radius:   " << FLAGS_contact_radius << "\n";
   cout << "\tdissipation:      " << FLAGS_dissipation << "\n";
   cout << "\tpin count:        " << FLAGS_pin_count << "\n";
+  cout << "\tcamera:\n";
+  cout << "\t  pose:           " << FLAGS_cam_x << ", " << FLAGS_cam_y << ", "
+       << FLAGS_cam_z << "\n";
+  cout << "\t  rpy:            " << FLAGS_cam_r << ", " << FLAGS_cam_p << ", "
+       << FLAGS_cam_yaw << "\n";
+  cout << "\t  fps:            " << FLAGS_fps << "\n";
+
 
   if (FLAGS_pin_count < 0 || FLAGS_pin_count > 10) {
     cerr << "Bad number of pins specified.  Must be in the range [0, 10]\n";
@@ -141,6 +171,38 @@ int main() {
       scene_graph->get_source_pose_port(rbt_sg_bridge->source_id()));
 
   geometry::ConnectDrakeVisualizer(&builder, *scene_graph);
+
+  // Add camera to take pictures
+  // SG camera
+  DepthCameraProperties camera_properties(640, 480, M_PI / 4, Fidelity::kLow,
+                                          0.1, 40.0);
+  auto camera = builder.AddSystem<RgbdCamera2>(
+      "cam1", Vector3<double>{FLAGS_cam_x, FLAGS_cam_y, FLAGS_cam_z},
+      Vector3<double>{FLAGS_cam_r, FLAGS_cam_p, FLAGS_cam_yaw},
+      camera_properties, true);
+  builder.Connect(scene_graph->get_query_output_port(),
+                  camera->query_object_input_port());
+
+  // RBT camera
+  RenderingConfig config(640, 480, M_PI / 4, 0.1, 40.0, false);
+  auto camera_old = builder.AddSystem<RgbdCamera>(
+      "camera", tree, Vector3<double>{FLAGS_cam_x, FLAGS_cam_y, FLAGS_cam_z},
+      Vector3<double>{FLAGS_cam_r, FLAGS_cam_p, FLAGS_cam_yaw});
+  builder.Connect(plant.state_output_port(), camera_old->state_input_port());
+
+  // Add image writing
+  auto image_writer = builder.AddSystem<PngWriter>(
+      "/home/sean/temp/rendering/new_" + FLAGS_name, FLAGS_cam_start);
+  image_writer->set_publish_period(1. / FLAGS_fps);
+  builder.Connect(camera->color_image_output_port(),
+                  image_writer->color_image_input_port());
+
+  auto image_writer_old = builder.AddSystem<PngWriterOld>(
+      "/home/sean/temp/rendering/old_" + FLAGS_name, FLAGS_cam_start);
+  image_writer_old->set_publish_period(1. / FLAGS_fps);
+  builder.Connect(camera_old->color_image_output_port(),
+                  image_writer_old->color_image_input_port());
+
   auto diagram = builder.Build();
 
   // Create simulator.
@@ -149,6 +211,7 @@ int main() {
   simulator.reset_integrator<RungeKutta2Integrator<double>>(*diagram,
                                                             FLAGS_timestep,
                                                             &context);
+  simulator.set_publish_every_time_step(false);
   // Set initial state.
   Context<double>& plant_context =
       diagram->GetMutableSubsystemContext(plant, &context);
