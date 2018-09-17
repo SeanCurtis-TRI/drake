@@ -1,5 +1,7 @@
 #pragma once
 
+#include "drake/geometry/render/fidelity.h"
+
 namespace drake {
 namespace geometry {
 namespace render {
@@ -16,12 +18,17 @@ namespace render {
  The focal length is inferred by the sensor format (width and height) and the
  field of view along the y-axis. */
 struct CameraProperties {
-  CameraProperties(int width_in, int height_in, double fov_y_in)
-      : width(width_in), height(height_in), fov_y(fov_y_in) {}
+  CameraProperties(int width_in, int height_in, double fov_y_in,
+                   Fidelity fidelity_in)
+      : width(width_in),
+        height(height_in),
+        fov_y(fov_y_in),
+        fidelity(fidelity_in) {}
 
-  int width{};     ///< The width of the image (in pixels) to be rendered.
-  int height{};    ///< The height of the image (in pixels) to be rendered.
-  double fov_y{};  ///< The camera's vertical field of view (in radians).
+  int width{};          ///< The width of the image (in pixels) to be rendered.
+  int height{};         ///< The height of the image (in pixels) to be rendered.
+  double fov_y{};       ///< The camera's vertical field of view (in radians).
+  Fidelity fidelity{};  ///< The render fidelity of this camera.
 };
 
 /** The intrinsic properties for a render _depth_ camera. Consists of all of the
@@ -30,8 +37,8 @@ struct CameraProperties {
  @see CameraProperties */
 struct DepthCameraProperties : public CameraProperties {
   DepthCameraProperties(int width_in, int height_in, double fov_y_in,
-                        double z_near_in, double z_far_in)
-      : CameraProperties(width_in, height_in, fov_y_in),
+                        Fidelity fidelity_in, double z_near_in, double z_far_in)
+      : CameraProperties(width_in, height_in, fov_y_in, fidelity_in),
         z_near(z_near_in),
         z_far(z_far_in) {}
 

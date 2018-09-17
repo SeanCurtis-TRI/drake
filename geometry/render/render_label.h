@@ -67,7 +67,11 @@ namespace render {
    - arbitrarily limited domain (kLabelCount).
 
  // TODO(SeanCurtis-TRI):
- //  1. Find an alternate name for "terrain" label that is more generic.
+ //  1. Change the "default" labels to:
+ //      - "empty" (no object at that pixel)
+ //      - "ignored" (the former "terrain")
+ //      - "unclassified" (the default value which indicates that no label was
+ //        explicitly assigned -- indcating possible user error).
  @endcond
  */
 class RenderLabel {

@@ -19,6 +19,25 @@ QueryObject<T>& QueryObject<T>::operator=(const QueryObject<T>&) {
 }
 
 template <typename T>
+const Isometry3<T>& QueryObject<T>::GetPoseInWorld(FrameId frame_id) const {
+  ThrowIfDefault();
+  // TODO(SeanCurtis-TRI): Modify this when the cache system is in place.
+  scene_graph_->FullPoseUpdate(*context_);
+  const GeometryState<T>& state = context_->get_geometry_state();
+  return state.get_pose_in_world(frame_id);
+}
+
+template <typename T>
+const Isometry3<T>& QueryObject<T>::GetPoseInWorld(
+    GeometryId geometry_id) const {
+  ThrowIfDefault();
+  // TODO(SeanCurtis-TRI): Modify this when the cache system is in place.
+  scene_graph_->FullPoseUpdate(*context_);
+  const GeometryState<T>& state = context_->get_geometry_state();
+  return state.get_pose_in_world(geometry_id);
+}
+
+template <typename T>
 std::vector<PenetrationAsPointPair<double>>
 QueryObject<T>::ComputePointPairPenetration() const {
   ThrowIfDefault();
@@ -41,8 +60,7 @@ QueryObject<T>::ComputeSignedDistancePairwiseClosestPoints() const {
 }
 
 template <typename T>
-void QueryObject<T>::RenderColorImage(render::Fidelity fidelity,
-                                      const render::CameraProperties& camera,
+void QueryObject<T>::RenderColorImage(const render::CameraProperties& camera,
                                       const Isometry3<double>& X_WC,
                                       render::ImageRgba8U* color_image_out,
                                       bool show_window) const {
@@ -51,35 +69,75 @@ void QueryObject<T>::RenderColorImage(render::Fidelity fidelity,
   // TODO(SeanCurtis-TRI): Modify this when the cache system is in place.
   scene_graph_->FullPoseUpdate(*context_);
   const GeometryState<T>& state = context_->get_geometry_state();
-  return state.RenderColorImage(fidelity, camera, X_WC, color_image_out,
+  return state.RenderColorImage(camera, X_WC, color_image_out, show_window);
+}
+
+template <typename T>
+void QueryObject<T>::RenderColorImage(const render::CameraProperties& camera,
+                                      FrameId parent_frame,
+                                      const Isometry3<double>& X_PC,
+                                      render::ImageRgba8U* color_image_out,
+                                      bool show_window) const {
+  ThrowIfDefault();
+
+  // TODO(SeanCurtis-TRI): Modify this when the cache system is in place.
+  scene_graph_->FullPoseUpdate(*context_);
+  const GeometryState<T>& state = context_->get_geometry_state();
+  return state.RenderColorImage(camera, parent_frame, X_PC, color_image_out,
                                 show_window);
 }
 
 template <typename T>
-void QueryObject<T>::RenderDepthImage(render::Fidelity fidelity,
-                      const render::DepthCameraProperties& camera,
-                      const Isometry3<double>& X_WC,
-                      render::ImageDepth32F* depth_image_out) const {
+void QueryObject<T>::RenderDepthImage(
+    const render::DepthCameraProperties& camera,
+    const Isometry3<double>& X_WC,
+    render::ImageDepth32F* depth_image_out) const {
   ThrowIfDefault();
 
   // TODO(SeanCurtis-TRI): Modify this when the cache system is in place.
   scene_graph_->FullPoseUpdate(*context_);
   const GeometryState<T>& state = context_->get_geometry_state();
-  return state.RenderDepthImage(fidelity, camera, X_WC, depth_image_out);
+  return state.RenderDepthImage(camera, X_WC, depth_image_out);
 }
 
 template <typename T>
-void QueryObject<T>::RenderLabelImage(render::Fidelity fidelity,
-                      const render::CameraProperties& camera,
-                      const Isometry3<double>& X_WC,
-                      render::ImageLabel16I* label_image_out,
-                      bool show_window) const {
+void QueryObject<T>::RenderDepthImage(
+    const render::DepthCameraProperties& camera,
+    FrameId parent_frame, const Isometry3<double>& X_PC,
+    render::ImageDepth32F* depth_image_out) const {
   ThrowIfDefault();
 
   // TODO(SeanCurtis-TRI): Modify this when the cache system is in place.
   scene_graph_->FullPoseUpdate(*context_);
   const GeometryState<T>& state = context_->get_geometry_state();
-  return state.RenderLabelImage(fidelity, camera, X_WC, label_image_out,
+  return state.RenderDepthImage(camera, parent_frame, X_PC, depth_image_out);
+}
+
+template <typename T>
+void QueryObject<T>::RenderLabelImage(const render::CameraProperties& camera,
+                                      const Isometry3<double>& X_WC,
+                                      render::ImageLabel16I* label_image_out,
+                                      bool show_window) const {
+  ThrowIfDefault();
+
+  // TODO(SeanCurtis-TRI): Modify this when the cache system is in place.
+  scene_graph_->FullPoseUpdate(*context_);
+  const GeometryState<T>& state = context_->get_geometry_state();
+  return state.RenderLabelImage(camera, X_WC, label_image_out, show_window);
+}
+
+template <typename T>
+void QueryObject<T>::RenderLabelImage(const render::CameraProperties& camera,
+                                      FrameId parent_frame,
+                                      const Isometry3<double>& X_PC,
+                                      render::ImageLabel16I* label_image_out,
+                                      bool show_window) const {
+  ThrowIfDefault();
+
+  // TODO(SeanCurtis-TRI): Modify this when the cache system is in place.
+  scene_graph_->FullPoseUpdate(*context_);
+  const GeometryState<T>& state = context_->get_geometry_state();
+  return state.RenderLabelImage(camera, parent_frame, X_PC, label_image_out,
                                 show_window);
 }
 

@@ -333,7 +333,8 @@ class RenderEngineVtkTest : public ::testing::Test {
   float expected_object_depth_{2.f};
   RenderLabel expected_label_;
 
-  const DepthCameraProperties camera_ = {kWidth, kHeight, kFovY, kZNear, kZFar};
+  const DepthCameraProperties camera_ = {kWidth, kHeight, kFovY, Fidelity::kLow,
+                                         kZNear, kZFar};
 
   ImageRgba8U color_;
   ImageDepth32F depth_;

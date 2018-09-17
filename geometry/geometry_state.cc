@@ -659,6 +659,41 @@ void GeometryState<T>::ExcludeCollisionsBetween(const GeometrySet& setA,
 }
 
 template <typename T>
+void GeometryState<T>::RenderColorImage(const render::CameraProperties& camera,
+                                        FrameId parent_frame,
+                                        const Isometry3<double>& X_PC,
+                                        render::ImageRgba8U* color_image_out,
+                                        bool show_window) const {
+  render::RenderEngine* engine = GetRenderEngineOrThrow(camera.fidelity);
+  const Isometry3<double> X_WC = GetDoubleWorldPose(parent_frame) * X_PC;
+  engine->UpdateViewpoint(X_WC);
+  engine->RenderColorImage(camera, color_image_out, show_window);
+}
+
+template <typename T>
+void GeometryState<T>::RenderDepthImage(
+    const render::DepthCameraProperties& camera,
+    FrameId parent_frame, const Isometry3<double>& X_PC,
+    render::ImageDepth32F* depth_image_out) const {
+  render::RenderEngine* engine = GetRenderEngineOrThrow(camera.fidelity);
+  const Isometry3<double> X_WC = GetDoubleWorldPose(parent_frame) * X_PC;
+  engine->UpdateViewpoint(X_WC);
+  engine->RenderDepthImage(camera, depth_image_out);
+}
+
+template <typename T>
+void GeometryState<T>::RenderLabelImage(const render::CameraProperties& camera,
+                                        FrameId parent_frame,
+                                        const Isometry3<double>& X_PC,
+                                        render::ImageLabel16I* label_image_out,
+                                        bool show_window) const {
+  render::RenderEngine* engine = GetRenderEngineOrThrow(camera.fidelity);
+  const Isometry3<double> X_WC = GetDoubleWorldPose(parent_frame) * X_PC;
+  engine->UpdateViewpoint(X_WC);
+  engine->RenderLabelImage(camera, label_image_out, show_window);
+}
+
+template <typename T>
 std::unique_ptr<GeometryState<AutoDiffXd>> GeometryState<T>::ToAutoDiffXd()
     const {
   return std::unique_ptr<GeometryState<AutoDiffXd>>(
@@ -762,7 +797,6 @@ void GeometryState<T>::UpdatePosesRecursively(
   // fully-defined transformation (with [0 0 0 1] on the bottom row).
   X_WF.makeAffine();
   X_WF_[frame.internal_index()] = X_WF;
-
   // Update the geometry which belong to *this* frame.
   for (auto child_id : frame.get_child_geometries()) {
     auto& child_geometry = geometries_[child_id];
@@ -865,6 +899,32 @@ void GeometryState<T>::AssignRoleInternal(SourceId source_id,
     ThrowIfNameExistsInRole(geometry->frame_id(), role, geometry->name());
   }
   geometry->SetRole(std::move(properties));
+}
+
+// TODO(SeanCurtis-TRI): This is compied from proximity_engine.cc. Refactor this
+// into a single location for re-use.
+
+// ADL-reliant helper functions for converting Isometry<T> to Isometry<double>.
+const Isometry3<double>& convert(const Isometry3<double>& transform) {
+  return transform;
+}
+
+template <class VectorType>
+Isometry3<double> convert(
+    const Isometry3<Eigen::AutoDiffScalar<VectorType>>& transform) {
+  Isometry3<double> result;
+  for (int r = 0; r < 4; ++r) {
+    for (int c = 0; c < 4; ++c) {
+      result.matrix()(r, c) = ExtractDoubleOrThrow(transform.matrix()(r, c));
+    }
+  }
+  return result;
+}
+
+template <typename T>
+Isometry3<double> GeometryState<T>::GetDoubleWorldPose(FrameId frame_id) const {
+  const internal::InternalFrame& frame = GetValueOrThrow(frame_id, frames_);
+  return convert(X_WF_[frame.internal_index()]);
 }
 
 }  // namespace geometry

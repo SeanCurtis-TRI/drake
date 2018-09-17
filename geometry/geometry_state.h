@@ -590,55 +590,72 @@ class GeometryState {
 
   /** Renders and outputs the rendered color image.
 
-   @param fidelity              The desired fidelity of the renderer to use.
    @param camera                The intrinsic properties of the camera.
    @param X_WC                  The pose of the camera in the world frame.
    @param[out] color_image_out  The rendered color image.
    @param show_window           If true, the render window will be displayed. */
-  void RenderColorImage(render::Fidelity fidelity,
-                        const render::CameraProperties& camera,
+  void RenderColorImage(const render::CameraProperties& camera,
                         const Isometry3<double>& X_WC,
                         render::ImageRgba8U* color_image_out,
                         bool show_window) const {
-    render::RenderEngine* engine = GetRenderEngineOrThrow(fidelity);
+    render::RenderEngine* engine = GetRenderEngineOrThrow(camera.fidelity);
     engine->UpdateViewpoint(X_WC);
     engine->RenderColorImage(camera, color_image_out, show_window);
   }
+
+  /** Overload for rendering a color image in which the camera's pose is defined
+   relative to the given parent frame.  */
+  void RenderColorImage(const render::CameraProperties& camera,
+                        FrameId parent_frame,
+                        const Isometry3<double>& X_PC,
+                        render::ImageRgba8U* color_image_out,
+                        bool show_window) const;
 
   /** Renders and outputs the rendered depth image. In contrast to the other
    rendering operations, depth images don't have an option to display the
    window; generally, basic depth images are not readily communicative to
    humans.
 
-   @param fidelity              The desired fidelity of the renderer to use.
    @param camera                The intrinsic properties of the camera.
    @param X_WC                  The pose of the camera in the world frame.
    @param[out] depth_image_out  The rendered depth image. */
-  void RenderDepthImage(render::Fidelity fidelity,
-                        const render::DepthCameraProperties& camera,
+  void RenderDepthImage(const render::DepthCameraProperties& camera,
                         const Isometry3<double>& X_WC,
                         render::ImageDepth32F* depth_image_out) const {
-    render::RenderEngine* engine = GetRenderEngineOrThrow(fidelity);
+    render::RenderEngine* engine = GetRenderEngineOrThrow(camera.fidelity);
     engine->UpdateViewpoint(X_WC);
     engine->RenderDepthImage(camera, depth_image_out);
   }
 
+  /** Overload for rendering a depth image in which the camera's pose is defined
+   relative to the given parent frame.  */
+  void RenderDepthImage(const render::DepthCameraProperties& camera,
+                        FrameId parent_frame,
+                        const Isometry3<double>& X_PC,
+                        render::ImageDepth32F* depth_image_out) const;
+
   /** Renders and outputs the rendered label image.
 
-   @param fidelity              The desired fidelity of the renderer to use.
    @param camera                The intrinsic properties of the camera.
    @param X_WC                  The pose of the camera in the world frame.
    @param[out] label_image_out  The rendered label image.
    @param show_window           If true, the render window will be displayed. */
-  void RenderLabelImage(render::Fidelity fidelity,
-                        const render::CameraProperties& camera,
+  void RenderLabelImage(const render::CameraProperties& camera,
                         const Isometry3<double>& X_WC,
                         render::ImageLabel16I* label_image_out,
                         bool show_window) const {
-    render::RenderEngine* engine = GetRenderEngineOrThrow(fidelity);
+    render::RenderEngine* engine = GetRenderEngineOrThrow(camera.fidelity);
     engine->UpdateViewpoint(X_WC);
     engine->RenderLabelImage(camera, label_image_out, show_window);
   }
+
+  /** Overload for rendering a label image in which the camera's pose is defined
+   relative to the given parent frame.  */
+  void RenderLabelImage(const render::CameraProperties& camera,
+                        FrameId parent_frame,
+                        const Isometry3<double>& X_PC,
+                        render::ImageLabel16I* label_image_out,
+                        bool show_window) const;
 
   //@}
 
@@ -789,6 +806,10 @@ class GeometryState {
     }
     return engine;
   }
+
+  // Utility function to facilitate getting a double-valued pose for a frame,
+  // regardless of the value of T.
+  Isometry3<double> GetDoubleWorldPose(FrameId frame_id) const;
 
   // ---------------------------------------------------------------------
   // Maps from registered source ids to the entities registered to those

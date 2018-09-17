@@ -255,6 +255,21 @@ drake_cc_library(
     ],
 )
 
+drake_cc_library(
+    name = "rgbd_camera2",
+    srcs = ["rgbd_camera2.cc"],
+    hdrs = ["rgbd_camera2.h"],
+    deps = [
+        ":camera_info",
+        "//geometry",
+        "//geometry/render:image",
+        "//systems/framework",
+        "//systems/primitives",
+        "//systems/rendering:pose_vector",
+        "@eigen",
+    ],
+)
+
 drake_cc_binary(
     name = "rgbd_camera_publish_lcm_example",
     srcs = [

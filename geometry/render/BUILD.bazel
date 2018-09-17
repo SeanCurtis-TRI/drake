@@ -51,6 +51,7 @@ drake_cc_library(
         "render_engine.h",
     ],
     deps = [
+        ":fidelity",
         ":image",
         ":render_label",
         "//geometry:geometry_index",
