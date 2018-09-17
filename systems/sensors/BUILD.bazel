@@ -38,6 +38,7 @@ drake_cc_package_library(
         ":image",
         ":image_to_lcm_image_array_t",
         ":optitrack_sender",
+        ":png_writer",
         ":rgbd_camera",
         ":rgbd_renderer",
         ":rotary_encoders",
@@ -352,6 +353,19 @@ drake_cc_library(
         "//geometry:frame_kinematics",
         "//systems/framework:leaf_system",
         "@optitrack_driver//lcmtypes:optitrack_lcmtypes",
+    ],
+)
+
+drake_cc_library(
+    name = "png_writer",
+    srcs = ["png_writer.cc"],
+    hdrs = ["png_writer.h"],
+    deps = [
+        ":image",
+        ":vtk_util",
+        "//systems/framework",
+        "@vtk//:vtkCommonDataModel",
+        "@vtk//:vtkIOImage",
     ],
 )
 
