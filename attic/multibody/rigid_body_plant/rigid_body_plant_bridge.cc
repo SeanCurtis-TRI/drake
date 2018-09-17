@@ -24,6 +24,7 @@ using geometry::GeometryFrame;
 using geometry::GeometryId;
 using geometry::GeometryInstance;
 using geometry::IllustrationProperties;
+using geometry::PerceptionProperties;
 using geometry::MakeDrakeVisualizerProperties;
 using geometry::Mesh;
 using geometry::SceneGraph;
@@ -137,6 +138,10 @@ void RigidBodyPlantBridge<T>::RegisterTree(SceneGraph<T>* scene_graph) {
               std::make_unique<GeometryInstance>(X_FG, std::move(shape), name));
           scene_graph->AssignRole(source_id_, id,
                                   MakeDrakeVisualizerProperties(diffuse));
+          PerceptionProperties perception;
+          perception.AddGroup("phong");
+          perception.AddProperty("phong", "diffuse", diffuse);
+          scene_graph->AssignRole(source_id_, id, perception);
           DRAKE_DEMAND(shape == nullptr);
         }
       }

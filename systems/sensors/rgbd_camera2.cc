@@ -97,17 +97,17 @@ void RgbdCamera2::InitPorts(const std::string& name) {
   ImageRgba8U color_image(
       color_camera_info_.width(), color_camera_info_.height());
   color_image_port_ = &this->DeclareAbstractOutputPort(
-      sensors::ImageRgba8U(color_image), &RgbdCamera2::CalcColorImage);
+      color_image, &RgbdCamera2::CalcColorImage);
 
   ImageDepth32F depth_image(
       depth_camera_info_.width(), depth_camera_info_.height());
   depth_image_port_ = &this->DeclareAbstractOutputPort(
-      sensors::ImageDepth32F(depth_image), &RgbdCamera2::CalcDepthImage);
+      depth_image, &RgbdCamera2::CalcDepthImage);
 
   ImageLabel16I label_image(
       color_camera_info_.width(), color_camera_info_.height());
   label_image_port_ = &this->DeclareAbstractOutputPort(
-      sensors::ImageLabel16I(label_image), &RgbdCamera2::CalcLabelImage);
+      label_image, &RgbdCamera2::CalcLabelImage);
 
   camera_base_pose_port_ = &this->DeclareVectorOutputPort(
       rendering::PoseVector<double>(), &RgbdCamera2::CalcPoseVector);

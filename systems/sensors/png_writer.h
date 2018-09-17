@@ -2,12 +2,10 @@
 
 #include "drake/common/drake_copyable.h"
 #include "drake/systems/framework/leaf_system.h"
-#include "drake/systems/sensors/image.h"
 
 namespace drake {
 namespace systems {
 namespace sensors {
-
 
 /** A system for periodically writing images to the file system. This is a
  convenience mechanism for capturing images from (typically) an RgbdCamera.

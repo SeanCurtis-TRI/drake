@@ -29,6 +29,30 @@ using std::make_unique;
 using std::move;
 using std::to_string;
 
+namespace {
+
+// TODO(SeanCurtis-TRI): This is copied from proximity_engine.cc. Refactor this
+// into a single location for re-use.
+
+// ADL-reliant helper functions for converting Isometry<T> to Isometry<double>.
+const Isometry3<double>& convert(const Isometry3<double>& transform) {
+  return transform;
+}
+
+template <class VectorType>
+Isometry3<double> convert(
+    const Isometry3<Eigen::AutoDiffScalar<VectorType>>& transform) {
+  Isometry3<double> result;
+  for (int r = 0; r < 4; ++r) {
+    for (int c = 0; c < 4; ++c) {
+      result.matrix()(r, c) = ExtractDoubleOrThrow(transform.matrix()(r, c));
+    }
+  }
+  return result;
+}
+
+} // namespace
+
 //-----------------------------------------------------------------------------
 
 // These utility methods help streamline the desired semantics of map lookups.
@@ -777,6 +801,14 @@ void GeometryState<T>::ValidateFrameIds(
 }
 
 template <typename T>
+void GeometryState<T>::FinalizePoseUpdate() {
+  geometry_engine_->UpdateWorldPoses(X_WG_, X_WG_proximity_);
+  for (RenderIndex i(0); i < X_WG_.size(); ++i) {
+    low_render_engine_->UpdateVisualPose(convert(X_WG_[i]), i);
+  }
+}
+
+template <typename T>
 SourceId GeometryState<T>::get_source_id(FrameId frame_id) const {
   const auto& frame = GetValueOrThrow(frame_id, frames_);
   return frame.get_source_id();
@@ -901,28 +933,11 @@ void GeometryState<T>::AssignRoleInternal(SourceId source_id,
   geometry->SetRole(std::move(properties));
 }
 
-// TODO(SeanCurtis-TRI): This is compied from proximity_engine.cc. Refactor this
-// into a single location for re-use.
-
-// ADL-reliant helper functions for converting Isometry<T> to Isometry<double>.
-const Isometry3<double>& convert(const Isometry3<double>& transform) {
-  return transform;
-}
-
-template <class VectorType>
-Isometry3<double> convert(
-    const Isometry3<Eigen::AutoDiffScalar<VectorType>>& transform) {
-  Isometry3<double> result;
-  for (int r = 0; r < 4; ++r) {
-    for (int c = 0; c < 4; ++c) {
-      result.matrix()(r, c) = ExtractDoubleOrThrow(transform.matrix()(r, c));
-    }
-  }
-  return result;
-}
-
 template <typename T>
 Isometry3<double> GeometryState<T>::GetDoubleWorldPose(FrameId frame_id) const {
+  if (frame_id == InternalFrame::get_world_frame_id()) {
+    return Isometry3<double>::Identity();
+  }
   const internal::InternalFrame& frame = GetValueOrThrow(frame_id, frames_);
   return convert(X_WF_[frame.internal_index()]);
 }

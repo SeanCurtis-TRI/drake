@@ -6,9 +6,15 @@
 #include <vtkNew.h>
 #include <vtkPNGWriter.h>
 
+#include "drake/geometry/render/image.h"
+
 namespace drake {
 namespace systems {
 namespace sensors {
+
+using geometry::render::Image;
+using geometry::render::ImageRgba8U;
+using geometry::render::PixelType;
 
 template <PixelType kPixelType>
 void SaveToFile(const std::string& filepath, const Image<kPixelType>& image) {

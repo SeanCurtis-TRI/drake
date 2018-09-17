@@ -748,9 +748,7 @@ class GeometryState {
 
   // Method that performs any final book-keeping/updating on the state after
   // _all_ of the state's frames have had their poses updated.
-  void FinalizePoseUpdate() {
-    geometry_engine_->UpdateWorldPoses(X_WG_, X_WG_proximity_);
-  }
+  void FinalizePoseUpdate();
 
   // Gets the source id for the given frame id. Throws std::logic_error if the
   // frame belongs to no registered source.
