@@ -33,50 +33,7 @@ using geometry::SceneGraph;
 using geometry::Shape;
 using geometry::Sphere;
 
-template <typename T>
-RigidBodyPlantBridge<T>::RigidBodyPlantBridge(const RigidBodyTree<T>* tree,
-                                              SceneGraph<T>* scene_graph)
-    : tree_(tree) {
-  DRAKE_THROW_UNLESS(tree_ != nullptr);
-  DRAKE_THROW_UNLESS(scene_graph != nullptr);
-  source_id_ = scene_graph->RegisterSource(this->get_name());
-
-  // Declare the tree's pose input port -- don't need the index, it is always 0.
-  const int vector_size =
-      tree->get_num_positions() + tree->get_num_velocities();
-  plant_state_port_ =
-      this->DeclareInputPort(kVectorValued, vector_size).get_index();
-  RegisterTree(scene_graph);
-
-  // Now that the frames have been registered, instantiate the output port.
-  geometry_pose_port_ = this->DeclareAbstractOutputPort(
-          FramePoseVector<T>(source_id_, body_ids_),
-          &RigidBodyPlantBridge::CalcFramePoseOutput)
-      .get_index();
-}
-
-template <typename T>
-const OutputPort<T>& RigidBodyPlantBridge<T>::geometry_pose_output_port()
-    const {
-  return this->get_output_port(geometry_pose_port_);
-}
-
-template <typename T>
-const InputPort<T>&
-RigidBodyPlantBridge<T>::rigid_body_plant_state_input_port() const {
-  return this->get_input_port(plant_state_port_);
-}
-
-template <typename T>
-int RigidBodyPlantBridge<T>::BodyForLabel(RenderLabel label) const {
-  if (label == RenderLabel::terrain_label()) {
-    return 0;  // world index.
-  } else if (label == RenderLabel::empty_label()) {
-    return -1;
-  } else {
-    return label_to_index_.at(label);
-  }
-}
+namespace {
 
 // Utility function for extracting a shape from a visual element.
 std::unique_ptr<Shape> ShapeFromElement(
@@ -115,9 +72,57 @@ std::unique_ptr<Shape> ShapeFromElement(
     }
     default:
       drake::log()->warn("Only spheres, cylinders, boxes, and (limited) meshes"
-                         "are supported by RigidBodyPlantBridge");
+                             "are supported by RigidBodyPlantBridge");
   }
   return std::move(shape);
+}
+
+}  // namespace
+
+template <typename T>
+RigidBodyPlantBridge<T>::RigidBodyPlantBridge(const RigidBodyTree<T>* tree,
+                                              SceneGraph<T>* scene_graph)
+    : tree_(tree) {
+  DRAKE_THROW_UNLESS(tree_ != nullptr);
+  DRAKE_THROW_UNLESS(scene_graph != nullptr);
+  source_id_ = scene_graph->RegisterSource(this->get_name());
+
+  // Declare the tree's pose input port -- don't need the index, it is always 0.
+  const int vector_size =
+      tree->get_num_positions() + tree->get_num_velocities();
+  plant_state_port_ =
+      this->DeclareInputPort(kVectorValued, vector_size).get_index();
+  RegisterTree(scene_graph);
+
+  // Now that the frames have been registered, instantiate the output port.
+  std::vector<FrameId> dynamic_frames(body_ids_.begin() + 1, body_ids_.end());
+  geometry_pose_port_ = this->DeclareAbstractOutputPort(
+          FramePoseVector<T>(source_id_, dynamic_frames),
+          &RigidBodyPlantBridge::CalcFramePoseOutput)
+      .get_index();
+}
+
+template <typename T>
+const OutputPort<T>& RigidBodyPlantBridge<T>::geometry_pose_output_port()
+    const {
+  return this->get_output_port(geometry_pose_port_);
+}
+
+template <typename T>
+const InputPort<T>&
+RigidBodyPlantBridge<T>::rigid_body_plant_state_input_port() const {
+  return this->get_input_port(plant_state_port_);
+}
+
+template <typename T>
+int RigidBodyPlantBridge<T>::BodyForLabel(RenderLabel label) const {
+  if (label == RenderLabel::terrain_label()) {
+    return 0;  // world index.
+  } else if (label == RenderLabel::empty_label()) {
+    return -1;
+  } else {
+    return label_to_index_.at(label);
+  }
 }
 
 template <typename T>
@@ -133,7 +138,7 @@ void RigidBodyPlantBridge<T>::RegisterTree(SceneGraph<T>* scene_graph) {
   using std::make_unique;
 
   // Process geometries attached to *all* bodies.
-  body_ids_.reserve(tree_->get_bodies().size() - 1);
+  body_ids_.reserve(tree_->get_bodies().size());
   //Iterate through unique pointers to bodies.
   for (const auto& body_ptr : tree_->get_bodies()) {
     const RigidBody<T>& body = *body_ptr;
@@ -151,7 +156,6 @@ void RigidBodyPlantBridge<T>::RegisterTree(SceneGraph<T>* scene_graph) {
           source_id_,
           GeometryFrame(body.get_name(), Isometry3<double>::Identity(),
                         body.get_model_instance_id()));
-      body_ids_.push_back(body_id);
 
       if (body.get_visual_elements().size() > 0) {
         // Create a label for this body because it has visual geometry.
@@ -159,6 +163,8 @@ void RigidBodyPlantBridge<T>::RegisterTree(SceneGraph<T>* scene_graph) {
         label_to_index_[label] = body.get_body_index();
       }
     }
+    body_ids_.push_back(body_id);
+
     // TODO(SeanCurtis-TRI): Detect if equivalent shapes are used for visual
     // and collision and then simply assign it additional roles. This is an
     // optimization.
@@ -212,7 +218,7 @@ template <typename T>
 void RigidBodyPlantBridge<T>::CalcFramePoseOutput(
     const MyContext& context, FramePoseVector<T>* poses) const {
   DRAKE_DEMAND(source_id_.is_valid());
-  DRAKE_DEMAND(poses->size() == static_cast<int>(body_ids_.size()));
+  DRAKE_DEMAND(poses->size() == static_cast<int>(body_ids_.size() - 1));
 
   const BasicVector<T>& input_vector = *this->EvalVectorInput(context, 0);
   // Obtains the generalized positions from vector_base.
@@ -232,7 +238,7 @@ void RigidBodyPlantBridge<T>::CalcFramePoseOutput(
   // When we start skipping welded frames, or frames without geometry, this
   // mapping won't be so trivial.
   for (size_t i = 1; i < tree_->get_bodies().size(); ++i) {
-    poses->set_value(body_ids_[i - 1],
+    poses->set_value(body_ids_[i],
                      tree_->relativeTransform(cache, world_body, i));
   }
 }

@@ -123,6 +123,11 @@ class RigidBodyPlantBridge : public systems::LeafSystem<T> {
    returned.  */
   int BodyForLabel(geometry::render::RenderLabel label) const;
 
+  /** Reports the frame id for the given body. */
+  geometry::FrameId FrameIdFromBody(const RigidBody<T>& body) const {
+    return body_ids_[body.get_body_index()];
+  }
+
  private:
   // Registers `this` system's tree's bodies and geometries to the given
   // geometry system.
@@ -151,9 +156,8 @@ class RigidBodyPlantBridge : public systems::LeafSystem<T> {
   std::unordered_map<geometry::render::RenderLabel, int> label_to_index_;
 
   // Registered frames. In this incarnation, body i's frame_id is stored in
-  // element i - 1. This is because *all* frames are currently being registered
-  // (regardless of weldedness or whether it has geometry) and we skip the
-  // world body (index 0).
+  // element i. This is because *all* frames are currently being registered
+  // (regardless of weldedness or whether it has geometry).
   std::vector<geometry::FrameId> body_ids_;
 };
 }  // namespace systems
