@@ -43,7 +43,6 @@
 #include "drake/systems/lcm/lcm_publisher_system.h"
 #include "drake/systems/sensors/image_to_lcm_image_array_t.h"
 #include "drake/systems/sensors/rgbd_camera2.h"
-#include "drake/systems/sensors/rgbd_camera.h"
 #include "drake/systems/sensors/png_writer.h"
 
 namespace drake {
@@ -53,8 +52,6 @@ using geometry::render::DepthCameraProperties;
 using geometry::render::Fidelity;
 using multibody::joints::kQuaternion;
 using systems::sensors::PngWriter;
-using systems::sensors::RenderingConfig;
-using systems::sensors::RgbdCamera;
 using systems::sensors::RgbdCamera2;
 using Eigen::VectorXd;
 using std::make_unique;
@@ -189,25 +186,12 @@ int main() {
   builder.Connect(scene_graph->get_query_output_port(),
                   camera->query_object_input_port());
 
-  // RBT camera
-  RenderingConfig config(640, 480, M_PI / 4, 0.1, 40.0, false);
-  auto camera_old = builder.AddSystem<RgbdCamera>(
-      "camera", tree, Vector3<double>{FLAGS_cam_x, FLAGS_cam_y, FLAGS_cam_z},
-      Vector3<double>{FLAGS_cam_r, FLAGS_cam_p, FLAGS_cam_yaw});
-  builder.Connect(plant.state_output_port(), camera_old->state_input_port());
-
   // Add image writing
   auto image_writer = builder.AddSystem<PngWriter>(
       "/home/sean/temp/rendering/new_" + FLAGS_name, FLAGS_cam_start);
   image_writer->set_publish_period(1. / FLAGS_fps);
   builder.Connect(camera->color_image_output_port(),
                   image_writer->color_image_input_port());
-
-  auto image_writer_old = builder.AddSystem<PngWriter>(
-      "/home/sean/temp/rendering/old_" + FLAGS_name, FLAGS_cam_start);
-  image_writer_old->set_publish_period(1. / FLAGS_fps);
-  builder.Connect(camera_old->color_image_output_port(),
-                  image_writer_old->color_image_input_port());
 
   // Publishing images to drake visualizer
   auto image_to_lcm_image_array =
@@ -224,15 +208,15 @@ int main() {
   image_array_lcm_publisher->set_publish_period(1. / FLAGS_fps);
 
   builder.Connect(
-      camera_old->color_image_output_port(),
+      camera->color_image_output_port(),
       image_to_lcm_image_array->color_image_input_port());
 
   builder.Connect(
-      camera_old->depth_image_output_port(),
+      camera->depth_image_output_port(),
       image_to_lcm_image_array->depth_image_input_port());
 
   builder.Connect(
-      camera_old->label_image_output_port(),
+      camera->label_image_output_port(),
       image_to_lcm_image_array->label_image_input_port());
 
   builder.Connect(
