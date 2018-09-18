@@ -18,7 +18,6 @@ drake_cc_package_library(
         ":render_engine_impl",
         ":render_engine_vtk",
         ":render_label",
-        ":vtk_util",
     ],
 )
 
@@ -64,9 +63,9 @@ drake_cc_library(
     ],
     deps = [
         ":render_engine",
-        ":vtk_util",
         "//common",
         "//geometry/render/shaders:depth_shaders",
+        "//systems/sensors:vtk_util",
         "@eigen",
         "@vtk//:vtkCommonCore",
         "@vtk//:vtkCommonDataModel",
@@ -87,23 +86,6 @@ drake_cc_library(
     deps = [
         "//common:essential",
         "//common:hash",
-    ],
-)
-
-drake_cc_library(
-    name = "vtk_util",
-    srcs = ["vtk_util.cc"],
-    hdrs = ["vtk_util.h"],
-    # We must not expose `#include <vtk/...>` in any of our installed headers;
-    # vtk_util.h is only included internally within this package.
-    install_hdrs_exclude = ["vtk_util.h"],
-    visibility = ["//visibility:private"],
-    deps = [
-        "//common:essential",
-        "@eigen",
-        "@vtk//:vtkCommonCore",
-        "@vtk//:vtkCommonTransforms",
-        "@vtk//:vtkFiltersSources",
     ],
 )
 

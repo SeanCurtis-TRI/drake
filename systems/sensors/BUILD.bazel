@@ -182,7 +182,10 @@ drake_cc_library(
     # We must not expose `#include <vtk/...>` in any of our installed headers;
     # vtk_util.h is only included internally within this package.
     install_hdrs_exclude = ["vtk_util.h"],
-    visibility = ["//visibility:private"],
+    # Temporarily public so this can be shared by the old RgbdCamera in senors
+    # and the *new* rendering infrastructure in geometry/render. Once the old
+    # is deprecated, this can be moved into geometry/render and made private.
+    visibility = ["//visibility:public"],
     deps = [
         "//common:essential",
         "@eigen",
