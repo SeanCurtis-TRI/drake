@@ -125,6 +125,7 @@ class GeometryStateTester {
 namespace {
 
 using Eigen::Isometry3d;
+using internal::InternalFrame;
 using std::make_unique;
 using std::move;
 using std::unique_ptr;
@@ -244,9 +245,13 @@ class GeometryStateTest : public ::testing::Test {
     // Create anchored geometry.
     pose = Isometry3<double>::Identity();
     pose.translation() << 0, 0, -1;
-    anchored_geometry_ = geometry_state_.RegisterAnchoredGeometry(
-        source_id_, make_unique<GeometryInstance>(
-                        pose, make_unique<Box>(100, 100, 2), anchored_name_));
+    // This simultaneously tests the ability to register an anchored geometry by
+    // explicitly calling out the world frame id and, indirectly, the
+    // RegisterAnchoredGeometry() (which gets invoked in this case).
+    anchored_geometry_ = geometry_state_.RegisterGeometry(
+        source_id_, InternalFrame::get_world_frame_id(),
+        make_unique<GeometryInstance>(
+            pose, make_unique<Box>(100, 100, 2), anchored_name_));
     if (assign_proximity_role) {
       geometry_state_.AssignRole(source_id_, anchored_geometry_,
                                  ProximityProperties());
@@ -1341,7 +1346,7 @@ TEST_F(GeometryStateTest, GetGeometryIdFromName) {
       std::logic_error, "Referenced frame \\d+ has not been registered.");
 
   // Bad *anchored* geometry name.
-  const FrameId world_id = internal::InternalFrame::get_world_frame_id();
+  const FrameId world_id = InternalFrame::get_world_frame_id();
   DRAKE_EXPECT_THROWS_MESSAGE(
       geometry_state_.GetGeometryFromName(world_id, Role::kUnassigned, "bad"),
       std::logic_error,
@@ -1749,7 +1754,7 @@ TEST_F(GeometryStateTest, ChildGeometryRoleCount) {
                              illustration_count));
 
   // Now test against anchored geometry by passing in the world frame.
-  FrameId world_id = internal::InternalFrame::get_world_frame_id();
+  FrameId world_id = InternalFrame::get_world_frame_id();
   ASSERT_TRUE(expected_roles(world_id, 0, 0, 0));
   geometry_state_.AssignRole(source_id_, anchored_geometry_,
                              ProximityProperties());

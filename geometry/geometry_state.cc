@@ -386,6 +386,12 @@ GeometryId GeometryState<T>::RegisterGeometry(
             to_string(geometry_id));
   }
 
+  // Registering a geometry against the world frame registers an anchored
+  // geometry.
+  if (frame_id == InternalFrame::get_world_frame_id()) {
+    return RegisterAnchoredGeometry(source_id, std::move(geometry));
+  }
+
   FrameIdSet& set = GetMutableValueOrThrow(source_id, &source_frame_id_map_);
 
   FindOrThrow(frame_id, set, [frame_id, source_id]() {
@@ -614,7 +620,7 @@ void GeometryState<T>::AssignRole(SourceId source_id,
     // roles. As such, we have no guarantee that they'll grow in lockstep.
     // This is in stark contrast to the dynamic/anchored dichotomy in the
     // proximity role.
-    X_WG_perception_.push_back(geometry->internal_index());
+    X_WG_perception_.insert({index, geometry->internal_index()});
   }
 }
 
@@ -818,9 +824,11 @@ void GeometryState<T>::ValidateFrameIds(
 template <typename T>
 void GeometryState<T>::FinalizePoseUpdate() {
   geometry_engine_->UpdateWorldPoses(X_WG_, X_WG_proximity_);
-  for (RenderIndex i(0); i < X_WG_perception_.size(); ++i) {
-    const InternalIndex internal_index = X_WG_perception_[i];
-    low_render_engine_->UpdateVisualPose(convert(X_WG_[internal_index]), i);
+  for (const auto& pair : X_WG_perception_) {
+    const RenderIndex render_index = pair.first;
+    const InternalIndex in_index = pair.second;
+    low_render_engine_->UpdateVisualPose(convert(X_WG_[in_index]),
+                                         render_index);
   }
 }
 

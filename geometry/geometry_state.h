@@ -892,8 +892,16 @@ class GeometryState {
   // their corresponding engines.
   // NOTE: There is no equivalent for anchored geometries because anchored
   // geometries do not need updating.
+
+  // For proximity, the mapping from ProximityIndex to InternalIndex is implicit
+  // because anchored and dynamic geometries are segregated; they draw from
+  // independent index sets.
   std::vector<InternalIndex> X_WG_proximity_;
-  std::vector<InternalIndex> X_WG_perception_;
+
+  // For perception, the dynamic and anchored geometries draw from the same
+  // set of indices; that means the dynamic geometries have no guarantees to be
+  // the first N indices. So, we must explicitly map.
+  std::unordered_map<RenderIndex, InternalIndex> X_WG_perception_;
 
   // ---------------------------------------------------------------------
   // These values depend on time-dependent input values (e.g., current frame

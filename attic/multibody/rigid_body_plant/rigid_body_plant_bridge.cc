@@ -132,124 +132,80 @@ void RigidBodyPlantBridge<T>::RegisterTree(SceneGraph<T>* scene_graph) {
 
   using std::make_unique;
 
-  // Load *dynamic* geometry
-  const int body_count = static_cast<int>(tree_->get_bodies().size());
-  if (body_count > 1) {  // more than just the world.
-    body_ids_.reserve(body_count - 1);
-    for (int i = 1; i < body_count; ++i) {
-      const RigidBody<T>& body = *tree_->get_bodies()[i];
-      // TODO(SeanCurtis-TRI): Possibly account for the fact that some frames
-      // may be rigidly affixed to other frames or frames without geometry
-      // likewise wouldn't be registered. NOTE: We're registering a frame even
-      // if the body has no geometry.
+  // Process geometries attached to *all* bodies.
+  body_ids_.reserve(tree_->get_bodies().size() - 1);
+  //Iterate through unique pointers to bodies.
+  for (const auto& body_ptr : tree_->get_bodies()) {
+    const RigidBody<T>& body = *body_ptr;
+    // TODO(SeanCurtis-TRI): Possibly account for the fact that some frames
+    // may be rigidly affixed to other frames or frames without geometry
+    // likewise wouldn't be registered. NOTE: We're registering a frame even
+    // if the body has no geometry.
 
-      // Default to the world body configuration.
-      FrameId body_id = scene_graph->world_frame_id();
-      RenderLabel label = RenderLabel::terrain_label();
-      if (i > 0) {
-        // All other bodies register a frame and (possibly) get a unique label.
-        body_id = scene_graph->RegisterFrame(
-            source_id_,
-            GeometryFrame(body.get_name(), Isometry3<double>::Identity(),
-                          body.get_model_instance_id()));
-        body_ids_.push_back(body_id);
+    // Default to the world body configuration.
+    FrameId body_id = scene_graph->world_frame_id();
+    RenderLabel label = RenderLabel::terrain_label();
+    if (body.get_body_index() != tree_->world().get_body_index()) {
+      // All other bodies register a frame and (possibly) get a unique label.
+      body_id = scene_graph->RegisterFrame(
+          source_id_,
+          GeometryFrame(body.get_name(), Isometry3<double>::Identity(),
+                        body.get_model_instance_id()));
+      body_ids_.push_back(body_id);
 
-        if (body.get_visual_elements().size() > 0) {
-          // Create a label for this body because it has visual geometry.
-          label = RenderLabel::new_label();
-          label_to_index_[label] = i;
-        }
+      if (body.get_visual_elements().size() > 0) {
+        // Create a label for this body because it has visual geometry.
+        label = RenderLabel::new_label();
+        label_to_index_[label] = body.get_body_index();
       }
-      // TODO(SeanCurtis-TRI): Detect if equivalent shapes are used for visual
-      // and collision and then simply assign it additional roles. This is an
-      // optimization.
-      int visual_count = 0;
-      for (const auto& visual_element : body.get_visual_elements()) {
-        std::unique_ptr<Shape> shape = ShapeFromElement(visual_element);
-        if (shape) {
-          // Visual element's "material" is simply the diffuse rgba values.
-          const Vector4<double>& diffuse = visual_element.getMaterial();
-          const std::string name = "visual_" + std::to_string(visual_count++);
-          Isometry3<double> X_FG = visual_element.getLocalTransform();
-          GeometryId id = scene_graph->RegisterGeometry(
-              source_id_, body_id,
-              std::make_unique<GeometryInstance>(X_FG, std::move(shape), name));
-          DRAKE_DEMAND(shape == nullptr);
-          scene_graph->AssignRole(source_id_, id,
-                                  MakeDrakeVisualizerProperties(diffuse));
-          PerceptionProperties perception;
-          perception.AddGroup("phong");
-          perception.AddProperty("phong", "diffuse", diffuse);
-          perception.AddGroup("label");
-          perception.AddProperty("label", "id", label);
-          scene_graph->AssignRole(source_id_, id, perception);
-        }
+    }
+    // TODO(SeanCurtis-TRI): Detect if equivalent shapes are used for visual
+    // and collision and then simply assign it additional roles. This is an
+    // optimization.
+    int visual_count = 0;
+    for (const auto& visual_element : body.get_visual_elements()) {
+      std::unique_ptr<Shape> shape = ShapeFromElement(visual_element);
+      if (shape) {
+        const std::string name = "visual_" + std::to_string(visual_count++);
+        Isometry3<double> X_FG = visual_element.getLocalTransform();
+        GeometryId id = scene_graph->RegisterGeometry(
+            source_id_, body_id,
+            std::make_unique<GeometryInstance>(X_FG, std::move(shape), name));
+        DRAKE_DEMAND(shape == nullptr);
+
+        // Illustration properties -- simply pass the diffuse along.
+        const Vector4<double>& diffuse = visual_element.getMaterial();
+        scene_graph->AssignRole(source_id_, id,
+                                MakeDrakeVisualizerProperties(diffuse));
+
+        // Perception properties -- diffuse color and per-body label.
+        PerceptionProperties perception;
+        perception.AddGroup("phong");
+        perception.AddProperty("phong", "diffuse", diffuse);
+        perception.AddGroup("label");
+        perception.AddProperty("label", "id", label);
+        scene_graph->AssignRole(source_id_, id, perception);
       }
-      int collision_count = 0;
-      for (const auto& collide_element_id : body.get_collision_element_ids()) {
-        const multibody::collision::Element* collision_element =
-            tree_->FindCollisionElement(collide_element_id);
-        std::unique_ptr<Shape> shape = ShapeFromElement(*collision_element);
-        if (shape) {
-          const std::string name = "collision_" +
-              std::to_string(collision_count++);
-          Isometry3<double> X_FG = collision_element->getLocalTransform();
-          GeometryId id = scene_graph->RegisterGeometry(
-              source_id_, body_id,
-              std::make_unique<GeometryInstance>(X_FG, std::move(shape), name));
-          DRAKE_DEMAND(shape == nullptr);
-          // TODO(SeanCurtis-TRI): Populate contact material from the element's
-          // CompliantMaterial.
-          scene_graph->AssignRole(source_id_, id, ProximityProperties());
-        }
+    }
+    int collision_count = 0;
+    for (const auto& collide_element_id : body.get_collision_element_ids()) {
+      const multibody::collision::Element* collision_element =
+          tree_->FindCollisionElement(collide_element_id);
+      std::unique_ptr<Shape> shape = ShapeFromElement(*collision_element);
+      if (shape) {
+        const std::string name = "collision_" +
+            std::to_string(collision_count++);
+        Isometry3<double> X_FG = collision_element->getLocalTransform();
+        GeometryId id = scene_graph->RegisterGeometry(
+            source_id_, body_id,
+            std::make_unique<GeometryInstance>(X_FG, std::move(shape), name));
+        DRAKE_DEMAND(shape == nullptr);
+        // TODO(SeanCurtis-TRI): Populate contact material from the element's
+        // CompliantMaterial.
+        scene_graph->AssignRole(source_id_, id, ProximityProperties());
       }
     }
   }
-#if 1
-  const RigidBody<T>& world_body = *tree_->get_bodies()[0];
-  int visual_count = 0;
-  for (const auto& visual_element : world_body.get_visual_elements()) {
-    std::unique_ptr<Shape> shape = ShapeFromElement(visual_element);
-    if (shape) {
-      // Visual element's "material" is simply the diffuse rgba values.
-      const Vector4<double>& diffuse = visual_element.getMaterial();
-      const std::string name = "visual_" + std::to_string(visual_count++);
-      Isometry3<double> X_FG = visual_element.getLocalTransform();
-      GeometryId id = scene_graph->RegisterAnchoredGeometry(
-          source_id_,
-          std::make_unique<GeometryInstance>(X_FG, std::move(shape), name));
-      DRAKE_DEMAND(shape == nullptr);
-      scene_graph->AssignRole(source_id_, id,
-                              MakeDrakeVisualizerProperties(diffuse));
-      PerceptionProperties perception;
-      perception.AddGroup("phong");
-      perception.AddProperty("phong", "diffuse", diffuse);
-      perception.AddGroup("label");
-      // NOTE: All geometry anchored to the world frame have th terrain label
-      // by default.
-      perception.AddProperty("label", "id", RenderLabel::terrain_label());
-      scene_graph->AssignRole(source_id_, id, perception);
-    }
-  }
-  int collision_count = 0;
-  for (const auto& collide_element_id : world_body.get_collision_element_ids()) {
-    const multibody::collision::Element* collision_element =
-        tree_->FindCollisionElement(collide_element_id);
-    std::unique_ptr<Shape> shape = ShapeFromElement(*collision_element);
-    if (shape) {
-      const std::string name = "collision_" +
-          std::to_string(collision_count++);
-      Isometry3<double> X_FG = collision_element->getLocalTransform();
-      GeometryId id = scene_graph->RegisterAnchoredGeometry(
-          source_id_,
-          std::make_unique<GeometryInstance>(X_FG, std::move(shape), name));
-      DRAKE_DEMAND(shape == nullptr);
-      // TODO(SeanCurtis-TRI): Populate contact material from the element's
-      // CompliantMaterial.
-      scene_graph->AssignRole(source_id_, id, ProximityProperties());
-    }
-  }
-#endif
 }
 
 template <typename T>
