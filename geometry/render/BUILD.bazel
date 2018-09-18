@@ -14,7 +14,6 @@ drake_cc_package_library(
     name = "render",
     deps = [
         ":fidelity",
-        ":image",
         ":render_engine",
         ":render_engine_impl",
         ":render_engine_vtk",
@@ -28,20 +27,6 @@ drake_cc_library(
     hdrs = ["fidelity.h"],
 )
 
-drake_cc_library(
-    name = "image",
-    srcs = ["image.cc"],
-    hdrs = [
-        "image.h",
-        "pixel_types.h",
-    ],
-    deps = [
-        "//common:essential",
-        "//common:reset_after_move",
-        "//common:symbolic",
-    ],
-)
-
 # A build target for code that wants to interact with the *idea* of a render
 # engine but doesn't want any build dependencies on the implementation details.
 drake_cc_library(
@@ -52,11 +37,11 @@ drake_cc_library(
     ],
     deps = [
         ":fidelity",
-        ":image",
         ":render_label",
         "//geometry:geometry_index",
         "//geometry:geometry_roles",
         "//geometry:shape_specification",
+        "//systems/sensors:image",
     ],
 )
 
@@ -123,13 +108,6 @@ drake_cc_library(
 )
 
 # === test/ ===
-
-drake_cc_googletest(
-    name = "image_test",
-    deps = [
-        ":image",
-    ],
-)
 
 drake_cc_googletest(
     name = "render_engine_vtk_test",

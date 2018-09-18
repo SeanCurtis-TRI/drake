@@ -123,16 +123,17 @@ class RenderEngineVtk final : public RenderEngine,
 
   /** Inherits RenderEngine::RenderColorImage().  */
   void RenderColorImage(const CameraProperties& camera,
-                        ImageRgba8U* color_image_out,
+                        systems::sensors::ImageRgba8U* color_image_out,
                         bool show_window) const override;
 
   /** Inherits RenderEngine::RenderDepthImage().  */
-  void RenderDepthImage(const DepthCameraProperties& camera,
-                        ImageDepth32F* depth_image_out) const override;
+  void RenderDepthImage(
+      const DepthCameraProperties& camera,
+      systems::sensors::ImageDepth32F* depth_image_out) const override;
 
   /** Inherits RenderEngine::RenderLabelImage().  */
   void RenderLabelImage(const CameraProperties& camera,
-                        ImageLabel16I* label_image_out,
+                        systems::sensors::ImageLabel16I* label_image_out,
                         bool show_window) const override;
 
   /** @name    Shape reification  */

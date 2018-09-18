@@ -16,7 +16,7 @@
 #include "drake/systems/framework/leaf_system.h"
 #include "drake/systems/rendering/pose_vector.h"
 #include "drake/systems/sensors/camera_info.h"
-#include "drake/geometry/render/image.h"
+#include "drake/systems/sensors/image.h"
 
 namespace drake {
 namespace systems {
@@ -84,7 +84,7 @@ class RgbdCamera2 final : public LeafSystem<double> {
   // InvalidDepth.
   // TODO(kunimatsu-tri) Move this to drake::perception.
   static void ConvertDepthImageToPointCloud(
-      const geometry::render::ImageDepth32F& depth_image,
+      const ImageDepth32F& depth_image,
       const CameraInfo& camera_info, Eigen::Matrix3Xf* point_cloud);
 
   /** Constructs an %RgbdCamera2 that is fixed to the world frame with the given
@@ -170,11 +170,11 @@ class RgbdCamera2 final : public LeafSystem<double> {
 
   // These are the calculator methods for the four output ports.
   void CalcColorImage(const Context<double>& context,
-                      geometry::render::ImageRgba8U* color_image) const;
+                      ImageRgba8U* color_image) const;
   void CalcDepthImage(const Context<double>& context,
-                      geometry::render::ImageDepth32F* depth_image) const;
+                      ImageDepth32F* depth_image) const;
   void CalcLabelImage(const Context<double>& context,
-                      geometry::render::ImageLabel16I* label_image) const;
+                      ImageLabel16I* label_image) const;
   void CalcPoseVector(const Context<double>& context,
                       rendering::PoseVector<double>* pose_vector) const;
 

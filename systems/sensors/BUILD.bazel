@@ -262,8 +262,8 @@ drake_cc_library(
     hdrs = ["rgbd_camera2.h"],
     deps = [
         ":camera_info",
+        ":image",
         "//geometry",
-        "//geometry/render:image",
         "//systems/framework",
         "//systems/primitives",
         "//systems/rendering:pose_vector",
@@ -360,19 +360,6 @@ drake_cc_library(
     name = "png_writer",
     srcs = ["png_writer.cc"],
     hdrs = ["png_writer.h"],
-    deps = [
-        ":vtk_util",
-        "//geometry/render:image",
-        "//systems/framework",
-        "@vtk//:vtkCommonDataModel",
-        "@vtk//:vtkIOImage",
-    ],
-)
-
-drake_cc_library(
-    name = "png_writer_old",
-    srcs = ["png_writer_old.cc"],
-    hdrs = ["png_writer_old.h"],
     deps = [
         ":image",
         ":vtk_util",

@@ -7,6 +7,12 @@
 namespace drake {
 namespace geometry {
 
+using render::CameraProperties;
+using render::DepthCameraProperties;
+using systems::sensors::ImageDepth32F;
+using systems::sensors::ImageLabel16I;
+using systems::sensors::ImageRgba8U;
+
 template <typename T>
 QueryObject<T>::QueryObject(const QueryObject&)
     : context_{nullptr}, scene_graph_{nullptr} {}
@@ -60,9 +66,9 @@ QueryObject<T>::ComputeSignedDistancePairwiseClosestPoints() const {
 }
 
 template <typename T>
-void QueryObject<T>::RenderColorImage(const render::CameraProperties& camera,
+void QueryObject<T>::RenderColorImage(const CameraProperties& camera,
                                       const Isometry3<double>& X_WC,
-                                      render::ImageRgba8U* color_image_out,
+                                      ImageRgba8U* color_image_out,
                                       bool show_window) const {
   ThrowIfDefault();
 
@@ -73,10 +79,10 @@ void QueryObject<T>::RenderColorImage(const render::CameraProperties& camera,
 }
 
 template <typename T>
-void QueryObject<T>::RenderColorImage(const render::CameraProperties& camera,
+void QueryObject<T>::RenderColorImage(const CameraProperties& camera,
                                       FrameId parent_frame,
                                       const Isometry3<double>& X_PC,
-                                      render::ImageRgba8U* color_image_out,
+                                      ImageRgba8U* color_image_out,
                                       bool show_window) const {
   ThrowIfDefault();
 
@@ -89,9 +95,8 @@ void QueryObject<T>::RenderColorImage(const render::CameraProperties& camera,
 
 template <typename T>
 void QueryObject<T>::RenderDepthImage(
-    const render::DepthCameraProperties& camera,
-    const Isometry3<double>& X_WC,
-    render::ImageDepth32F* depth_image_out) const {
+    const DepthCameraProperties& camera, const Isometry3<double>& X_WC,
+    ImageDepth32F* depth_image_out) const {
   ThrowIfDefault();
 
   // TODO(SeanCurtis-TRI): Modify this when the cache system is in place.
@@ -101,10 +106,10 @@ void QueryObject<T>::RenderDepthImage(
 }
 
 template <typename T>
-void QueryObject<T>::RenderDepthImage(
-    const render::DepthCameraProperties& camera,
-    FrameId parent_frame, const Isometry3<double>& X_PC,
-    render::ImageDepth32F* depth_image_out) const {
+void QueryObject<T>::RenderDepthImage(const DepthCameraProperties& camera,
+                                      FrameId parent_frame,
+                                      const Isometry3<double>& X_PC,
+                                      ImageDepth32F* depth_image_out) const {
   ThrowIfDefault();
 
   // TODO(SeanCurtis-TRI): Modify this when the cache system is in place.
@@ -114,9 +119,9 @@ void QueryObject<T>::RenderDepthImage(
 }
 
 template <typename T>
-void QueryObject<T>::RenderLabelImage(const render::CameraProperties& camera,
+void QueryObject<T>::RenderLabelImage(const CameraProperties& camera,
                                       const Isometry3<double>& X_WC,
-                                      render::ImageLabel16I* label_image_out,
+                                      ImageLabel16I* label_image_out,
                                       bool show_window) const {
   ThrowIfDefault();
 
@@ -127,10 +132,10 @@ void QueryObject<T>::RenderLabelImage(const render::CameraProperties& camera,
 }
 
 template <typename T>
-void QueryObject<T>::RenderLabelImage(const render::CameraProperties& camera,
+void QueryObject<T>::RenderLabelImage(const CameraProperties& camera,
                                       FrameId parent_frame,
                                       const Isometry3<double>& X_PC,
-                                      render::ImageLabel16I* label_image_out,
+                                      ImageLabel16I* label_image_out,
                                       bool show_window) const {
   ThrowIfDefault();
 

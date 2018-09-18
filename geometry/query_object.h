@@ -209,7 +209,7 @@ class QueryObject {
    @param show_window           If true, the render window will be displayed. */
   void RenderColorImage(const render::CameraProperties& camera,
                         const Isometry3<double>& X_WC,
-                        render::ImageRgba8U* color_image_out,
+                        systems::sensors::ImageRgba8U* color_image_out,
                         bool show_window) const;
 
   /** Overload for rendering a color image in which the camera's pose is defined
@@ -217,7 +217,7 @@ class QueryObject {
   void RenderColorImage(const render::CameraProperties& camera,
                         FrameId parent_frame,
                         const Isometry3<double>& X_PC,
-                        render::ImageRgba8U* color_image_out,
+                        systems::sensors::ImageRgba8U* color_image_out,
                         bool show_window) const;
 
   /** Renders and outputs the rendered depth image. In contrast to the other
@@ -230,14 +230,14 @@ class QueryObject {
    @param[out] depth_image_out  The rendered depth image. */
   void RenderDepthImage(const render::DepthCameraProperties& camera,
                         const Isometry3<double>& X_WC,
-                        render::ImageDepth32F* depth_image_out) const;
+                        systems::sensors::ImageDepth32F* depth_image_out) const;
 
   /** Overload for rendering a depth image in which the camera's pose is defined
    relative to the given parent frame.  */
   void RenderDepthImage(const render::DepthCameraProperties& camera,
                         FrameId parent_frame,
                         const Isometry3<double>& X_PC,
-                        render::ImageDepth32F* depth_image_out) const;
+                        systems::sensors::ImageDepth32F* depth_image_out) const;
 
   /** Renders and outputs the rendered label image.
 
@@ -247,7 +247,7 @@ class QueryObject {
    @param show_window           If true, the render window will be displayed. */
   void RenderLabelImage(const render::CameraProperties& camera,
                         const Isometry3<double>& X_WC,
-                        render::ImageLabel16I* label_image_out,
+                        systems::sensors::ImageLabel16I* label_image_out,
                         bool show_window) const;
 
   /** Overload for rendering a label image in which the camera's pose is defined
@@ -255,7 +255,7 @@ class QueryObject {
   void RenderLabelImage(const render::CameraProperties& camera,
                         FrameId parent_frame,
                         const Isometry3<double>& X_PC,
-                        render::ImageLabel16I* label_image_out,
+                        systems::sensors::ImageLabel16I* label_image_out,
                         bool show_window) const;
 
   //@}

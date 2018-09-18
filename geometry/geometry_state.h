@@ -596,7 +596,7 @@ class GeometryState {
    @param show_window           If true, the render window will be displayed. */
   void RenderColorImage(const render::CameraProperties& camera,
                         const Isometry3<double>& X_WC,
-                        render::ImageRgba8U* color_image_out,
+                        systems::sensors::ImageRgba8U* color_image_out,
                         bool show_window) const {
     render::RenderEngine* engine = GetRenderEngineOrThrow(camera.fidelity);
     engine->UpdateViewpoint(X_WC);
@@ -608,7 +608,7 @@ class GeometryState {
   void RenderColorImage(const render::CameraProperties& camera,
                         FrameId parent_frame,
                         const Isometry3<double>& X_PC,
-                        render::ImageRgba8U* color_image_out,
+                        systems::sensors::ImageRgba8U* color_image_out,
                         bool show_window) const;
 
   /** Renders and outputs the rendered depth image. In contrast to the other
@@ -619,9 +619,10 @@ class GeometryState {
    @param camera                The intrinsic properties of the camera.
    @param X_WC                  The pose of the camera in the world frame.
    @param[out] depth_image_out  The rendered depth image. */
-  void RenderDepthImage(const render::DepthCameraProperties& camera,
-                        const Isometry3<double>& X_WC,
-                        render::ImageDepth32F* depth_image_out) const {
+  void RenderDepthImage(
+      const render::DepthCameraProperties& camera,
+      const Isometry3<double>& X_WC,
+      systems::sensors::ImageDepth32F* depth_image_out) const {
     render::RenderEngine* engine = GetRenderEngineOrThrow(camera.fidelity);
     engine->UpdateViewpoint(X_WC);
     engine->RenderDepthImage(camera, depth_image_out);
@@ -632,7 +633,7 @@ class GeometryState {
   void RenderDepthImage(const render::DepthCameraProperties& camera,
                         FrameId parent_frame,
                         const Isometry3<double>& X_PC,
-                        render::ImageDepth32F* depth_image_out) const;
+                        systems::sensors::ImageDepth32F* depth_image_out) const;
 
   /** Renders and outputs the rendered label image.
 
@@ -642,7 +643,7 @@ class GeometryState {
    @param show_window           If true, the render window will be displayed. */
   void RenderLabelImage(const render::CameraProperties& camera,
                         const Isometry3<double>& X_WC,
-                        render::ImageLabel16I* label_image_out,
+                        systems::sensors::ImageLabel16I* label_image_out,
                         bool show_window) const {
     render::RenderEngine* engine = GetRenderEngineOrThrow(camera.fidelity);
     engine->UpdateViewpoint(X_WC);
@@ -654,7 +655,7 @@ class GeometryState {
   void RenderLabelImage(const render::CameraProperties& camera,
                         FrameId parent_frame,
                         const Isometry3<double>& X_PC,
-                        render::ImageLabel16I* label_image_out,
+                        systems::sensors::ImageLabel16I* label_image_out,
                         bool show_window) const;
 
   //@}

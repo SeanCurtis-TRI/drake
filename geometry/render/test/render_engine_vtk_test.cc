@@ -11,8 +11,8 @@
 #include "drake/common/test_utilities/eigen_matrix_compare.h"
 #include "drake/common/test_utilities/expect_throws_message.h"
 #include "drake/geometry/render/camera_properties.h"
-#include "drake/geometry/render/image.h"
 #include "drake/geometry/shape_specification.h"
+#include "drake/systems/sensors/image.h"
 
 namespace drake {
 namespace geometry {
@@ -24,6 +24,10 @@ using Eigen::Translation3d;
 using Eigen::Vector4d;
 using std::make_unique;
 using std::unique_ptr;
+using systems::sensors::ImageDepth32F;
+using systems::sensors::ImageLabel16I;
+using systems::sensors::ImageRgba8U;
+using systems::sensors::InvalidDepth;
 
 // Default camera properties.
 const int kWidth = 640;

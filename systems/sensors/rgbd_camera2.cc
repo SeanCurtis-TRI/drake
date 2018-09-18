@@ -6,13 +6,13 @@
 #include <Eigen/Dense>
 
 #include "drake/geometry/render/camera_properties.h"
-#include "drake/geometry/render/image.h"
 #include "drake/geometry/scene_graph.h"
 #include "drake/math/rotation_matrix.h"
 #include "drake/systems/framework/diagram_builder.h"
 #include "drake/systems/primitives/zero_order_hold.h"
 #include "drake/systems/rendering/pose_vector.h"
 #include "drake/systems/sensors/camera_info.h"
+#include "drake/systems/sensors/image.h"
 
 namespace drake {
 namespace systems {
@@ -21,10 +21,6 @@ namespace sensors {
 using geometry::FrameId;
 using geometry::QueryObject;
 using geometry::render::DepthCameraProperties;
-using geometry::render::ImageDepth32F;
-using geometry::render::ImageLabel16I;
-using geometry::render::ImageRgba8U;
-using geometry::render::InvalidDepth;
 using geometry::SceneGraph;
 
 // Note that if `depth_image` holds any pixels that have NaN, the converted

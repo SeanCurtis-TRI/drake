@@ -22,6 +22,10 @@ namespace geometry {
 namespace render {
 
 using std::make_unique;
+using systems::sensors::ImageDepth32F;
+using systems::sensors::ImageLabel16I;
+using systems::sensors::ImageRgba8U;
+using systems::sensors::InvalidDepth;
 using vtk_util::ConvertToVtkTransform;
 using vtk_util::CreateSquarePlane;
 using vtk_util::MakeVtkPointerArray;

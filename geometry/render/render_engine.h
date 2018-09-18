@@ -8,8 +8,8 @@
 #include "drake/geometry/geometry_index.h"
 #include "drake/geometry/geometry_roles.h"
 #include "drake/geometry/render/camera_properties.h"
-#include "drake/geometry/render/image.h"
 #include "drake/geometry/shape_specification.h"
+#include "drake/systems/sensors/image.h"
 
 namespace drake {
 namespace geometry {
@@ -88,7 +88,7 @@ class RenderEngine : public ShapeReifier {
    @param[out] color_image_out  The rendered color image.
    @param show_window           If true, the render window will be displayed. */
   virtual void RenderColorImage(const CameraProperties& camera,
-                                ImageRgba8U* color_image_out,
+                                systems::sensors::ImageRgba8U* color_image_out,
                                 bool show_window) const = 0;
 
   /** Renders and outputs the rendered depth image. In contrast to the other
@@ -98,17 +98,19 @@ class RenderEngine : public ShapeReifier {
 
    @param camera                The intrinsic properties of the camera.
    @param[out] depth_image_out  The rendered depth image. */
-  virtual void RenderDepthImage(const DepthCameraProperties& camera,
-                                ImageDepth32F* depth_image_out) const = 0;
+  virtual void RenderDepthImage(
+      const DepthCameraProperties& camera,
+      systems::sensors::ImageDepth32F* depth_image_out) const = 0;
 
   /** Renders and outputs the rendered label image.
 
    @param camera                The intrinsic properties of the camera.
    @param[out] label_image_out  The rendered label image.
    @param show_window           If true, the render window will be displayed. */
-  virtual void RenderLabelImage(const CameraProperties& camera,
-                                ImageLabel16I* label_image_out,
-                                bool show_window) const = 0;
+  virtual void RenderLabelImage(
+      const CameraProperties& camera,
+      systems::sensors::ImageLabel16I* label_image_out,
+      bool show_window) const = 0;
 };
 
 }  // namespace render

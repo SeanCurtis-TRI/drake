@@ -45,7 +45,6 @@
 #include "drake/systems/sensors/rgbd_camera2.h"
 #include "drake/systems/sensors/rgbd_camera.h"
 #include "drake/systems/sensors/png_writer.h"
-#include "drake/systems/sensors/png_writer_old.h"
 
 namespace drake {
 namespace systems {
@@ -54,7 +53,6 @@ using geometry::render::DepthCameraProperties;
 using geometry::render::Fidelity;
 using multibody::joints::kQuaternion;
 using systems::sensors::PngWriter;
-using systems::sensors::PngWriterOld;
 using systems::sensors::RenderingConfig;
 using systems::sensors::RgbdCamera;
 using systems::sensors::RgbdCamera2;
@@ -205,7 +203,7 @@ int main() {
   builder.Connect(camera->color_image_output_port(),
                   image_writer->color_image_input_port());
 
-  auto image_writer_old = builder.AddSystem<PngWriterOld>(
+  auto image_writer_old = builder.AddSystem<PngWriter>(
       "/home/sean/temp/rendering/old_" + FLAGS_name, FLAGS_cam_start);
   image_writer_old->set_publish_period(1. / FLAGS_fps);
   builder.Connect(camera_old->color_image_output_port(),

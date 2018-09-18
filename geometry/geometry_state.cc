@@ -28,6 +28,9 @@ using std::make_pair;
 using std::make_unique;
 using std::move;
 using std::to_string;
+using systems::sensors::ImageDepth32F;
+using systems::sensors::ImageLabel16I;
+using systems::sensors::ImageRgba8U;
 
 namespace {
 
@@ -51,7 +54,7 @@ Isometry3<double> convert(
   return result;
 }
 
-} // namespace
+}  // namespace
 
 //-----------------------------------------------------------------------------
 
@@ -686,7 +689,7 @@ template <typename T>
 void GeometryState<T>::RenderColorImage(const render::CameraProperties& camera,
                                         FrameId parent_frame,
                                         const Isometry3<double>& X_PC,
-                                        render::ImageRgba8U* color_image_out,
+                                        ImageRgba8U* color_image_out,
                                         bool show_window) const {
   render::RenderEngine* engine = GetRenderEngineOrThrow(camera.fidelity);
   const Isometry3<double> X_WC = GetDoubleWorldPose(parent_frame) * X_PC;
@@ -698,7 +701,7 @@ template <typename T>
 void GeometryState<T>::RenderDepthImage(
     const render::DepthCameraProperties& camera,
     FrameId parent_frame, const Isometry3<double>& X_PC,
-    render::ImageDepth32F* depth_image_out) const {
+    ImageDepth32F* depth_image_out) const {
   render::RenderEngine* engine = GetRenderEngineOrThrow(camera.fidelity);
   const Isometry3<double> X_WC = GetDoubleWorldPose(parent_frame) * X_PC;
   engine->UpdateViewpoint(X_WC);
@@ -709,7 +712,7 @@ template <typename T>
 void GeometryState<T>::RenderLabelImage(const render::CameraProperties& camera,
                                         FrameId parent_frame,
                                         const Isometry3<double>& X_PC,
-                                        render::ImageLabel16I* label_image_out,
+                                        ImageLabel16I* label_image_out,
                                         bool show_window) const {
   render::RenderEngine* engine = GetRenderEngineOrThrow(camera.fidelity);
   const Isometry3<double> X_WC = GetDoubleWorldPose(parent_frame) * X_PC;
