@@ -355,8 +355,7 @@ FrameId GeometryState<T>::RegisterFrame(SourceId source_id, FrameId parent_id,
     source_root_frame_map_[source_id].insert(frame_id);
   }
 
-  DRAKE_ASSERT(X_PF_.size() ==
-      static_cast<int>(frame_index_to_frame_map_.size()));
+  DRAKE_ASSERT(X_PF_.size() == frame_index_to_frame_map_.size());
   InternalIndex internal_index(X_PF_.size());
   X_PF_.emplace_back(frame.pose());
   X_WF_.emplace_back(Isometry3<double>::Identity());
@@ -604,6 +603,12 @@ void GeometryState<T>::AssignRole(SourceId source_id,
   RenderIndex index = low_render_engine_->RegisterVisual(
       geometry->shape(), *geometry->perception_properties());
   geometry->set_render_index(index);
+  auto dynamic_geometry = dynamic_cast<InternalGeometry*>(geometry);
+  if (dynamic_geometry != nullptr) {
+    // Save the geometry's internal index in its render index slot.
+    DRAKE_DEMAND(static_cast<int>(X_WG_perception_.size()) == index);
+    X_WG_perception_.push_back(geometry->internal_index());
+  }
 }
 
 template <typename T>
@@ -806,8 +811,9 @@ void GeometryState<T>::ValidateFrameIds(
 template <typename T>
 void GeometryState<T>::FinalizePoseUpdate() {
   geometry_engine_->UpdateWorldPoses(X_WG_, X_WG_proximity_);
-  for (RenderIndex i(0); i < X_WG_.size(); ++i) {
-    low_render_engine_->UpdateVisualPose(convert(X_WG_[i]), i);
+  for (RenderIndex i(0); i < X_WG_perception_.size(); ++i) {
+    const InternalIndex internal_index = X_WG_perception_[i];
+    low_render_engine_->UpdateVisualPose(convert(X_WG_[internal_index]), i);
   }
 }
 
