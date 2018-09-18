@@ -77,12 +77,12 @@ DEFINE_double(dt, 1e-3, "The step size to use for "
               "'system_type=discretized' (ignored for "
               "'system_type=continuous'");
 
-DEFINE_double(cam_x, 7.5, "Camera position on the x-axis");
-DEFINE_double(cam_y, 0, "Camera position on the y-axis");
-DEFINE_double(cam_z, 20, "Camera position on the z-axis");
+DEFINE_double(cam_x, 14.5, "Camera position on the x-axis");
+DEFINE_double(cam_y, 1.5, "Camera position on the y-axis");
+DEFINE_double(cam_z, 0.75, "Camera position on the z-axis");
 DEFINE_double(cam_r, 0, "Camera roll value");
-DEFINE_double(cam_p, M_PI_2, "Camera pitch value");
-DEFINE_double(cam_yaw, M_PI_2, "Camera yaw value");
+DEFINE_double(cam_p, 0.45, "Camera pitch value");
+DEFINE_double(cam_yaw, -0.7, "Camera yaw value");
 
 DEFINE_double(cam_start, 0, "The simulation time at which rendering starts");
 DEFINE_double(fps, 10, "Camera fps");
@@ -177,21 +177,42 @@ int main() {
 
   // Add camera to take pictures
   // SG camera
-  DepthCameraProperties camera_properties(640, 480, M_PI / 4, Fidelity::kLow,
-                                          0.1, 40.0);
-  auto camera = builder.AddSystem<RgbdCamera2>(
-      "cam1", Vector3<double>{FLAGS_cam_x, FLAGS_cam_y, FLAGS_cam_z},
+  DepthCameraProperties fixed_properties(640, 480, M_PI / 4, Fidelity::kLow,
+                                         0.1, 10.0);
+  auto fixed_camera = builder.AddSystem<RgbdCamera2>(
+      "fixed_cam", Vector3<double>{FLAGS_cam_x, FLAGS_cam_y, FLAGS_cam_z},
       Vector3<double>{FLAGS_cam_r, FLAGS_cam_p, FLAGS_cam_yaw},
-      camera_properties, true);
+      fixed_properties, false);
+
+  // Camera located just in front of the head pin, looking at the oncoming ball.
+  DepthCameraProperties pin_properties(320, 240, M_PI / 4, Fidelity::kLow,
+                                       0.1, 30.0);
+  Isometry3<double> X_PC = Isometry3<double>::Identity();
+  X_PC.translation() << -0.1, 0, 0.15;
+  Vector3<double> rpy(0, 0, M_PI);
+  X_PC.linear() = math::RollPitchYaw<double>(rpy).ToMatrix3ViaRotationMatrix();
+  const RigidBody<double>& body = *tree.FindBody("pin", "", 1);
+  geometry::FrameId frame_id = rbt_sg_bridge->FrameIdFromBody(body);
+  auto pin_camera = builder.AddSystem<RgbdCamera2>(
+      "pin_camera", frame_id, X_PC,
+      pin_properties, false);
+
   builder.Connect(scene_graph->get_query_output_port(),
-                  camera->query_object_input_port());
+                  fixed_camera->query_object_input_port());
+  builder.Connect(scene_graph->get_query_output_port(),
+                  pin_camera->query_object_input_port());
 
   // Add image writing
-  auto image_writer = builder.AddSystem<PngWriter>(
-      "/home/sean/temp/rendering/new_" + FLAGS_name, FLAGS_cam_start);
-  image_writer->set_publish_period(1. / FLAGS_fps);
-  builder.Connect(camera->color_image_output_port(),
-                  image_writer->color_image_input_port());
+  auto fixed_image_writer = builder.AddSystem<PngWriter>(
+      "/home/sean/temp/rendering/fixed_" + FLAGS_name, FLAGS_cam_start);
+  fixed_image_writer->set_publish_period(1. / FLAGS_fps);
+  builder.Connect(fixed_camera->color_image_output_port(),
+                  fixed_image_writer->color_image_input_port());
+  auto pin_image_writer = builder.AddSystem<PngWriter>(
+      "/home/sean/temp/rendering/pin_" + FLAGS_name, FLAGS_cam_start);
+  pin_image_writer->set_publish_period(1. / FLAGS_fps);
+  builder.Connect(pin_camera->color_image_output_port(),
+                  pin_image_writer->color_image_input_port());
 
   // Publishing images to drake visualizer
   auto image_to_lcm_image_array =
@@ -208,15 +229,15 @@ int main() {
   image_array_lcm_publisher->set_publish_period(1. / FLAGS_fps);
 
   builder.Connect(
-      camera->color_image_output_port(),
+      fixed_camera->color_image_output_port(),
       image_to_lcm_image_array->color_image_input_port());
 
   builder.Connect(
-      camera->depth_image_output_port(),
+      fixed_camera->depth_image_output_port(),
       image_to_lcm_image_array->depth_image_input_port());
 
   builder.Connect(
-      camera->label_image_output_port(),
+      fixed_camera->label_image_output_port(),
       image_to_lcm_image_array->label_image_input_port());
 
   builder.Connect(
