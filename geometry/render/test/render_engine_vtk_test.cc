@@ -288,8 +288,8 @@ class RenderEngineVtkTest : public ::testing::Test {
   void PopulateSphereTest(RenderEngineVtk* renderer) {
     Sphere sphere{0.5};
     expected_label_ = RenderLabel::new_label();
-    RenderIndex geometry_index = renderer->RegisterVisual(sphere,
-                                                          simple_material());
+    RenderIndex geometry_index = renderer->RegisterVisual(
+        sphere, simple_material(), Isometry3d::Identity());
     Isometry3d X_WV{Eigen::Translation3d(0, 0, 0.5)};
     renderer->UpdateVisualPose(X_WV, geometry_index);
   }
@@ -448,8 +448,8 @@ TEST_F(RenderEngineVtkTest, BoxTest) {
   // Sets up a box.
   Box box(1, 1, 1);
   expected_label_ = RenderLabel::new_label();
-  RenderIndex geometry_index = renderer_->RegisterVisual(box,
-                                                         simple_material());
+  RenderIndex geometry_index =
+      renderer_->RegisterVisual(box, simple_material(), Isometry3d::Identity());
   Isometry3d X_WV{Eigen::Translation3d(0, 0, 0.5)};
   renderer_->UpdateVisualPose(X_WV, geometry_index);
 
@@ -472,8 +472,8 @@ TEST_F(RenderEngineVtkTest, CylinderTest) {
   // Sets up a cylinder.
   Cylinder cylinder(0.2, 1.2);
   expected_label_ = RenderLabel::new_label();
-  RenderIndex geometry_index = renderer_->RegisterVisual(cylinder,
-                                                         simple_material());
+  RenderIndex geometry_index = renderer_->RegisterVisual(
+      cylinder, simple_material(), Isometry3d::Identity());
   // Position the top of the cylinder to be 1 m above the terrain.
   Isometry3d X_WV{Eigen::Translation3d(0, 0, 0.4)};
   renderer_->UpdateVisualPose(X_WV, geometry_index);
@@ -490,8 +490,8 @@ TEST_F(RenderEngineVtkTest, MeshTest) {
       FindResourceOrThrow("drake/systems/sensors/test/models/meshes/box.obj");
   Mesh mesh(filename);
   expected_label_ = RenderLabel::new_label();
-  RenderIndex geometry_index = renderer_->RegisterVisual(mesh,
-                                                         simple_material());
+  RenderIndex geometry_index = renderer_->RegisterVisual(
+      mesh, simple_material(), Isometry3d::Identity());
   renderer_->UpdateVisualPose(Isometry3d::Identity(), geometry_index);
 
   PerformCenterShapeTest(renderer_.get(), "Mesh test");
@@ -612,7 +612,7 @@ TEST_F(RenderEngineVtkTest, DefaultProperties) {
   // Sets up a box.
   Box box(1, 1, 1);
   RenderIndex geometry_index = renderer_->RegisterVisual(
-      box, PerceptionProperties());
+      box, PerceptionProperties(), Isometry3d::Identity());
   Isometry3d X_WV{Eigen::Translation3d(0, 0, 0.5)};
   renderer_->UpdateVisualPose(X_WV, geometry_index);
 

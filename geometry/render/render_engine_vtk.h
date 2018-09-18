@@ -110,7 +110,8 @@ class RenderEngineVtk final : public RenderEngine,
 
   /** Inherits RenderEngine::RegisterVisual().  */
   RenderIndex RegisterVisual(const Shape& shape,
-                             const PerceptionProperties& properties) override;
+                             const PerceptionProperties& properties,
+                             const Isometry3<double>& X_FG) override;
 
   // TODO(SeanCurtis-TRI): I need a super-secret RegisterVisual in which the
   // index is specified.

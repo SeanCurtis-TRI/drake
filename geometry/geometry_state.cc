@@ -600,13 +600,20 @@ void GeometryState<T>::AssignRole(SourceId source_id,
   InternalGeometryBase* geometry = GetMutableGeometry(geometry_id);
   // This *must* be no-null, otherwise the role assignment would have failed.
   DRAKE_DEMAND(geometry != nullptr);
+  // NOTE: Pose in parent is fragile; if an anchored geometry is registered
+  // relative to *another* geometry, this is the pose relative to the geometry
+  // and *not* the frame.
   RenderIndex index = low_render_engine_->RegisterVisual(
-      geometry->shape(), *geometry->perception_properties());
+      geometry->shape(), *geometry->perception_properties(),
+      geometry->pose_in_parent());
   geometry->set_render_index(index);
   auto dynamic_geometry = dynamic_cast<InternalGeometry*>(geometry);
   if (dynamic_geometry != nullptr) {
     // Save the geometry's internal index in its render index slot.
-    DRAKE_DEMAND(static_cast<int>(X_WG_perception_.size()) == index);
+    // NOTE: These are only the indices of *dynamic* geometries with perception
+    // roles. As such, we have no guarantee that they'll grow in lockstep.
+    // This is in stark contrast to the dynamic/anchored dichotomy in the
+    // proximity role.
     X_WG_perception_.push_back(geometry->internal_index());
   }
 }

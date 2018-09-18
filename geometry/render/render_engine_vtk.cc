@@ -87,6 +87,7 @@ enum ImageType {
 // A package of data required to register a visual geometry.
 struct RegistrationData {
   const PerceptionProperties& properties;
+  const Isometry3<double>& X_FG;
 };
 
 }  // namespace
@@ -222,13 +223,14 @@ void RenderEngineVtk::AddFlatTerrain() {
   // TODO(SeanCurtis-TRI): This is bad; I'm consuming an index for something
   // that isn't stored in SceneGraph. This should be killed in favor of actually
   // introducing managed geometry (and appropriate materials).
-  RegisterVisual(HalfSpace(), material);
+  RegisterVisual(HalfSpace(), material, Isometry3<double>::Identity());
 }
 
 RenderIndex RenderEngineVtk::RegisterVisual(
-    const Shape& shape, const PerceptionProperties& properties) {
+    const Shape& shape, const PerceptionProperties& properties,
+    const Isometry3<double>& X_FG) {
   // Note: the user_data interface on reification requires a non-const pointer.
-  RegistrationData data{properties};
+  RegistrationData data{properties, X_FG};
   shape.Reify(this, &data);
   return RenderIndex(static_cast<int>(actors_.size()) - 1);
 }
@@ -452,9 +454,7 @@ void RenderEngineVtk::ImplementGeometry(vtkPolyDataAlgorithm* source,
   // TODO(SeanCurtis-TRI): For anchored geometry, I need to know its pose: X_PG,
   // where P = W. For all other geometries, the value is irrelevant (and will
   // be supplanted in the pose update).
-  const Isometry3<double> X_PG = Isometry3<double>::Identity();
-  vtkSmartPointer<vtkTransform> vtk_X_PG =
-      ConvertToVtkTransform(X_PG);
+  vtkSmartPointer<vtkTransform> vtk_X_PG = ConvertToVtkTransform(data.X_FG);
   for (size_t i = 0; i < 3; ++i) {
     actors[i]->SetMapper(mappers[i].GetPointer());
     actors[i]->SetUserTransform(vtk_X_PG);

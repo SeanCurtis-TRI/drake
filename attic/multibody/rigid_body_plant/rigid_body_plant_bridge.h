@@ -6,6 +6,7 @@
 #include "drake/geometry/frame_kinematics_vector.h"
 #include "drake/geometry/geometry_ids.h"
 #include "drake/geometry/scene_graph.h"
+#include "drake/geometry/render/render_label.h"
 #include "drake/multibody/rigid_body_tree.h"
 #include "drake/systems/framework/context.h"
 #include "drake/systems/framework/leaf_system.h"
@@ -117,6 +118,11 @@ class RigidBodyPlantBridge : public systems::LeafSystem<T> {
   const systems::InputPort<T>& rigid_body_plant_state_input_port()
       const;
 
+  /** Given a rendered label, reports the index of the RigidBody to which this
+   label was assigned. If the label is "empty", then a negative value is
+   returned.  */
+  int BodyForLabel(geometry::render::RenderLabel label) const;
+
  private:
   // Registers `this` system's tree's bodies and geometries to the given
   // geometry system.
@@ -140,6 +146,9 @@ class RigidBodyPlantBridge : public systems::LeafSystem<T> {
   // Port handles
   int geometry_pose_port_{-1};
   int plant_state_port_{-1};
+
+  // Maps from a generated render label to the rigid body assigned that label.
+  std::unordered_map<geometry::render::RenderLabel, int> label_to_index_;
 
   // Registered frames. In this incarnation, body i's frame_id is stored in
   // element i - 1. This is because *all* frames are currently being registered

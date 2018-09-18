@@ -57,10 +57,12 @@ class RenderEngine : public ShapeReifier {
 
    @param shape       The shape specification to add to the render engine.
    @param properties  The perception properties provided for this geometry.
+   @param X_FG        The pose of the geometry relative to its parent frame F.
    @returns A unique index for the resultant render geometry.
    @throws std::runtime_error if the shape is an unsupported type. */
   virtual RenderIndex RegisterVisual(
-      const Shape& shape, const PerceptionProperties& properties) = 0;
+      const Shape& shape, const PerceptionProperties& properties,
+      const Isometry3<double>& X_FG) = 0;
 
   // TODO(SeanCurtis-TRI): I need a super-secret RegisterVisual in which the
   // index is specified.
