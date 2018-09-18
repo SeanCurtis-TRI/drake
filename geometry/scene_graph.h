@@ -371,48 +371,39 @@ class SceneGraph final : public systems::LeafSystem<T> {
   GeometryId RegisterAnchoredGeometry(
       SourceId source_id, std::unique_ptr<GeometryInstance> geometry);
 
-  /** Assigns the given geometry id the proximity role by assigning it the given
-   set of proximity properties.
+  //@}
 
-   @param source_id     The id of the geometry source that owns the geometry.
-   @param geometry_id   The geometry to assign a role.
-   @param properties    The proximity properties for this geometry.
-   @throws std::logic_error if 1. source id is invalid,
-                               2. geometry id is invalid,
-                               3. geometry id is not owned by the source id,
-                               4. geometry has already had a proximity role
-                                  assigned,
-                               5. a context has been allocated.  */
+  /** @name     Assigning roles to geometry
+
+   Geometries must be assigned one or more *roles* before they have an effect
+   on SceneGraph computations (see @ref geometry_roles for details). These
+   methods provide the ability to assign a role after registering a geometry.
+
+   The owner that registered the geometry provides its source id, the registered
+   geometry id, and a collection of properties associated with the desired role.
+   These methods will throw exceptions in any of the following circumstances:
+
+     - The source id is invalid.
+     - The geometry id is invalid.
+     - The geometry id is not owned by the given source id.
+     - The indicated role has already been assigned to the geometry.
+     - A context has been allocated.
+   */
+
+  // TODO(SeanCurtis-TRI): Provide mechanism for modifying properties and/or
+  // removing roles.
+
+  //@{
+
+  /** Assigns the proximity role to the given geometry.  */
   void AssignRole(SourceId source_id, GeometryId geometry_id,
                   ProximityProperties properties);
 
-  /** Assigns the given geometry id the perception role by assigning it the
-   given set of proximity properties.
-
-   @param source_id     The id of the geometry source that owns the geometry.
-   @param geometry_id   The geometry to assign a role.
-   @param properties    The perception properties for this geometry.
-   @throws std::logic_error if 1. source id is invalid,
-                               2. geometry id is invalid,
-                               3. geometry id is not owned by the source id,
-                               4. geometry has already had a perception role
-                                  assigned,
-                               5. a context has been allocated.  */
+  /** Assigns the perception role to the given geometry.  */
   void AssignRole(SourceId source_id, GeometryId geometry_id,
                   PerceptionProperties properties);
 
-  /** Assigns the given geometry id the illustration role by assigning it the
-   given set of proximity properties.
-
-   @param source_id     The id of the geometry source that owns the geometry.
-   @param geometry_id   The geometry to assign a role.
-   @param properties    The illustration properties for this geometry.
-   @throws std::logic_error if 1. source id is invalid,
-                               2. geometry id is invalid,
-                               3. geometry id is not owned by the source id,
-                               4. geometry has already had a illustration role
-                                  assigned,
-                               5. a context has been allocated.  */
+  /** Assigns the illustration role to the given geometry.  */
   void AssignRole(SourceId source_id, GeometryId geometry_id,
                   IllustrationProperties properties);
 
