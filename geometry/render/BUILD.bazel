@@ -57,14 +57,12 @@ drake_cc_library(
 drake_cc_library(
     name = "render_engine_vtk",
     srcs = ["render_engine_vtk.cc"],
-    hdrs = [
-        "color_palette.h",
-        "render_engine_vtk.h",
-    ],
+    hdrs = ["render_engine_vtk.h"],
     deps = [
         ":render_engine",
         "//common",
         "//geometry/render/shaders:depth_shaders",
+        "//systems/sensors:color_palette",
         "//systems/sensors:vtk_util",
         "@eigen",
         "@vtk//:vtkCommonCore",

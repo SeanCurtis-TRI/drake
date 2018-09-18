@@ -13,8 +13,8 @@
 #include <vtkTransform.h>
 #include <vtkTransformPolyDataFilter.h>
 
-#include "drake/geometry/render/color_palette.h"
 #include "drake/geometry/render/shaders/depth_shaders.h"
+#include "drake/systems/sensors/color_palette.h"
 #include "drake/systems/sensors/vtk_util.h"
 
 namespace drake {
@@ -22,6 +22,8 @@ namespace geometry {
 namespace render {
 
 using std::make_unique;
+using systems::sensors::ColorD;
+using systems::sensors::ColorI;
 using systems::sensors::ImageDepth32F;
 using systems::sensors::ImageLabel16I;
 using systems::sensors::ImageRgba8U;
@@ -106,7 +108,7 @@ RenderEngineVtk::RenderEngineVtk()
                   make_unique<RenderingPipeline>(),
                   make_unique<RenderingPipeline>()}} {
   const ColorD sky_color =
-      ColorPalette::Normalize(color_palette_.get_sky_color());
+      color_palette_.get_normalized_color(RenderLabel::empty_label());
   const vtkSmartPointer<vtkTransform> vtk_identity =
       ConvertToVtkTransform(Eigen::Isometry3d::Identity());
 

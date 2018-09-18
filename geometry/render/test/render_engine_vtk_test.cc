@@ -24,6 +24,8 @@ using Eigen::Translation3d;
 using Eigen::Vector4d;
 using std::make_unique;
 using std::unique_ptr;
+using systems::sensors::Color;
+using systems::sensors::ColorI;
 using systems::sensors::ImageDepth32F;
 using systems::sensors::ImageLabel16I;
 using systems::sensors::ImageRgba8U;

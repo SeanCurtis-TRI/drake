@@ -16,8 +16,9 @@
 #include <vtkWindowToImageFilter.h>
 
 #include "drake/common/drake_copyable.h"
-#include "drake/geometry/render/color_palette.h"
 #include "drake/geometry/render/render_engine.h"
+#include "drake/geometry/render/render_label.h"
+#include "drake/systems/sensors/color_palette.h"
 
 #ifndef DRAKE_DOXYGEN_CXX
 // This, and the ModuleInitVtkRenderingOpenGL2, provide the basis for enabling
@@ -146,10 +147,10 @@ class RenderEngineVtk final : public RenderEngine,
   //@}
 
   /** Returns the sky's color in an RGB image. */
-  const ColorI& get_sky_color() const;
+  const systems::sensors::ColorI& get_sky_color() const;
 
   /** Returns flat terrain's color in an RGB image. */
-  const ColorI& get_flat_terrain_color() const;
+  const systems::sensors::ColorI& get_flat_terrain_color() const;
 
  private:
   // Performs the common setup for all shape types.
@@ -159,7 +160,7 @@ class RenderEngineVtk final : public RenderEngine,
   // should be mangled into an rgb color and then the rgb color should be
   // mangled back into a 16-bit int without doing lookups. The labels can be
   // mapped to human-distinguishable colors as a post-processing operation.
-  const ColorPalette color_palette_;
+  const systems::sensors::ColorPalette<RenderLabel> color_palette_;
 
   // The rendering pipeline for a single image type (color, depth, or label).
   struct RenderingPipeline {

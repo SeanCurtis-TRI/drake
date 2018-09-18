@@ -10,6 +10,17 @@
 #include "drake/common/never_destroyed.h"
 
 namespace drake {
+
+// Forward declaration to support friend declaration.
+namespace systems {
+namespace sensors {
+
+template <typename IdType>
+class ColorPalette;
+
+}  // namespace sensors
+}  // namespace systems
+
 namespace geometry {
 namespace render {
 
@@ -165,7 +176,8 @@ class RenderLabel {
                     "2-byte integer");
 
   // Temporary support for the color palette to do pre-emptive color allocation.
-  friend class ColorPalette;
+  template <typename T>
+  friend class systems::sensors::ColorPalette;
 
   // Instantiates an identifier from the underlying representation type.
   explicit RenderLabel(int val) : value_(val) {}
