@@ -40,6 +40,8 @@
 #include "drake/systems/analysis/runge_kutta2_integrator.h"
 #include "drake/systems/analysis/simulator.h"
 #include "drake/systems/framework/diagram_builder.h"
+#include "drake/systems/lcm/lcm_publisher_system.h"
+#include "drake/systems/sensors/image_to_lcm_image_array_t.h"
 #include "drake/systems/sensors/rgbd_camera2.h"
 #include "drake/systems/sensors/rgbd_camera.h"
 #include "drake/systems/sensors/png_writer.h"
@@ -50,7 +52,6 @@ namespace systems {
 
 using geometry::render::DepthCameraProperties;
 using geometry::render::Fidelity;
-using lcm::DrakeLcm;
 using multibody::joints::kQuaternion;
 using systems::sensors::PngWriter;
 using systems::sensors::PngWriterOld;
@@ -91,6 +92,13 @@ DEFINE_double(cam_yaw, M_PI_2, "Camera yaw value");
 DEFINE_double(cam_start, 0, "The simulation time at which rendering starts");
 DEFINE_double(fps, 10, "Camera fps");
 DEFINE_string(name, "image", "Base of image name");
+
+constexpr char kCameraBaseFrameName[] = "camera_base_frame";
+constexpr char kColorCameraFrameName[] = "color_camera_optical_frame";
+constexpr char kDepthCameraFrameName[] = "depth_camera_optical_frame";
+constexpr char kLabelCameraFrameName[] = "label_camera_optical_frame";
+
+constexpr char kImageArrayLcmChannelName[] = "DRAKE_RGBD_CAMERA_IMAGES";
 
 // Bowling ball rolled down a conceptual lane to strike pins.
 int main() {
@@ -202,6 +210,36 @@ int main() {
   image_writer_old->set_publish_period(1. / FLAGS_fps);
   builder.Connect(camera_old->color_image_output_port(),
                   image_writer_old->color_image_input_port());
+
+  // Publishing images to drake visualizer
+  auto image_to_lcm_image_array =
+      builder.template AddSystem<systems::sensors::ImageToLcmImageArrayT>(
+          kColorCameraFrameName, kDepthCameraFrameName, kLabelCameraFrameName);
+  image_to_lcm_image_array->set_name("converter");
+
+  ::drake::lcm::DrakeLcm lcm;
+
+  auto image_array_lcm_publisher = builder.template AddSystem(
+      lcm::LcmPublisherSystem::Make<robotlocomotion::image_array_t>(
+          kImageArrayLcmChannelName, &lcm));
+  image_array_lcm_publisher->set_name("publisher");
+  image_array_lcm_publisher->set_publish_period(1. / FLAGS_fps);
+
+  builder.Connect(
+      camera_old->color_image_output_port(),
+      image_to_lcm_image_array->color_image_input_port());
+
+  builder.Connect(
+      camera_old->depth_image_output_port(),
+      image_to_lcm_image_array->depth_image_input_port());
+
+  builder.Connect(
+      camera_old->label_image_output_port(),
+      image_to_lcm_image_array->label_image_input_port());
+
+  builder.Connect(
+      image_to_lcm_image_array->image_array_t_msg_output_port(),
+      image_array_lcm_publisher->get_input_port());
 
   auto diagram = builder.Build();
 

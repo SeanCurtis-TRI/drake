@@ -77,6 +77,8 @@ drake_cc_binary(
         "//lcm",
         "//multibody:rigid_body_tree_construction",
         "//systems/analysis",
+        "//systems/lcm:lcm_pubsub_system",
+        "//systems/sensors:image_to_lcm_image_array_t",
         "//systems/sensors:png_writer",
         "//systems/sensors:png_writer_old",
         "//systems/sensors:rgbd_camera",
