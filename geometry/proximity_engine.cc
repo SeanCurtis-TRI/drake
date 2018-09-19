@@ -109,11 +109,8 @@ class EncodedData {
 
   // Given an fcl object and maps from index to id of both dynamic and anchored
   // geometry, returns the geometry id for the given fcl object.
-  GeometryId id(const std::vector<GeometryId>& dynamic_map,
-                const std::vector<GeometryId>& anchored_map) const {
-    const InternalIndex i = index();
-    GeometryId id = is_dynamic() ? dynamic_map[i] : anchored_map[i];
-    return id;
+  GeometryId id(const std::vector<GeometryId>& geometry_map) const {
+    return geometry_map[index()];
   }
 
   // Reports the encoded data.
@@ -212,15 +209,12 @@ class CollisionFilterLegacy {
 // Struct for use in SingleDistanceCallback(). Contains the distance request
 // and accumulates result in a drake::geometry::SignedDistancePair vector.
 struct DistanceData {
-  DistanceData(const std::vector<GeometryId>* dynamic_map_in,
-               const std::vector<GeometryId>* anchored_map_in,
+  DistanceData(const std::vector<GeometryId>* geometry_map_in,
                const CollisionFilterLegacy* collision_filter_in)
-      : dynamic_map(*dynamic_map_in),
-        anchored_map(*anchored_map_in),
+      : geometry_map(*geometry_map_in),
         collision_filter(*collision_filter_in) {}
   // Maps so the distance call back can map from engine index to geometry id.
-  const std::vector<GeometryId>& dynamic_map;
-  const std::vector<GeometryId>& anchored_map;
+  const std::vector<GeometryId>& geometry_map;
   const CollisionFilterLegacy& collision_filter;
 
   // Distance request
@@ -233,15 +227,12 @@ struct DistanceData {
 // Struct for use in SingleCollisionCallback(). Contains the collision request
 // and accumulates results in a drake::multibody::collision::PointPair vector.
 struct CollisionData {
-  CollisionData(const std::vector<GeometryId>* dynamic_map_in,
-                const std::vector<GeometryId>* anchored_map_in,
+  CollisionData(const std::vector<GeometryId>* geometry_map_in,
                 const CollisionFilterLegacy* collision_filter_in)
-      : dynamic_map(*dynamic_map_in),
-        anchored_map(*anchored_map_in),
+      : geometry_map(*geometry_map_in),
         collision_filter(*collision_filter_in) {}
   // Maps so the penetration call back can map from engine index to geometry id.
-  const std::vector<GeometryId>& dynamic_map;
-  const std::vector<GeometryId>& anchored_map;
+  const std::vector<GeometryId>& geometry_map;
   const CollisionFilterLegacy& collision_filter;
 
   // Collision request
@@ -286,8 +277,7 @@ bool DistanceCallback(fcl::CollisionObjectd* fcl_object_A_ptr,
     // Unpack the callback data
     auto& distance_data = *static_cast<DistanceData*>(callback_data);
     const fcl::DistanceRequestd& request = distance_data.request;
-    const std::vector<GeometryId> dynamic_map = distance_data.dynamic_map;
-    const std::vector<GeometryId> anchored_map = distance_data.anchored_map;
+    const std::vector<GeometryId> geometry_map = distance_data.geometry_map;
 
     fcl::DistanceResultd result;
 
@@ -295,8 +285,8 @@ bool DistanceCallback(fcl::CollisionObjectd* fcl_object_A_ptr,
     fcl::distance(&fcl_object_A, &fcl_object_B, request, result);
 
     SignedDistancePair<double> nearest_pair;
-    nearest_pair.id_A = EncodedData(fcl_object_A).id(dynamic_map, anchored_map);
-    nearest_pair.id_B = EncodedData(fcl_object_B).id(dynamic_map, anchored_map);
+    nearest_pair.id_A = EncodedData(fcl_object_A).id(geometry_map);
+    nearest_pair.id_B = EncodedData(fcl_object_B).id(geometry_map);
 
     // Note: The result of FCL's distance query is in the *world* frame, the
     // SignedDistancePair reports in geometry frame.
@@ -382,10 +372,9 @@ bool SingleCollisionCallback(fcl::CollisionObjectd* fcl_object_A_ptr,
       penetration.depth = depth;
       // The engine doesn't know geometry ids; it returns engine indices. The
       // caller must map engine indices to geometry ids.
-      const std::vector<GeometryId>& dynamic_map = collision_data.dynamic_map;
-      const std::vector<GeometryId>& anchored_map = collision_data.anchored_map;
-      penetration.id_A = encoding_A.id(dynamic_map, anchored_map);
-      penetration.id_B = encoding_B.id(dynamic_map, anchored_map);
+      const std::vector<GeometryId>& geometry_map = collision_data.geometry_map;
+      penetration.id_A = encoding_A.id(geometry_map);
+      penetration.id_B = encoding_B.id(geometry_map);
       penetration.p_WCa = p_WAc;
       penetration.p_WCb = p_WBc;
       penetration.nhat_BA_W = drake_normal;
@@ -647,10 +636,9 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
 
   std::vector<SignedDistancePair<double>>
   ComputeSignedDistancePairwiseClosestPoints(
-      const std::vector<GeometryId>& dynamic_map,
-      const std::vector<GeometryId>& anchored_map) const {
+      const std::vector<GeometryId>& geometry_map) const {
     std::vector<SignedDistancePair<double>> witness_pairs;
-    DistanceData distance_data{&dynamic_map, &anchored_map, &collision_filter_};
+    DistanceData distance_data{&geometry_map, &collision_filter_};
     distance_data.nearest_pairs = &witness_pairs;
     distance_data.request.enable_nearest_points = true;
     distance_data.request.enable_signed_distance = true;
@@ -666,12 +654,10 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
   }
 
   std::vector<PenetrationAsPointPair<double>> ComputePointPairPenetration(
-      const std::vector<GeometryId>& dynamic_map,
-      const std::vector<GeometryId>& anchored_map) const {
+      const std::vector<GeometryId>& geometry_map) const {
     std::vector<PenetrationAsPointPair<double>> contacts;
     // CollisionData stores references to the provided data structures.
-    CollisionData collision_data{&dynamic_map, &anchored_map,
-                                 &collision_filter_};
+    CollisionData collision_data{&geometry_map, &collision_filter_};
     collision_data.contacts = &contacts;
     collision_data.request.num_max_contacts = 1;
     collision_data.request.enable_contact = true;
@@ -981,18 +967,15 @@ void ProximityEngine<T>::UpdateWorldPoses(
 template <typename T>
 std::vector<SignedDistancePair<double>>
 ProximityEngine<T>::ComputeSignedDistancePairwiseClosestPoints(
-    const std::vector<GeometryId>& dynamic_map,
-    const std::vector<GeometryId>& anchored_map) const {
-  return impl_->ComputeSignedDistancePairwiseClosestPoints(dynamic_map,
-                                                           anchored_map);
+    const std::vector<GeometryId>& geometry_map) const {
+  return impl_->ComputeSignedDistancePairwiseClosestPoints(geometry_map);
 }
 
 template <typename T>
 std::vector<PenetrationAsPointPair<double>>
 ProximityEngine<T>::ComputePointPairPenetration(
-    const std::vector<GeometryId>& dynamic_map,
-    const std::vector<GeometryId>& anchored_map) const {
-  return impl_->ComputePointPairPenetration(dynamic_map, anchored_map);
+    const std::vector<GeometryId>& geometry_map) const {
+  return impl_->ComputePointPairPenetration(geometry_map);
 }
 
 template <typename T>

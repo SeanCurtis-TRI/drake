@@ -141,15 +141,16 @@ class GeometryState {
   /** Reports the total number of frames -- across all sources. */
   int get_num_frames() const { return static_cast<int>(frames_.size()); }
 
-  /** Reports the total number of _dynamic_ geometries. */
+  /** Reports the total number of geometries. */
   int get_num_geometries() const {
     return static_cast<int>(geometries_.size());
   }
 
+  /** Reports the total number of *dynamic* geometries in the scene graph.  */
+  int GetNumDynamicGeometries() const;
+
   /** Reports the total number of _anchored_ geometries. */
-  int get_num_anchored_geometries() const {
-    return static_cast<int>(anchored_geometries_.size());
-  }
+  int GetNumAnchoredGeometries() const;
 
   /** Reports true if the given `source_id` references a registered source. */
   bool source_is_registered(SourceId source_id) const;
@@ -162,14 +163,16 @@ class GeometryState {
     return geometry_index_id_map_;
   }
 
-  /** Provides a range object for all of the frame ids in the world. The
+  /** Provides a range object for all of the frame ids in the scene graph. The
    order is not generally guaranteed; but it will be consistent as long as there
    are no changes to the topology. This is intended to be used as:
    @code
    for (FrameId id : state.get_frame_ids()) {
     ...
    }
-   @endcode  */
+   @endcode
+
+   This will include the id for the world frame. */
   FrameIdRange get_frame_ids() const {
     return FrameIdRange(&frames_);
   }
@@ -271,7 +274,7 @@ class GeometryState {
   /** Reports the number of child geometries for this frame that have the
    indicated role assigned. This only includes the immediate child geometries of
    *this* frame, and not those of child frames.
-   @throws std::logic_error if the `frame_id` does not map to a vliad frame.  */
+   @throws std::logic_error if the `frame_id` does not map to a valid frame.  */
   int NumGeometryWithRole(FrameId frame_id, Role role) const;
 
   //@}
@@ -299,8 +302,8 @@ class GeometryState {
                              been registered. */
   FrameId RegisterFrame(SourceId source_id, const GeometryFrame& frame);
 
-  /** Registers a new frame for the given source as a child of a previously
-   registered frame. The id of the new frame is returned.
+  /** Registers a new *dynamic* frame for the given source as a child of an
+   existing frame. The id of the new frame is returned.
    @param source_id    The id of the source for which this frame is allocated.
    @param parent_id    The id of the parent frame.
    @param frame        The frame to register.
@@ -308,9 +311,9 @@ class GeometryState {
    @throws std::logic_error  1. If the `source_id` does _not_ map to a
                              registered source,
                              2. If the `parent_id` does _not_ map to a known
-                             frame or does not belong to the source, or
+                             frame or does not belong to the source
                              3. `frame` has an id that has already been
-                             registered */
+                             registered.  */
   FrameId RegisterFrame(SourceId source_id, FrameId parent_id,
                         const GeometryFrame& frame);
 
@@ -342,21 +345,23 @@ class GeometryState {
    GeometryInstance.
    @param source_id    The id of the source on which the geometry is being
                        declared.
-   @param geometry_id  The parent geometry for this geometry.
+   @param parent_id    The parent geometry for this geometry.
    @param geometry     The geometry to get the id for. The state takes
                        ownership of the geometry.
    @returns  A newly allocated geometry id.
    @throws std::logic_error 1. the `source_id` does _not_ map to a registered
                             source,
-                            2. the `geometry_id` doesn't belong to the source,
+                            2. the `parent_id` doesn't belong to the source,
                             3. the `geometry` is equal to `nullptr`,
                             4. `geometry` has a previously registered id,  or
                             5. the geometry's name doesn't satisfy the
                             requirements outlined in GeometryInstance.  */
   GeometryId RegisterGeometryWithParent(
-      SourceId source_id, GeometryId geometry_id,
+      SourceId source_id, GeometryId parent_id,
       std::unique_ptr<GeometryInstance> geometry);
 
+  // TODO(SeanCurtis-TRI): Consider deprecating this; it's now strictly a
+  // wrapper for the more general `RegisterGeometry()`.
   /** Registers a GeometryInstance with the state as anchored geometry. This
    registers geometry which "hangs" from the world frame and never moves.
    The `geometry`'s pose value is relative to the world frame. The state takes
@@ -498,7 +503,7 @@ class GeometryState {
   std::vector<PenetrationAsPointPair<double>> ComputePointPairPenetration()
       const {
     return geometry_engine_->ComputePointPairPenetration(
-        geometry_index_id_map_, anchored_geometry_index_id_map_);
+        geometry_index_id_map_);
   }
 
   //@}
@@ -563,7 +568,7 @@ class GeometryState {
   std::vector<SignedDistancePair<double>>
   ComputeSignedDistancePairwiseClosestPoints() const {
     return geometry_engine_->ComputeSignedDistancePairwiseClosestPoints(
-        geometry_index_id_map_, anchored_geometry_index_id_map_);
+        geometry_index_id_map_);
   }
   //@}
 
@@ -680,16 +685,14 @@ class GeometryState {
   // intended to be used to clone an AutoDiffXd instance from a double instance.
   template <typename U>
   GeometryState(const GeometryState<U>& source)
-      : source_frame_id_map_(source.source_frame_id_map_),
+      : self_source_(source.self_source_),
+        source_frame_id_map_(source.source_frame_id_map_),
         source_root_frame_map_(source.source_root_frame_map_),
         source_names_(source.source_names_),
         source_anchored_geometry_map_(source.source_anchored_geometry_map_),
         frames_(source.frames_),
         geometries_(source.geometries_),
-        anchored_geometries_(source.anchored_geometries_),
         geometry_index_id_map_(source.geometry_index_id_map_),
-        anchored_geometry_index_id_map_(source.anchored_geometry_index_id_map_),
-        X_FG_(source.X_FG_),
         frame_index_to_frame_map_(source.frame_index_to_frame_map_),
         geometry_engine_(std::move(source.geometry_engine_->ToAutoDiffXd())) {
     // NOTE: Can't assign Isometry3<double> to Isometry3<AutoDiff>. But we *can*
@@ -769,10 +772,10 @@ class GeometryState {
   }
 
   // Convenience function for accessing geometry whether dynamic or anchored.
-  const internal::InternalGeometryBase* GetGeometry(GeometryId id) const;
+  const internal::InternalGeometry* GetGeometry(GeometryId id) const;
 
   // Convenience function for accessing geometry whether dynamic or anchored.
-  internal::InternalGeometryBase* GetMutableGeometry(GeometryId id);
+  internal::InternalGeometry* GetMutableGeometry(GeometryId id);
 
   // Reports if the given name is unique in the given frame and role.
   bool NameIsUnique(FrameId id, Role role, const std::string& name) const;
@@ -810,6 +813,10 @@ class GeometryState {
   // regardless of the value of T.
   Isometry3<double> GetDoubleWorldPose(FrameId frame_id) const;
 
+  // The GeometryState gets its own source so it can own entities (such as the
+  // world frame).
+  SourceId self_source_;
+
   // ---------------------------------------------------------------------
   // Maps from registered source ids to the entities registered to those
   // sources (e.g., frames and geometries). This lives in the state to support
@@ -843,32 +850,13 @@ class GeometryState {
   // The geometry data, keyed on unique geometry identifiers.
   std::unordered_map<GeometryId, internal::InternalGeometry> geometries_;
 
-  // The _anchored_ geometry data, keyed on the unique geometry identifiers.
-  std::unordered_map<GeometryId, internal::InternalAnchoredGeometry>
-      anchored_geometries_;
-
-  // This provides the look up from internal index to geometry id for *dynamic*
+  // This provides the look up from internal index to geometry id for all
   // geometries. It assumes that the index value of any position in the vector
   // *is* the internal index of the corresponding geometry.
   // The following invariants should always be true:
   //   1. geometries_[geometry_index_id_map_[i]].internal_index() == i.
   //   2. geometry_index_id_map_.size() == geometries_.size().
   std::vector<GeometryId> geometry_index_id_map_;
-
-  // This provides the look up from internal index to geometry id for *anchored*
-  // geometries. It assumes that the index value of any position in the vector
-  // *is* the internal index of the corresponding anchored geometry.
-  // It should be invariant that:
-  // anchored_geometry_[anchored_geometry_index_id_map_[i]].internal_index() ==
-  //     i
-  std::vector<GeometryId> anchored_geometry_index_id_map_;
-
-  // The pose of each dynamic geometry relative to the frame to which it
-  // belongs. Each geometry has an internal index. That geometry's pose is
-  // stored in this vector at that index. Because the geometries are _rigidly_
-  // fixed to frames, these values are a property of the topology and _not_ the
-  // time-dependent frame kinematics.
-  std::vector<Isometry3<double>> X_FG_;
 
   // This provides the look up from the internal index of a frame to its frame
   // id. It assumes that the index value of any position in the vector *is* the

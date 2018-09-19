@@ -131,7 +131,7 @@ namespace internal {
 
 lcmt_viewer_load_robot GeometryVisualizationImpl::BuildLoadMessage(
     const GeometryState<double>& state) {
-  using internal::InternalAnchoredGeometry;
+  using internal::InternalFrame;
   using internal::InternalGeometry;
 
   lcmt_viewer_load_robot message{};
@@ -144,6 +144,8 @@ lcmt_viewer_load_robot GeometryVisualizationImpl::BuildLoadMessage(
   // Count up the number of dynamic frames.
   for (const auto& pair : state.frames_) {
     const FrameId frame_id = pair.first;
+    // We'll handle the world frame special.
+    if (frame_id == InternalFrame::get_world_frame_id()) continue;
     const int count = state.NumGeometryWithRole(frame_id, Role::kIllustration);
     if (count > 0) {
       dynamic_frames.push_back({frame_id, count});
@@ -151,13 +153,12 @@ lcmt_viewer_load_robot GeometryVisualizationImpl::BuildLoadMessage(
   }
   // Add the world frame if it has geometries with illustration role.
   const int anchored_count = state.NumGeometryWithRole(
-      internal::InternalFrame::get_world_frame_id(), Role::kIllustration);
+      InternalFrame::get_world_frame_id(), Role::kIllustration);
   const int frame_count = static_cast<int>(dynamic_frames.size()) +
       (anchored_count > 0 ? 1 : 0);
 
-  const int total_link_count = frame_count;
-  message.num_links = total_link_count;
-  message.link.resize(total_link_count);
+  message.num_links = frame_count;
+  message.link.resize(frame_count);
 
   const Eigen::Vector4d default_color({0.9, 0.9, 0.9, 1.0});
 
@@ -170,8 +171,10 @@ lcmt_viewer_load_robot GeometryVisualizationImpl::BuildLoadMessage(
       message.link[0].num_geom = anchored_count;
       message.link[0].geom.resize(anchored_count);
       int geom_index = 0;
-      for (const auto& pair : state.anchored_geometries_) {
-        const InternalAnchoredGeometry& geometry = pair.second;
+      const InternalFrame& world_frame =
+          state.frames_.at(InternalFrame::get_world_frame_id());
+      for (const GeometryId id : world_frame.get_child_geometries()) {
+        const InternalGeometry& geometry = state.geometries_.at(id);
         const IllustrationProperties* props =
             geometry.illustration_properties();
         if (props != nullptr) {
@@ -179,7 +182,7 @@ lcmt_viewer_load_robot GeometryVisualizationImpl::BuildLoadMessage(
           const Eigen::Vector4d& color = props->GetPropertyOrDefault(
               "phong", "diffuse", default_color);
           message.link[0].geom[geom_index] = MakeGeometryData(
-              shape, geometry.pose_in_parent(), color);
+              shape, geometry.X_FG(), color);
           ++geom_index;
         }
       }
@@ -207,13 +210,11 @@ lcmt_viewer_load_robot GeometryVisualizationImpl::BuildLoadMessage(
       const InternalGeometry& geometry = state.geometries_.at(geom_id);
       const IllustrationProperties* props = geometry.illustration_properties();
       if (props != nullptr) {
-        InternalIndex index = geometry.internal_index();
-        const Isometry3<double>& X_FG = state.X_FG_[index];
         const Shape& shape = geometry.shape();
         const Eigen::Vector4d& color = props->GetPropertyOrDefault(
             "phong", "diffuse", default_color);
         message.link[link_index].geom[geom_index] =
-            MakeGeometryData(shape, X_FG, color);
+            MakeGeometryData(shape, geometry.X_FG(), color);
         ++geom_index;
       }
     }

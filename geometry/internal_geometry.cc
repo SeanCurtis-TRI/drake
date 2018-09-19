@@ -1,12 +1,24 @@
 #include "drake/geometry/internal_geometry.h"
 
-#include "drake/geometry/internal_frame.h"
-
 namespace drake {
 namespace geometry {
 namespace internal {
 
-bool InternalGeometryBase::has_role(Role role) const {
+InternalGeometry::InternalGeometry(
+    SourceId source_id, std::unique_ptr<Shape> shape, FrameId frame_id,
+    GeometryId geometry_id, std::string name, const Isometry3<double>& X_FG,
+    InternalIndex index)
+    : shape_spec_(std::move(shape)),
+      id_(geometry_id),
+      name_(std::move(name)),
+      internal_index_(index),
+      source_id_(source_id),
+      frame_id_(frame_id),
+      X_PG_(X_FG),
+      X_FG_(X_FG),
+      parent_geometry_id_(nullopt) {}
+
+bool InternalGeometry::has_role(Role role) const {
   switch (role) {
     case Role::kProximity:
       return has_proximity_role();
@@ -24,29 +36,6 @@ bool InternalGeometryBase::has_role(Role role) const {
       return false;
   }
 }
-
-InternalGeometry::InternalGeometry() : InternalGeometryBase() {}
-
-InternalGeometry::InternalGeometry(std::unique_ptr<Shape> shape,
-                                   FrameId frame_id, GeometryId geometry_id,
-                                   const std::string& name,
-                                   const Isometry3<double>& X_PG,
-                                   InternalIndex internal_index,
-                                   const optional<GeometryId>& parent_id)
-    : InternalGeometryBase(std::move(shape), frame_id, geometry_id, name, X_PG,
-                           internal_index),
-      parent_id_(parent_id) {}
-
-InternalAnchoredGeometry::InternalAnchoredGeometry() : InternalGeometryBase() {}
-
-InternalAnchoredGeometry::InternalAnchoredGeometry(std::unique_ptr<Shape> shape,
-                                                   GeometryId geometry_id,
-                                                   const std::string& name,
-                                                   const Isometry3<double> X_WG,
-                                                   InternalIndex internal_index)
-    : InternalGeometryBase(std::move(shape),
-                           InternalFrame::get_world_frame_id(), geometry_id,
-                           name, X_WG, internal_index) {}
 
 }  // namespace internal
 }  // namespace geometry

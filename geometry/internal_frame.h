@@ -51,6 +51,7 @@ class InternalFrame {
 
   SourceId get_source_id() const { return source_id_; }
   FrameId get_id() const { return id_; }
+  bool is_world() const { return id_ == get_world_frame_id(); }
   const std::string& get_name() const { return name_; }
   int get_frame_group() const { return frame_group_; }
   InternalIndex internal_index() const { return internal_index_; }
@@ -71,6 +72,9 @@ class InternalFrame {
   }
   std::unordered_set<GeometryId>* get_mutable_child_geometries() {
     return &child_geometries_;
+  }
+  int num_child_geometries() const {
+    return static_cast<int>(child_geometries_.size());
   }
 
   /** Returns true if the given `frame_id` is a known child of this frame. */

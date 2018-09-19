@@ -139,11 +139,9 @@ class ProximityEngine {
    each pair between an element in @p dynamic_map and another element in
    @p anchored_map. The order and size of the closest points are invariant
    when the poses of the objects are changed.
-   @param[in]   dynamic_map   A map from geometry _index_ to the corresponding
-                              global geometry identifier for dynamic geometries.
-   @param[in]   anchored_map  A map from geometry _index_ to the corresponding
-                              global geometry identifier for anchored
-                              geometries.
+
+   @param[in]   geometry_map  A map from geometry _index_ to the corresponding
+                              global geometry identifier.
    @returns signed_distance_pair A vector populated with all pairs of witness
                                  points. For a pair consisting of geometries A
                                  and B, distances will always be reported as the
@@ -154,8 +152,7 @@ class ProximityEngine {
    */
   std::vector<SignedDistancePair<double>>
   ComputeSignedDistancePairwiseClosestPoints(
-      const std::vector<GeometryId>& dynamic_map,
-      const std::vector<GeometryId>& anchored_map) const;
+      const std::vector<GeometryId>& geometry_map) const;
   //@}
 
 
@@ -186,16 +183,12 @@ class ProximityEngine {
    For two penetrating geometries g₁ and g₂, it is guaranteed that they will
    map to `id_A` and `id_B` in a fixed, repeatable manner.
 
-   @param[in]   dynamic_map   A map from geometry _index_ to the corresponding
-                              global geometry identifier for dynamic geometries.
-   @param[in]   anchored_map  A map from geometry _index_ to the corresponding
-                              global geometry identifier for anchored
-                              geometries.
+   @param[in]   geometry_map  A map from geometry _index_ to the corresponding
+                              global geometry identifier.
    @returns A vector populated with all detected penetrations characterized as
             point pairs. */
   std::vector<PenetrationAsPointPair<double>> ComputePointPairPenetration(
-      const std::vector<GeometryId>& dynamic_map,
-      const std::vector<GeometryId>& anchored_map) const;
+      const std::vector<GeometryId>& geometry_map) const;
 
   //@}
 
