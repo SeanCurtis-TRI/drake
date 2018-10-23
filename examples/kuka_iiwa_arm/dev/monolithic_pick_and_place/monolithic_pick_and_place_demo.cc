@@ -110,11 +110,11 @@ int DoMain(void) {
 
   builder.Connect(plant->get_output_port_plant_state(),
                   drake_visualizer->get_input_port(0));
-
   // Add renderer.
-  RenderingConfig config(640, 480, M_PI / 4, 0.1, 40.0, false);
   const std::string& matFile =
       FindResourceOrThrow("drake/examples/kuka_iiwa_arm/dev/monolithic_pick_and_place/monolithic_materials.json");
+
+  RenderingConfig config(1280, 720, M_PI / 4, 0.1, 40.0, false);
   std::unique_ptr<RgbdRenderer> renderer
       = std::make_unique<RgbdRendererOSPRay>(config, matFile);
   auto ospray = static_cast<RgbdRendererOSPRay*>(renderer.get());
@@ -122,6 +122,7 @@ int DoMain(void) {
       FindResourceOrThrow("drake/examples/kuka_iiwa_arm/dev/monolithic_pick_and_place/kitchen_environment.jpg"));
   ospray->SetSamplesPerPixel(FLAGS_spp);
 
+  // Fixed camera over-looking the whole scene.
   auto camera = builder.AddSystem<RgbdCamera>(
       "camera", plant->get_tree(),
       Vector3<double>{FLAGS_cam_x, FLAGS_cam_y, FLAGS_cam_z},
@@ -129,15 +130,46 @@ int DoMain(void) {
       move(renderer), false);
 
   auto image_writer =
-      builder.AddSystem<PngWriter>("/home/sean/temp/rendering/" + FLAGS_name,
-                                   FLAGS_cam_start);
+      builder.AddSystem<PngWriter>(
+          "/home/sean/temp/rendering/monolithic/main/" + FLAGS_name,
+          FLAGS_cam_start);
   image_writer->set_publish_period(1. / FLAGS_fps);
 
   builder.Connect(plant->get_output_port_plant_state(),
                   camera->state_input_port());
   builder.Connect(camera->color_image_output_port(),
                   image_writer->color_image_input_port());
+#if 0
+  // Camera attached to end effector.
+  RenderingConfig gripper_config(640, 480, M_PI_4, 0.1, 2.0, false);
+  renderer = std::make_unique<RgbdRendererOSPRay>(gripper_config, matFile);
+  ospray = static_cast<RgbdRendererOSPRay*>(renderer.get());
+  ospray->SetBackground(
+      FindResourceOrThrow("drake/examples/kuka_iiwa_arm/dev/monolithic_pick_and_place/kitchen_environment.jpg"));
+  ospray->SetSamplesPerPixel(FLAGS_spp);
 
+  auto camera_frame = plant->get_tree().findFrame("iiwa_frame_ee");
+  auto gripper_camera = builder.AddSystem<RgbdCamera>(
+      "ee_camera", plant->get_tree(),
+#if 1
+*camera_frame,
+#else
+      Vector3<double>{FLAGS_cam_x, FLAGS_cam_y, FLAGS_cam_z},
+      Vector3<double>{FLAGS_cam_r, FLAGS_cam_p, FLAGS_cam_yaw},
+#endif
+move(renderer), false);
+
+  auto gripper_image_writer =
+      builder.AddSystem<PngWriter>(
+          "/home/sean/temp/rendering/monolithic/grip/" + FLAGS_name,
+          FLAGS_cam_start);
+  gripper_image_writer->set_publish_period(1. / FLAGS_fps);
+
+  builder.Connect(plant->get_output_port_plant_state(),
+                  gripper_camera->state_input_port());
+  builder.Connect(gripper_camera->color_image_output_port(),
+                  gripper_image_writer->color_image_input_port());
+#endif
   auto sys = builder.Build();
   Simulator<double> simulator(*sys);
   simulator.set_target_realtime_rate(FLAGS_realtime_rate);
