@@ -31,6 +31,8 @@
 #include "drake/common/eigen_types.h"
 #include "drake/common/find_resource.h"
 #include "drake/geometry/geometry_visualization.h"
+#include "drake/geometry/render/camera_properties.h"
+#include "drake/geometry/render/render_engine_vtk.h"
 #include "drake/lcm/drake_lcm.h"
 #include "drake/multibody/parsers/urdf_parser.h"
 #include "drake/multibody/rigid_body_plant/rigid_body_plant.h"
@@ -39,12 +41,21 @@
 #include "drake/systems/analysis/runge_kutta2_integrator.h"
 #include "drake/systems/analysis/simulator.h"
 #include "drake/systems/framework/diagram_builder.h"
+#include "drake/systems/lcm/lcm_publisher_system.h"
+#include "drake/systems/sensors/image_to_lcm_image_array_t.h"
+#include "drake/systems/sensors/image_writer.h"
+#include "drake/systems/sensors/rgbd_sensor.h"
 
 namespace drake {
 namespace systems {
 
 using drake::lcm::DrakeLcm;
+using geometry::render::DepthCameraProperties;
+using geometry::render::RenderEngineVtk;
 using multibody::joints::kQuaternion;
+using systems::sensors::ImageWriter;
+using systems::sensors::PixelType;
+using systems::sensors::RgbdSensor;
 using Eigen::VectorXd;
 using std::make_unique;
 
@@ -69,6 +80,23 @@ DEFINE_double(dt, 1e-3, "The step size to use for "
               "'system_type=discretized' (ignored for "
               "'system_type=continuous'");
 
+DEFINE_double(cam_x, 14.5, "Camera position on the x-axis");
+DEFINE_double(cam_y, 1.5, "Camera position on the y-axis");
+DEFINE_double(cam_z, 0.75, "Camera position on the z-axis");
+DEFINE_double(cam_r, 0, "Camera roll value");
+DEFINE_double(cam_p, 0.45, "Camera pitch value");
+DEFINE_double(cam_yaw, -0.7, "Camera yaw value");
+
+DEFINE_double(cam_start, 0, "The simulation time at which rendering starts");
+DEFINE_double(fps, 10, "Camera fps");
+DEFINE_string(name, "image", "Base of image name");
+
+constexpr char kColorCameraFrameName[] = "color_camera_optical_frame";
+constexpr char kDepthCameraFrameName[] = "depth_camera_optical_frame";
+constexpr char kLabelCameraFrameName[] = "label_camera_optical_frame";
+
+constexpr char kImageArrayLcmChannelName[] = "DRAKE_RGBD_CAMERA_IMAGES";
+
 // Bowling ball rolled down a conceptual lane to strike pins.
 int main() {
   using std::cerr;
@@ -85,6 +113,13 @@ int main() {
   cout << "\tContact radius:   " << FLAGS_contact_radius << "\n";
   cout << "\tdissipation:      " << FLAGS_dissipation << "\n";
   cout << "\tpin count:        " << FLAGS_pin_count << "\n";
+  cout << "\tcamera:\n";
+  cout << "\t  pose:           " << FLAGS_cam_x << ", " << FLAGS_cam_y << ", "
+       << FLAGS_cam_z << "\n";
+  cout << "\t  rpy:            " << FLAGS_cam_r << ", " << FLAGS_cam_p << ", "
+       << FLAGS_cam_yaw << "\n";
+  cout << "\t  fps:            " << FLAGS_fps << "\n";
+
 
   if (FLAGS_pin_count < 0 || FLAGS_pin_count > 10) {
     cerr << "Bad number of pins specified.  Must be in the range [0, 10]\n";
@@ -129,6 +164,7 @@ int main() {
 
   auto scene_graph = builder.AddSystem<geometry::SceneGraph<double>>();
   scene_graph->set_name("scene_graph");
+  scene_graph->AddRenderer("renderer", make_unique<RenderEngineVtk>());
 
   auto rbt_sg_bridge = builder.AddSystem<systems::RigidBodyPlantBridge<double>>(
       &tree, scene_graph);
@@ -141,14 +177,88 @@ int main() {
       scene_graph->get_source_pose_port(rbt_sg_bridge->source_id()));
 
   geometry::ConnectDrakeVisualizer(&builder, *scene_graph);
+
+  // Add camera to take pictures
+  // SG camera
+  DepthCameraProperties fixed_properties(640, 480, M_PI / 4, "renderer",
+                                         0.1, 10.0);
+  auto fixed_camera = builder.AddSystem<RgbdSensor>(
+      "fixed_cam", Vector3<double>{FLAGS_cam_x, FLAGS_cam_y, FLAGS_cam_z},
+      Vector3<double>{FLAGS_cam_r, FLAGS_cam_p, FLAGS_cam_yaw},
+      fixed_properties, false);
+
+  // Camera located just in front of the head pin, looking at the oncoming ball.
+  DepthCameraProperties pin_properties(320, 240, M_PI / 4, "renderer",
+                                       0.1, 30.0);
+  Isometry3<double> X_PC = Isometry3<double>::Identity();
+  X_PC.translation() << -0.1, 0, 0.15;
+  Vector3<double> rpy(0, 0, M_PI);
+  X_PC.linear() = math::RollPitchYaw<double>(rpy).ToMatrix3ViaRotationMatrix();
+  const RigidBody<double>& body = *tree.FindBody("pin", "", 1);
+  geometry::FrameId frame_id = rbt_sg_bridge->FrameIdFromBody(body);
+  auto pin_camera = builder.AddSystem<RgbdSensor>(
+      "pin_camera", frame_id, X_PC,
+      pin_properties, false);
+
+  builder.Connect(scene_graph->get_query_output_port(),
+                  fixed_camera->query_object_input_port());
+  builder.Connect(scene_graph->get_query_output_port(),
+                  pin_camera->query_object_input_port());
+
+  // Add image writing
+  auto image_writer = builder.AddSystem<ImageWriter>();
+
+  const std::string format =
+      "/home/seancurtis/temp/rendering/{port_name}_{count:04}";
+  builder.Connect(fixed_camera->color_image_output_port(),
+                  image_writer->DeclareImageInputPort<PixelType::kRgba8U>(
+                      "fixed_color", format, 1. / FLAGS_fps, FLAGS_cam_start));
+  builder.Connect(pin_camera->color_image_output_port(),
+                  image_writer->DeclareImageInputPort<PixelType::kRgba8U>(
+                      "pin_color", format, 1. / FLAGS_fps, FLAGS_cam_start));
+
+  // Publishing images to drake visualizer
+  auto image_to_lcm_image_array =
+      builder.template AddSystem<systems::sensors::ImageToLcmImageArrayT>(
+          kColorCameraFrameName, kDepthCameraFrameName, kLabelCameraFrameName);
+  image_to_lcm_image_array->set_name("converter");
+
+  DrakeLcm lcm;
+
+  auto image_array_lcm_publisher = builder.template AddSystem(
+      lcm::LcmPublisherSystem::Make<robotlocomotion::image_array_t>(
+          kImageArrayLcmChannelName, &lcm));
+  image_array_lcm_publisher->set_name("publisher");
+  image_array_lcm_publisher->set_publish_period(1. / FLAGS_fps);
+
+  builder.Connect(
+      fixed_camera->color_image_output_port(),
+      image_to_lcm_image_array->color_image_input_port());
+
+  builder.Connect(
+      fixed_camera->depth_image_32F_output_port(),
+      image_to_lcm_image_array->depth_image_input_port());
+
+  builder.Connect(
+      fixed_camera->label_image_output_port(),
+      image_to_lcm_image_array->label_image_input_port());
+
+  builder.Connect(
+      image_to_lcm_image_array->image_array_t_msg_output_port(),
+      image_array_lcm_publisher->get_input_port());
+
   auto diagram = builder.Build();
 
   // Create simulator.
   Simulator<double> simulator(*diagram);
   Context<double>& context = simulator.get_mutable_context();
+  // I have two image publishers (lcm and image writer) - enable caching
+  // means I only render once.
+  context.EnableCaching();
   simulator.reset_integrator<RungeKutta2Integrator<double>>(*diagram,
                                                             FLAGS_timestep,
                                                             &context);
+  simulator.set_publish_every_time_step(false);
   // Set initial state.
   Context<double>& plant_context =
       diagram->GetMutableSubsystemContext(plant, &context);
