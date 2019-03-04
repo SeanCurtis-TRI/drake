@@ -20,10 +20,9 @@
 
 DEFINE_double(simulation_time, 10.0,
               "Desired duration of the simulation in seconds.");
-DEFINE_bool(render_on, true, "Sets rendering generally enabled (or not)");
-DEFINE_bool(color, true, "Sets the enabled camera to render color");
-DEFINE_bool(depth, true, "Sets the enabled camera to render depth");
-DEFINE_bool(label, true, "Sets the enabled camera to render label");
+DEFINE_int32(ball_count, 2, "Number of bouncing balls to include");
+DEFINE_int32(depth_count, 2, "The number of depth images to render");
+DEFINE_bool(fast_depth, false, "Sets the depth camera to use the fast depth");
 DEFINE_double(render_fps, 10, "Frames per simulation second to render");
 
 namespace drake {
@@ -56,18 +55,10 @@ int do_main() {
   auto proximity_scene_graph = builder.AddSystem<ProximitySceneGraph<double>>();
   proximity_scene_graph->set_name("proximity_scene_graph");
 
-  // Create two bouncing balls --> two plants. Put the balls at positions
-  // mirrored over the origin (<0.25, 0.25> and <-0.25, -0.25>, respectively).
-  // See below for setting the initial *height*.
-  SourceId ball_source_id1 = proximity_scene_graph->RegisterSource("ball1");
-  auto bouncing_ball1 = builder.AddSystem<BouncingBallPlant>(
-      ball_source_id1, proximity_scene_graph, Vector2<double>(0.25, 0.25));
-  bouncing_ball1->set_name("BouncingBall1");
-
-  SourceId ball_source_id2 = proximity_scene_graph->RegisterSource("ball2");
-  auto bouncing_ball2 = builder.AddSystem<BouncingBallPlant>(
-      ball_source_id2, proximity_scene_graph, Vector2<double>(-0.25, -0.25));
-  bouncing_ball2->set_name("BouncingBall2");
+  std::cout << "Adding " << FLAGS_ball_count << " balls\n";
+  SourceId ball_source_id = proximity_scene_graph->RegisterSource("balls");
+  auto bouncing_balls = builder.AddSystem<BouncingBallPlant>(
+      ball_source_id, proximity_scene_graph, FLAGS_ball_count);
 
   SourceId global_source = proximity_scene_graph->RegisterSource("anchored");
   // Add a "ground" halfspace. Define the pose of the half space (H) in the
@@ -84,95 +75,83 @@ int do_main() {
   proximity_scene_graph->AssignRole(global_source, ground_id,
                                     IllustrationProperties());
 
-  builder.Connect(bouncing_ball1->get_geometry_pose_output_port(),
-                  proximity_scene_graph->get_source_pose_port(ball_source_id1));
+  builder.Connect(bouncing_balls->get_geometry_pose_output_port(),
+                  proximity_scene_graph->get_source_pose_port(ball_source_id));
   builder.Connect(proximity_scene_graph->get_query_output_port(),
-                  bouncing_ball1->get_geometry_query_input_port());
+                  bouncing_balls->get_geometry_query_input_port());
 
-  builder.Connect(bouncing_ball2->get_geometry_pose_output_port(),
-                  proximity_scene_graph->get_source_pose_port(ball_source_id2));
-  builder.Connect(proximity_scene_graph->get_query_output_port(),
-                  bouncing_ball2->get_geometry_query_input_port());
+    // Add rendering scene graph -- use it for both illustration and perception.
+    auto render_scene_graph =
+        builder.AddSystem<RenderSceneGraph<double>>(*proximity_scene_graph);
+    render_scene_graph->set_name("render_scene_graph");
+    builder.Connect(bouncing_balls->get_geometry_pose_output_port(),
+                    render_scene_graph->get_source_pose_port(ball_source_id));
 
-  // Add rendering scene graph -- use it for both illustration and perception.
-  auto render_scene_graph =
-      builder.AddSystem<RenderSceneGraph<double>>(*proximity_scene_graph);
-  render_scene_graph->set_name("render_scene_graph");
-  builder.Connect(bouncing_ball1->get_geometry_pose_output_port(),
-                  render_scene_graph->get_source_pose_port(ball_source_id1));
-  builder.Connect(bouncing_ball2->get_geometry_pose_output_port(),
-                  render_scene_graph->get_source_pose_port(ball_source_id2));
+    DrakeLcm lcm;
+    ConnectDrakeVisualizer(&builder, *render_scene_graph, &lcm);
 
-  DrakeLcm lcm;
-  ConnectDrakeVisualizer(&builder, *render_scene_graph, &lcm);
-
-  if (FLAGS_render_on) {
-    // Create the camera.
-    DepthCameraProperties
-        camera_properties(640, 480, M_PI_4, Fidelity::kLow, 0.1,
-                          2.0);
-    Vector3<double> p_WC(-0.25, -0.75, 0.15);
-    Vector3<double> rpy_WC(0, 0, M_PI_2 * 0.9);
-    auto camera = builder.AddSystem<RgbdCamera>("fixed", p_WC, rpy_WC,
-                                                camera_properties, false);
-    builder.Connect(render_scene_graph->get_query_output_port(),
-                    camera->query_object_input_port());
-
-    // Broadcast the images.
+  if (FLAGS_depth_count > 0) {
     // Publishing images to drake visualizer
     auto image_to_lcm_image_array =
         builder.template AddSystem<systems::sensors::ImageToLcmImageArrayT>();
     image_to_lcm_image_array->set_name("converter");
 
-    systems::lcm::LcmPublisherSystem* image_array_lcm_publisher{nullptr};
-    if ((FLAGS_color || FLAGS_depth || FLAGS_label)) {
-      image_array_lcm_publisher =
-          builder.template AddSystem(systems::lcm::LcmPublisherSystem::Make<
-              robotlocomotion::image_array_t>(
-              "DRAKE_RGBD_CAMERA_IMAGES", &lcm,
-              1. / FLAGS_render_fps /* publish period */));
-      image_array_lcm_publisher->set_name("publisher");
+    const double lcm_period = 1. / FLAGS_render_fps;
+    auto image_array_lcm_publisher =
+        builder.template AddSystem(systems::lcm::LcmPublisherSystem::Make<
+            robotlocomotion::image_array_t>(
+            "DRAKE_RGBD_CAMERA_IMAGES", &lcm, lcm_period));
+    image_array_lcm_publisher->set_name("publisher");
+    builder.Connect(
+        image_to_lcm_image_array->image_array_t_msg_output_port(),
+        image_array_lcm_publisher->get_input_port());
 
-      builder.Connect(
-          image_to_lcm_image_array->image_array_t_msg_output_port(),
-          image_array_lcm_publisher->get_input_port());
-    }
+    std::vector<RgbdCamera*> cameras;
+    const Fidelity fidelity =
+          FLAGS_fast_depth ? Fidelity::kFastDepth : Fidelity::kLow;
+    DepthCameraProperties
+          camera_properties(320, 240, M_PI_4, fidelity, 0.1, 2.0);
 
-    if (FLAGS_color) {
+    // Set them up in a circular array of cameras. At "zero" degrees, the camera
+    // is located at (0, -1, 0) and is looking in the (0, 1, 0) direction (with
+    // a slight downward angle). To achieve that, the camera has to yaw 90
+    // degrees. All other cameras are simply rotations around that.
+    const double radius = 1.5;
+    for (int i = 0; i < FLAGS_depth_count; ++i) {
+      const double theta = M_PI * 2 * i / FLAGS_depth_count;
+      const double x = radius * cos(theta - M_PI / 2);
+      const double y = radius * sin(theta - M_PI / 2);
+      Vector3<double> p_WC(x, y, 0.75);
+      Vector3<double> rpy_WC(0, 0.4, M_PI_2 + theta);
+      const std::string name = "depth" + std::to_string(i);
+      std::cout << "Adding camera: " << name << "\n";
+      auto camera = builder.AddSystem<RgbdCamera>(name, p_WC, rpy_WC,
+                                                  camera_properties, false);
       const auto& port =
-          image_to_lcm_image_array->DeclareImageInputPort<PixelType::kRgba8U>(
-              "color");
-      builder.Connect(camera->color_image_output_port(), port);
-    }
-
-    if (FLAGS_depth) {
-      const auto& port =
-          image_to_lcm_image_array
-              ->DeclareImageInputPort<PixelType::kDepth32F>("depth");
+          image_to_lcm_image_array->DeclareImageInputPort<PixelType::kDepth32F>(
+              name);
       builder.Connect(camera->depth_image_output_port(), port);
-    }
+      builder.Connect(render_scene_graph->get_query_output_port(),
+                      camera->query_object_input_port());
 
-    if (FLAGS_label) {
-      const auto& port =
-          image_to_lcm_image_array
-              ->DeclareImageInputPort<PixelType::kLabel16I>("label");
-      builder.Connect(camera->label_image_output_port(), port);
+      cameras.push_back(camera);
     }
   }
 
   auto diagram = builder.Build();
 
   systems::Simulator<double> simulator(*diagram);
-  auto init_ball = [&](BouncingBallPlant<double>* system, double z,
-                       double zdot) {
+  simulator.get_mutable_context().EnableCaching();
+
+  for (int i = 0; i < FLAGS_ball_count; ++i) {
+    const double theta = 2 * i * M_PI / FLAGS_ball_count;
+    const double z = 0.3 + sin(theta) * 0.05;
     systems::Context<double>& ball_context =
-        diagram->GetMutableSubsystemContext(*system,
+        diagram->GetMutableSubsystemContext(*bouncing_balls,
                                             &simulator.get_mutable_context());
-    system->set_z(&ball_context, z);
-    system->set_zdot(&ball_context, zdot);
-  };
-  init_ball(bouncing_ball1, 0.3, 0.);
-  init_ball(bouncing_ball2, 0.3, 0.3);
+    bouncing_balls->set_z(&ball_context, i, z);
+    bouncing_balls->set_zdot(&ball_context, i, 0.);
+  }
 
   simulator.get_mutable_integrator()->set_maximum_step_size(0.002);
   simulator.Initialize();

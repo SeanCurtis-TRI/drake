@@ -1,10 +1,10 @@
 #pragma once
 
 #include <memory>
+#include <unordered_map>
 #include <vector>
 
 #include "drake/common/drake_copyable.h"
-#include "drake/examples/scene_graph/dev/gen/bouncing_ball_vector.h"
 #include "drake/geometry/geometry_ids.h"
 #include "drake/geometry/query_object.h"
 #include "drake/geometry/scene_graph.h"
@@ -29,17 +29,16 @@ class BouncingBallPlant : public systems::LeafSystem<T> {
 
   /** Constructor
    @param source_id             The source id for this plant to interact with
-                                GeoemtrySystem.
+                                SceneGraph.
    @param scene_graph           Pointer to the geometry system instance on which
                                 this plant's geometry will be registered. It
                                 must be the same system the source id was
                                 extracted from.
-   @param p_WB                  The 2D, projected position vector of the ball
-                                onto the ground plane relative to the world.
+   @param ball_count            The number of balls to simulate.
    */
   BouncingBallPlant(geometry::SourceId source_id,
                     geometry::SceneGraph<T>* scene_graph,
-                    const Vector2<double>& p_WB);
+                    int ball_count);
   ~BouncingBallPlant() override;
 
   const systems::InputPort<T>& get_geometry_query_input_port() const;
@@ -47,12 +46,12 @@ class BouncingBallPlant : public systems::LeafSystem<T> {
   const systems::OutputPort<T>& get_state_output_port() const;
   const systems::OutputPort<T>& get_geometry_pose_output_port() const;
 
-  void set_z(systems::Context<T>* context, const T& z) const {
-    get_mutable_state(context).set_z(z);
+  void set_z(systems::Context<T>* context, int i, const T& z) const {
+    get_mutable_state(context)[i] = z;
   }
 
-  void set_zdot(systems::Context<T>* context, const T& zdot) const {
-    get_mutable_state(context).set_zdot(zdot);
+  void set_zdot(systems::Context<T>* context, int i, const T& zdot) const {
+    get_mutable_state(context)[i + ball_count_] = zdot;
   }
 
   /** Mass in kg. */
@@ -79,7 +78,7 @@ class BouncingBallPlant : public systems::LeafSystem<T> {
  private:
   // Callback for writing the state vector to an output.
   void CopyStateToOutput(const systems::Context<T>& context,
-                         BouncingBallVector<T>* state_output_vector) const;
+                         systems::BasicVector<T>* state_output_vector) const;
 
   // Calculate the frame pose set output port value.
   void CalcFramePoseOutput(const systems::Context<T>& context,
@@ -89,41 +88,42 @@ class BouncingBallPlant : public systems::LeafSystem<T> {
       const systems::Context<T>& context,
       systems::ContinuousState<T>* derivatives) const override;
 
-  static const BouncingBallVector<T>& get_state(
+  static const systems::BasicVector<T>& get_state(
       const systems::ContinuousState<T>& cstate) {
-    return dynamic_cast<const BouncingBallVector<T>&>(cstate.get_vector());
+    return dynamic_cast<const systems::BasicVector<T>&>(cstate.get_vector());
   }
 
-  static BouncingBallVector<T>& get_mutable_state(
+  static systems::BasicVector<T>& get_mutable_state(
       systems::ContinuousState<T>* cstate) {
-    return dynamic_cast<BouncingBallVector<T>&>(cstate->get_mutable_vector());
+    return dynamic_cast<systems::BasicVector<T>&>(cstate->get_mutable_vector());
   }
 
-  BouncingBallVector<T>* get_mutable_state_output(
+  systems::BasicVector<T>* get_mutable_state_output(
       systems::SystemOutput<T>* output) const {
-    return dynamic_cast<BouncingBallVector<T>*>(
+    return dynamic_cast<systems::BasicVector<T>*>(
         output->GetMutableVectorData(state_port_));
   }
 
-  static const BouncingBallVector<T>& get_state(
+  static const systems::BasicVector<T>& get_state(
       const systems::Context<T>& context) {
     return get_state(context.get_continuous_state());
   }
 
-  static BouncingBallVector<T>& get_mutable_state(
+  static systems::BasicVector<T>& get_mutable_state(
       systems::Context<T>* context) {
     return get_mutable_state(&context->get_mutable_continuous_state());
   }
 
+  // Number of balls in the system.
+  const int ball_count_;
   // This plant's source id in SceneGraph.
   geometry::SourceId source_id_;
   // The projected position of the ball onto the ground plane. I.e., it's
   // "where the ball bounces".
-  const Vector2<double> p_WB_;
+  std::vector<Vector2<double>> p_WB_;
   // The id for the ball's frame.
-  geometry::FrameId ball_frame_id_;
-  // The id for the ball's geometry.
-  geometry::GeometryId ball_id_;
+  std::vector<geometry::FrameId> frame_ids_;
+  std::unordered_map<geometry::FrameId, int> frame_indexes_;
 
   int geometry_pose_port_{-1};
   int state_port_{-1};
