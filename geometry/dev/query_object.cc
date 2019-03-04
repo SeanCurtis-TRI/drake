@@ -2,6 +2,7 @@
 
 #include "drake/common/default_scalars.h"
 #include "drake/common/drake_assert.h"
+#include "drake/common/profiler.h"
 #include "drake/geometry/dev/scene_graph.h"
 
 namespace drake {
@@ -64,11 +65,15 @@ void QueryObject<T>::RenderColorImage(const CameraProperties& camera,
                                       ImageRgba8U* color_image_out,
                                       bool show_window) const {
   ThrowIfDefault();
-
+  static const common::TimerIndex timer =
+      addTimer("QueryObject::RenderColorImage - fixed");
+  startTimer(timer);
   // TODO(SeanCurtis-TRI): Modify this when the cache system is in place.
   scene_graph_->FullPoseUpdate(*context_);
   const GeometryState<T>& state = context_->get_geometry_state();
-  return state.RenderColorImage(camera, X_WC, color_image_out, show_window);
+  state.RenderColorImage(camera, X_WC, color_image_out, show_window);
+  lapTimer(timer);
+  return;
 }
 
 template <typename T>
@@ -78,12 +83,17 @@ void QueryObject<T>::RenderColorImage(const CameraProperties& camera,
                                       ImageRgba8U* color_image_out,
                                       bool show_window) const {
   ThrowIfDefault();
+  static const common::TimerIndex timer =
+      addTimer("QueryObject::RenderColorImage - moving");
+  startTimer(timer);
 
   // TODO(SeanCurtis-TRI): Modify this when the cache system is in place.
   scene_graph_->FullPoseUpdate(*context_);
   const GeometryState<T>& state = context_->get_geometry_state();
-  return state.RenderColorImage(camera, parent_frame, X_PC, color_image_out,
-                                show_window);
+  state.RenderColorImage(camera, parent_frame, X_PC, color_image_out,
+                         show_window);
+  lapTimer(timer);
+  return;
 }
 
 template <typename T>
@@ -91,11 +101,16 @@ void QueryObject<T>::RenderDepthImage(
     const DepthCameraProperties& camera, const Isometry3<double>& X_WC,
     ImageDepth32F* depth_image_out) const {
   ThrowIfDefault();
+  static const common::TimerIndex timer =
+      addTimer("QueryObject::RenderDepthImage32F - fixed");
+  startTimer(timer);
 
   // TODO(SeanCurtis-TRI): Modify this when the cache system is in place.
   scene_graph_->FullPoseUpdate(*context_);
   const GeometryState<T>& state = context_->get_geometry_state();
-  return state.RenderDepthImage(camera, X_WC, depth_image_out);
+  state.RenderDepthImage(camera, X_WC, depth_image_out);
+  lapTimer(timer);
+  return;
 }
 
 template <typename T>
@@ -104,11 +119,16 @@ void QueryObject<T>::RenderDepthImage(const DepthCameraProperties& camera,
                                       const Isometry3<double>& X_PC,
                                       ImageDepth32F* depth_image_out) const {
   ThrowIfDefault();
+  static const common::TimerIndex timer =
+      addTimer("QueryObject::RenderDepthImage32F - dynamic");
+  startTimer(timer);
 
   // TODO(SeanCurtis-TRI): Modify this when the cache system is in place.
   scene_graph_->FullPoseUpdate(*context_);
   const GeometryState<T>& state = context_->get_geometry_state();
-  return state.RenderDepthImage(camera, parent_frame, X_PC, depth_image_out);
+  state.RenderDepthImage(camera, parent_frame, X_PC, depth_image_out);
+  lapTimer(timer);
+  return;
 }
 
 template <typename T>
@@ -117,11 +137,16 @@ void QueryObject<T>::RenderLabelImage(const CameraProperties& camera,
                                       ImageLabel16I* label_image_out,
                                       bool show_window) const {
   ThrowIfDefault();
+  static const common::TimerIndex timer =
+      addTimer("QueryObject::RenderLabelImage - fixed");
+  startTimer(timer);
 
   // TODO(SeanCurtis-TRI): Modify this when the cache system is in place.
   scene_graph_->FullPoseUpdate(*context_);
   const GeometryState<T>& state = context_->get_geometry_state();
-  return state.RenderLabelImage(camera, X_WC, label_image_out, show_window);
+  state.RenderLabelImage(camera, X_WC, label_image_out, show_window);
+  lapTimer(timer);
+  return;
 }
 
 template <typename T>
@@ -131,12 +156,17 @@ void QueryObject<T>::RenderLabelImage(const CameraProperties& camera,
                                       ImageLabel16I* label_image_out,
                                       bool show_window) const {
   ThrowIfDefault();
+  static const common::TimerIndex timer =
+      addTimer("QueryObject::RenderLabelImage - dynamic");
+  startTimer(timer);
 
   // TODO(SeanCurtis-TRI): Modify this when the cache system is in place.
   scene_graph_->FullPoseUpdate(*context_);
   const GeometryState<T>& state = context_->get_geometry_state();
-  return state.RenderLabelImage(camera, parent_frame, X_PC, label_image_out,
-                                show_window);
+  state.RenderLabelImage(camera, parent_frame, X_PC, label_image_out,
+                         show_window);
+  lapTimer(timer);
+  return;
 }
 
 template <typename T>

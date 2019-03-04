@@ -44,6 +44,7 @@ drake_cc_library(
         ":opengl_context",
         ":shader_program",
         "//common:essential",
+        "//common:profiler",
         "//geometry/dev/render:render_engine",
         "//math:geometric_transform",
         "//systems/sensors:image",

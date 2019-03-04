@@ -9,6 +9,8 @@
 #include <fmt/format.h>
 #include <tiny_obj_loader.h>
 
+#include "drake/common/profiler.h"
+
 namespace drake {
 namespace geometry {
 namespace dev {
@@ -124,6 +126,9 @@ void RenderEngineGl::RenderColorImage(const CameraProperties&,
 void RenderEngineGl::RenderDepthImage(
     const DepthCameraProperties& camera,
     systems::sensors::ImageDepth32F* depth_image_out) const {
+  static const common::TimerIndex full_timer =
+      addTimer("RenderEngineGl::RenderDepthImage - full");
+  startTimer(full_timer);
   opengl_context_->make_current();
 
   const_cast<RenderEngineGl*>(this)->SetCameraProperties(camera);
@@ -131,6 +136,7 @@ void RenderEngineGl::RenderDepthImage(
   RenderTarget target =
       RenderAt(X_CW_.GetAsMatrix4().matrix().cast<float>(), camera);
   GetDepthImage(depth_image_out, target);
+  lapTimer(full_timer);
 }
 
 void RenderEngineGl::RenderLabelImage(const CameraProperties&,
@@ -326,15 +332,23 @@ RenderTarget RenderEngineGl::RenderAt(
 void RenderEngineGl::GetDepthImage(
     systems::sensors::ImageDepth32F* depth_image_out,
     const RenderTarget& target) const {
+  static const common::TimerIndex export_timer =
+      addTimer("RenderEngineGl::RenderDepthImage - export");
+  static const common::TimerIndex post_process_timer =
+      addTimer("RenderEngineVtk::RenderDepthImage - post-process");
+  startTimer(export_timer);
   glGetTextureImage(target.texture, 0, GL_RED, GL_FLOAT,
                     depth_image_out->size() * sizeof(GLfloat),
                     depth_image_out->at(0, 0));
+  lapTimer(export_timer);
 
+  startTimer(post_process_timer);
   for (int y = 0; y < depth_image_out->height(); ++y) {
     for (int x = 0; x < depth_image_out->width(); ++x) {
       *depth_image_out->at(x, y) = 1.f / *depth_image_out->at(x, y);
     }
   }
+  lapTimer(post_process_timer);
 }
 
 void RenderEngineGl::ImplementGeometry(const Sphere& sphere, void* user_data) {

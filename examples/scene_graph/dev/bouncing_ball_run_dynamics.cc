@@ -3,6 +3,7 @@
 
 #include <gflags/gflags.h>
 
+#include "drake/common/profiler.h"
 #include "drake/examples/scene_graph/dev/bouncing_ball_plant.h"
 #include "drake/geometry/dev/geometry_visualization.h"
 #include "drake/geometry/dev/scene_graph.h"
@@ -51,6 +52,8 @@ using systems::sensors::PixelType;
 using std::make_unique;
 
 int do_main() {
+  drake::common::TimerIndex main_timer = addTimer("Main");
+  startTimer(main_timer);
   systems::DiagramBuilder<double> builder;
   auto proximity_scene_graph = builder.AddSystem<ProximitySceneGraph<double>>();
   proximity_scene_graph->set_name("proximity_scene_graph");
@@ -154,10 +157,16 @@ int do_main() {
   }
 
   simulator.get_mutable_integrator()->set_maximum_step_size(0.002);
+  common::TimerIndex timer = addTimer("Full simulation");
   simulator.Initialize();
   simulator.set_publish_every_time_step(false);
   simulator.set_publish_at_initialization(false);
+  startTimer(timer);
   simulator.StepTo(FLAGS_simulation_time);
+  lapTimer(timer);
+  lapTimer(main_timer);
+
+  std::cout << TableOfAverages() << "\n";
 
   return 0;
 }

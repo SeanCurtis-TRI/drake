@@ -16,6 +16,7 @@
 #include <vtkTransform.h>
 #include <vtkTransformPolyDataFilter.h>
 
+#include "drake/common/profiler.h"
 #include "drake/geometry/dev/render/shaders/depth_shaders.h"
 #include "drake/systems/sensors/color_palette.h"
 #include "drake/systems/sensors/vtk_util.h"
@@ -274,6 +275,9 @@ void RenderEngineVtk::UpdateVisualPose(const Eigen::Isometry3d& X_WG,
   // TODO(SeanCurtis-TRI): Provide the ability to specify specific actors based
   // on render target (rgb, d, label).
   for (const auto& actor : actors_.at(index)) {
+    // NOTE: This is an absurd quirk of VTK that I can set the transform of an
+    // otherwise const actor; it's actually a const pointer to a non-const
+    // actor.
     actor->SetUserTransform(vtk_X_WG);
   }
 }
@@ -290,6 +294,11 @@ void RenderEngineVtk::UpdateViewpoint(const Eigen::Isometry3d& X_WC) const {
 void RenderEngineVtk::RenderColorImage(const CameraProperties& camera,
                                        ImageRgba8U* color_image_out,
                                        bool show_window) const {
+  static const common::TimerIndex full_timer =
+      addTimer("RenderEngineVtk::RenderColorImage - full");
+  static const common::TimerIndex export_timer =
+      addTimer("RenderEngineVtk::RenderColorImage - export");
+  startTimer(full_timer);
   // TODO(sherm1) Should evaluate VTK cache entry.
   UpdateWindow(camera, show_window, pipelines_[ImageType::kColor].get(),
                "Color Image");
@@ -297,11 +306,21 @@ void RenderEngineVtk::RenderColorImage(const CameraProperties& camera,
 
   // TODO(SeanCurtis-TRI): Determine if this copies memory (and find some way
   // around copying).
+  startTimer(export_timer);
   pipelines_[ImageType::kColor]->exporter->Export(color_image_out->at(0, 0));
+  lapTimer(export_timer);
+  lapTimer(full_timer);
 }
 
 void RenderEngineVtk::RenderDepthImage(const DepthCameraProperties& camera,
                                        ImageDepth32F* depth_image_out) const {
+  static const common::TimerIndex full_timer =
+      addTimer("RenderEngineVtk::RenderDepthImage - full");
+  static const common::TimerIndex export_timer =
+      addTimer("RenderEngineVtk::RenderDepthImage - export");
+  static const common::TimerIndex post_process_timer =
+      addTimer("RenderEngineVtk::RenderDepthImage - post-process");
+  startTimer(full_timer);
   UpdateWindow(camera, pipelines_[ImageType::kDepth].get());
   PerformVTKUpdate(*pipelines_[ImageType::kDepth]);
 
@@ -310,8 +329,11 @@ void RenderEngineVtk::RenderDepthImage(const DepthCameraProperties& camera,
   // simply call exporter->GetPoitnerToData() and process the pixels myself.
   // See the implementation in vtkImageExport::Export() for details.
   ImageRgba8U image(camera.width, camera.height);
+  startTimer(export_timer);
   pipelines_[ImageType::kDepth]->exporter->Export(image.at(0, 0));
+  lapTimer(export_timer);
 
+  startTimer(post_process_timer);
   for (int v = 0; v < camera.height; ++v) {
     for (int u = 0; u < camera.width; ++u) {
       if (image.at(u, v)[0] == 255u &&
@@ -333,6 +355,8 @@ void RenderEngineVtk::RenderDepthImage(const DepthCameraProperties& camera,
       }
     }
   }
+  lapTimer(post_process_timer);
+  lapTimer(full_timer);
 }
 
 void RenderEngineVtk::RenderLabelImage(const CameraProperties& camera,
@@ -531,25 +555,36 @@ void RenderEngineVtk::ImplementGeometry(vtkPolyDataAlgorithm* source,
 }
 
 void RenderEngineVtk::PerformVTKUpdate(const RenderingPipeline& p) {
+  static common::TimerIndex timer =
+      addTimer("RenderEngineVtk::PerformVTKUpdate");
+  startTimer(timer);
   p.window->Render();
   p.filter->Modified();
   p.filter->Update();
+  lapTimer(timer);
 }
 
 void RenderEngineVtk::UpdateWindow(const CameraProperties& camera,
                                    bool show_window,
                                    const RenderingPipeline* p,
                                    const char* name) const {
+  static common::TimerIndex timer =
+      addTimer("RenderEngineVtk::UpdateWindow - color");
+  startTimer(timer);
   // NOTE: This is a horrible hack for modifying what otherwise looks like
   // const entities.
   p->window->SetSize(camera.width, camera.height);
   p->window->SetOffScreenRendering(!show_window);
   if (show_window) p->window->SetWindowName(name);
   p->renderer->GetActiveCamera()->SetViewAngle(camera.fov_y * 180 / M_PI);
+  lapTimer(timer);
 }
 
 void RenderEngineVtk::UpdateWindow(const DepthCameraProperties& camera,
                                    const RenderingPipeline* p) const {
+  static common::TimerIndex timer =
+      addTimer("RenderEngineVtk::UpdateWindow - depth");
+  startTimer(timer);
   p->renderer->GetActiveCamera()->SetClippingRange(kClippingPlaneNear,
                                                    camera.z_far);
 
@@ -560,6 +595,7 @@ void RenderEngineVtk::UpdateWindow(const DepthCameraProperties& camera,
   uniform_setting_callback_->set_z_near(kClippingPlaneNear);
   uniform_setting_callback_->set_z_far(static_cast<float>(camera.z_far));
   UpdateWindow(camera, false, p, "Depth Image");
+  lapTimer(timer);
 }
 
 }  // namespace render
