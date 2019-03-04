@@ -42,6 +42,10 @@ namespace render {
      has already been defined for "terrain": RenderLabel::terrain_label(). */
 class RenderEngine : public ShapeReifier {
  public:
+  DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(RenderEngine)
+
+  RenderEngine() = default;
+
   virtual ~RenderEngine() {}
 
   /** Clones the render engine -- making the RenderEngine compatible with
@@ -80,7 +84,7 @@ class RenderEngine : public ShapeReifier {
    @param X_WG     The pose of the render geometry in the world frame.
    @param index    The index of the render geometry whose pose is being set. */
   virtual void UpdateVisualPose(const Eigen::Isometry3d& X_WG,
-                                RenderIndex index) const = 0;
+                                RenderIndex index) = 0;
 
   /** Updates the renderer's viewpoint with given pose X_WR.
 

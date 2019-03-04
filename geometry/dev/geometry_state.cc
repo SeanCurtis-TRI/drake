@@ -177,7 +177,8 @@ template <typename T>
 GeometryState<T>::GeometryState()
     : self_source_(SourceId::get_new_id()),
       geometry_engine_(make_unique<internal::ProximityEngine<T>>()),
-      low_render_engine_(make_unique<render::RenderEngineVtk>()) {
+      low_render_engine_(make_unique<render::RenderEngineVtk>()),
+      fast_depth_render_engine_(make_unique<render::gl::RenderEngineGl>()) {
   source_names_[self_source_] = "SceneGraphInternal";
 
   const FrameId world = InternalFrame::world_frame_id();
@@ -781,8 +782,11 @@ void GeometryState<T>::AssignRole(SourceId source_id,
   // This *must* be non-null, otherwise the role assignment would have failed.
   DRAKE_DEMAND(geometry != nullptr);
   RenderIndex index = low_render_engine_->RegisterVisual(
-      geometry->shape(), *geometry->perception_properties(),
-      geometry->X_FG());
+      geometry->shape(), *geometry->perception_properties(), geometry->X_FG());
+  RenderIndex fast_index = fast_depth_render_engine_->RegisterVisual(
+      geometry->shape(), *geometry->perception_properties(), geometry->X_FG());
+  // In the dev version, we'll keep these in lockstep.
+  DRAKE_DEMAND(index == fast_index);
   geometry->set_render_index(index);
   if (geometry->is_dynamic()) {
     // Save the geometry's internal index in its render index slot.
@@ -1048,6 +1052,8 @@ void GeometryState<T>::FinalizePoseUpdate() {
     const InternalIndex in_index = pair.second;
     low_render_engine_->UpdateVisualPose(convert(X_WG_[in_index]),
                                          render_index);
+    fast_depth_render_engine_->UpdateVisualPose(convert(X_WG_[in_index]),
+                                                render_index);
   }
 }
 
@@ -1198,6 +1204,12 @@ int GeometryState<T>::RemovePerceptionRole(GeometryId geometry_id) {
     RenderIndex index = geometry->render_index();
     optional<RenderIndex> moved_render_index =
         low_render_engine_->RemoveVisual(index);
+    optional<RenderIndex> moved_fast_render_index =
+        fast_depth_render_engine_->RemoveVisual(index);
+    // For now, the two renderers are in sync -- same geometries with the same
+    // indicies.
+    DRAKE_DEMAND(
+        moved_render_index.has_value() == moved_fast_render_index.has_value());
     // I HAVE A PROBLEM HERE!
     //  Only dynamic geometries appear in X_WG_perception_
     //  the render engine doesn't distinguish between anchored and dynamic
@@ -1205,6 +1217,7 @@ int GeometryState<T>::RemovePerceptionRole(GeometryId geometry_id) {
     // So, if the render engine *moves* the index of an anchored geometry, I
     // have no means of simply finding that geometry.
     if (moved_render_index) {
+      DRAKE_DEMAND(*moved_render_index == *moved_fast_render_index);
       if (X_WG_perception_.count(*moved_render_index) > 0) {
         // The geometry that the render engine moved is dynamic.
         InternalIndex moved_index = X_WG_perception_[*moved_render_index];

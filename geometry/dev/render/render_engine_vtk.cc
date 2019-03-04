@@ -269,9 +269,10 @@ optional<RenderIndex> RenderEngineVtk::RemoveVisual(RenderIndex index) {
 }
 
 void RenderEngineVtk::UpdateVisualPose(const Eigen::Isometry3d& X_WG,
-                                       RenderIndex index) const {
+                                       RenderIndex index) {
   vtkSmartPointer<vtkTransform> vtk_X_WG = ConvertToVtkTransform(X_WG);
-  // TODO(SeanCurtis-TRI): Provide the ability to specify specific actors.
+  // TODO(SeanCurtis-TRI): Provide the ability to specify specific actors based
+  // on render target (rgb, d, label).
   for (const auto& actor : actors_.at(index)) {
     actor->SetUserTransform(vtk_X_WG);
   }

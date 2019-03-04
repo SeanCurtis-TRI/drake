@@ -16,6 +16,7 @@
 #include "drake/geometry/dev/internal_geometry.h"
 #include "drake/geometry/dev/proximity_engine.h"
 #include "drake/geometry/dev/render/fidelity.h"
+#include "drake/geometry/dev/render/gl/render_engine_gl.h"
 #include "drake/geometry/dev/render/render_engine.h"
 #include "drake/geometry/frame_kinematics_vector.h"
 #include "drake/geometry/geometry_ids.h"
@@ -721,7 +722,8 @@ class GeometryState {
         geometry_index_id_map_(source.geometry_index_id_map_),
         frame_index_to_frame_map_(source.frame_index_to_frame_map_),
         geometry_engine_(std::move(source.geometry_engine_->ToAutoDiffXd())),
-        low_render_engine_(source.low_render_engine_->Clone()) {
+        low_render_engine_(source.low_render_engine_->Clone()),
+        fast_depth_render_engine_(source.fast_depth_render_engine_->Clone()) {
     // NOTE: Can't assign Isometry3<double> to Isometry3<AutoDiff>. But we *can*
     // assign Matrix<double> to Matrix<AutoDiff>, so that's what we're doing.
     auto convert = [](const std::vector<Isometry3<U>>& s,
@@ -834,6 +836,10 @@ class GeometryState {
     // out caching issues.
     render::RenderEngine* engine{nullptr};
     switch (fidelity) {
+      case render::Fidelity::kFastDepth:
+        engine =
+            const_cast<render::RenderEngine*>(fast_depth_render_engine_.get());
+        break;
       case render::Fidelity::kLow:
         engine = const_cast<render::RenderEngine*>(low_render_engine_.get());
         break;
@@ -990,6 +996,8 @@ class GeometryState {
   // The *simple* render engine; provides the low-fidelity visual representation
   // of the *color* image.
   copyable_unique_ptr<render::RenderEngine> low_render_engine_;
+
+  copyable_unique_ptr<render::RenderEngine> fast_depth_render_engine_;
 
   // TODO(SeanCurtis-TRI): Provide renderers with improved rendering fidelity:
   // medium- and high-fidelity renderers. The former will be a PBR game-engine-

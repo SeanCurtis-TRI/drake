@@ -134,7 +134,7 @@ class RenderEngineVtk final : public RenderEngine,
 
   /** Inherits RenderEngine::RegisterVisual().  */
   void UpdateVisualPose(const Eigen::Isometry3d& X_WG,
-                        RenderIndex index) const override;
+                        RenderIndex index) override;
 
   /** Inherits RenderEngine::UpdateViewpoint().  */
   void UpdateViewpoint(const Eigen::Isometry3d& X_WR) const override;
