@@ -4,6 +4,7 @@
 #include <gtest/gtest.h>
 
 #include "drake/common/test_utilities/eigen_matrix_compare.h"
+#include "drake/common/test_utilities/expect_throws_message.h"
 #include "drake/math/autodiff_gradient.h"
 #include "drake/math/rigid_transform.h"
 #include "drake/math/rotation_matrix.h"
@@ -250,6 +251,12 @@ GTEST_TEST(DistanceToPoint, Cylinder) {
   PointShapeAutoDiffSignedDistanceTester<fcl::Cylinderd> tester(&cylinder, X_WG,
                                                                 kEps);
 
+  // TODO(hongkai.dai): Remove this test and enable subsequent tests when
+  // cylinders are supported in autodiff.
+  DRAKE_EXPECT_THROWS_MESSAGE(tester.Test(Vector3d::Zero(), Vector3d::Zero()),
+      std::logic_error,
+      "Distance to point does not support cylinders with AutoDiff");
+#if 0
   // Case: Nearest point is on the cap.
   {
     // Test top and bottom caps.
@@ -328,6 +335,7 @@ GTEST_TEST(DistanceToPoint, Cylinder) {
       EXPECT_TRUE(tester.Test(p_GN_G, -0.1 * p_NQ_G, true /* is inside */));
     }
   }
+#endif
 }
 
 }  // namespace

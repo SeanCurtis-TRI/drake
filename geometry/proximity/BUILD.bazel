@@ -61,7 +61,7 @@ drake_cc_googletest(
     name = "distance_to_point_test",
     deps = [
         ":distance_to_point",
-        "//common/test_utilities:eigen_matrix_compare",
+        "//common/test_utilities",
         "//math",
     ],
 )
