@@ -57,6 +57,29 @@ drake_cc_library(
     ],
 )
 
+drake_cc_library(
+    name = "distance_shape_to_shape",
+    hdrs = [
+        "distance_shape_to_shape_base.h",
+        "distance_sphere_sphere.h",
+    ],
+    deps = [
+        ":proximity_utilities",
+        "//math:geometric_transform",
+        "@fcl",
+        "@fmt",
+    ],
+)
+
+drake_cc_googletest(
+    name = "distance_sphere_sphere_test",
+    deps = [
+        ":distance_shape_to_shape",
+        "//common/test_utilities",
+        "//math",
+    ],
+)
+
 drake_cc_googletest(
     name = "distance_to_point_test",
     deps = [

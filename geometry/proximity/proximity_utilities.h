@@ -24,6 +24,26 @@ constexpr double DistanceToPointRelativeTolerance(double size) {
   return 1e-14 * std::max(1.0, size);
 }
 
+template <typename ShapeType>
+std::string ShapeName(const ShapeType&) {
+  return "Unsupported Shape";
+}
+
+template <typename T>
+std::string ShapeName(const fcl::Sphere<T>&) {
+  return "Sphere";
+}
+
+template <typename T>
+std::string ShapeName(const fcl::Box<T>&) {
+  return "Box";
+}
+
+template <typename T>
+std::string ShapeName(const fcl::Cylinder<T>&) {
+  return "Cylinder";
+}
+
 /** Class for coordinating the collision objects stored in the proximity engine
  with the geometries stored in SceneGraph. The two are related in that the
  collision object stores the GeometryIndex of the corresponding SceneGraph

@@ -424,16 +424,16 @@ class DistanceToPoint {
   const Vector3<T> p_WQ_;
 };
 
-template <>
-template <typename VectorType>
-SignedDistanceToPoint<Eigen::AutoDiffScalar<VectorType>>
-DistanceToPoint<Eigen::AutoDiffScalar<VectorType>>::operator()(
-    const fcl::Cylinderd& /*cylinder*/) {
-  // TODO(hongkai.dai): Fix the algorithm so that the gradients are correct.
-  // See issue #11242.
-  throw std::logic_error(
-      "Distance to point does not support cylinders with AutoDiff");
-}
+//template <>
+//template <typename VectorType>
+//SignedDistanceToPoint<Eigen::AutoDiffScalar<VectorType>>
+//DistanceToPoint<Eigen::AutoDiffScalar<VectorType>>::operator()(
+//    const fcl::Cylinderd& /*cylinder*/) {
+//  // TODO(hongkai.dai): Fix the algorithm so that the gradients are correct.
+//  // See issue #11242.
+//  throw std::logic_error(
+//      "Distance to point does not support cylinders with AutoDiff");
+//}
 
 /** The callback function for computing the signed distance between a point and
  a supported shape. Intended to be invoked as a result of broadphase culling
