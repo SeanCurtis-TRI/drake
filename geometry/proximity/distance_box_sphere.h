@@ -58,8 +58,11 @@ class NearestFeature {
    boundary in the `sign` direction. (A negative distance beyond means a
    positive distance inside.)  */
   void mark_inside(int axis, double sign, double distance) {
+    std::cout << "  mark_inside(" << axis << ", " << sign << ", " << distance
+              << ")\n";
     value_ += kInside;
     if (std::abs(distance) < nearest_inside_axis_dist_) {
+      std::cout << "     updating inside\n";
       nearest_inside_axis_ = axis;
       nearest_inside_axis_dist_ = std::abs(distance);
       selector_(axis) = sign;
@@ -70,6 +73,7 @@ class NearestFeature {
    indicated `axis` a positive signed `distance`
    units beyond the interval boundary in the `sign` direction..  */
   void mark_outside(int axis, double sign, double distance) {
+    std::cout << "  mark_outside(" << axis << ", " << sign << ")\n";
     value_ += kOutside;
     selector_(axis) = sign;
     UpdateOutside(axis, sign, std::abs(distance));
@@ -78,6 +82,7 @@ class NearestFeature {
   /** Makes note that the query point lies *on* the interval boundary along the
    indicated `axis` at the `sign` direction end of the interval.  */
   void mark_boundary(int axis, double sign) {
+    std::cout << "  mark_boundary(" << axis << ", " << sign << ")\n";
     value_ += kBoundary;
     selector_(axis) = sign;
     UpdateOutside(axis, sign, 0.0);
@@ -87,6 +92,7 @@ class NearestFeature {
    nearest-feature classification to produce `p_BN_B`.  */
   template <typename T>
   Vector3<T> p_BN_B(const Eigen::Vector3d& h, const Vector3<T>& p_BQ) const {
+    std::cout << "p_BN_B( " << h.transpose() << ", " << p_BQ.transpose() << ")\n";
     if (is_vertex()) {
       return selector_.cwiseProduct(h);
     } else if (is_edge()) {
@@ -99,6 +105,7 @@ class NearestFeature {
     } else {
       Vector3<T> p_BN;
       for (int i = 0; i < 3; ++i) {
+        std::cout << "  axis " << i << " from selector: " << (i == face_axis()) << "\n";
         if (i == face_axis()) p_BN(i) = selector_(i) * h(i);
         else p_BN(i) = p_BQ(i);
       }
@@ -215,6 +222,9 @@ class NearestFeature {
  @retval p_BN      The point N (as documented above).  */
 NearestFeature FindNearestFeature(const Eigen::Vector3d& half_size,
                                   const Eigen::Vector3d& p_BQ) {
+  std::cout << "=============== Find Nearest Feature ===========\n";
+  std::cout << "h:    " << half_size.transpose() << "\n";
+  std::cout << "p_BP: " << p_BQ.transpose() << "\n";
   NearestFeature feature;
   for (int i = 0; i < 3; ++i) {
     const double tolerance = DistanceToPointRelativeTolerance(half_size(i));
@@ -229,6 +239,7 @@ NearestFeature FindNearestFeature(const Eigen::Vector3d& half_size,
       feature.mark_inside(i, Sign(coord), dist);
     }
   }
+  std::cout << "===============================================\n";
   return feature;
 }
 
