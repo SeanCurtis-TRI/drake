@@ -11,6 +11,7 @@
 #include "drake/geometry/geometry_ids.h"
 #include "drake/geometry/geometry_roles.h"
 #include "drake/geometry/shape_specification.h"
+#include "drake/math/rigid_transform.h"
 
 namespace drake {
 namespace geometry {
@@ -87,8 +88,8 @@ class GeometryInstance {
    @param name   The name of the geometry (must satisfy the name requirements).
    @throws std::logic_error if the canonicalized version of `name` is empty.
    */
-  GeometryInstance(const Isometry3<double>& X_PG, std::unique_ptr<Shape> shape,
-                   const std::string& name);
+  GeometryInstance(const math::RigidTransformd& X_PG,
+                   std::unique_ptr<Shape> shape, const std::string& name);
 
   /** Returns the globally unique id for this geometry specification. Every
    instantiation of %GeometryInstance will contain a unique id value. The id
@@ -97,8 +98,8 @@ class GeometryInstance {
    representation as well.  */
   GeometryId id() const { return id_; }
 
-  const Isometry3<double>& pose() const { return X_PG_; }
-  void set_pose(const Isometry3<double>& X_PG) { X_PG_ = X_PG; }
+  const math::RigidTransformd& pose() const { return X_PG_; }
+  void set_pose(const math::RigidTransformd& X_PG) { X_PG_ = X_PG; }
 
   const Shape& shape() const {
     DRAKE_DEMAND(shape_ != nullptr);
@@ -156,7 +157,7 @@ class GeometryInstance {
   GeometryId id_{};
 
   // The pose of the geometry relative to the parent frame it hangs on.
-  Isometry3<double> X_PG_;
+  math::RigidTransformd X_PG_;
 
   // The shape associated with this instance.
   copyable_unique_ptr<Shape> shape_;
