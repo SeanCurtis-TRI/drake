@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <set>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -17,7 +18,9 @@
 #include "drake/geometry/geometry_roles.h"
 #include "drake/geometry/geometry_set.h"
 #include "drake/geometry/internal_frame.h"
+#include "drake/geometry/render/render_label.h"
 #include "drake/geometry/shape_specification.h"
+#include "drake/geometry/test_utilities/dummy_render_engine.h"
 
 namespace drake {
 namespace geometry {
@@ -112,7 +115,7 @@ class GeometryStateTester {
     return state_->peek_next_clique();
   }
 
-  const internal::InternalGeometry* GetGeometry(GeometryId id) {
+  const internal::InternalGeometry* GetGeometry(GeometryId id) const {
     return state_->GetGeometry(id);
   }
 
@@ -123,11 +126,16 @@ class GeometryStateTester {
 namespace {
 
 using Eigen::Isometry3d;
+using internal::DummyRenderEngine;
 using internal::InternalFrame;
 using internal::InternalGeometry;
+using render::RenderLabel;
 using std::make_unique;
 using std::move;
+using std::pair;
 using std::unique_ptr;
+using std::unordered_set;
+using std::vector;
 
 // Class to aid in testing Shape introspection. Instantiated with a model
 // Shape instance, it registers a copy of that shape and confirms that the
@@ -299,6 +307,9 @@ class GeometryStateTest : public ::testing::Test {
     instance_ = make_unique<GeometryInstance>(
         instance_pose_, make_unique<Sphere>(1.0), "instance");
     gs_tester_.set_state(&geometry_state_);
+    auto render_engine = make_unique<DummyRenderEngine>();
+    render_engine_ = render_engine.get();
+    geometry_state_.AddRenderer(dummy_render_name_, move(render_engine));
   }
 
   // Utility method for adding a source to the state.
@@ -489,6 +500,7 @@ class GeometryStateTest : public ::testing::Test {
   Isometry3<double> instance_pose_{Isometry3<double>::Identity()};
   GeometryState<double> geometry_state_;
   GeometryStateTester<double> gs_tester_;
+  DummyRenderEngine* render_engine_;
 
   // Values for setting up and testing the dummy tree.
   enum Counts {
@@ -518,6 +530,8 @@ class GeometryStateTest : public ::testing::Test {
   Isometry3<double> X_WA_;
   // The default source name.
   const std::string kSourceName{"default_source"};
+  // The name of the dummy renderer added to the geometry state.
+  const std::string dummy_render_name_{"dummy_renderer"};
 };
 
 // Confirms that a new GeometryState has no data.
@@ -669,7 +683,7 @@ void ExpectSuccessfulTransmogrification(
   EXPECT_EQ(ad_tester.get_dynamic_pose_index_id_map(),
             d_tester.get_dynamic_pose_index_id_map());
 
-  // 3. Compare Isometry3<double> with Isometry3<double>
+  // 3. Compare Isometry3<double> with Isometry3<AutoDiffXd>
   for (GeometryId id : ad_tester.get_geometry_index_id_map()) {
     EXPECT_TRUE(CompareMatrices(
         ad_tester.get_geometries().at(id).X_FG().matrix().block<3, 4>(0, 0),
@@ -677,8 +691,8 @@ void ExpectSuccessfulTransmogrification(
   }
 
   // 4. Compare Isometry3<AutoDiffXd> with Isometry3<double>
-  auto test_ad_vs_double = [](const std::vector<Isometry3<AutoDiffXd>>& test,
-                              const std::vector<Isometry3<double>>& ref) {
+  auto test_ad_vs_double = [](const vector<Isometry3<AutoDiffXd>>& test,
+                              const vector<Isometry3<double>>& ref) {
     EXPECT_EQ(test.size(), ref.size());
     for (size_t i = 0; i < ref.size(); ++i) {
       for (int row = 0; row < 3; ++row) {
@@ -815,6 +829,7 @@ TEST_F(GeometryStateTest, ValidateSingleSourceTree) {
       EXPECT_FALSE(geometry.parent_id());
       EXPECT_EQ(geometry.name(), geometry_names_[i]);
       EXPECT_EQ(geometry.index(), i);
+      EXPECT_FALSE(geometry.render_index(dummy_render_name_));
       EXPECT_FALSE(geometry.proximity_index().is_valid());
       EXPECT_EQ(geometry.child_geometry_ids().size(), 0);
 
@@ -846,6 +861,7 @@ TEST_F(GeometryStateTest, GetNumGeometryTests) {
             geometry_state_.get_num_geometries());
   EXPECT_EQ(single_tree_total_geometry_count(),
             geometry_state_.GetNumGeometriesWithRole(Role::kProximity));
+  EXPECT_EQ(0, geometry_state_.GetNumGeometriesWithRole(Role::kPerception));
   EXPECT_EQ(0, geometry_state_.GetNumGeometriesWithRole(Role::kIllustration));
 
   for (int i = 0; i < kFrameCount; ++i) {
@@ -854,6 +870,9 @@ TEST_F(GeometryStateTest, GetNumGeometryTests) {
     EXPECT_EQ(kGeometryCount,
               geometry_state_.GetNumFrameGeometriesWithRole(frames_[i],
                                                             Role::kProximity));
+    EXPECT_EQ(0,
+              geometry_state_.GetNumFrameGeometriesWithRole(
+                  frames_[i], Role::kPerception));
     EXPECT_EQ(0,
               geometry_state_.GetNumFrameGeometriesWithRole(
                   frames_[i], Role::kIllustration));
@@ -959,7 +978,7 @@ TEST_F(GeometryStateTest, AddFrameWithDuplicateId) {
 // Tests the frame iterator, confirming that it iterates through all frames.
 TEST_F(GeometryStateTest, FrameIdRange) {
   SetUpSingleSourceTree();
-  std::unordered_set<FrameId> all_frames(frames_.begin(), frames_.end());
+  unordered_set<FrameId> all_frames(frames_.begin(), frames_.end());
   for (FrameId id : geometry_state_.get_frame_ids()) {
     // This should remove exactly one element. The world frame is *not* stored
     // in frames_.
@@ -1208,10 +1227,11 @@ TEST_F(GeometryStateTest, RemoveGeometry) {
   gs_tester_.SetFramePoses(s_id, poses);
   gs_tester_.FinalizePoseUpdate();
 
-  // The geometry to remove, its parent frame, and its engine index.
+  // The geometry to remove, its parent frame, and its engine indices.
   GeometryId g_id = geometries_[0];
   FrameId f_id = frames_[0];
   auto proximity_index = gs_tester_.get_geometries().at(g_id).proximity_index();
+
   // Confirm initial state.
   ASSERT_EQ(geometry_state_.GetFrameId(g_id), f_id);
   EXPECT_EQ(geometry_state_.get_num_geometries(),
@@ -2305,9 +2325,14 @@ TEST_F(GeometryStateTest, AssignRolesToGeometry) {
   }
 
   auto set_roles = [this](GeometryId id, bool set_proximity,
-                          bool set_illustration) {
+                          bool set_perception, bool set_illustration) {
     if (set_proximity) {
       geometry_state_.AssignRole(source_id_, id, ProximityProperties());
+    }
+    PerceptionProperties p = DummyRenderEngine::accepting_properties();
+    p.AddProperty("label", "id", RenderLabel(10));
+    if (set_perception) {
+      geometry_state_.AssignRole(source_id_, id, p);
     }
     if (set_illustration) {
       geometry_state_.AssignRole(source_id_, id, IllustrationProperties());
@@ -2315,7 +2340,7 @@ TEST_F(GeometryStateTest, AssignRolesToGeometry) {
   };
 
   auto has_expected_roles = [this](
-      GeometryId id, bool has_proximity,
+      GeometryId id, bool has_proximity, bool has_perception,
       bool has_illustration) -> ::testing::AssertionResult {
     const internal::InternalGeometry* geometry =
         gs_tester_.GetGeometry(id);
@@ -2323,14 +2348,20 @@ TEST_F(GeometryStateTest, AssignRolesToGeometry) {
     ::testing::AssertionResult failure = ::testing::AssertionFailure();
     if (has_proximity != (geometry->proximity_properties() != nullptr)) {
       failure << "Proximity role: "
-              << (has_proximity ? " expected, but not found"
-                                : " not expected, but found. ");
+              << (has_proximity ? "expected, but not found"
+                                : "not expected, but found. ");
+      passes = false;
+    }
+    if (has_perception != (geometry->perception_properties() != nullptr)) {
+      failure << "Perception role: "
+              << (has_perception ? "expected, but not found"
+                                 : "not expected, but found. ");
       passes = false;
     }
     if (has_illustration != (geometry->illustration_properties() != nullptr)) {
       failure << "Illustration role: "
-              << (has_illustration ? " expected, but not found"
-                                   : " not expected, but found. ");
+              << (has_illustration ? "expected, but not found"
+                                   : "not expected, but found. ");
       passes = false;
     }
     if (passes)
@@ -2339,25 +2370,26 @@ TEST_F(GeometryStateTest, AssignRolesToGeometry) {
       return failure;
   };
 
-  // Given two role types, assign all four types of assignments.
-  for (int i = 0; i < 4; ++i) {
+  // Given three role types, assign all eight types of assignments.
+  for (int i = 0; i < 8; ++i) {
     const bool proximity = i & 0x1;
     const bool illustration = i & 0x2;
+    const bool perception = i & 0x4;
     const GeometryId id = geometries_[i];
-    EXPECT_TRUE(has_expected_roles(id, false, false))
+    EXPECT_TRUE(has_expected_roles(id, false, false, false))
               << "Geometry " << id << " at index (" << i
               << ") didn't start without roles";
-    set_roles(id, proximity, illustration);
-    EXPECT_TRUE(has_expected_roles(id, proximity, illustration))
+    set_roles(id, proximity, perception, illustration);
+    EXPECT_TRUE(has_expected_roles(id, proximity, perception, illustration))
               << "Incorrect roles for geometry " << id << " at index (" << i
               << ").";
   }
 
   // Confirm it works on anchored geometry. Pick, arbitrarily, assigning
   // proximity and illustration roles.
-  EXPECT_TRUE(has_expected_roles(anchored_geometry_, false, false));
-  set_roles(anchored_geometry_, true, true);
-  EXPECT_TRUE(has_expected_roles(anchored_geometry_, true, true));
+  EXPECT_TRUE(has_expected_roles(anchored_geometry_, false, false, false));
+  set_roles(anchored_geometry_, true, false, true);
+  EXPECT_TRUE(has_expected_roles(anchored_geometry_, true, false, true));
 }
 
 // Tests that properties assigned to a geometry instance lead to the resulting
@@ -2483,6 +2515,10 @@ TEST_F(GeometryStateTest, RolePropertyValueAssignment) {
 TEST_F(GeometryStateTest, RoleAssignExceptions) {
   SetUpSingleSourceTree();
 
+  PerceptionProperties perception_props =
+      DummyRenderEngine::accepting_properties();
+  perception_props.AddProperty("label", "id", RenderLabel(10));
+
   // NOTE: On the basis that all AssignRole variants ultimately call the same
   // underlying method, this only exercises one variant to represent all. If
   // they no longer invoke the same underlying method, this test should change
@@ -2520,6 +2556,12 @@ TEST_F(GeometryStateTest, RoleAssignExceptions) {
       std::logic_error,
       "Geometry already has proximity role assigned");
 
+  EXPECT_NO_THROW(
+      geometry_state_.AssignRole(source_id_, geometries_[0], perception_props));
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      geometry_state_.AssignRole(source_id_, geometries_[0], perception_props),
+      std::logic_error, "Geometry already has perception role assigned");
+
   EXPECT_NO_THROW(geometry_state_.AssignRole(source_id_, geometries_[0],
                                              IllustrationProperties()));
   DRAKE_EXPECT_THROWS_MESSAGE(
@@ -2545,6 +2587,12 @@ TEST_F(GeometryStateTest, RoleAssignExceptions) {
       geometry_state_.AssignRole(source_id_, new_id, IllustrationProperties()),
       std::logic_error,
       "The name .* has already been used by a geometry with the 'illustration' "
+      "role.");
+
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      geometry_state_.AssignRole(source_id_, new_id, perception_props),
+      std::logic_error,
+      "The name .* has already been used by a geometry with the 'perception' "
       "role.");
 }
 
@@ -2573,13 +2621,13 @@ TEST_F(GeometryStateTest, ChildGeometryRoleCount) {
   SetUpSingleSourceTree();
 
   auto expected_roles = [this](
-      FrameId f_id, int num_proximity,
+      FrameId f_id, int num_proximity, int num_perception,
       int num_illustration) -> ::testing::AssertionResult {
     bool success = true;
     ::testing::AssertionResult failure = ::testing::AssertionFailure();
-    std::vector<std::pair<Role, int>> roles{
-        {Role::kProximity, num_proximity},
-        {Role::kIllustration, num_illustration}};
+    vector<pair<Role, int>> roles{{Role::kProximity, num_proximity},
+                                  {Role::kPerception, num_perception},
+                                  {Role::kIllustration, num_illustration}};
     for (const auto& pair : roles) {
       const Role role = pair.first;
       const int expected_count = pair.second;
@@ -2599,9 +2647,14 @@ TEST_F(GeometryStateTest, ChildGeometryRoleCount) {
 
   // Assert initial conditions.
   int proximity_count = 0;
+  int perception_count = 0;
   int illustration_count = 0;
   FrameId f_id = frames_[0];
-  ASSERT_TRUE(expected_roles(f_id, proximity_count, illustration_count));
+  ASSERT_TRUE(expected_roles(f_id, proximity_count, perception_count,
+                             illustration_count));
+
+  PerceptionProperties perception_props = DummyRenderEngine::accepting_properties();
+  perception_props.AddProperty("label", "id", RenderLabel(10));
 
   // Confirm the two geometries I'm going to play with belong to the same frame.
   GeometryId g_id1 = geometries_[0];
@@ -2613,27 +2666,64 @@ TEST_F(GeometryStateTest, ChildGeometryRoleCount) {
   // tests; the expected results accumulate.
   geometry_state_.AssignRole(source_id_, g_id1, ProximityProperties());
   ++proximity_count;
-  ASSERT_TRUE(expected_roles(f_id, proximity_count, illustration_count));
+  ASSERT_TRUE(expected_roles(f_id, proximity_count, perception_count,
+                             illustration_count));
 
   geometry_state_.AssignRole(source_id_, g_id2, IllustrationProperties());
   ++illustration_count;
-  ASSERT_TRUE(expected_roles(f_id, proximity_count, illustration_count));
+  ASSERT_TRUE(expected_roles(f_id, proximity_count, perception_count,
+                             illustration_count));
 
   geometry_state_.AssignRole(source_id_, g_id1, IllustrationProperties());
   ++illustration_count;
-  ASSERT_TRUE(expected_roles(f_id, proximity_count, illustration_count));
+  ASSERT_TRUE(expected_roles(f_id, proximity_count, perception_count,
+                             illustration_count));
+
+  geometry_state_.AssignRole(source_id_, g_id1, perception_props);
+  ++perception_count;
+  ASSERT_TRUE(expected_roles(f_id, proximity_count, perception_count,
+                             illustration_count));
+
+  geometry_state_.AssignRole(source_id_, g_id2, perception_props);
+  ++perception_count;
+  ASSERT_TRUE(expected_roles(f_id, proximity_count, perception_count,
+                             illustration_count));
+
   geometry_state_.AssignRole(source_id_, g_id2, ProximityProperties());
   ++proximity_count;
-  ASSERT_TRUE(expected_roles(f_id, proximity_count, illustration_count));
+  ASSERT_TRUE(expected_roles(f_id, proximity_count, perception_count,
+                             illustration_count));
+
   // Now test against anchored geometry by passing in the world frame.
   FrameId world_id = InternalFrame::world_frame_id();
-  ASSERT_TRUE(expected_roles(world_id, 0, 0));
+  ASSERT_TRUE(expected_roles(world_id, 0, 0, 0));
   geometry_state_.AssignRole(source_id_, anchored_geometry_,
                              ProximityProperties());
-  ASSERT_TRUE(expected_roles(world_id, 1, 0));
+  ASSERT_TRUE(expected_roles(world_id, 1, 0, 0));
+  geometry_state_.AssignRole(source_id_, anchored_geometry_, perception_props);
+  ASSERT_TRUE(expected_roles(world_id, 1, 1, 0));
   geometry_state_.AssignRole(source_id_, anchored_geometry_,
                              IllustrationProperties());
-  ASSERT_TRUE(expected_roles(world_id, 1, 1));
+  ASSERT_TRUE(expected_roles(world_id, 1, 1, 1));
+}
+
+// Successful invocations of AddRenderer are implicit in SetupSingleSource().
+// This merely tests the error conditions.
+TEST_F(GeometryStateTest, AddRendererError) {
+  EXPECT_NO_THROW(
+      geometry_state_.AddRenderer("unique", make_unique<DummyRenderEngine>()));
+
+  // Non-unique name.
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      geometry_state_.AddRenderer("unique", make_unique<DummyRenderEngine>()),
+      std::logic_error, "A renderer with the name '.+?' already exists");
+
+  // Geometry has been registered.
+  SetUpSingleSourceTree();
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      geometry_state_.AddRenderer("unique", make_unique<DummyRenderEngine>()),
+      std::logic_error,
+      "Error adding renderer '.*?+'; geometries have already been registered");
 }
 
 }  // namespace

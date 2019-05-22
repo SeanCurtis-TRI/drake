@@ -32,7 +32,7 @@ drake_cc_library(
     name = "dummy_render_engine",
     # TODO(SeanCurtis-TRI): Make this `testonly = 1` once dev/GeometryState is
     # removed; then all of these become testonly (as does the package).
-    srcs = [],
+    srcs = ["dummy_render_engine.cc"],
     hdrs = ["dummy_render_engine.h"],
     deps = ["//geometry/render:render_engine"],
 )

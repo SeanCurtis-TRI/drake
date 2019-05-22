@@ -62,15 +62,15 @@ class DummyRenderEngine final : public render::RenderEngine {
 
   /** Creates a set of perception properties that will cause this render engine
    to _accept_ geometry during registration.  */
-  PerceptionProperties accepting_properties() const {
+  static PerceptionProperties accepting_properties() {
     PerceptionProperties properties;
-    properties.AddProperty(include_group_name_, "ignored", 0);
+    properties.AddProperty(kIncludeGroupName, "ignored", 0);
     return properties;
   }
 
   /** Creates a set of perception properties that will cause this render engine
    to _reject_ geometry during registration.  */
-  PerceptionProperties rejecting_properties() const {
+  static PerceptionProperties rejecting_properties() {
     return PerceptionProperties();
   }
 
@@ -104,7 +104,7 @@ class DummyRenderEngine final : public render::RenderEngine {
                                          const PerceptionProperties& properties,
                                          const math::RigidTransformd&) final {
     GetRenderLabelOrThrow(properties);
-    if (properties.HasGroup(include_group_name_)) {
+    if (properties.HasGroup(kIncludeGroupName)) {
       return RenderIndex(register_count_++);
     }
     return nullopt;
@@ -139,7 +139,7 @@ class DummyRenderEngine final : public render::RenderEngine {
 
   // The group name whose presence will lead to a shape being added to the
   // engine.
-  std::string include_group_name_{"in_test"};
+  static const std::string kIncludeGroupName;
 
   // The RenderIndex value to return on invocation of DoRemoveGeometry().
   optional<RenderIndex> moved_index_{};
