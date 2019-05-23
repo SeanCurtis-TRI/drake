@@ -239,11 +239,44 @@ class InternalGeometry {
   optional<RenderIndex> render_index(const std::string& renderer_name) const;
   void set_render_index(std::string renderer_name, RenderIndex index);
 
+  /** Clears this geometry's render index associated with the named
+   renderer. If the geometry doesn't have an index for the named renderer,
+   nothing happens.
+   @note: this leaves the properties intact; it makes no effort to divine which
+   properties caused this geometry to be accepted by that renderer or its
+   uniqueness (both would be required for removing those properties).  */
+  void ClearRenderIndex(const std::string& renderer_name) {
+    auto iter = render_indices_.find(renderer_name);
+    if (iter != render_indices_.end()) {
+      render_indices_.erase(iter);
+    }
+  }
+
   /** If this geometry has a proximity role, this that geometry's index in the
    proximity engine. It will be undefined it it does not have the proximity
    role.  */
   ProximityIndex proximity_index() const { return proximity_index_; }
   void set_proximity_index(ProximityIndex index) { proximity_index_ = index; }
+
+  /** Removes the proximity role assigned to this geometry -- if there was
+   no proximity role previously, this has no effect.  */
+  void RemoveProximitynRole() {
+    proximity_props_ = nullopt;
+    proximity_index_ = ProximityIndex();
+  }
+
+  /** Removes the illustration role assigned to this geometry -- if there was
+   no illustration role previously, this has no effect.  */
+  void RemoveIllustrationRole() {
+    illustration_props_ = nullopt;
+  }
+
+  /** Removes the perception role assigned to this geometry -- if there was
+   no perception role previously, this has no effect.  */
+  void RemovePerceptionRole() {
+    perception_props_ = nullopt;
+    render_indices_.clear();
+  }
 
   //@}
 
