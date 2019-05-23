@@ -453,6 +453,103 @@ class GeometryState {
 
   //@}
 
+  //---------------------------------------------------------------------------
+  /** @name                Render Queries
+
+   The methods support queries along the lines of "What do I see?" They support
+   simulation of sensors. External entities define a sensor camera -- its
+   extrinsic and intrinsic properties and %GeometryState renders into the
+   provided image.
+
+   Eventually, there will be multiple renderers that can be invoked which vary
+   in the fidelity of the images they produce. Currently, only the low fidelity
+   renderer is implemented. Invocation on a higher level of fidelity will throw
+   an exception. As additional renderers get added, they will be engaged via
+   this same interface.
+
+   <!-- TODO(SeanCurtis-TRI): Currently, pose is requested as a transform of
+   double. This puts the burden on the caller to be compatible. Provide
+   specializations for AutoDiff and symbolic (the former extracts a
+   double-valued transform and the latter throws).
+   */
+  //@{
+
+  /** Implementation support for SceneGraph::AddRenderer().  */
+  void AddRenderer(std::string name,
+                   std::unique_ptr<render::RenderEngine> renderer);
+
+  /** Renders and outputs the rendered color image.
+
+   @param camera                The intrinsic properties of the camera.
+   @param X_WC                  The pose of the camera in the world frame.
+   @param[out] color_image_out  The rendered color image.
+   @param show_window           If true, the render window will be displayed. */
+  void RenderColorImage(const render::CameraProperties& camera,
+                        const math::RigidTransformd& X_WC,
+                        systems::sensors::ImageRgba8U* color_image_out,
+                        bool show_window) const {
+    render::RenderEngine* engine = GetRenderEngineOrThrow(camera.renderer_name);
+    engine->UpdateViewpoint(X_WC);
+    engine->RenderColorImage(camera, show_window, color_image_out);
+  }
+
+  /** Overload for rendering a color image in which the camera's pose is defined
+   relative to the given parent frame.  */
+  void RenderColorImage(const render::CameraProperties& camera,
+                        FrameId parent_frame,
+                        const math::RigidTransformd& X_PC,
+                        systems::sensors::ImageRgba8U* color_image_out,
+                        bool show_window) const;
+
+  /** Renders and outputs the rendered depth image. In contrast to the other
+   rendering operations, depth images don't have an option to display the
+   window; generally, basic depth images are not readily communicative to
+   humans.
+
+   @param camera                The intrinsic properties of the camera.
+   @param X_WC                  The pose of the camera in the world frame.
+   @param[out] depth_image_out  The rendered depth image. */
+  void RenderDepthImage(
+      const render::DepthCameraProperties& camera,
+      const math::RigidTransformd& X_WC,
+      systems::sensors::ImageDepth32F* depth_image_out) const {
+    render::RenderEngine* engine = GetRenderEngineOrThrow(camera.renderer_name);
+    engine->UpdateViewpoint(X_WC);
+    engine->RenderDepthImage(camera, depth_image_out);
+  }
+
+  /** Overload for rendering a depth image in which the camera's pose is defined
+   relative to the given parent frame.  */
+  void RenderDepthImage(const render::DepthCameraProperties& camera,
+                        FrameId parent_frame,
+                        const math::RigidTransformd& X_PC,
+                        systems::sensors::ImageDepth32F* depth_image_out) const;
+
+  /** Renders and outputs the rendered label image.
+
+   @param camera                The intrinsic properties of the camera.
+   @param X_WC                  The pose of the camera in the world frame.
+   @param[out] label_image_out  The rendered label image.
+   @param show_window           If true, the render window will be displayed. */
+  void RenderLabelImage(const render::CameraProperties& camera,
+                        const math::RigidTransformd& X_WC,
+                        systems::sensors::ImageLabel16I* label_image_out,
+                        bool show_window) const {
+    render::RenderEngine* engine = GetRenderEngineOrThrow(camera.renderer_name);
+    engine->UpdateViewpoint(X_WC);
+    engine->RenderLabelImage(camera, show_window, label_image_out);
+  }
+
+  /** Overload for rendering a label image in which the camera's pose is defined
+   relative to the given parent frame.  */
+  void RenderLabelImage(const render::CameraProperties& camera,
+                        FrameId parent_frame,
+                        const math::RigidTransformd& X_PC,
+                        systems::sensors::ImageLabel16I* label_image_out,
+                        bool show_window) const;
+
+  //@}
+
   /** @name Scalar conversion */
   //@{
 
@@ -646,6 +743,10 @@ class GeometryState {
   render::RenderEngine* GetRenderEngineOrThrow(
       const std::string& renderer_name) const;
 
+  // Utility function to facilitate getting a double-valued pose for a frame,
+  // regardless of the value of T.
+  math::RigidTransformd GetDoubleWorldPose(FrameId frame_id) const;
+
   // NOTE: If adding a member it is important that it be _explicitly_ copied
   // in the converting copy constructor and likewise tested in the unit test
   // for that constructor.
@@ -715,6 +816,8 @@ class GeometryState {
   // the proximity engine.
   // NOTE: There is no equivalent for anchored geometries because anchored
   // geometries do not need updating.
+  // TODO(SeanCurtis-TRI): Move this into the proximity engine. Its presence
+  // here is an anachronism.
   std::vector<GeometryIndex> dynamic_proximity_index_to_internal_map_;
 
   // ---------------------------------------------------------------------

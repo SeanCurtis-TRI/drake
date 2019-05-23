@@ -23,11 +23,16 @@ using internal::GeometryStateCollisionFilterAttorney;
 using internal::InternalFrame;
 using internal::InternalGeometry;
 using internal::ProximityEngine;
+using math::RigidTransform;
+using math::RigidTransformd;
 using std::make_pair;
 using std::make_unique;
 using std::move;
 using std::swap;
 using std::to_string;
+using systems::sensors::ImageDepth32F;
+using systems::sensors::ImageLabel16I;
+using systems::sensors::ImageRgba8U;
 
 //-----------------------------------------------------------------------------
 
@@ -935,6 +940,44 @@ void GeometryState<T>::AddRenderer(
 }
 
 template <typename T>
+void GeometryState<T>::RenderColorImage(const render::CameraProperties& camera,
+                                        FrameId parent_frame,
+                                        const RigidTransformd& X_PC,
+                                        ImageRgba8U* color_image_out,
+                                        bool show_window) const {
+  // This assumes that the poses in the engine have already been updated.
+  render::RenderEngine* engine = GetRenderEngineOrThrow(camera.renderer_name);
+  const RigidTransformd X_WC = GetDoubleWorldPose(parent_frame) * X_PC;
+  engine->UpdateViewpoint(X_WC);
+  engine->RenderColorImage(camera, show_window, color_image_out);
+}
+
+template <typename T>
+void GeometryState<T>::RenderDepthImage(
+    const render::DepthCameraProperties& camera,
+    FrameId parent_frame, const RigidTransformd& X_PC,
+    ImageDepth32F* depth_image_out) const {
+  // This assumes that the poses in the engine have already been updated.
+  render::RenderEngine* engine = GetRenderEngineOrThrow(camera.renderer_name);
+  const RigidTransformd X_WC = GetDoubleWorldPose(parent_frame) * X_PC;
+  engine->UpdateViewpoint(X_WC);
+  engine->RenderDepthImage(camera, depth_image_out);
+}
+
+template <typename T>
+void GeometryState<T>::RenderLabelImage(const render::CameraProperties& camera,
+                                        FrameId parent_frame,
+                                        const RigidTransformd& X_PC,
+                                        ImageLabel16I* label_image_out,
+                                        bool show_window) const {
+  // This assumes that the poses in the engine have already been updated.
+  render::RenderEngine* engine = GetRenderEngineOrThrow(camera.renderer_name);
+  const RigidTransformd X_WC = GetDoubleWorldPose(parent_frame) * X_PC;
+  engine->UpdateViewpoint(X_WC);
+  engine->RenderLabelImage(camera, show_window, label_image_out);
+}
+
+template <typename T>
 std::unique_ptr<GeometryState<AutoDiffXd>> GeometryState<T>::ToAutoDiffXd()
     const {
   return std::unique_ptr<GeometryState<AutoDiffXd>>(
@@ -1337,6 +1380,15 @@ render::RenderEngine* GeometryState<T>::GetRenderEngineOrThrow(
 
   throw std::logic_error(
       fmt::format("No renderer exists with name: '{}'", renderer_name));
+}
+
+template <typename T>
+RigidTransformd GeometryState<T>::GetDoubleWorldPose(FrameId frame_id) const {
+  if (frame_id == InternalFrame::world_frame_id()) {
+    return RigidTransformd::Identity();
+  }
+  const internal::InternalFrame& frame = GetValueOrThrow(frame_id, frames_);
+  return RigidTransformd(internal::convert_to_double(X_WF_[frame.index()]));
 }
 
 }  // namespace geometry

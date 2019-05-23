@@ -10,6 +10,7 @@
 #include "drake/geometry/query_results/signed_distance_pair.h"
 #include "drake/geometry/query_results/signed_distance_to_point.h"
 #include "drake/geometry/scene_graph_inspector.h"
+#include "drake/math/rigid_transform.h"
 #include "drake/systems/framework/context.h"
 
 namespace drake {
@@ -99,6 +100,24 @@ class QueryObject {
   const SceneGraphInspector<T>& inspector() const {
     return inspector_;
   }
+
+  /** @name               Context-dependent state
+
+   These queries provide information about the context-dependent state --
+   largely the poses of frames and geometries.   */
+  //@{
+
+  /** Reports the pose of the given frame relative to the world frame (i.e.,
+   `X_WF`.
+   @throws std::logic_error if `frame_id` is not a valid frame.   */
+  const Isometry3<T>& GetPoseInWorld(FrameId frame_id) const;
+
+  /** Reports the pose of the given geometry relative to the world frame (i.e.,
+   `X_WG`.
+   @throws std::logic_error if `geometry_id` is not a valid frame.   */
+  const Isometry3<T>& GetPoseInWorld(GeometryId geometry_id) const;
+
+  //@}
 
   //----------------------------------------------------------------------------
   /** @name                Collision Queries
@@ -316,6 +335,82 @@ class QueryObject {
   ComputeSignedDistanceToPoint(const Vector3<T> &p_WQ,
                                const double threshold
                                = std::numeric_limits<double>::infinity()) const;
+  //@}
+
+
+  //---------------------------------------------------------------------------
+  /** @name                Render Queries
+
+   The methods support queries along the lines of "What do I see?" They support
+   simulation of sensors. External entities define a sensor camera -- its
+   extrinsic and intrinsic properties and %GeometryState renders into the
+   provided image.
+
+   Eventually, there will be multiple renderers that can be invoked which vary
+   in the fidelity of the images they produce. Currently, only the low fidelity
+   renderer is implemented. Invocation on a higher level of fidelity will throw
+   an exception. As additional renderers get added, they will be engaged via
+   this same interface.
+   */
+  //@{
+
+  /** Renders and outputs the rendered color image.
+
+   @param camera                The intrinsic properties of the camera.
+   @param X_WC                  The pose of the camera in the world frame.
+   @param[out] color_image_out  The rendered color image.
+   @param show_window           If true, the render window will be displayed. */
+  void RenderColorImage(const render::CameraProperties& camera,
+                        const math::RigidTransformd& X_WC,
+                        systems::sensors::ImageRgba8U* color_image_out,
+                        bool show_window) const;
+
+  /** Overload for rendering a color image in which the camera's pose is defined
+   relative to the given parent frame.  */
+  void RenderColorImage(const render::CameraProperties& camera,
+                        FrameId parent_frame,
+                        const math::RigidTransformd& X_PC,
+                        systems::sensors::ImageRgba8U* color_image_out,
+                        bool show_window) const;
+
+  /** Renders and outputs the rendered depth image. In contrast to the other
+   rendering operations, depth images don't have an option to display the
+   window; generally, basic depth images are not readily communicative to
+   humans.
+
+   @param camera                The intrinsic properties of the camera.
+   @param X_WC                  The pose of the camera in the world frame.
+   @param[out] depth_image_out  The rendered depth image. */
+  void RenderDepthImage(const render::DepthCameraProperties& camera,
+                        const math::RigidTransformd& X_WC,
+                        systems::sensors::ImageDepth32F* depth_image_out) const;
+
+  /** Overload for rendering a depth image in which the camera's pose is defined
+   relative to the given parent frame.  */
+  void RenderDepthImage(const render::DepthCameraProperties& camera,
+                        FrameId parent_frame,
+                        const math::RigidTransformd& X_PC,
+                        systems::sensors::ImageDepth32F* depth_image_out) const;
+
+  /** Renders and outputs the rendered label image.
+
+   @param camera                The intrinsic properties of the camera.
+   @param X_WC                  The pose of the camera in the world frame.
+   @param[out] label_image_out  The rendered label image.
+   @param show_window           If true, the render window will be displayed. */
+  void RenderLabelImage(const render::CameraProperties& camera,
+                        const math::RigidTransformd& X_WC,
+                        systems::sensors::ImageLabel16I* label_image_out,
+                        bool show_window) const;
+
+  /** Overload for rendering a label image in which the camera's pose is defined
+   relative to the given parent frame.  */
+  void RenderLabelImage(const render::CameraProperties& camera,
+                        FrameId parent_frame,
+                        const math::RigidTransformd& X_PC,
+                        systems::sensors::ImageLabel16I* label_image_out,
+                        bool show_window) const;
+
   //@}
 
  private:

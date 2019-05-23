@@ -27,6 +27,7 @@ namespace drake {
 namespace geometry {
 
 using Eigen::Isometry3d;
+using math::RigidTransformd;
 using systems::Context;
 using systems::rendering::PoseBundle;
 using systems::System;
@@ -713,6 +714,68 @@ GTEST_TEST(SceneGraphContextModifier, CollisionFilters) {
 
   // TODO(SeanCurtis-TRI): When post-allocation model modification is allowed,
   // confirm that the model didn't change.
+}
+
+// A simple dummy render engine implementation to facilitate testing. The
+// methods are all no-ops.
+class DummyRenderEngine final : public render::RenderEngine {
+ public:
+  DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(DummyRenderEngine);
+  DummyRenderEngine() = default;
+  void UpdateViewpoint(const RigidTransformd&) const final {}
+  void RenderColorImage(const render::CameraProperties&, bool,
+                        systems::sensors::ImageRgba8U*) const final {}
+  void RenderDepthImage(const render::DepthCameraProperties&,
+                        systems::sensors::ImageDepth32F*) const final {}
+  void RenderLabelImage(const render::CameraProperties&, bool,
+                        systems::sensors::ImageLabel16I*) const final {}
+  void ImplementGeometry(const Sphere& sphere, void* user_data) final {}
+  void ImplementGeometry(const Cylinder& cylinder, void* user_data) final {}
+  void ImplementGeometry(const HalfSpace& half_space, void* user_data) final {}
+  void ImplementGeometry(const Box& box, void* user_data) final {}
+  void ImplementGeometry(const Mesh& mesh, void* user_data) final {}
+  void ImplementGeometry(const Convex& convex, void* user_data) final {}
+
+ protected:
+  optional<RenderIndex> DoRegisterVisual(const Shape&,
+                                         const PerceptionProperties&,
+                                         const RigidTransformd&) final {
+    return nullopt;
+  }
+  void DoUpdateVisualPose(RenderIndex, const RigidTransformd&) final {}
+
+  optional<RenderIndex> DoRemoveGeometry(RenderIndex index) final { return {}; }
+
+  std::unique_ptr<render::RenderEngine> DoClone() const final {
+    return std::make_unique<DummyRenderEngine>(*this);
+  }
+};
+
+// A limited test -- the majority of this functionality is encoded in and tested
+// via GeometryState. This is just a regression test to make sure SceneGraph's
+// invocation of that function doesn't become corrupt.
+GTEST_TEST(SceneGraphRenderTest, AddRenderer) {
+  SceneGraph<double> scene_graph;
+
+  EXPECT_NO_THROW(scene_graph.AddRenderer("unique",
+                                          make_unique<DummyRenderEngine>()));
+
+  // Non-unique renderer name.
+  // NOTE: The error message is tested in geometry_state_test.cc.
+  EXPECT_THROW(
+      scene_graph.AddRenderer("unique", make_unique<DummyRenderEngine>()),
+      std::logic_error);
+
+  // Adding a renderer _after_ geometry registration.
+  SourceId s_id = scene_graph.RegisterSource("dummy");
+  scene_graph.RegisterGeometry(
+      s_id, scene_graph.world_frame_id(),
+      make_unique<GeometryInstance>(Isometry3<double>::Identity(),
+                                    make_unique<Sphere>(1.0), "sphere"));
+
+  EXPECT_THROW(
+      scene_graph.AddRenderer("different", make_unique<DummyRenderEngine>()),
+      std::logic_error);
 }
 
 }  // namespace
