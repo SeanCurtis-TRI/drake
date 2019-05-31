@@ -322,8 +322,8 @@ drake_py_library(
 
 install(
     name = "install",
-    targets = PY_LIBRARIES + [":all_py"],
     py_dest = PACKAGE_INFO.py_dest,
+    targets = PY_LIBRARIES + [":all_py"],
     deps = get_drake_py_installs(PY_LIBRARIES_WITH_INSTALL),
 )
 
@@ -481,7 +481,10 @@ drake_py_unittest(
     data = [
         "//systems/sensors:test_models",
     ],
-    deps = [":sensors_py"],
+    deps = [
+        ":sensors_py",
+        "//bindings/pydrake:geometry_py",
+    ],
 )
 
 drake_py_unittest(

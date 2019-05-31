@@ -9,6 +9,9 @@
 #include "drake/geometry/geometry_ids.h"
 #include "drake/geometry/geometry_visualization.h"
 #include "drake/geometry/query_results/penetration_as_point_pair.h"
+#include "drake/geometry/render/render_engine.h"
+#include "drake/geometry/render/render_engine_vtk.h"
+#include "drake/geometry/render/render_label.h"
 #include "drake/geometry/scene_graph.h"
 #include "drake/geometry/shape_specification.h"
 
@@ -44,6 +47,55 @@ void BindIdentifier(py::module m, const std::string& name) {
       .def_static("get_new_id", &Class::get_new_id, cls_doc.get_new_id.doc);
 }
 
+void def_geometry_render(py::module m) {
+  // NOLINTNEXTLINE(build/namespaces): Emulate placement in namespace.
+  using namespace drake;
+  // NOLINTNEXTLINE(build/namespaces): Emulate placement in namespace.
+  using namespace drake::geometry::render;
+  m.doc() = "Local bindings for `drake::geometry::render`";
+  constexpr auto& doc = pydrake_doc.drake.geometry.render;
+
+  {
+    using Class = DepthCameraProperties;
+    py::class_<Class>(m, "DepthCameraProperties")
+        .def(py::init<int, int, double, std::string, double, double>(),
+             py::arg("width"), py::arg("height"), py::arg("fov_y"),
+             py::arg("renderer_name"), py::arg("z_near"), py::arg("z_far"))
+        .def_readwrite("width", &Class::width)
+        .def_readwrite("height", &Class::height)
+        .def_readwrite("fov_y", &Class::fov_y)
+        .def_readwrite("renderer_name", &Class::renderer_name)
+        .def_readwrite("z_near", &Class::z_near)
+        .def_readwrite("z_far", &Class::z_far);
+  }
+
+  {
+    using Class = RenderEngine;
+    py::class_<Class>(m, "RenderEngine");
+  }
+
+  {
+    using Class = RenderEngineVtk;
+    py::class_<Class, RenderEngine>(m, "RenderEngineVtk")
+        .def(py::init<>());
+  }
+  {
+    py::class_<RenderLabel> render_label(m, "RenderLabel");
+    render_label
+        .def(py::init<int>(), py::arg("value"), doc.RenderLabel.ctor.doc_1args)
+        .def("is_reserved", &RenderLabel::is_reserved)
+        // EQ(==).
+        .def(py::self == RenderLabel())
+        // NE(!=).
+        .def(py::self != RenderLabel());
+    render_label.attr("kEmpty") = RenderLabel::kEmpty;
+    render_label.attr("kDoNotRender") = RenderLabel::kDoNotRender;
+    render_label.attr("kDontCare") = RenderLabel::kDontCare;
+    render_label.attr("kUnspecified") = RenderLabel::kUnspecified;
+    render_label.attr("kMaxUnreserved") = RenderLabel::kMaxUnreserved;
+  }
+}
+
 PYBIND11_MODULE(geometry, m) {
   // NOLINTNEXTLINE(build/namespaces): Emulate placement in namespace.
   using namespace drake::geometry;
@@ -62,6 +114,8 @@ PYBIND11_MODULE(geometry, m) {
 
   py::class_<SceneGraph<T>, LeafSystem<T>>(m, "SceneGraph", doc.SceneGraph.doc)
       .def(py::init<>(), doc.SceneGraph.ctor.doc)
+      .def("AddRenderer", &SceneGraph<T>::AddRenderer, py::arg("renderer_name"),
+          py::arg("renderer"))
       .def("get_source_pose_port", &SceneGraph<T>::get_source_pose_port,
           py_reference_internal, doc.SceneGraph.get_source_pose_port.doc)
       .def("get_pose_bundle_output_port",
@@ -191,6 +245,9 @@ PYBIND11_MODULE(geometry, m) {
         .def(py::init<std::string, double>(), py::arg("absolute_filename"),
             py::arg("scale") = 1.0, doc.Convex.ctor.doc);
   }
+
+  // Rendering
+  def_geometry_render(m.def_submodule("render"));
 }
 
 }  // namespace

@@ -2,6 +2,7 @@ import pydrake.geometry as mut
 
 import unittest
 import warnings
+from math import pi
 
 from pydrake.common import FindResourceOrThrow
 from pydrake.common.test_utilities.deprecation import catch_drake_warnings
@@ -23,6 +24,10 @@ class TestGeometry(unittest.TestCase):
             scene_graph.get_pose_bundle_output_port(), OutputPort)
         self.assertIsInstance(
             scene_graph.get_query_output_port(), OutputPort)
+
+        # Test limited rendering API.
+        scene_graph.AddRenderer("test_renderer", mut.render.RenderEngineVtk())
+
         # Test visualization API.
         # Use a mockable so that we can make a smoke test without side effects.
         lcm = DrakeMockLcm()
@@ -107,3 +112,26 @@ class TestGeometry(unittest.TestCase):
         ]
         for shape in shapes:
             self.assertIsInstance(shape, mut.Shape)
+
+    def test_render_depth_camera_properties(self):
+        obj = mut.render.DepthCameraProperties(width=320, height=240,
+                                               fov_y=pi/6,
+                                               renderer_name="test_renderer",
+                                               z_near=0.1, z_far=5.0)
+        self.assertEqual(obj.width, 320)
+        self.assertEqual(obj.height, 240)
+        self.assertEqual(obj.fov_y, pi/6)
+        self.assertEqual(obj.renderer_name, "test_renderer")
+        self.assertEqual(obj.z_near, 0.1)
+        self.assertEqual(obj.z_far, 5.0)
+
+    def test_render_label(self):
+        RenderLabel = mut.render.RenderLabel
+        obj = RenderLabel(10)
+        self.assertFalse(obj.is_reserved())
+        self.assertTrue(RenderLabel.kEmpty.is_reserved())
+        self.assertTrue(RenderLabel.kDoNotRender.is_reserved())
+        self.assertTrue(RenderLabel.kDontCare.is_reserved())
+        self.assertTrue(RenderLabel.kUnspecified.is_reserved())
+        self.assertEqual(RenderLabel(10), RenderLabel(10))
+        self.assertNotEqual(RenderLabel(10), RenderLabel.kEmpty)
