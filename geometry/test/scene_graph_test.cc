@@ -12,6 +12,7 @@
 #include "drake/geometry/geometry_visualization.h"
 #include "drake/geometry/query_object.h"
 #include "drake/geometry/shape_specification.h"
+#include "drake/geometry/test_utilities/dummy_render_engine.h"
 #include "drake/systems/framework/context.h"
 #include "drake/systems/framework/diagram_builder.h"
 #include "drake/systems/framework/leaf_system.h"
@@ -27,6 +28,8 @@ namespace drake {
 namespace geometry {
 
 using Eigen::Isometry3d;
+using internal::DummyRenderEngine;
+using math::RigidTransformd;
 using systems::Context;
 using systems::rendering::PoseBundle;
 using systems::System;
@@ -713,6 +716,33 @@ GTEST_TEST(SceneGraphContextModifier, CollisionFilters) {
 
   // TODO(SeanCurtis-TRI): When post-allocation model modification is allowed,
   // confirm that the model didn't change.
+}
+
+// A limited test -- the majority of this functionality is encoded in and tested
+// via GeometryState. This is just a regression test to make sure SceneGraph's
+// invocation of that function doesn't become corrupt.
+GTEST_TEST(SceneGraphRenderTest, AddRenderer) {
+  SceneGraph<double> scene_graph;
+
+  EXPECT_NO_THROW(scene_graph.AddRenderer("unique",
+                                          make_unique<DummyRenderEngine>()));
+
+  // Non-unique renderer name.
+  // NOTE: The error message is tested in geometry_state_test.cc.
+  EXPECT_THROW(
+      scene_graph.AddRenderer("unique", make_unique<DummyRenderEngine>()),
+      std::logic_error);
+
+  // Adding a renderer _after_ geometry registration.
+  SourceId s_id = scene_graph.RegisterSource("dummy");
+  scene_graph.RegisterGeometry(
+      s_id, scene_graph.world_frame_id(),
+      make_unique<GeometryInstance>(Isometry3<double>::Identity(),
+                                    make_unique<Sphere>(1.0), "sphere"));
+
+  EXPECT_THROW(
+      scene_graph.AddRenderer("different", make_unique<DummyRenderEngine>()),
+      std::logic_error);
 }
 
 }  // namespace
