@@ -2,6 +2,9 @@ import pydrake.geometry as mut
 
 import unittest
 import warnings
+from math import pi
+
+import numpy as np
 
 from pydrake.autodiffutils import AutoDiffXd
 from pydrake.common import FindResourceOrThrow
@@ -37,6 +40,11 @@ class TestGeometry(unittest.TestCase):
             scene_graph.get_pose_bundle_output_port(), OutputPort)
         self.assertIsInstance(
             scene_graph.get_query_output_port(), OutputPort)
+
+        # Test limited rendering API.
+        scene_graph.AddRenderer("test_renderer",
+                                mut.render.MakeRenderEngineVtk(
+                                    mut.render.RenderEngineVtkParams()))
 
     def test_connect_drake_visualizer(self):
         # Test visualization API.
@@ -153,3 +161,44 @@ class TestGeometry(unittest.TestCase):
         ]
         for shape in shapes:
             self.assertIsInstance(shape, mut.Shape)
+
+    def test_render_engine_vtk_params(self):
+        # Confirm default construction of params.
+        params = mut.render.RenderEngineVtkParams()
+        self.assertEqual(params.default_label, None)
+        self.assertEqual(params.default_diffuse, None)
+
+        label = mut.render.RenderLabel(10)
+        diffuse = np.array((1.0, 0.0, 0.0, 0.0))
+        params.default_label = label
+        params.default_diffuse = diffuse
+        self.assertEqual(params.default_label, label)
+        self.assertTrue((params.default_diffuse == diffuse).all())
+
+    def test_render_depth_camera_properties(self):
+        obj = mut.render.DepthCameraProperties(width=320, height=240,
+                                               fov_y=pi/6,
+                                               renderer_name="test_renderer",
+                                               z_near=0.1, z_far=5.0)
+        self.assertEqual(obj.width, 320)
+        self.assertEqual(obj.height, 240)
+        self.assertEqual(obj.fov_y, pi/6)
+        self.assertEqual(obj.renderer_name, "test_renderer")
+        self.assertEqual(obj.z_near, 0.1)
+        self.assertEqual(obj.z_far, 5.0)
+
+    def test_render_label(self):
+        RenderLabel = mut.render.RenderLabel
+        value = 10
+        obj = RenderLabel(value)
+
+        self.assertEquals(value, obj)
+        self.assertEquals(obj, value)
+
+        self.assertFalse(obj.is_reserved())
+        self.assertTrue(RenderLabel.kEmpty.is_reserved())
+        self.assertTrue(RenderLabel.kDoNotRender.is_reserved())
+        self.assertTrue(RenderLabel.kDontCare.is_reserved())
+        self.assertTrue(RenderLabel.kUnspecified.is_reserved())
+        self.assertEqual(RenderLabel(value), RenderLabel(value))
+        self.assertNotEqual(RenderLabel(value), RenderLabel.kEmpty)

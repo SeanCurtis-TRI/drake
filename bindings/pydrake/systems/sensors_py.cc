@@ -19,6 +19,7 @@
 #include "drake/systems/sensors/image.h"
 #include "drake/systems/sensors/image_to_lcm_image_array_t.h"
 #include "drake/systems/sensors/pixel_types.h"
+#include "drake/systems/sensors/rgbd_sensor.h"
 
 using std::string;
 using std::unique_ptr;
@@ -34,6 +35,11 @@ template <typename T, T... kPixelTypes>
 using constant_pack = type_pack<type_pack<constant<T, kPixelTypes>>...>;
 
 using Eigen::Map;
+using Eigen::Vector3d;
+using math::RigidTransformd;
+using math::RollPitchYawd;
+using geometry::FrameId;
+using geometry::render::DepthCameraProperties;
 
 PYBIND11_MODULE(sensors, m) {
   PYDRAKE_PREVENT_PYTHON3_MODULE_REIMPORT(m);
@@ -164,6 +170,68 @@ PYBIND11_MODULE(sensors, m) {
   using T = double;
 
   // Systems.
+
+  auto def_camera_ports = [](auto* ppy_class) {
+    auto& py_class = *ppy_class;
+    using PyClass = std::decay_t<decltype(py_class)>;
+    using Class = typename PyClass::type;
+    py_class
+        .def("query_object_input_port", &Class::query_object_input_port,
+            py_reference_internal)
+        .def("color_image_output_port", &Class::color_image_output_port,
+            py_reference_internal)
+        .def("depth_image_32F_output_port", &Class::depth_image_32F_output_port,
+            py_reference_internal)
+        .def("depth_image_16U_output_port", &Class::depth_image_16U_output_port,
+            py_reference_internal)
+        .def("label_image_output_port", &Class::label_image_output_port,
+            py_reference_internal)
+        .def("sensor_base_pose_output_port",
+            &Class::sensor_base_pose_output_port, py_reference_internal);
+  };
+
+  py::class_<RgbdSensor, LeafSystem<T>> rgbd_sensor(m, "RgbdSensor");
+  rgbd_sensor
+      .def(py::init<string, FrameId, const RigidTransformd&,
+               const DepthCameraProperties&, bool>(),
+          py::arg("name"), py::arg("parent_frame"), py::arg("X_PB"),
+          py::arg("properties"), py::arg("show_window") = false,
+          doc.RgbdSensor.ctor.doc)
+      .def("color_camera_info", &RgbdSensor::color_camera_info,
+          py_reference_internal, doc.RgbdSensor.color_camera_info.doc)
+      .def("depth_camera_info", &RgbdSensor::depth_camera_info,
+          py_reference_internal, doc.RgbdSensor.depth_camera_info.doc)
+      .def("color_camera_optical_pose", &RgbdSensor::color_camera_optical_pose,
+          doc.RgbdSensor.color_camera_optical_pose.doc)
+      .def("set_color_camera_optical_pose",
+          &RgbdSensor::set_color_camera_optical_pose, py::arg("X_BC"),
+          doc.RgbdSensor.set_color_camera_optical_pose.doc)
+      .def("depth_camera_optical_pose", &RgbdSensor::depth_camera_optical_pose,
+          doc.RgbdSensor.depth_camera_optical_pose.doc)
+      .def("parent_frame_id", &RgbdSensor::parent_frame_id,
+          py_reference_internal, doc.RgbdSensor.parent_frame_id.doc);
+  def_camera_ports(&rgbd_sensor);
+
+  py::class_<RgbdSensorDiscrete, Diagram<T>> rgbd_camera_discrete(
+      m, "RgbdSensorDiscrete", doc.RgbdSensorDiscrete.doc);
+  rgbd_camera_discrete
+      .def(py::init<unique_ptr<RgbdSensor>, double, bool>(), py::arg("sensor"),
+          py::arg("period") = double{RgbdSensorDiscrete::kDefaultPeriod},
+          py::arg("render_label_image") = true,
+          // Keep alive, ownership: `RgbdSensor` keeps `this` alive.
+          py::keep_alive<2, 1>(), doc.RgbdSensorDiscrete.ctor.doc)
+      // N.B. Since `camera` is already connected, we do not need additional
+      // `keep_alive`s.
+      .def("sensor", &RgbdSensorDiscrete::sensor,
+          doc.RgbdSensorDiscrete.sensor.doc)
+      .def("mutable_sensor", &RgbdSensorDiscrete::mutable_sensor,
+          doc.RgbdSensorDiscrete.mutable_sensor.doc)
+      .def("period", &RgbdSensorDiscrete::period,
+          doc.RgbdSensorDiscrete.period.doc);
+  def_camera_ports(&rgbd_camera_discrete);
+  rgbd_camera_discrete.attr("kDefaultPeriod") =
+      double{RgbdSensorDiscrete::kDefaultPeriod};
+
   py::class_<CameraInfo>(m, "CameraInfo", doc.CameraInfo.doc)
       .def(py::init<int, int, double>(), py::arg("width"), py::arg("height"),
           py::arg("fov_y"), doc.CameraInfo.ctor.doc_3args)

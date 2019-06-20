@@ -5,6 +5,7 @@
 #include "drake/bindings/pydrake/common/cpp_template_pybind.h"
 #include "drake/bindings/pydrake/common/default_scalars_pybind.h"
 #include "drake/bindings/pydrake/common/deprecation_pybind.h"
+#include "drake/bindings/pydrake/common/drake_optional_pybind.h"
 #include "drake/bindings/pydrake/common/type_pack.h"
 #include "drake/bindings/pydrake/common/value_pybind.h"
 #include "drake/bindings/pydrake/documentation_pybind.h"
@@ -12,6 +13,9 @@
 #include "drake/geometry/geometry_ids.h"
 #include "drake/geometry/geometry_visualization.h"
 #include "drake/geometry/query_results/penetration_as_point_pair.h"
+#include "drake/geometry/render/render_engine.h"
+#include "drake/geometry/render/render_engine_vtk_factory.h"
+#include "drake/geometry/render/render_label.h"
 #include "drake/geometry/scene_graph.h"
 #include "drake/geometry/shape_specification.h"
 
@@ -43,10 +47,72 @@ void BindIdentifier(py::module m, const std::string& name, const char* id_doc) {
       .def_static("get_new_id", &Class::get_new_id, cls_doc.get_new_id.doc);
 }
 
+void def_geometry_render(py::module m) {
+  // NOLINTNEXTLINE(build/namespaces): Emulate placement in namespace.
+  using namespace drake;
+  // NOLINTNEXTLINE(build/namespaces): Emulate placement in namespace.
+  using namespace drake::geometry::render;
+  m.doc() = "Local bindings for `drake::geometry::render`";
+  constexpr auto& doc = pydrake_doc.drake.geometry.render;
+
+  {
+    using Class = DepthCameraProperties;
+    py::class_<Class>(m, "DepthCameraProperties")
+        .def(py::init<int, int, double, std::string, double, double>(),
+             py::arg("width"), py::arg("height"), py::arg("fov_y"),
+             py::arg("renderer_name"), py::arg("z_near"), py::arg("z_far"))
+        .def_readwrite("width", &Class::width)
+        .def_readwrite("height", &Class::height)
+        .def_readwrite("fov_y", &Class::fov_y)
+        .def_readwrite("renderer_name", &Class::renderer_name)
+        .def_readwrite("z_near", &Class::z_near)
+        .def_readwrite("z_far", &Class::z_far);
+  }
+
+  {
+    // TODO(SeanCurtis-TRI): Expose the full public API after the RenderIndex
+    //  and GeometryIndex classes go away (everything will become GeometryId
+    //  centric).
+    using Class = RenderEngine;
+    py::class_<Class>(m, "RenderEngine");
+  }
+
+  py::class_<RenderEngineVtkParams>(m, "RenderEngineVtkParams")
+      .def(py::init<>())
+      .def_readwrite("default_label", &RenderEngineVtkParams::default_label,
+                     doc.RenderEngineVtkParams.default_label.doc)
+      .def_readwrite("default_diffuse", &RenderEngineVtkParams::default_diffuse,
+                     doc.RenderEngineVtkParams.default_diffuse.doc);
+
+  m.def("MakeRenderEngineVtk", &MakeRenderEngineVtk, py::arg("params"),
+        doc.MakeRenderEngineVtk.doc);
+
+  {
+    py::class_<RenderLabel> render_label(m, "RenderLabel");
+    render_label
+        .def(py::init<int>(), py::arg("value"), doc.RenderLabel.ctor.doc_1args)
+        .def("is_reserved", &RenderLabel::is_reserved)
+            // EQ(==).
+        .def(py::self == py::self)
+        .def(py::self == int{})
+        .def(int{} == py::self)
+            // NE(!=).
+        .def(py::self != py::self)
+        .def(py::self != int{})
+        .def(int{} != py::self);
+    render_label.attr("kEmpty") = RenderLabel::kEmpty;
+    render_label.attr("kDoNotRender") = RenderLabel::kDoNotRender;
+    render_label.attr("kDontCare") = RenderLabel::kDontCare;
+    render_label.attr("kUnspecified") = RenderLabel::kUnspecified;
+    render_label.attr("kMaxUnreserved") = RenderLabel::kMaxUnreserved;
+  }
+}
+
 template <typename T>
 void DoScalarDependentDefinitions(py::module m, T) {
   py::tuple param = GetPyParam<T>();
   constexpr auto& doc = pydrake_doc.drake.geometry;
+
   // NOLINTNEXTLINE(build/namespaces): Emulate placement in namespace.
   using namespace drake::geometry;
   py::module::import("pydrake.systems.framework");
@@ -85,7 +151,9 @@ void DoScalarDependentDefinitions(py::module m, T) {
         .def("RegisterSource",
             py::overload_cast<const std::string&>(  // BR
                 &SceneGraph<T>::RegisterSource),
-            py::arg("name") = "", doc.SceneGraph.RegisterSource.doc);
+            py::arg("name") = "", doc.SceneGraph.RegisterSource.doc)
+        .def("AddRenderer", &SceneGraph<T>::AddRenderer, py::arg("renderer_name"),
+             py::arg("renderer"));
   }
 
   //  FramePoseVector
@@ -254,6 +322,9 @@ void DoScalarIndependentDefinitions(py::module m) {
         .def(py::init<std::string, double>(), py::arg("absolute_filename"),
             py::arg("scale") = 1.0, doc.Convex.ctor.doc);
   }
+
+  // Rendering
+  def_geometry_render(m.def_submodule("render"));
 }
 
 PYBIND11_MODULE(geometry, m) {
