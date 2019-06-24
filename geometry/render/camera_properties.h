@@ -10,6 +10,9 @@ namespace render {
 
 // TODO(SeanCurtis-TRI): Allow for configuring the intrinsic matrix directly
 // with a projection matrix.
+// TODO(eric.cousineau): Make this use `CameraInfo`, and move that class
+// outside of `drake::systems`, to decouple generic pinhole parameters from
+// Drake-specific render engine information.
 /** The intrinsic properties for a render camera. The render system
  uses a reduced set of intrinsic parameters by making some simplifying
  assumptions:
@@ -51,9 +54,6 @@ struct DepthCameraProperties : public CameraProperties {
   double z_far{};   ///< The maximum reportable depth value. All surfaces
                     ///< farther than this distance, saturate to this value.
 };
-
-// TODO(SeanCurtis-TRI): Add properties for structured-light depth sensor which
-// includes offsets from camera pose for both the emitter and sensor.
 
 }  // namespace render
 }  // namespace geometry

@@ -29,7 +29,7 @@ using geometry::SceneGraph;
 using math::RigidTransformd;
 using std::move;
 
-RgbdSensor::RgbdSensor(std::string name, FrameId parent_frame,
+CameraArray::CameraArray(FrameId parent_frame,
                        const RigidTransformd& X_PB,
                        const DepthCameraProperties& properties,
                        bool show_window)
@@ -39,33 +39,31 @@ RgbdSensor::RgbdSensor(std::string name, FrameId parent_frame,
       depth_camera_info_(properties.width, properties.height, properties.fov_y),
       properties_(properties),
       X_PB_(X_PB) {
-  this->set_name(name);
-
   query_object_input_port_ = &this->DeclareAbstractInputPort(
       "geometry_query", Value<geometry::QueryObject<double>>{});
 
   ImageRgba8U color_image(color_camera_info_.width(),
                           color_camera_info_.height());
   color_image_port_ = &this->DeclareAbstractOutputPort(
-      "color_image", color_image, &RgbdSensor::CalcColorImage);
+      "color_image", color_image, &CameraArray::CalcColorImage);
 
   ImageDepth32F depth32(depth_camera_info_.width(),
                         depth_camera_info_.height());
   depth_image_32F_port_ = &this->DeclareAbstractOutputPort(
-      "depth_image_32f", depth32, &RgbdSensor::CalcDepthImage32F);
+      "depth_image_32f", depth32, &CameraArray::CalcDepthImage32F);
 
   ImageDepth16U depth16(depth_camera_info_.width(),
                         depth_camera_info_.height());
   depth_image_16U_port_ = &this->DeclareAbstractOutputPort(
-      "depth_image_16u", depth16, &RgbdSensor::CalcDepthImage16U);
+      "depth_image_16u", depth16, &CameraArray::CalcDepthImage16U);
 
   ImageLabel16I label_image(color_camera_info_.width(),
                             color_camera_info_.height());
   label_image_port_ = &this->DeclareAbstractOutputPort(
-      "label_image", label_image, &RgbdSensor::CalcLabelImage);
+      "label_image", label_image, &CameraArray::CalcLabelImage);
 
   sensor_base_pose_port_ = &this->DeclareVectorOutputPort(
-      "X_WB", rendering::PoseVector<double>(), &RgbdSensor::CalcX_WB);
+      "X_WB", rendering::PoseVector<double>(), &CameraArray::CalcX_WB);
 
   const float kMaxValidDepth16UInMM =
       (std::numeric_limits<uint16_t>::max() - 1) / 1000.;
@@ -77,59 +75,59 @@ RgbdSensor::RgbdSensor(std::string name, FrameId parent_frame,
   }
 }
 
-const InputPort<double>& RgbdSensor::query_object_input_port() const {
+const InputPort<double>& CameraArray::query_object_input_port() const {
   return *query_object_input_port_;
 }
 
-const OutputPort<double>& RgbdSensor::color_image_output_port() const {
+const OutputPort<double>& CameraArray::color_image_output_port() const {
   return *color_image_port_;
 }
 
-const OutputPort<double>& RgbdSensor::depth_image_32F_output_port() const {
+const OutputPort<double>& CameraArray::depth_image_32F_output_port() const {
   return *depth_image_32F_port_;
 }
 
-const OutputPort<double>& RgbdSensor::depth_image_16U_output_port() const {
+const OutputPort<double>& CameraArray::depth_image_16U_output_port() const {
   return *depth_image_16U_port_;
 }
 
-const OutputPort<double>& RgbdSensor::label_image_output_port() const {
+const OutputPort<double>& CameraArray::label_image_output_port() const {
   return *label_image_port_;
 }
 
-const OutputPort<double>& RgbdSensor::sensor_base_pose_output_port() const {
+const OutputPort<double>& CameraArray::sensor_base_pose_output_port() const {
   return *sensor_base_pose_port_;
 }
 
-void RgbdSensor::CalcColorImage(const Context<double>& context,
+void CameraArray::CalcColorImage(const Context<double>& context,
                                 ImageRgba8U* color_image) const {
   const QueryObject<double>& query_object = get_query_object(context);
   query_object.RenderColorImage(properties_, parent_frame_, X_PB_ * X_BC_,
                                 show_window_, color_image);
 }
 
-void RgbdSensor::CalcDepthImage32F(const Context<double>& context,
+void CameraArray::CalcDepthImage32F(const Context<double>& context,
                                    ImageDepth32F* depth_image) const {
   const QueryObject<double>& query_object = get_query_object(context);
   query_object.RenderDepthImage(properties_, parent_frame_, X_PB_ * X_BD_,
                                 depth_image);
 }
 
-void RgbdSensor::CalcDepthImage16U(const Context<double>& context,
+void CameraArray::CalcDepthImage16U(const Context<double>& context,
                                    ImageDepth16U* depth_image) const {
   ImageDepth32F depth32(depth_image->width(), depth_image->height());
   CalcDepthImage32F(context, &depth32);
   ConvertDepth32FTo16U(depth32, depth_image);
 }
 
-void RgbdSensor::CalcLabelImage(const Context<double>& context,
+void CameraArray::CalcLabelImage(const Context<double>& context,
                                 ImageLabel16I* label_image) const {
   const QueryObject<double>& query_object = get_query_object(context);
   query_object.RenderLabelImage(properties_, parent_frame_, X_PB_ * X_BC_,
                                 show_window_, label_image);
 }
 
-void RgbdSensor::CalcX_WB(
+void CameraArray::CalcX_WB(
     const Context<double>& context,
     rendering::PoseVector<double>* pose_vector) const {
   // Calculates X_WB.
@@ -147,7 +145,7 @@ void RgbdSensor::CalcX_WB(
   pose_vector->set_rotation(X_WB.rotation().ToQuaternion());
 }
 
-void RgbdSensor::ConvertDepth32FTo16U(const ImageDepth32F& d32,
+void CameraArray::ConvertDepth32FTo16U(const ImageDepth32F& d32,
                                       ImageDepth16U* d16) {
   // Convert to mm and 16bits.
   const float kDepth16UOverflowDistance =
@@ -164,13 +162,13 @@ void RgbdSensor::ConvertDepth32FTo16U(const ImageDepth32F& d32,
 // to do something weird with GeometryState such that the rgbd_sensor_test.cc
 // was unable to instantiate an GeometryStateTester that GCC recognized as a
 // friend to GeometryState.
-const geometry::QueryObject<double>& RgbdSensor::get_query_object(
+const geometry::QueryObject<double>& CameraArray::get_query_object(
     const Context<double>& context) const {
   return query_object_input_port().
       Eval<geometry::QueryObject<double>>(context);
 }
 
-RgbdSensorDiscrete::RgbdSensorDiscrete(std::unique_ptr<RgbdSensor> camera,
+CameraArrayDiscrete::CameraArrayDiscrete(std::unique_ptr<CameraArray> camera,
                                        double period, bool render_label_image)
     : camera_(camera.get()), period_(period) {
   const auto& color_camera_info = camera->color_camera_info();

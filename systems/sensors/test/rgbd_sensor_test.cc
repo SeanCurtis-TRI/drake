@@ -56,12 +56,12 @@ std::ostream& operator<<(std::ostream& out, const CameraInfo& info) {
   return out;
 }
 
-// Helper class for exercising private methods in RgbdSensor.
-class RgbdSensorTester {
+// Helper class for exercising private methods in CameraArray.
+class CameraArrayTester {
  public:
   static void ConvertDepth32FTo16U(const ImageDepth32F& d32,
                                    ImageDepth16U* d16) {
-    RgbdSensor::ConvertDepth32FTo16U(d32, d16);
+    CameraArray::ConvertDepth32FTo16U(d32, d16);
   }
 };
 
@@ -104,21 +104,21 @@ using systems::DiagramBuilder;
   return ::testing::AssertionSuccess();
 }
 
-class RgbdSensorTest : public ::testing::Test {
+class CameraArrayTest : public ::testing::Test {
  public:
-  RgbdSensorTest()
+  CameraArrayTest()
       : ::testing::Test(),
         properties_(640, 480, M_PI / 4, kRendererName, 0.1, 10) {}
 
  protected:
-  // Creates a Diagram with a SceneGraph and RgbdSensor connected appropriately.
+  // Creates a Diagram with a SceneGraph and CameraArray connected appropriately.
   // Various components are stored in members for easy access. This should only
   // be called once per test.
   // make_sensor is a callback that will create the sensor. It is provided a
   // pointer to the SceneGraph so it has the opportunity to modify the
   // SceneGraph as it needs.
   void MakeCameraDiagram(
-      std::function<unique_ptr<RgbdSensor>(SceneGraph<double>*)> make_sensor) {
+      std::function<unique_ptr<CameraArray>(SceneGraph<double>*)> make_sensor) {
     ASSERT_EQ(scene_graph_, nullptr)
         << "Only call MakeCameraDiagram() once per test";
     DiagramBuilder<double> builder;
@@ -195,7 +195,7 @@ class RgbdSensorTest : public ::testing::Test {
   // Convenient pointers into the diagram and context; the underlying systems
   // are owned by the diagram and its context.
   SceneGraph<double>* scene_graph_{};
-  RgbdSensor* sensor_{};
+  CameraArray* sensor_{};
   const DummyRenderEngine* render_engine_{};
   Context<double>* sensor_context_{};
   Context<double>* scene_graph_context_{};
@@ -203,13 +203,13 @@ class RgbdSensorTest : public ::testing::Test {
   static const char kRendererName[];
 };
 
-const char RgbdSensorTest::kRendererName[] = "renderer";
+const char CameraArrayTest::kRendererName[] = "renderer";
 
 // Confirms that port names are as documented in rgbd_sensor.h. This uses the
 // anchored constructor and assumes that the ports are the same for the
 // frame-fixed port.
-TEST_F(RgbdSensorTest, PortNames) {
-  RgbdSensor sensor("sensor", SceneGraph<double>::world_frame_id(),
+TEST_F(CameraArrayTest, PortNames) {
+  CameraArray sensor("sensor", SceneGraph<double>::world_frame_id(),
                     RigidTransformd::Identity(), properties_);
   EXPECT_EQ(sensor.query_object_input_port().get_name(), "geometry_query");
   EXPECT_EQ(sensor.color_image_output_port().get_name(), "color_image");
@@ -221,14 +221,14 @@ TEST_F(RgbdSensorTest, PortNames) {
 
 // Tests that the anchored camera reports the correct parent frame and has the
 // right pose passed to the renderer.
-TEST_F(RgbdSensorTest, ConstructAnchoredCamera) {
+TEST_F(CameraArrayTest, ConstructAnchoredCamera) {
   const Vector3d p_WB_W(1, 2, 3);
   const RollPitchYawd rpy_WB_W(M_PI / 2, 0, 0);
   const RigidTransformd X_WB_W(rpy_WB_W, p_WB_W);
   const std::string name = "anchored";
 
   auto make_sensor = [this, &X_WB_W, &name](SceneGraph<double>*) {
-    return make_unique<RgbdSensor>(name, SceneGraph<double>::world_frame_id(),
+    return make_unique<CameraArray>(name, SceneGraph<double>::world_frame_id(),
                                    X_WB_W, properties_);
   };
   MakeCameraDiagram(make_sensor);
@@ -242,7 +242,7 @@ TEST_F(RgbdSensorTest, ConstructAnchoredCamera) {
 
 // Similar to the AnchoredCamera test -- but, in this case, the reported pose
 // of the camera X_WC depends on the value of the specified parent frame P.
-TEST_F(RgbdSensorTest, ConstructFrameFixedCamera) {
+TEST_F(CameraArrayTest, ConstructFrameFixedCamera) {
   SourceId source_id;
   const GeometryFrame frame("camera_frame");
   const std::string name = "fixed_frame";
@@ -258,7 +258,7 @@ TEST_F(RgbdSensorTest, ConstructFrameFixedCamera) {
                       &X_PB](SceneGraph<double>* graph) {
     source_id = graph->RegisterSource("source");
     graph->RegisterFrame(source_id, frame);
-    return make_unique<RgbdSensor>(name, frame.id(), X_PB, properties_);
+    return make_unique<CameraArray>(name, frame.id(), X_PB, properties_);
   };
   MakeCameraDiagram(make_sensor);
 
@@ -281,7 +281,7 @@ TEST_F(RgbdSensorTest, ConstructFrameFixedCamera) {
 // do is to produce the X_PC matrix (which is implicitly tested in the
 // construction tests above). The *one* exception is the 16U depth image which
 // converts 32F to 16U. In this case, we test the conversion method directly.
-TEST_F(RgbdSensorTest, DepthImage32FTo16U) {
+TEST_F(CameraArrayTest, DepthImage32FTo16U) {
   // The largest uint16_t value (unitless). Period.
   const uint16_t kMax16 = std::numeric_limits<uint16_t>::max();
   // The saturation depth (in mm) that will be reported.
@@ -306,7 +306,7 @@ TEST_F(RgbdSensorTest, DepthImage32FTo16U) {
 
   // Perform conversion.
   ImageDepth16U depth16(1, 4);
-  RgbdSensorTester::ConvertDepth32FTo16U(depth32, &depth16);
+  CameraArrayTester::ConvertDepth32FTo16U(depth32, &depth16);
 
   for (int c = 0; c < 4; ++c) {
     EXPECT_EQ(*depth16.at(0, c), expected_depths[c]);
@@ -314,13 +314,13 @@ TEST_F(RgbdSensorTest, DepthImage32FTo16U) {
 }
 
 // Tests that the discrete sensor is properly constructed.
-GTEST_TEST(RgbdSensorDiscrete, Construction) {
+GTEST_TEST(CameraArrayDiscrete, Construction) {
   DepthCameraProperties properties(640, 480, M_PI / 4, "render", 0.1, 10);
   const double kPeriod = 0.1;
 
   const bool include_render_port = true;
-  RgbdSensorDiscrete sensor(
-      make_unique<RgbdSensor>("sensor", SceneGraph<double>::world_frame_id(),
+  CameraArrayDiscrete sensor(
+      make_unique<CameraArray>("sensor", SceneGraph<double>::world_frame_id(),
                               RigidTransformd::Identity(), properties),
       kPeriod, include_render_port);
   EXPECT_EQ(sensor.query_object_input_port().get_name(), "geometry_query");
@@ -338,15 +338,15 @@ GTEST_TEST(RgbdSensorDiscrete, Construction) {
 
 // Test that the diagram's internal architecture is correct and, likewise,
 // wired correctly.
-GTEST_TEST(RgbdSensorDiscrete, ImageHold) {
+GTEST_TEST(CameraArrayDiscrete, ImageHold) {
   DepthCameraProperties properties(640, 480, M_PI / 4, "render", 0.1, 10);
   auto sensor =
-      make_unique<RgbdSensor>("sensor", SceneGraph<double>::world_frame_id(),
+      make_unique<CameraArray>("sensor", SceneGraph<double>::world_frame_id(),
                               RigidTransformd::Identity(), properties);
-  RgbdSensor* sensor_raw = sensor.get();
+  CameraArray* sensor_raw = sensor.get();
   const double kPeriod = 0.1;
   const bool include_render_port = true;
-  RgbdSensorDiscrete discrete_sensor(move(sensor), kPeriod,
+  CameraArrayDiscrete discrete_sensor(move(sensor), kPeriod,
                                      include_render_port);
 
   // This tests very *explicit* knowledge of what the wiring should be. As such,
@@ -360,7 +360,7 @@ GTEST_TEST(RgbdSensorDiscrete, ImageHold) {
 
   // For each image output port, we want to make sure it's connected to the
   // expected ZOH and that the hold's period is kPeriod. This proves that
-  // RgbdSensorDiscrete has wired things up properly.
+  // CameraArrayDiscrete has wired things up properly.
   auto confirm_hold = [&sub_systems, &kPeriod, &discrete_sensor](
                           int hold_index,
                           const OutputPort<double>& image_port) {
