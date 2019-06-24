@@ -29,7 +29,7 @@ using geometry::SceneGraph;
 using math::RigidTransformd;
 using std::move;
 
-RgbdSensor::RgbdSensor(std::string name, FrameId parent_frame,
+RgbdSensor::RgbdSensor(FrameId parent_frame,
                        const RigidTransformd& X_PB,
                        const DepthCameraProperties& properties,
                        bool show_window)
@@ -39,8 +39,6 @@ RgbdSensor::RgbdSensor(std::string name, FrameId parent_frame,
       depth_camera_info_(properties.width, properties.height, properties.fov_y),
       properties_(properties),
       X_PB_(X_PB) {
-  this->set_name(name);
-
   query_object_input_port_ = &this->DeclareAbstractInputPort(
       "geometry_query", Value<geometry::QueryObject<double>>{});
 

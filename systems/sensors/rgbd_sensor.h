@@ -23,8 +23,9 @@
 namespace drake {
 namespace systems {
 namespace sensors {
-/** An RGB-D sensor that provides RGB, depth, and label images using the
- geometry in the geometry::SceneGraph.
+
+/** A sensor that provides RGB, depth, and label images using the geometry in
+ the geometry::SceneGraph.
 
  @system{RgbdSensor,
     @input_port{geometry_query},
@@ -35,29 +36,20 @@ namespace sensors {
     @output_port{X_WB}
  }
 
- Let `W` be the world coordinate system. In addition to `W`, there are three
- more coordinate systems that are associated with an %RgbdSensor. They are
- defined as follows (relative to the image):
+ The following text uses terminology and camera frame conventions from
+ %CameraInfo. Please review its documentation.
 
-   * `B` - the camera's base coordinate system: `X-forward`, `Y-left`, and
-           `Z-up`.
+ This class uses the following frames:
 
-   * `C` - the camera's color sensor's optical coordinate system: `X-right`,
-           `Y-down` and `Z-forward`.
+   - `W` - world frame
+   - `B` - sensor base frame, used as the attaching frame for `C` and `D`
+   - `C` - color camera frame, used for both color and label images
+   - `D` - depth camera frame
 
-   * `D` - the camera's depth sensor's optical coordinate system: `X-right`,
-           `Y-down` and `Z-forward`.
+ By default, frames `B`, `C`, and `D` are coincident and aligned. These can be
+ changed after construction by modifying `X_BC` and `X_BD`. `C` and `D` are
+ always rigidly affixed to the sensor base frame `B`.
 
- Frames `C` and `D` are coincident and aligned. The origins of `C` and `D`
- (`Co` and `Do`, respectively) have position
- `p_BoCo_B = p_BoDo_B = <0 m, 0.02 m, 0 m>` by default. In other words
- `X_CD = I`. This definition implies that the depth image is a "registered depth
- image" for the RGB image, and that no disparity between the RGB and depth
- images are modeled in this system by default. For more details about the poses
- of `C` and `D`, see the class documentation of CameraInfo. These
- poses can be overwritten after construction with the appropriate methods
- (though you'll often only want to change their origins while keeping both
- sensors facing in the same direction).
  <!-- TODO(gizatt): The setters for modifying the sensor poses create a
  vulnerability that allows users to modify internal system state during
  simulation via a non-intended path. See PR#10491 for discussion;
@@ -82,7 +74,8 @@ namespace sensors {
      maximum valid depth return is 65534mm.
 
    - label_image: One channel, int16_t, whose value is a unique RenderLabel
-     value. See RenderLabel for discussion of interpreting rendered labels.
+     value aligned with the color camera frame. See RenderLabel for discussion
+     of interpreting rendered labels.
 
  @note These depth sensor measurements differ from those of range data used by
  laser range finders (like DepthSensor), where the depth value represents the
@@ -128,26 +121,26 @@ class RgbdSensor final : public LeafSystem<double> {
   const CameraInfo& depth_camera_info() const { return depth_camera_info_; }
 
   /** Returns `X_BC`.  */
-  const math::RigidTransformd& color_camera_optical_pose() const {
+  const math::RigidTransformd& X_BC() const {
     return X_BC_;
   }
 
   /** Sets `X_BC`.  */
-  void set_color_camera_optical_pose(const math::RigidTransformd& X_BC) {
+  void set_X_BC(const math::RigidTransformd& X_BC) {
     X_BC_ = X_BC;
   }
 
   /** Returns `X_BD`.  */
-  const math::RigidTransformd& depth_camera_optical_pose() const {
+  const math::RigidTransformd& X_BD() const {
     return X_BD_;
   }
 
   /** Sets `X_BD`.  */
-  void set_depth_camera_optical_pose(const math::RigidTransformd& X_BD) {
+  void set_X_BD(const math::RigidTransformd& X_BD) {
     X_BD_ = X_BD;
   }
 
-  /** Returns the id of the frame to which this camera is affixed.  */
+  /** Returns the id of the frame to which the base is affixed.  */
   geometry::FrameId parent_frame_id() const { return parent_frame_; }
 
   /** Returns the geometry::QueryObject<double>-valued input port.  */
@@ -168,11 +161,10 @@ class RgbdSensor final : public LeafSystem<double> {
    */
   const OutputPort<double>& label_image_output_port() const;
 
-  // TODO(SeanCurtis-TRI): Investigate changing this simply to a RigidTransform.
-  // Currently left as a PoseVector for backwards-compatibility reasons. After
-  // all, there is only a single pose. Why wrap it in a PoseVector?
-  /** Returns the abstract-valued output port that contains a PoseVector.  */
-  const OutputPort<double>& sensor_base_pose_output_port() const;
+  /** Returns the abstract-valued output port that contains a RigidTransform
+    for `X_WB`.
+   */
+  const OutputPort<double>& X_WB_output_port() const;
 
  private:
   friend class RgbdSensorTester;
@@ -217,31 +209,7 @@ class RgbdSensor final : public LeafSystem<double> {
   // The position of the camera's B frame relative to its parent frame P.
   const math::RigidTransformd X_PB_;
 
-  // By default, the color sensor's origin (`Co`) is offset by 0.02 m on the Y
-  // axis of the RgbdSensor's base coordinate system (`B`).
-  //
-  // The rotation R_BC can be written as:
-  //      cx   cy   cz
-  // bx   0    0    1
-  // by  -1    0    0
-  // bz   0   -1    0
-  //
-  // Reading the columns downward, we see that `cx` is in the `-by` direction;
-  // this corresponds to the definition that `by` is "left" and `cx` is "right".
-  // Similarly, `cy` is in the `-bz` direction. Again, by definition, `bz` is
-  // "up" and `cy` is "down", so they point in opposite directions. Finally,
-  // `cz` is in the direction of `bx`. `bx` and `cz` are both defined as
-  // "forward", so they should point in the same direction.
-  //
-  // Do not attempt to achieve this via RPY or axis-angle representations; the
-  // calculations invariably introduce small epsilon values into what should
-  // otherwise be a perfectly represented matrix.
-  math::RigidTransformd X_BC_{
-    math::RotationMatrixd::MakeFromOrthonormalRows(
-        Eigen::Vector3d(0, 0, 1),
-        Eigen::Vector3d(-1, 0, 0),
-        Eigen::Vector3d(0, -1, 0)),
-      Eigen::Vector3d(0, 0.02, 0)};
+  math::RigidTransformd X_BC_;
 
   math::RigidTransformd X_BD_{X_BC_};
 };
@@ -312,8 +280,8 @@ class RgbdSensorDiscrete final : public systems::Diagram<double> {
     return get_output_port(output_port_label_image_);
   }
 
-  /** @see RgbdSensor::sensor_base_pose_output_port().  */
-  const systems::OutputPort<double>& sensor_base_pose_output_port() const {
+  /** @see RgbdSensor::base_pose_output_port().  */
+  const systems::OutputPort<double>& base_pose_output_port() const {
     return get_output_port(output_port_pose_);
   }
 
