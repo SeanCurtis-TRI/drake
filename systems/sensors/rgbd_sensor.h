@@ -41,14 +41,15 @@ namespace sensors {
 
  This class uses the following frames:
 
-   - `W` - world frame
-   - `B` - sensor base frame, used as the attaching frame for `C` and `D`
-   - `C` - color camera frame, used for both color and label images
-   - `D` - depth camera frame
+   - W - world frame
+   - C - color camera frame, used for both color and label images
+   - D - depth camera frame
+   - B - sensor body frame, used common frame for C and D which can capture the
+     physical container of the sensor.
 
- By default, frames `B`, `C`, and `D` are coincident and aligned. These can be
- changed after construction by modifying `X_BC` and `X_BD`. `C` and `D` are
- always rigidly affixed to the sensor base frame `B`.
+ By default, frames B, C, and D are coincident and aligned. These can be
+ changed after construction by modifying `X_BC` and `X_BD`. Frames C and D are
+ always rigidly affixed to the sensor body frame B.
 
  <!-- TODO(gizatt): The setters for modifying the sensor poses create a
  vulnerability that allows users to modify internal system state during

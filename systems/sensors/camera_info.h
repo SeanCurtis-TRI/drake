@@ -18,37 +18,48 @@ Please note the following terms:
 
 - frame, pose: denotes an origin and a space-spanning basis in 2D/3D, as in
   @ref multibody_frames_and_bodies.
-- video frame: an image in a video sequence.
-- camera: an image sensor with lens; in Drake, this will be modeled as a
-  pinhole cameras unless stated otherwise. Because of this, the camera
-  aperature is a point in space.
-- image plane: defines how the 3D world is projected to a 2D image.
+- video frame: an image in a video sequence. This is *not* an extension of
+  "frame" as a general term.
+- sensor: a device used to take and report measurements.
+- image: an array of measurements. Coordinates are in pixels.
+- imager: a sensor that measures images.
+- camera: an image sensor.
+- aperature: a hole through which light travels through.
+- image plane: defines how the 3D world is projected to a 2D image. In
+  accordance with the OpenCV documentation below, the image plane will be
+  presented as though it were "in front" of the aperature, rather than behind
+  (which requires accounting for the camera obscura effect).
+- pinhole camera: a physical camera with no lens and a tiny aperature.
+- pinhole model: modeling a camera as though it were a pinhole camera, with
+  parameters that account for the camera lens and image plane. In Drake, all
+  cameras are assumed to use the pinhole model unless otherwise stated. The
+  images captured by these cameras are 2D, and their pixel coordinates are
+  described as `(u, v)`.
+- viewing direction / optical axis: direction from aperature towards scene being
+  captured by the camera (orthogonal to the image plane for the pinhole model).
+- principal point, camera center: the intersection of the viewing ray with the
+  image plane, typically measured in pixels.
 
-The camera frame `C` is comprised of the basis [Cx Cy Cz] and origin point Co,
+The camera frame C is comprised of the basis [Cx Cy Cz] and origin point Co,
 which are described as follows:
 
-- Co at camera aperature.
-- Cz aligned with the viewing direction, orthogonal to the image plane.
-- Cx aligned with the right direction of the image plane.
-- Cy aligned with the downwards direction of the image plane.
+- Co at camera aperature (per the pinhole model)
+- Cz aligned with the optical axis (orthogonal to the image plane).
+- Cx aligned with the `u` axis of the captured image.
+- Cy aligned with the `v` axis of the captured image.
 
 This can be summarized as `X-right`, `Y-down`, and `Z-forward` with respect to
 the image plane.
 
-The image plane can be described in the following coordinate systems:
-
-- normalized coordinate system `(X/Z, Y/Z)`, with its origin at the principal
-  point.
-- pixel coordinate system `(u, v)` using the following transformation:
-  <pre>
-    u = focal_x * (X/Z) + center_x
-    v = focal_y * (Y/Z) + center_y
-  </pre>
-  where `focal_x, focal_y` are focal lengths, and `center_x, center_y` describe
-  the principal point.
+The projection from coordinates `(X, Y, Z)` in the camera frame C to image coordoinates `(u, v)` is:
+<pre>
+  u = focal_x * (X/Z) + center_x
+  v = focal_y * (Y/Z) + center_y
+</pre>
+where `focal_x, focal_y` are focal lengths, and `center_x, center_y` describe
+the camera center (or principal point).
 
 For more detail including an explanation of the focal lengths, refer to:
-- https://en.wikipedia.org/wiki/Pinhole_camera_model
 - http://docs.opencv.org/2.4/modules/calib3d/doc/camera_calibration_and_3d_reconstruction.html
 */
 class CameraInfo final {
