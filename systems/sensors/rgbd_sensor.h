@@ -37,7 +37,7 @@ namespace sensors {
  }
 
  The following text uses terminology and camera frame conventions from
- %CameraInfo. Please review its documentation.
+ CameraInfo. Please review its documentation.
 
  This class uses the following frames:
 
