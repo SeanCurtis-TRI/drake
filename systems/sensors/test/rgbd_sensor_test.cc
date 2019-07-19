@@ -141,21 +141,12 @@ class RgbdSensorTest : public ::testing::Test {
 
   // Confirms that the member sensor_ matches the expected properties.
   ::testing::AssertionResult ValidateConstruction(
-      FrameId parent_id, const std::string& name,
-      const RigidTransformd& X_WC_expected,
+      FrameId parent_id, const RigidTransformd& X_WC_expected,
       std::function<void()> pre_render_callback = {}) const {
     if (sensor_->parent_frame_id() != parent_id) {
       return ::testing::AssertionFailure()
              << "The sensor's parent id (" << sensor_->parent_frame_id()
              << ") does not match the expected id (" << parent_id << ")";
-    }
-    // TODO(eric.cousineau): Remove the name tests, as they don't make sense
-    // since no part of RgbdSensor part really needs it, and it's the System
-    // framework's responsibility.
-    if (sensor_->get_name() != name) {
-      return ::testing::AssertionFailure()
-          << "The sensor's name '" << sensor_->get_name()
-          << "' does not match the expected name '" << name << "'";
     }
     ::testing::AssertionResult result = ::testing::AssertionSuccess();
     CameraInfo expected_info(properties_.width, properties_.height,
@@ -219,21 +210,17 @@ TEST_F(RgbdSensorTest, ConstructAnchoredCamera) {
   const Vector3d p_WB(1, 2, 3);
   const RollPitchYawd rpy_WB(M_PI / 2, 0, 0);
   const RigidTransformd X_WB(rpy_WB, p_WB);
-  const std::string name = "anchored";
 
-  auto make_sensor = [this, &X_WB, &name](SceneGraph<double>*) {
-    auto sensor = make_unique<RgbdSensor>(
-        SceneGraph<double>::world_frame_id(),
-        X_WB, properties_);
-    sensor->set_name(name);
-    return sensor;
+  auto make_sensor = [this, &X_WB](SceneGraph<double>*) {
+    return make_unique<RgbdSensor>(SceneGraph<double>::world_frame_id(), X_WB,
+                                   properties_);
   };
   MakeCameraDiagram(make_sensor);
 
   const RigidTransformd& X_BC = sensor_->X_BC();
   const RigidTransformd X_WC_expected = X_WB * X_BC;
-  EXPECT_TRUE(ValidateConstruction(scene_graph_->world_frame_id(), name,
-                                   X_WC_expected));
+  EXPECT_TRUE(
+      ValidateConstruction(scene_graph_->world_frame_id(), X_WC_expected));
 }
 
 // Similar to the AnchoredCamera test -- but, in this case, the reported pose
@@ -241,7 +228,6 @@ TEST_F(RgbdSensorTest, ConstructAnchoredCamera) {
 TEST_F(RgbdSensorTest, ConstructFrameFixedCamera) {
   SourceId source_id;
   const GeometryFrame frame("camera_frame");
-  const std::string name = "fixed_frame";
   const RigidTransformd X_PB(AngleAxisd(M_PI/6, Vector3d(1, 1, 1)),
                              Vector3d(1, 2, 3));
   const RigidTransformd X_WP(AngleAxisd(M_PI/7, Vector3d(-1, 0, 1)),
@@ -250,16 +236,13 @@ TEST_F(RgbdSensorTest, ConstructFrameFixedCamera) {
 
   // The sensor requires a frame to be registered in order to attach to the
   // frame.
-  auto make_sensor = [this, &source_id, &frame, &name,
+  auto make_sensor = [this, &source_id, &frame,
                       &X_PB](SceneGraph<double>* graph) {
     source_id = graph->RegisterSource("source");
     graph->RegisterFrame(source_id, frame);
-    auto sensor = make_unique<RgbdSensor>(frame.id(), X_PB, properties_);
-    sensor->set_name(name);
-    return sensor;
+    return make_unique<RgbdSensor>(frame.id(), X_PB, properties_);
   };
   MakeCameraDiagram(make_sensor);
-
 
   const RigidTransformd& X_BC = sensor_->X_BC();
   // NOTE: This *particular* factorization eliminates the need for a tolerance
@@ -270,8 +253,8 @@ TEST_F(RgbdSensorTest, ConstructFrameFixedCamera) {
     scene_graph_->get_source_pose_port(source_id).FixValue(scene_graph_context_,
                                                            X_WPs);
   };
-  EXPECT_TRUE(ValidateConstruction(frame.id(), name, X_WC_expected,
-                                   pre_render_callback));
+  EXPECT_TRUE(
+      ValidateConstruction(frame.id(), X_WC_expected, pre_render_callback));
 }
 
 TEST_F(RgbdSensorTest, ConstructCameraWithNonTrivialOffsets) {

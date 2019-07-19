@@ -24,8 +24,8 @@ namespace drake {
 namespace systems {
 namespace sensors {
 
-/** A sensor that provides RGB, depth, and label images using the geometry in
- the geometry::SceneGraph.
+/** A meta-sensor that houses RGB, depth, and label cameras, producing their
+ corresponding images based on the contents of the geometry::SceneGraph.
 
  @system{RgbdSensor,
     @input_port{geometry_query},
@@ -36,8 +36,8 @@ namespace sensors {
     @output_port{X_WB}
  }
 
- The following text uses terminology and camera frame conventions from
- CameraInfo. Please review its documentation.
+ The following text uses terminology and conventions from CameraInfo. Please
+ review its documentation.
 
  This class uses the following frames:
 
@@ -45,7 +45,7 @@ namespace sensors {
    - C - color camera frame, used for both color and label cameras to guarantee
      perfect registration between color and label images.
    - D - depth camera frame
-   - B - sensor body frame, approximately, the frame of the "physical" sensor
+   - B - sensor body frame. Approximately, the frame of the "physical" sensor
      that contains the color, depth, and label cameras. The contained cameras
      are rigidly fixed to B and X_WB is what is used to pose the sensor in the
      world (or, alternatively, X_PB where P is some parent frame for which X_WP
@@ -54,6 +54,12 @@ namespace sensors {
  By default, frames B, C, and D are coincident and aligned. These can be
  changed using the `camera_poses` constructor parameter. Frames C and D are
  always rigidly affixed to the sensor body frame B.
+
+ <!-- TODO(SeanCurtis-TRI): Relax these assumptions into more general sensors.
+ -->
+ In terms of the camera intrinsics outlined in CameraInfo, this sensor assumes
+ that each camera's principal point is in the center of the image and that the
+ focal lengths in both the x- and y-directions are equal.
 
  Output port image formats:
 
@@ -85,11 +91,14 @@ class RgbdSensor final : public LeafSystem<double> {
  public:
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(RgbdSensor)
 
-  /// Specifies poses of cameras with respect ot the sensor base `B`.
+  /** Specifies poses of cameras with respect ot the sensor base `B`.  */
   struct CameraPoses {
-    /// Pose of color camera `C` with respect to sensor base `B`.
+    /** Pose of color camera `C` with respect to sensor base `B`. Defaults to
+     the identity matrix.  */
     math::RigidTransformd X_BC;
-    /// Pose of depth camera `D` with respect to sensor base `B`.
+
+    /** Pose of depth camera `D` with respect to sensor base `B`. Defaults to
+     the identity matrix.  */
     math::RigidTransformd X_BD;
   };
 
@@ -106,8 +115,9 @@ class RgbdSensor final : public LeafSystem<double> {
    @param properties     The properties which define this camera's intrinsics.
                          Please note that this assumes that the color and depth
                          cameras share the same intrinsics.
-   @param camera_poses   The pose the color and depth cameras with respect to
-                         the sensor base.
+   @param camera_poses   The poses of the color (C) and depth camera (D) frames
+                         with respect to the sensor base (B). If omitted, all
+                         three frames will be aligned and coincident.
    @param show_window    A flag for showing a visible window. If this is false,
                          off-screen rendering is executed. The default is false.
    */
@@ -116,9 +126,6 @@ class RgbdSensor final : public LeafSystem<double> {
              const geometry::render::DepthCameraProperties& properties,
              const CameraPoses& camera_poses = {},
              bool show_window = false);
-
-  // TODO(eric.cousineau): Add a constructor that allows unique intrinsics for
-  // color and depth when the need arises.
 
   ~RgbdSensor() = default;
 
@@ -207,8 +214,8 @@ class RgbdSensor final : public LeafSystem<double> {
   // The position of the camera's B frame relative to its parent frame P.
   const math::RigidTransformd X_PB_;
   // Camera poses.
-  math::RigidTransformd X_BC_;
-  math::RigidTransformd X_BD_;
+  const math::RigidTransformd X_BC_;
+  const math::RigidTransformd X_BD_;
 };
 
 /**
