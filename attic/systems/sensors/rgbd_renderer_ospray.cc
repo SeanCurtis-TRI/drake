@@ -230,7 +230,9 @@ void RgbdRendererOSPRay::Impl::ImplRenderColorImage(
   p->window->Render();
   vtkRenderer* renderer = p->window->GetRenderers()->GetFirstRenderer();
   int max_frames = vtkOSPRayRendererNode::GetMaxFrames(renderer);
-
+  // THIS SEEMS HIGHLY SUSPCIOUS!!!! The documentation says this is the number
+  // of frames "per refresh". So, what's a refresh? How does this relate to
+  // samples per pixel?
   for (int i = 0; i < max_frames; ++i) {
     p->window->Render();
   }
