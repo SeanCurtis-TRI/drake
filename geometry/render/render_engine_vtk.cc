@@ -128,6 +128,7 @@ vtkNew<internal::ShaderCallback> RenderEngineVtk::uniform_setting_callback_;
 RenderEngineVtk::RenderEngineVtk(const RenderEngineVtkParams& parameters)
     : RenderEngine(parameters.default_label ? *parameters.default_label
                                             : RenderLabel::kUnspecified),
+      color_mode_(parameters.color_mode),
       pipelines_{{make_unique<RenderingPipeline>(),
                   make_unique<RenderingPipeline>(),
                   make_unique<RenderingPipeline>()}} {
@@ -135,8 +136,22 @@ RenderEngineVtk::RenderEngineVtk(const RenderEngineVtkParams& parameters)
     default_diffuse_ = *parameters.default_diffuse;
   }
 
-  const auto& c = parameters.default_clear_color;
-  default_clear_color_ = ColorD{c(0), c(1), c(2)};
+  const auto& c = parameters.background_color;
+  background_color_ = ColorD{c(0), c(1), c(2)};
+
+  switch (color_mode) {
+    case VtkColorMode::kGl:
+      color_mode_params_ = parameters.gl_params;
+      break;
+    case VtkColorMode::kRayTracer:
+      color_mode_params_ = parameters.raytrace_params;
+      break;
+    case VtkColorMode::kPathTracer:
+      color_mode_params_ = parameters.pathtrace_params;
+      break;
+    default:
+      DRAKE_UNREACHABLE();
+  }
 
   InitializePipelines();
 }
@@ -160,6 +175,38 @@ void RenderEngineVtk::RenderColorImage(const CameraProperties& camera,
   // TODO(SeanCurtis-TRI): Determine if this copies memory (and find some way
   // around copying).
   pipelines_[ImageType::kColor]->exporter->Export(color_image_out->at(0, 0));
+
+  // In path tracing, the background contributes light energy to the rendering.
+  // However, the raytracer and gl renderers don't do this, it's simply a
+  // backdrop -- a color for pixels that weren't otherwise covered by geometry.
+  // We simulate that effect by blending the final pixels with the background
+  // color.
+  // TODO(SeanCurtis-TRI): Make this configurable; i.e., if we provide an hdmi
+  //  environment map, this shouldn't happen at all.
+  if (color_mode_ == VtkColorMode::kPathTracer) {
+    using ChannelType = ImageRgba8U::Traits::ChannelType;
+    // Note: the cast truncates, by adding 0.5, it becomes rounding.
+    systems::sensors::ColorI rgb{
+        static_cast<ChannelType>(background_color_.r * 255 + 0.5),
+        static_cast<ChannelType>(background_color_.g * 255 + 0.5),
+        static_cast<ChannelType>(background_color_.b * 255 + 0.5)};
+    auto blend = [](ImageRgba8U::Traits::ChannelType channel,
+                    ImageRgba8U::Traits::ChannelType bg, double alpha) {
+      double combo = channel * alpha + bg * (1 - alpha);
+      return static_cast<ImageRgba8U::Traits::ChannelType>(combo);
+    };
+    for (int r = 0; r < color_image_out->height(); ++r) {
+      for (int c = 0; c < color_image_out->width(); ++c) {
+        ChannelType* pixel = color_image_out->at(c, r);
+        double alpha = pixel[3] / 255.0;
+        if (alpha < 1.0) {
+          pixel[0] = blend(pixel[0], rgb.r, alpha);
+          pixel[1] = blend(pixel[1], rgb.g, alpha);
+          pixel[2] = blend(pixel[2], rgb.b, alpha);
+        }
+      }
+    }
+  }
 }
 
 void RenderEngineVtk::RenderDepthImage(const DepthCameraProperties& camera,
@@ -223,6 +270,8 @@ void RenderEngineVtk::RenderLabelImage(const CameraProperties& camera,
 }
 
 void RenderEngineVtk::ImplementGeometry(const Sphere& sphere, void* user_data) {
+  // TODO(SeanCurtis-TRI): OSPRay supports a primitive sphere; find some way to
+  //  exercise *that* instead of needlessly tesselating when not using kGl.
   vtkNew<vtkSphereSource> vtk_sphere;
   vtk_sphere->SetRadius(sphere.get_radius());
   // TODO(SeanCurtis-TRI): Provide control for smoothness/tessellation.
@@ -233,6 +282,8 @@ void RenderEngineVtk::ImplementGeometry(const Sphere& sphere, void* user_data) {
 
 void RenderEngineVtk::ImplementGeometry(const Cylinder& cylinder,
                                         void* user_data) {
+  // TODO(SeanCurtis-TRI): OSPRay supports a primitive cylinder; find some way
+  //  to exercise *that* instead of needlessly tesselating when not using kGl.
   vtkNew<vtkCylinderSource> vtk_cylinder;
   vtk_cylinder->SetHeight(cylinder.get_length());
   vtk_cylinder->SetRadius(cylinder.get_radius());
@@ -316,11 +367,13 @@ std::unique_ptr<RenderEngine> RenderEngineVtk::DoClone() const {
 
 RenderEngineVtk::RenderEngineVtk(const RenderEngineVtk& other)
     : RenderEngine(other),
+      color_mode_{other{color_mode_}},
       pipelines_{{make_unique<RenderingPipeline>(),
                   make_unique<RenderingPipeline>(),
                   make_unique<RenderingPipeline>()}},
       default_diffuse_{other.default_diffuse_},
-      default_clear_color_{other.default_clear_color_} {
+      background_color_{other.background_color_},
+      color_mode_params_{other.color_mode_params_} {
   InitializePipelines();
 
   // Utility function for creating a cloned actor which *shares* the same

@@ -2,14 +2,43 @@
 
 #include <memory>
 
+#include "drake/common/drake_variant.h"
 #include "drake/geometry/render/render_engine.h"
 
 namespace drake {
 namespace geometry {
 namespace render {
 
+/** The rendering mode used by RenderEngineVtk when producing color images.
+ The OpenGL mode is fastest but produces the most primitive images. The ray
+ tracer model has similar fidelity to OpenGL but also produces hard-edged
+ shadows. The path tracer mode produces complex global illumination and depends
+ on the samples per pixel.
+
+ in which the RenderEngineVTK performs. The ray tracer can
+ produce hard shadows and doesn't depend on the samples per pixel value. The
+ path tracer produces complex global illumination and depends on the samples per
+ pixel.  */
+enum class VtkColorMode {
+  kGl,
+  kRayTracer,
+  kPathTracer
+};
+
+struct VtkGlParams {};
+struct VtkRaytraceParams {};
+struct VtkPathtraceParams {
+  /** The number of illumination samples per pixel. Higher numbers introduce
+   higher quality at increased cost. Only has an effect if mode is
+   OsprayMode::kPathTracer.  */
+  int samples_per_pixel{1};
+};
+
 /** Construction parameters for the RenderEngineVtk.  */
 struct RenderEngineVtkParams  {
+  /** The render mode for the render engine to use for color images.  */
+  VtkColorMode color_mode{VtkColorMode::kGl};
+
   /** The (optional) label to apply when none is otherwise specified.  */
   optional<RenderLabel> default_label{};
 
@@ -18,10 +47,19 @@ struct RenderEngineVtkParams  {
     by RenderEngineVtk.  */
   optional<Eigen::Vector4d> default_diffuse{};
 
-  /** The rgb color to which the color buffer is cleared (each
-   channel in the range [0, 1]). The default value (in byte values) would be
-   [204, 229, 255].  */
-  Eigen::Vector3d default_clear_color{204 / 255., 229 / 255., 255 / 255.};
+  // TODO(SeanCurtis-TRI): Reconcile this with a specified background image.
+  /** The rgb color for the environment background (each channel in the range
+   [0, 1]). The default value (in byte values) would be [204, 229, 255].  */
+  Eigen::Vector3d background_color{204 / 255., 229 / 255., 255 / 255.};
+
+  /** @name  Color render mode parameters.
+
+   The parameters used for the various color image render modes.  */
+  //@{
+  VtkGlParams gl_params;
+  VtkRaytraceParams raytrace_params;
+  VtkPathtraceParams pathtrace_params;
+  //@}
 };
 
 /** Constructs a RenderEngine implementation which uses a VTK-based OpenGL
@@ -34,6 +72,8 @@ struct RenderEngineVtkParams  {
  registering visual geometry, categorized by rendered image type.
 
  <h3>RGB images</h3>
+
+ @todo Document the variations based on the render mode.
 
  | Group name | Property Name | Required |  Property Type  | Property Description |
  | :--------: | :-----------: | :------: | :-------------: | :------------------- |

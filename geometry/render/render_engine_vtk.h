@@ -198,6 +198,9 @@ class RenderEngineVtk final : public RenderEngine,
   // Three pipelines: rgb, depth, and label.
   static constexpr int kNumPipelines = 3;
 
+  // The render mode to use for color images.
+  const VtkColorMode color_mode_;
+
   std::array<std::unique_ptr<RenderingPipeline>, kNumPipelines> pipelines_;
 
   // By design, all of the geometry is shared across clones of the render
@@ -220,12 +223,17 @@ class RenderEngineVtk final : public RenderEngine,
   Eigen::Vector4d default_diffuse_{0.9, 0.45, 0.1, 1.0};
 
   // The color to clear the color buffer to.
-  systems::sensors::ColorD default_clear_color_;
+    systems::sensors::ColorD background_color_;
 
   // The collection of per-geometry actors (one actor per pipeline (color,
   // depth, and label) keyed by the geometry's GeometryId.
   std::unordered_map<GeometryId, std::array<vtkSmartPointer<vtkActor>, 3>>
       actors_;
+
+  std::variant<VtkGlParams, VtkRaytraceParams, VtkPathtraceParams>
+      color_mode_params_;
+
+  std::unique_ptr<VtkOSPRayPass> ospray_;
 };
 
 }  // namespace render
