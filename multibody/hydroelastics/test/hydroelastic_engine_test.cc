@@ -41,8 +41,8 @@ class HydroelasticEngineTest : public ::testing::Test {
         scene_graph_.RegisterFrame(source_id_, GeometryFrame(name + "_frame"));
     GeometryId id = scene_graph_.RegisterGeometry(
         source_id_, frame_id,
-        make_unique<GeometryInstance>(RigidTransformd{}, make_unique<Sphere>(1.0),
-                                      name));
+        make_unique<GeometryInstance>(RigidTransformd{},
+                                      make_unique<Sphere>(1.0), name));
     return id;
   }
 

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <vector>
+
 #include "drake/geometry/query_object.h"
 #include "drake/geometry/query_results/contact_surface.h"
 #include "drake/geometry/scene_graph_inspector.h"

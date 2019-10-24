@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include "drake/common/test_utilities/eigen_matrix_compare.h"
 #include "drake/examples/multibody/rolling_sphere/make_rolling_sphere_plant.h"
 #include "drake/geometry/scene_graph.h"
 #include "drake/multibody/plant/multibody_plant.h"
@@ -155,7 +156,7 @@ TEST_F(HydroelasticContactResultsOutputTester, SlipVelocity) {
           &vslip_AB_W);
   DRAKE_DEMAND(linear_field);
   for (SurfaceVertexIndex i(0); i < vslip_AB_W.mesh().num_vertices(); ++i)
-    ASSERT_EQ(vslip_AB_W.EvaluateAtVertex(i), expected_slip);
+    ASSERT_TRUE(CompareMatrices(vslip_AB_W.EvaluateAtVertex(i), expected_slip));
 }
 
 // Checks that the tractions from the output port is consistent with the normal
@@ -185,8 +186,8 @@ TEST_F(HydroelasticContactResultsOutputTester, Traction) {
   for (SurfaceVertexIndex i(0); i < traction_A_W.mesh().num_vertices(); ++i) {
     const double pressure =
         results.contact_surface().e_MN().EvaluateAtVertex(i);
-    ASSERT_EQ(traction_A_W.EvaluateAtVertex(i),
-              expected_traction_direction * pressure);
+    ASSERT_TRUE(CompareMatrices(traction_A_W.EvaluateAtVertex(i),
+                                expected_traction_direction * pressure));
   }
 }
 

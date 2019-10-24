@@ -169,7 +169,7 @@ bool Callback(fcl::CollisionObjectd* object_A_ptr,
     const bool valid =(a_type == fcl::GEOM_BOX && b_type == fcl::GEOM_SPHERE) ||
         (a_type == fcl::GEOM_SPHERE && b_type == fcl::GEOM_BOX);
     if (!valid) {
-#if 1
+#if 0
       // NOTE: For current expediency, we're simply ignoring geometry pairs we
       // can't handle. Do not accidentally merge this into master.
       return false;
