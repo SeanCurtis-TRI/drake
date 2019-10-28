@@ -123,12 +123,19 @@ SoftGeometry MakeSphereFromFcl(fcl::CollisionObjectd* object_ptr,
   const double default_elastic_modulus = 1e8;
   const double elastic_modulus = properties.GetPropertyOrDefault(
       kHydroGroup, kElastic, default_elastic_modulus);
-  auto pressure = [elastic_modulus](double e) { return elastic_modulus * e; };
+  //  auto pressure = [elastic_modulus](double e) { return elastic_modulus * e;
+  //  };
+  auto pressure = [elastic_modulus, r](const Eigen::Vector3d& r_MV) {
+    const double r_squared = r_MV.squaredNorm();
+    const double x = r_squared / (r * r);
+    return elastic_modulus * (0.5 * (1.0 - x));
+  };
   std::vector<double> p0_values;
   for (const auto& v : geometry.mesh->vertices()) {
     const Eigen::Vector3d& p_MV = v.r_MV();
-    const double p_MV_len = p_MV.norm();
-    p0_values.push_back(pressure(1.0 - p_MV_len / r));
+    //    const double p_MV_len = p_MV.norm();
+    //    p0_values.push_back(pressure(1.0 - p_MV_len / r));
+    p0_values.push_back(pressure(p_MV));
   }
   geometry.p0 = std::make_unique<VolumeMeshFieldLinear<double, double>>(
       "p0", move(p0_values), geometry.mesh.get());
