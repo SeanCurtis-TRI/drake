@@ -136,10 +136,12 @@ drake_cc_library(
     name = "mesh_field",
     srcs = [
         "mesh_field.cc",
+        "mesh_field_constant.cc",
         "mesh_field_linear.cc",
     ],
     hdrs = [
         "mesh_field.h",
+        "mesh_field_constant.h",
         "mesh_field_linear.h",
     ],
     deps = [
@@ -271,6 +273,13 @@ drake_cc_library(
 )
 
 drake_cc_library(
+    name = "surface_mesh_test_utilities",
+    testonly = 1,
+    hdrs = ["test/surface_mesh_test_utilities.h"],
+    deps = [":surface_mesh"],
+)
+
+drake_cc_library(
     name = "volume_mesh",
     srcs = [
         "volume_mesh.cc",
@@ -390,8 +399,16 @@ drake_cc_googletest(
 )
 
 drake_cc_googletest(
+    name = "mesh_field_constant_test",
+    deps = [
+        "//geometry/proximity:mesh_field",
+    ],
+)
+
+drake_cc_googletest(
     name = "mesh_field_linear_test",
     deps = [
+        ":surface_mesh_test_utilities",
         "//geometry/proximity:mesh_field",
     ],
 )
