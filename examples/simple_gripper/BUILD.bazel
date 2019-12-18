@@ -16,8 +16,10 @@ load("//tools/lint:lint.bzl", "add_lint_tests")
 filegroup(
     name = "simple_gripper_models",
     srcs = [
+        "rainbow.png",
         "simple_gripper.sdf",
         "simple_mug.sdf",
+        "simple_mug.urdf",
     ],
     visibility = ["//visibility:public"],
 )
@@ -29,6 +31,8 @@ drake_cc_binary(
     data = [
         ":simple_gripper_models",
     ],
+    # The new dependency on the VTK renderer leads to lsan unhappiness.
+    tags = ["no_lsan"],
     test_rule_args = [
         "--integration_scheme=runge_kutta2",
         "--simulation_time=0.01",
@@ -39,6 +43,7 @@ drake_cc_binary(
         "//common:add_text_logging_gflags",
         "//common:find_resource",
         "//geometry:geometry_visualization",
+        "//geometry/render:render_engine_vtk",
         "//math:geometric_transform",
         "//multibody/parsing",
         "//multibody/plant",
@@ -51,6 +56,8 @@ drake_cc_binary(
         "//systems/framework:diagram",
         "//systems/lcm:lcm_pubsub_system",
         "//systems/primitives:sine",
+        "//systems/sensors:image_to_lcm_image_array_t",
+        "//systems/sensors:rgbd_sensor",
         "@gflags",
     ],
 )

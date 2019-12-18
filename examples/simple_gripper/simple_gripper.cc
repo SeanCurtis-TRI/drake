@@ -7,6 +7,7 @@
 #include "drake/common/drake_assert.h"
 #include "drake/common/find_resource.h"
 #include "drake/geometry/geometry_visualization.h"
+#include "drake/geometry/render/render_engine_vtk_factory.h"
 #include "drake/geometry/scene_graph.h"
 #include "drake/lcm/drake_lcm.h"
 #include "drake/math/roll_pitch_yaw.h"
@@ -23,6 +24,9 @@
 #include "drake/systems/analysis/simulator.h"
 #include "drake/systems/framework/diagram_builder.h"
 #include "drake/systems/primitives/sine.h"
+#include "drake/systems/sensors/image_to_lcm_image_array_t.h"
+#include "drake/systems/sensors/pixel_types.h"
+#include "drake/systems/sensors/rgbd_sensor.h"
 
 namespace drake {
 namespace examples {
@@ -30,11 +34,14 @@ namespace simple_gripper {
 namespace {
 
 using Eigen::Vector3d;
+using geometry::render::DepthCameraProperties;
+using geometry::render::RenderEngineVtkParams;
 using geometry::SceneGraph;
 using geometry::Sphere;
 using lcm::DrakeLcm;
 using math::RigidTransformd;
 using math::RollPitchYawd;
+using math::RotationMatrixd;
 using multibody::Body;
 using multibody::CoulombFriction;
 using multibody::ConnectContactResultsToDrakeVisualizer;
@@ -45,6 +52,8 @@ using systems::ImplicitEulerIntegrator;
 using systems::RungeKutta2Integrator;
 using systems::RungeKutta3Integrator;
 using systems::SemiExplicitEulerIntegrator;
+using systems::sensors::PixelType;
+using systems::sensors::RgbdSensor;
 using systems::Sine;
 
 // TODO(amcastro-tri): Consider moving this large set of parameters to a
@@ -108,6 +117,10 @@ DEFINE_double(amplitude, 0.15, "The amplitude of the harmonic oscillations "
               "carried out by the gripper. [m].");
 DEFINE_double(frequency, 2.0, "The frequency of the harmonic oscillations "
               "carried out by the gripper. [Hz].");
+
+// Render parameters.
+DEFINE_double(render_fps, 10, "Frequency at which color image are rendered");
+DEFINE_string(mug_ext, "urdf", "Extension of the mug to load (urdf or sdf)");
 
 // The pad was measured as a torus with the following major and minor radii.
 const double kPadMajorRadius = 14e-3;  // 14 mm.
@@ -176,8 +189,12 @@ int do_main() {
       FindResourceOrThrow("drake/examples/simple_gripper/simple_gripper.sdf");
   parser.AddModelFromFile(full_name);
 
-  full_name =
-      FindResourceOrThrow("drake/examples/simple_gripper/simple_mug.sdf");
+  if (FLAGS_mug_ext != "urdf" && FLAGS_mug_ext != "sdf") {
+    throw std::runtime_error(
+        "The mug extension must be one of either 'sdf' or 'urdf");
+  }
+  full_name = FindResourceOrThrow("drake/examples/simple_gripper/simple_mug." +
+                                  std::string(FLAGS_mug_ext));
   parser.AddModelFromFile(full_name);
 
   // Obtain the "translate_joint" axis so that we know the direction of the
@@ -298,6 +315,52 @@ int do_main() {
 
   builder.Connect(harmonic_force.get_output_port(0),
                   plant.get_actuation_input_port());
+
+  const std::string kRenderName = "renderer";
+  scene_graph.AddRenderer(kRenderName,
+                          MakeRenderEngineVtk(RenderEngineVtkParams()));
+  DepthCameraProperties camera_properties(640, 480, M_PI_4, kRenderName, 0.1,
+                                          2.0);
+  // We need to position and orient the camera. We have the camera body frame
+  // B (see rgbd_sensor.h) and the camera frame C (see camera_info.h).
+  // By default X_BC = I in the RgbdSensor. So, to aim the camera, Cz = Bz
+  // should point from the camera position to the origin. By points *down* in
+  // the image, so we need to align it in the -Wz direction. So, we compute the
+  // basis using camera Y-ish in the By ≈ -Wz direction to compute Bx, and
+  // then use Bx an and Bz to compute By.
+  const Vector3d p_WB(0.15, -0.5, 0.125);
+  // Set rotation looking at the origin.
+  const Vector3d Bz_W = -p_WB.normalized();
+  const Vector3d Bx_W = -Vector3d::UnitZ().cross(Bz_W).normalized();
+  const Vector3d By_W = Bz_W.cross(Bx_W).normalized();
+  const RotationMatrixd R_WB =
+      RotationMatrixd::MakeFromOrthonormalColumns(Bx_W, By_W, Bz_W);
+  const RigidTransformd X_WB(R_WB, p_WB);
+
+  auto camera = builder.AddSystem<RgbdSensor>(
+      scene_graph.world_frame_id(), X_WB, camera_properties);
+  builder.Connect(scene_graph.get_query_output_port(),
+                  camera->query_object_input_port());
+
+  // Broadcast the images.
+  // Publishing images to drake visualizer
+  auto image_to_lcm_image_array =
+      builder.template AddSystem<systems::sensors::ImageToLcmImageArrayT>();
+  image_to_lcm_image_array->set_name("converter");
+
+  systems::lcm::LcmPublisherSystem* image_array_lcm_publisher{nullptr};
+  image_array_lcm_publisher = builder.template AddSystem(
+      systems::lcm::LcmPublisherSystem::Make<robotlocomotion::image_array_t>(
+          "DRAKE_RGBD_CAMERA_IMAGES", &lcm,
+          1. / FLAGS_render_fps /* publish period */));
+  image_array_lcm_publisher->set_name("publisher");
+
+  builder.Connect(image_to_lcm_image_array->image_array_t_msg_output_port(),
+                  image_array_lcm_publisher->get_input_port());
+  const auto& port =
+      image_to_lcm_image_array->DeclareImageInputPort<PixelType::kRgba8U>(
+          "color");
+  builder.Connect(camera->color_image_output_port(), port);
 
   auto diagram = builder.Build();
 

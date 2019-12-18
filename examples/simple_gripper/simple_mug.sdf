@@ -41,14 +41,22 @@
             <radius>0.04</radius>
           </cylinder>
         </geometry>
+        <material>
+          <drake:diffuse_map>rainbow.png</drake:diffuse_map>
+        </material>
       </visual>
       <visual name='mug_handle_visual'>
-        <pose frame=''>0.055 0 0.05 0 -0 0</pose>
+        <!-- Half handle at the top of the mug -- contrast with the urdf file
+             that has a half handle at the bottom.  -->
+        <pose frame=''>0.055 0 0.07 0 -0 0</pose>
         <geometry>
           <box>
-            <size>0.03 0.02 0.08</size>
+            <size>0.03 0.02 0.04</size>
           </box>
         </geometry>
+        <material>
+          <drake:diffuse_map>rainbow.png</drake:diffuse_map>
+        </material>
       </visual>
     </link>
   </model>
