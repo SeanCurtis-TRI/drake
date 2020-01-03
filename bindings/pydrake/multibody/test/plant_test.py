@@ -176,6 +176,12 @@ class TestPlant(unittest.TestCase):
             plant.RegisterCollisionGeometry(
                 body=body, X_BG=body_X_BG, shape=box,
                 name="new_body_collision", coulomb_friction=body_friction)
+            properties = ProximityProperties()
+            properties.AddProperty("test", "dummy", 7)
+            plant.RegisterCollisionGeometry(
+                body=body, X_BG=body_X_BG, shape=box,
+                name="new_body_collision2", coulomb_friction=body_friction,
+                properties=properties)
             self.assertGreater(plant.num_collision_geometries(), 0)
             self.assertEqual(plant.default_coulomb_friction(
                 plant.GetCollisionGeometriesForBody(body)[0]
