@@ -245,6 +245,7 @@ int DoMain() {
       FindResourceOrThrow("drake/examples/planar_gripper/planar_gripper.sdf");
   MultibodyPlant<double>& plant =
       *builder.AddSystem<MultibodyPlant>(FLAGS_time_step);
+  plant.set_contact_model(multibody::ContactModel::kHydroelasticsOnly);
   const ModelInstanceIndex gripper_index =
       Parser(&plant, &scene_graph).AddModelFromFile(full_name);
   WeldGripperFrames<double>(&plant);

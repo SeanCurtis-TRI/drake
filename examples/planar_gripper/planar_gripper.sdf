@@ -113,6 +113,12 @@
         <material>
           <diffuse>1 0 1 1</diffuse>
         </material>
+        <drake:proximity_properties>
+          <drake:mesh_resolution_hint>0.05</drake:mesh_resolution_hint>
+          <drake:soft_hydroelastic/>
+          <drake:elastic_modulus>5e4</drake:elastic_modulus>
+          <drake:hunt_crossley_dissipation>5</drake:hunt_crossley_dissipation>
+        </drake:proximity_properties>
       </collision>
       <visual name="sensor_visual">
         <pose>0 0 -0.0425 0 0 0</pose>
@@ -323,6 +329,12 @@
         <material>
           <diffuse>1 0 1 1</diffuse>
         </material>
+        <drake:proximity_properties>
+          <drake:mesh_resolution_hint>0.05</drake:mesh_resolution_hint>
+          <drake:soft_hydroelastic/>
+          <drake:elastic_modulus>5e4</drake:elastic_modulus>
+          <drake:hunt_crossley_dissipation>5</drake:hunt_crossley_dissipation>
+        </drake:proximity_properties>
       </collision>
       <visual name="sensor_visual">
         <pose>0 0 -0.0425 0 0 0</pose>
@@ -533,6 +545,12 @@
         <material>
           <diffuse>1 0 1 1</diffuse>
         </material>
+        <drake:proximity_properties>
+          <drake:mesh_resolution_hint>0.05</drake:mesh_resolution_hint>
+          <drake:soft_hydroelastic/>
+          <drake:elastic_modulus>5e4</drake:elastic_modulus>
+          <drake:hunt_crossley_dissipation>5</drake:hunt_crossley_dissipation>
+        </drake:proximity_properties>
       </collision>
       <visual name="sensor_visual">
         <pose>0 0 -0.0425 0 0 0</pose>
