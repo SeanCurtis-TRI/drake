@@ -13,8 +13,10 @@
 #include "drake/geometry/proximity/collision_filter_legacy.h"
 #include "drake/geometry/proximity/hydroelastic_internal.h"
 #include "drake/geometry/proximity/mesh_intersection.h"
+#include "drake/geometry/proximity/penetration_as_point_pair_callback.h"
 #include "drake/geometry/proximity/proximity_utilities.h"
 #include "drake/geometry/query_results/contact_surface.h"
+#include "drake/geometry/query_results/penetration_as_point_pair.h"
 #include "drake/math/rigid_transform.h"
 #include "drake/math/rotation_matrix.h"
 
@@ -74,6 +76,57 @@ struct CallbackData {
   std::vector<ContactSurface<T>>& surfaces;
 };
 
+enum class CalcContactSurfaceResult {
+  kCalculated,      //< Contact surface has been successfully computed.
+  kUnsupprted,      //< Contact surface can't be computed for the geometry pair.
+  kSameCompliance   //< The two geometries have the same compliance.
+};
+
+/** */
+template <typename T>
+CalcContactSurfaceResult CalcContactSurfaceMaybe(
+    fcl::CollisionObjectd* object_A_ptr, fcl::CollisionObjectd* object_B_ptr,
+    CallbackData<T>* data) {
+  const EncodedData encoding_a(*object_A_ptr);
+  const EncodedData encoding_b(*object_B_ptr);
+
+  const HydroelasticType type_A =
+      data->geometries.hydroelastic_type(encoding_a.id());
+  const HydroelasticType type_B =
+      data->geometries.hydroelastic_type(encoding_b.id());
+  if (type_A == HydroelasticType::kUndefined ||
+      type_B == HydroelasticType::kUndefined) {
+    return CalcContactSurfaceResult::kUnsupprted;
+  }
+  if (type_A == type_B) {
+    return CalcContactSurfaceResult::kSameCompliance;
+  }
+
+  bool A_is_rigid = type_A == HydroelasticType::kRigid;
+  const GeometryId id_S = A_is_rigid ? encoding_b.id() : encoding_a.id();
+  const GeometryId id_R = A_is_rigid ? encoding_a.id() : encoding_b.id();
+
+  const math::RigidTransform<T>& X_WS(data->X_WGs.at(id_S));
+  const math::RigidTransform<T>& X_WR(data->X_WGs.at(id_R));
+
+  // TODO(SeanCurtis-TRI): We are currently assuming that *everything* is a
+  //  mesh. When rigid and compliant half spaces are fully supported modify
+  //  this.
+  const SoftGeometry& soft = data->geometries.soft_geometry(id_S);
+  const VolumeMeshField<double, double>& field_S = soft.pressure_field();
+  const RigidGeometry& rigid = data->geometries.rigid_geometry(id_R);
+  const SurfaceMesh<double>& mesh_R = rigid.mesh();
+
+  std::unique_ptr<ContactSurface<T>> surface =
+      mesh_intersection::ComputeContactSurfaceFromSoftVolumeRigidSurface(
+          id_S, field_S, X_WS, id_R, mesh_R, X_WR);
+
+  DRAKE_DEMAND(surface->id_M() < surface->id_N());
+  data->surfaces.emplace_back(std::move(*surface));
+
+  return CalcContactSurfaceResult::kCalculated;
+}
+
 /** The callback function for computing a hydroelastic contact surface between
  two arbitrary shapes.
 
@@ -98,57 +151,72 @@ bool Callback(fcl::CollisionObjectd* object_A_ptr,
       encoding_a.encoding(), encoding_b.encoding());
 
   if (can_collide) {
+    CalcContactSurfaceResult result =
+        CalcContactSurfaceMaybe(object_A_ptr, object_B_ptr, &data);
+
+    // Surface calculated; we're done.
+    if (result == CalcContactSurfaceResult::kCalculated) return false;
+
     const HydroelasticType type_A =
         data.geometries.hydroelastic_type(encoding_a.id());
     const HydroelasticType type_B =
         data.geometries.hydroelastic_type(encoding_b.id());
-    if (type_A == HydroelasticType::kUndefined ||
-        type_B == HydroelasticType::kUndefined) {
-      // TODO(SeanCurtis-TRI): I may need to turn this into a `return false;`if
-      //  I want to exercise this code in the current state of affairs and
-      //  simply ignore unsupported geometry.
-      throw std::logic_error(fmt::format(
-          "Requested a contact surface between a pair of geometries without "
-          "hydroelastic representation for at least one shape: a {} {} with id "
-          "{} and a {} {} with id {}",
-          type_A, GetGeometryName(*object_A_ptr), encoding_a.id(), type_B,
-          GetGeometryName(*object_B_ptr), encoding_b.id()));
+
+    switch (result) {
+      case CalcContactSurfaceResult::kUnsupprted:
+        throw std::logic_error(fmt::format(
+            "Requested a contact surface between a pair of geometries without "
+            "hydroelastic representation for at least one shape: a {} {} with "
+            "id {} and a {} {} with id {}",
+            type_A, GetGeometryName(*object_A_ptr), encoding_a.id(), type_B,
+            GetGeometryName(*object_B_ptr), encoding_b.id()));
+      case CalcContactSurfaceResult::kSameCompliance:
+        throw std::logic_error(fmt::format(
+            "Requested contact between two {} objects ({} with id "
+            "{}, {} with id {}); only rigid-soft pairs are currently supported",
+            type_A, GetGeometryName(*object_A_ptr), encoding_a.id(),
+            GetGeometryName(*object_B_ptr), encoding_b.id()));
+      default:DRAKE_UNREACHABLE();
     }
-    if (type_A == type_B) {
-      throw std::logic_error(fmt::format(
-          "Requested contact between two {} objects ({} with id "
-          "{}, {} with id {}); only rigid-soft pairs are currently supported",
-          type_A, GetGeometryName(*object_A_ptr), encoding_a.id(),
-          GetGeometryName(*object_B_ptr), encoding_b.id()));
-    }
+  }
 
-    const bool A_is_rigid = type_A == HydroelasticType::kRigid;
-    const GeometryId id_S = A_is_rigid ? encoding_b.id() : encoding_a.id();
-    const GeometryId id_R = A_is_rigid ? encoding_a.id() : encoding_b.id();
+  // Tell the broadphase to keep searching.
+  return false;
+}
 
-    const math::RigidTransform<T>& X_WS(data.X_WGs.at(id_S));
-    const math::RigidTransform<T>& X_WR(data.X_WGs.at(id_R));
+template <typename T>
+struct CallbackWithFallbackData {
+  CallbackData<T> data;
+  std::vector<PenetrationAsPointPair<double>>* point_pairs;
+};
 
-    // TODO(SeanCurtis-TRI): We are currently assuming that *everything* is a
-    //  mesh. When rigid and compliant half spaces are fully supported modify
-    //  this.
-    const SoftGeometry& soft = data.geometries.soft_geometry(id_S);
-    const VolumeMeshField<double, double>& field_S = soft.pressure_field();
-    const RigidGeometry& rigid = data.geometries.rigid_geometry(id_R);
-    const SurfaceMesh<double>& mesh_R = rigid.mesh();
+template <typename T>
+bool CallbackWithFallback(fcl::CollisionObjectd* object_A_ptr,
+                          fcl::CollisionObjectd* object_B_ptr,
+                          // NOLINTNEXTLINE
+                          void* callback_data) {
+  auto& data = *static_cast<CallbackWithFallbackData<T>*>(callback_data);
 
-    // TODO(SeanCurtis-TRI): There are multiple heap allocations implicit in
-    // this (resizing vector, constructing mesh and pressure field), this *may*
-    // prove to be too expensive to be in the inner loop of the simulation.
-    // Keep an eye on this.
-    std::unique_ptr<ContactSurface<T>> surface =
-        mesh_intersection::ComputeContactSurfaceFromSoftVolumeRigidSurface(
-            id_S, field_S, X_WS, id_R, mesh_R, X_WR);
+  const EncodedData encoding_a(*object_A_ptr);
+  const EncodedData encoding_b(*object_B_ptr);
 
-    if (surface != nullptr) {
-      DRAKE_DEMAND(surface->id_M() < surface->id_N());
-      data.surfaces.emplace_back(std::move(*surface));
-    }
+  const bool can_collide = data.data.collision_filter.CanCollideWith(
+      encoding_a.encoding(), encoding_b.encoding());
+
+  if (can_collide) {
+    CalcContactSurfaceResult result =
+        CalcContactSurfaceMaybe(object_A_ptr, object_B_ptr, &data.data);
+
+    // Surface calculated; we're done.
+    if (result == CalcContactSurfaceResult::kCalculated) return false;
+
+    // Fall back to point pair.
+    // TODO(SeanCurtis-TRI): This is a problem; point pair is only double.
+    //   fallback can only be double.
+    penetration_as_point_pair::CallbackData point_data{
+        &data.data.collision_filter, data.point_pairs};
+    penetration_as_point_pair::Callback(object_A_ptr, object_B_ptr,
+                                        &point_data);
   }
   // Tell the broadphase to keep searching.
   return false;
