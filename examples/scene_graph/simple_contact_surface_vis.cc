@@ -26,6 +26,7 @@
 #include "drake/lcm/drake_lcm.h"
 #include "drake/lcmt_contact_results_for_viz.hpp"
 #include "drake/math/rigid_transform.h"
+#include "drake/multibody/plant/coulomb_friction.h"
 #include "drake/systems/analysis/simulator.h"
 #include "drake/systems/framework/context.h"
 #include "drake/systems/framework/continuous_state.h"
@@ -48,6 +49,7 @@ using geometry::FramePoseVector;
 using geometry::GeometryFrame;
 using geometry::GeometryId;
 using geometry::GeometryInstance;
+using geometry::AddContactMaterial;
 using geometry::AddRigidHydroelasticProperties;
 using geometry::AddSoftHydroelasticProperties;
 using geometry::IllustrationProperties;
@@ -61,6 +63,7 @@ using geometry::SurfaceFaceIndex;
 using geometry::SurfaceVertex;
 using lcm::DrakeLcm;
 using math::RigidTransformd;
+using multibody::CoulombFriction;
 using std::make_unique;
 using systems::BasicVector;
 using systems::Context;
@@ -99,8 +102,7 @@ class MovingBall final : public LeafSystem<double> {
                                       make_unique<Sphere>(1.0), "ball"));
 
     ProximityProperties prox_props;
-    prox_props.AddProperty(geometry::internal::kMaterialGroup,
-                           geometry::internal::kElastic, 1e8);
+    AddContactMaterial(1e8, 0.0, CoulombFriction<double>(), &prox_props);
     AddSoftHydroelasticProperties(FLAGS_length, &prox_props);
     scene_graph->AssignRole(source_id_, geometry_id_, prox_props);
 
