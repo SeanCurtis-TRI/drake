@@ -29,20 +29,25 @@ using std::vector;
 SoftGeometry& SoftGeometry::operator=(const SoftGeometry& g) {
   if (this == &g) return *this;
 
-  auto mesh = make_unique<VolumeMesh<double>>(g.mesh());
-  // We can't simply copy the mesh field; the copy must contain a pointer to the
-  // new mesh. So, we use CloneAndSetMesh() instead.
-  auto pressure = g.pressure_field().CloneAndSetMesh(mesh.get());
-  geometry_ = SoftMesh(move(mesh), move(pressure));
-
+  if (g.is_half_space()) {
+    geometry_ = SoftHalfSpace{g.slab_thickness(), g.pressure_func()};
+  } else {
+    auto mesh = make_unique<VolumeMesh<double>>(g.mesh());
+    // We can't simply copy the mesh field; the copy must contain a pointer to
+    // the new mesh. So, we use CloneAndSetMesh() instead.
+    auto pressure = g.pressure_field().CloneAndSetMesh(mesh.get());
+    geometry_ = SoftMesh{move(mesh), move(pressure)};
+  }
   return *this;
 }
 
 RigidGeometry& RigidGeometry::operator=(const RigidGeometry& g) {
   if (this == &g) return *this;
 
-  auto mesh = make_unique<SurfaceMesh<double>>(g.mesh());
-  geometry_ = RigidMesh(move(mesh));
+  geometry_ = std::nullopt;
+  if (!g.is_half_space()) {
+    geometry_ = RigidMesh(make_unique<SurfaceMesh<double>>(g.mesh()));
+  }
 
   return *this;
 }
@@ -196,6 +201,12 @@ class PositiveDouble : public Validator<double> {
 };
 
 std::optional<RigidGeometry> MakeRigidRepresentation(
+    const HalfSpace&, const ProximityProperties&) {
+  // Default constructor creates a rigid half space.
+  return RigidGeometry();
+}
+
+std::optional<RigidGeometry> MakeRigidRepresentation(
     const Sphere& sphere, const ProximityProperties& props) {
   PositiveDouble validator("Sphere", "rigid");
   const double edge_length = validator.Extract(props, kHydroGroup, kRezHint);
@@ -310,6 +321,20 @@ std::optional<SoftGeometry> MakeSoftRepresentation(
       MakeEllipsoidPressureField(ellipsoid, mesh.get(), elastic_modulus));
 
   return SoftGeometry(move(mesh), move(pressure));
+}
+
+std::optional<SoftGeometry> MakeSoftRepresentation(
+    const HalfSpace&, const ProximityProperties& props) {
+  const double thickness = PositiveDouble("HalfSpace", "soft")
+                               .Extract(props, kHydroGroup, kThickness);
+
+  // E is the elastic modulus.
+  const double elastic_modulus = PositiveDouble("HalfSpace", "soft")
+                                     .Extract(props, kMaterialGroup, kElastic);
+  auto pressure_func = [elastic_modulus](double extent) {
+    return elastic_modulus * extent;
+  };
+  return SoftGeometry(thickness, pressure_func);
 }
 
 }  // namespace hydroelastic

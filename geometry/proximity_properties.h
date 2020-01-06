@@ -48,6 +48,7 @@ extern const char* const kHcDissipation;  ///< Hunt-Crossley dissipation
    - utility functions for declaring consistent hydroelastic properties
      including
        - differentiating between a rigid and soft geometry
+       - accounting for differences between tessellated meshes and half spaces.
 
  @todo Add reference to discussion of hydroelastic proximity properties along
  the lines of "For the full discussion of preparing geometry for use in the
@@ -58,6 +59,8 @@ extern const char* const kHcDissipation;  ///< Hunt-Crossley dissipation
 extern const char* const kHydroGroup;   ///< Hydroelastic group name.
 extern const char* const kRezHint;      ///< Resolution hint property name.
 extern const char* const kCompliance;   ///< Compliance type property name.
+extern const char* const kThickness;    ///< Slab thickness property name (for
+                                        ///< half spaces).
 
 //@}
 
@@ -132,10 +135,26 @@ void AddRigidHydroelasticProperties(ProximityProperties* properties);
 void AddSoftHydroelasticProperties(double resolution_hint,
                                    ProximityProperties* properties);
 
+// TODO(SeanCurtis-TRI): Determine if this is still an appropriate API or if
+//  it has been supplanted by the slab_thickenss variant.
 /** Overload, intended for shapes that don't get tessellated in their
  hydroelastic representation (e.g., HalfSpace).
  See @ref MODULE_NOT_WRITTEN_YET.  */
 void AddSoftHydroelasticProperties(ProximityProperties* properties);
+
+/** Soft half spaces are handled as a special case; they do not get tessellated.
+ Instead, they are treated as infinite slabs with a finite thickness. This
+ variant is required for hydroelastic half spaces.
+
+ @param slab_thickness      The distance from the half space boundary to its
+                            rigid core (this helps define the extent field of
+                            the half space).
+ @param[out] properties     The properties will be added to this property set.
+ @throws std::logic_error If `properties` already has properties with the names
+                          that this function would need to add.
+ @pre 0 < `slab_thickness` < ∞ . */
+void AddSoftHydroelasticPropertiesForHalfSpace(double slab_thickness,
+                                               ProximityProperties* properties);
 
 //@}
 

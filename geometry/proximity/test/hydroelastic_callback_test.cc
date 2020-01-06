@@ -47,6 +47,9 @@ ProximityProperties soft_properties() {
   props.AddProperty(kMaterialGroup, kElastic, 1e8);
   const double chararacteristic_length = 0.25;
   AddSoftHydroelasticProperties(chararacteristic_length, &props);
+  // Redundantly add slab thickness so it can be used with compliant mesh or
+  // compliant half space.
+  props.AddProperty(kHydroGroup, kThickness, 0.25);
   return props;
 }
 
