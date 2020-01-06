@@ -104,7 +104,6 @@ bool Callback(fcl::CollisionObjectd* object_A_ptr,
         data.geometries.hydroelastic_type(encoding_b.id());
     if (type_A == HydroelasticType::kUndefined ||
         type_B == HydroelasticType::kUndefined) {
-
       // TODO(SeanCurtis-TRI): I may need to turn this into a `return false;`if
       //  I want to exercise this code in the current state of affairs and
       //  simply ignore unsupported geometry.

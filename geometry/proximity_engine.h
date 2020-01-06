@@ -114,6 +114,29 @@ class ProximityEngine {
                            const math::RigidTransformd& X_WG, GeometryId id,
                            const ProximityProperties& props = {});
 
+  /**  Updates the proximity representation of the geometry indicated by `id`
+   to reflect the *possible* changes in the given proximity `properties`. If the
+   properties have not changed in a way that affects proximity engine, no
+   change will happen.
+
+   Just because `true` is returned doesn't mean that the engine's representation
+   is *literally* different. The engine may act conservatively and reprocess
+   the geometry to insure not missing a significant change. This may lead to
+   it returning true even though the end result is exactly the initial data.
+   False, however, does guarantee that no appreciable work was done to modify
+   the representation.
+
+   @param geometry          The geometry to update.
+   @param new_properties    The properties to associate with the given geometry.
+   @returns True if the %ProximityEngine did work in response to the invocation.
+   @throws std::logic_error   if `geometry` doesn't map a known geometry in the
+                              engine or if the new properties don't contain a
+                              coherent collection of properties.
+  @pre `geometry` still has a copy of the proximity properties that are to be
+        replaced.  */
+  bool ReplaceProperties(const InternalGeometry& geometry,
+                         const ProximityProperties& new_properties);
+
   // TODO(SeanCurtis-TRI): Decide if knowing whether something is dynamic or not
   //  is *actually* sufficiently helpful to justify this act.
   /** Removes the given geometry indicated by `id` from the engine.

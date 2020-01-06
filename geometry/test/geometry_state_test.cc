@@ -2449,11 +2449,11 @@ TEST_F(GeometryStateTest, ModifyRoleProperties) {
 
   DRAKE_EXPECT_NO_THROW(geometry_state_.AssignRole(
       source_id_, geometries_[0], props2, RoleAssign::kReplace));
+
   // Confirm modification doesn't introduce duplicates; should still be one.
   EXPECT_EQ(gs_tester_.proximity_engine().num_geometries(), 1);
 
-  props =
-      geometry_state_.GetProximityProperties(geometries_[0]);
+  props = geometry_state_.GetProximityProperties(geometries_[0]);
   EXPECT_NE(props, nullptr);
   EXPECT_TRUE(props->HasGroup("prop2"));
   EXPECT_FALSE(props->HasGroup("prop1"));

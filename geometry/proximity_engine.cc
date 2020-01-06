@@ -315,6 +315,46 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
     collision_filter_.AddGeometry(encoding.encoding());
   }
 
+  bool ReplaceProperties(const InternalGeometry& geometry,
+                         const ProximityProperties& new_properties) {
+    const GeometryId id = geometry.id();
+    // Note: The only aspect of a geometry's representation to be affected by
+    // its proximity properties is its hydroelastic representation.
+    if (dynamic_objects_.count(id) == 0 && anchored_objects_.count(id) == 0) {
+      throw std::logic_error(
+          fmt::format("The proximity engine does not contain a geometry with "
+                      "the id {}; its properties cannot be replaced",
+                      id));
+    }
+
+    const auto new_type = new_properties.GetPropertyOrDefault(
+        internal::kHydroGroup, internal::kCompliance,
+        HydroelasticType::kUndefined);
+    if (new_type == HydroelasticType::kUndefined) {
+      // Check to see if I need to remove hydroelastic representation.
+      if (hydroelastic_geometries_.hydroelastic_type(id) !=
+          HydroelasticType::kUndefined) {
+        hydroelastic_geometries_.RemoveGeometry(id);
+        return true;
+      }
+    } else {
+      // Update hydroelastic representation as necessary.
+      // TODO(SeanCurtis-TRI): Given the geometry parameter, I have access
+      //  to the *old* proximity properties. I could compare the new and old
+      //  to determine if a change is necessary.
+      //  I might also reconsider passing the internal geometry in. I'm
+      //  doing it because it packages shape, id, and properties all together.
+      //  Shape and id are necessary to update geometry, and old properties are
+      //  necessary to limit *when* I do the update. Should I be passing those
+      //  quantities in as individual parameters?
+      hydroelastic_geometries_.RemoveGeometry(id);
+      hydroelastic_geometries_.MaybeAddGeometry(geometry.shape(), id,
+                                                new_properties);
+      return true;
+    }
+    return false;
+  }
+
   void RemoveGeometry(GeometryId id, bool is_dynamic) {
     if (is_dynamic) {
       if (dynamic_objects_.find(id) != dynamic_objects_.end()) {
@@ -1121,6 +1161,13 @@ void ProximityEngine<T>::AddAnchoredGeometry(
     const Shape& shape, const RigidTransformd& X_WG, GeometryId id,
     const ProximityProperties& props) {
   impl_->AddAnchoredGeometry(shape, X_WG, id, props);
+}
+
+template <typename T>
+bool ProximityEngine<T>::ReplaceProperties(
+    const InternalGeometry& geometry,
+    const ProximityProperties& new_properties) {
+  return impl_->ReplaceProperties(geometry, new_properties);
 }
 
 template <typename T>
