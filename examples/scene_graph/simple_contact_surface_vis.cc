@@ -72,7 +72,7 @@ using systems::Simulator;
 
 DEFINE_double(simulation_time, 10.0,
               "Desired duration of the simulation in seconds.");
-DEFINE_bool(real_time, true, "Set to false to run as fast as possible");
+DEFINE_double(real_time, 1.0, "Target real time factor");
 DEFINE_double(length, 1.0,
               "Measure of sphere edge length -- smaller numbers produce a "
               "denser, more expensive mesh");
@@ -282,7 +282,7 @@ int do_main() {
   systems::Simulator<double> simulator(*diagram);
 
   simulator.get_mutable_integrator().set_maximum_step_size(0.002);
-  simulator.set_target_realtime_rate(FLAGS_real_time ? 1.f : 0.f);
+  simulator.set_target_realtime_rate(FLAGS_real_time);
   simulator.Initialize();
   simulator.AdvanceTo(FLAGS_simulation_time);
   return 0;
