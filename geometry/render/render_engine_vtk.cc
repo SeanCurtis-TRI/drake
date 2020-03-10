@@ -389,15 +389,6 @@ void RenderEngineVtk::InitializePipelines() {
   const vtkSmartPointer<vtkTransform> vtk_identity =
       ConvertToVtkTransform(RigidTransformd::Identity());
 
-  // TODO(SeanCurtis-TRI): Things like configuring lights should *not* be part
-  //  of initializing the pipelines. When we support light declaration, this
-  //  will get moved out.
-  light_->SetLightTypeToCameraLight();
-  light_->SetConeAngle(45.0);
-  light_->SetAttenuationValues(1.0, 0.0, 0.0);
-  light_->SetIntensity(1);
-  light_->SetTransformMatrix(vtk_identity->GetMatrix());
-
   // Generic configuration of pipelines.
   for (auto& pipeline : pipelines_) {
     // Multisampling disabled by design for label and depth. It's turned off for
@@ -429,8 +420,44 @@ void RenderEngineVtk::InitializePipelines() {
     pipeline->exporter->SetInputData(pipeline->filter->GetOutput());
     pipeline->exporter->ImageLowerLeftOff();
 
-    pipeline->renderer->AddLight(light_);
   }
+
+  // TODO(SeanCurtis-TRI): Things like configuring lights should *not* be part
+  //  of initializing the pipelines. When we support light declaration, this
+  //  will get moved out.
+
+  // NOTE: Much of the API doesn't seem to have much affect:
+  //  1. What works:
+  //     - Changing the light type (scene, headlight, camera) does seem to work.
+  //     - SetColor = SetDiffuseColor both work.
+  //     - setting the position (although because it's a directional light, only
+  //       the direction of the triple (x, y, z) matters; the magnitude is
+  //       irrelevant.
+  //  2. What appears to make no difference
+  //     - PositionalOn(), SetPositional(true) - the lights seem to be stuck
+  //       as directional.
+  //     - Anything that depends on the light being a point light.
+  //     - setting the intensity.
+
+  // First light: a positional light at (10, 10, 10)
+  light_->SetLightTypeToSceneLight();
+  light_->SetDiffuseColor(1.0, 0, 0);
+  light_->PositionalOn();
+  light_->SetIntensity(0.01);
+  light_->SetPosition(20, 0, 20);  // z-up
+  light_->SetConeAngle(15.0);
+  light_->SetFocalPoint(0, 0, 0);
+  pipelines_[ImageType::kColor]->renderer->AddLight(light_);
+
+  // Second light: a light infinitely far away connected to the camera.
+  vtkSmartPointer<vtkLight> light2 = vtkSmartPointer<vtkLight>::New();
+  light2->SetLightTypeToCameraLight();
+  light_->PositionalOff();
+  light2->SetDiffuseColor(0.0, 1.0, 0.0);
+  light2->SetPosition(0, -1, 0);
+  light_->SetIntensity(1);
+  pipelines_[ImageType::kColor]->renderer->AddLight(light2);
+
 
   // Pipeline-specific tweaks.
 
