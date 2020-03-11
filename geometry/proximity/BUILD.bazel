@@ -152,6 +152,7 @@ drake_cc_library(
         ":collision_filter_legacy",
         ":hydroelastic_internal",
         ":mesh_intersection",
+        ":mesh_plane_intersection",
         ":penetration_as_point_pair_callback",
         ":proximity_utilities",
         ":surface_mesh",
@@ -335,6 +336,7 @@ drake_cc_library(
     srcs = ["mesh_plane_intersection.cc"],
     hdrs = ["mesh_plane_intersection.h"],
     deps = [
+        ":bounding_volume_hierarchy",
         ":contact_surface_utility",
         ":mesh_field",
         ":plane",
