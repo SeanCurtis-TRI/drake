@@ -61,14 +61,26 @@ void AddContactMaterial(
   }
 }
 
-// NOTE: Although these functions currently do the same thing, we're leaving
-// the two functions in place to facilitate future differences.
-
-void AddRigidHydroelasticProperties(double resolution_hint,
-                                    ProximityProperties* properties) {
+void AddResolutionHint(double resolution_hint,
+                       ProximityProperties* properties) {
   DRAKE_DEMAND(properties);
+  if (resolution_hint <= 0.0) {
+    throw std::logic_error(
+        fmt::format("The resolution hint must be greater than zero; given {}",
+                    resolution_hint));
+  }
+
   properties->AddProperty(internal::kHydroGroup, internal::kRezHint,
                           resolution_hint);
+}
+
+void AddRigidHydroelasticProperties(
+    const std::optional<double>& resolution_hint,
+    ProximityProperties* properties) {
+  DRAKE_DEMAND(properties);
+  if (resolution_hint.has_value()) {
+    AddResolutionHint(*resolution_hint, properties);
+  }
   AddRigidHydroelasticProperties(properties);
 }
 
@@ -81,11 +93,35 @@ void AddRigidHydroelasticProperties(ProximityProperties* properties) {
                           internal::HydroelasticType::kRigid);
 }
 
+void AddSlabThickness(double slab_thickness, ProximityProperties* properties) {
+  DRAKE_DEMAND(properties);
+  if (slab_thickness <= 0.0) {
+    throw std::logic_error(fmt::format(
+        "The slab thickness value must be greater than zero; given {}",
+        slab_thickness));
+  }
+
+  properties->AddProperty(internal::kHydroGroup, internal::kThickness,
+                          slab_thickness);
+}
+
+void AddSoftHydroelasticProperties(const std::optional<double> resolution_hint,
+                                   const std::optional<double>& slab_thickness,
+                                   ProximityProperties* properties) {
+  DRAKE_DEMAND(properties);
+  if (resolution_hint.has_value()) {
+    AddResolutionHint(*resolution_hint, properties);
+  }
+  if (slab_thickness.has_value()) {
+    AddSlabThickness(*slab_thickness, properties);
+  }
+  AddSoftHydroelasticProperties(properties);
+}
+
 void AddSoftHydroelasticProperties(double resolution_hint,
                                    ProximityProperties* properties) {
   DRAKE_DEMAND(properties);
-  properties->AddProperty(internal::kHydroGroup, internal::kRezHint,
-                          resolution_hint);
+  AddResolutionHint(resolution_hint, properties);
   AddSoftHydroelasticProperties(properties);
 }
 

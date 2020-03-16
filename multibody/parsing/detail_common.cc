@@ -7,25 +7,17 @@ namespace internal {
 geometry::ProximityProperties ParseProximityProperties(
     const std::function<std::optional<double>(const char*)>& read_double,
     bool is_rigid, bool is_soft) {
-  // Both being true is disallowed -- so assert is_rigid NAND is_soft.
+  // Both being true is disallowed -- so assert is_rigid NAND is_soft as a
+  // safety net.
   DRAKE_DEMAND(!(is_rigid && is_soft));
+
   geometry::ProximityProperties properties;
   std::optional<double> rez_hint = read_double("drake:mesh_resolution_hint");
-  if (rez_hint) {
-    if (is_rigid) {
-      geometry::AddRigidHydroelasticProperties(*rez_hint, &properties);
-    } else if (is_soft) {
-      geometry::AddSoftHydroelasticProperties(*rez_hint, &properties);
-    } else {
-      properties.AddProperty(geometry::internal::kHydroGroup,
-                             geometry::internal::kRezHint, *rez_hint);
-    }
-  } else {
-    if (is_rigid) {
-      geometry::AddRigidHydroelasticProperties(&properties);
-    } else if (is_soft) {
-      geometry::AddSoftHydroelasticProperties(&properties);
-    }
+  if (is_soft) {
+    geometry::AddSoftHydroelasticProperties(
+        rez_hint, read_double("drake_slab_thickness"), &properties);
+  } else if (is_rigid) {
+    geometry::AddRigidHydroelasticProperties(rez_hint, &properties);
   }
 
   std::optional<double> elastic_modulus = read_double("drake:elastic_modulus");

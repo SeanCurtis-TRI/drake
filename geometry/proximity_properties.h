@@ -101,6 +101,10 @@ void AddContactMaterial(
     const std::optional<multibody::CoulombFriction<double>>& friction,
     ProximityProperties* properties);
 
+// TODO(SeanCurtis-TRI): Clean up these APIs. Life will be much simpler if I
+//  model the hydroelastic properties after the contact material and simply
+//  have optional arguments for *everything*.
+
 /** Adds properties to the given set of proximity properties sufficient to cause
  the associated geometry to generate a rigid hydroelastic representation.
 
@@ -113,13 +117,32 @@ void AddContactMaterial(
  @throws std::logic_error     If `properties` already has properties with the
                               names that this function would need to add.
  @pre 0 < `resolution_hint` < ∞ and `properties` is not nullptr.  */
-void AddRigidHydroelasticProperties(double resolution_hint,
-                                    ProximityProperties* properties);
+void AddRigidHydroelasticProperties(
+    const std::optional<double>& resolution_hint,
+    ProximityProperties* properties);
 
 /** Overload, intended for shapes that don't get tessellated in their
  hydroelastic representation (e.g., HalfSpace and Mesh).
  See @ref MODULE_NOT_WRITTEN_YET.  */
 void AddRigidHydroelasticProperties(ProximityProperties* properties);
+
+/** Configures the given `properties` to request a soft hydroelastic
+ representation. This variant admits the setting of all known properties related
+ to soft representations.
+
+ @param resolution_hint       If the geometry is to be tessellated, it is the
+                              parameter that guides the level of mesh
+                              refinement. See @ref MODULE_NOT_WRITTEN_YET. This
+                              will be ignored for geometry types that don't
+                              require tessellation.
+ @param slab_thickness        The distance from the half space boundary to its
+                              rigid core (this helps define the extent field of
+                              the half space).
+ @param[in,out] properties    The properties will be added to this property set.
+ @return  */
+void AddSoftHydroelasticProperties(const std::optional<double> resolution_hint,
+                                   const std::optional<double>& slab_thickness,
+                                   ProximityProperties* properties);
 
 // TODO(SeanCurtis-TRI): Add module that explains resolution hint and reference
 //  it in the documentation below.
