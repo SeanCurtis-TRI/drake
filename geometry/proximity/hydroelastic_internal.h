@@ -4,6 +4,7 @@
 #include <optional>
 #include <unordered_map>
 #include <utility>
+#include <variant>
 
 #include "drake/common/drake_assert.h"
 #include "drake/common/text_logging.h"
@@ -43,11 +44,39 @@ struct SoftMesh {
   }
 };
 
-/** Definition of a soft geometry for hydroelastic implementations. Today, the
- soft geometry is a soft _mesh_. In the future it will include other soft
- representations (e.g., untessellated half space).  */
+/** Defines a compliant half space. The half space is defined in Frame H such
+ that half space's boundary plane is z = 0 in Frame H. Vector Hz points _out_ of
+ the half space. Its soft compliance is characterized by a "slab thickness"
+ value which determines how deep into the half space the maximum pressure is
+ reached.
+
+ The pressure field is `ρ = E⋅d/t`, where `E` is the elastic modulus, `d` is the
+ positive penetration measure, and `t` is the `slab_thickness`. It is valid for
+ values of `d` in the range `[0, slab_thickness]`. The pressures gradient is
+ always in the -Hz direction.
+
+ We don't tessellate half spaces because:
+
+   - a finite discretization is a poor representation of an infinite volume
+   - It is computationally advantageous to *not* discretize the half space.
+ */
+struct SoftHalfSpace {
+  double slab_thickness;
+  // TODO(SeanCurtis-TRI): Possibly add a customizable pressure function in the
+  //  future; one that isn't simply the scaled, normalized penetration distance.
+};
+
+/** Definition of a soft geometry for hydroelastic implementations. To be a
+ soft geometry, a shape must be associated with either:
+
+   - a volume mesh (including a linearized scalar pressure field), or
+   - a soft half space (with a "slab thickness").  */
 class SoftGeometry {
  public:
+  /** Constructs a soft half space with the given slab `thickness`.  */
+  explicit SoftGeometry(double thickness)
+      : geometry_(SoftHalfSpace{thickness}) {}
+
   /** Constructs a soft geometry from a soft mesh.  */
   SoftGeometry(std::unique_ptr<VolumeMesh<double>> mesh,
                std::unique_ptr<VolumeMeshField<double, double>> pressure)
@@ -58,23 +87,66 @@ class SoftGeometry {
   SoftGeometry(SoftGeometry&&) = default;
   SoftGeometry& operator=(SoftGeometry&&) = default;
 
-  /** Returns a reference to the volume mesh.  */
+  /** @name  Distinguishing compliant representations
+
+   The %SoftGeometry can contain either a volume mesh (used as the
+   representation for most shapes) or a half space. Accessing the members of
+   either representation (`mesh()`, `extent()`, and `grad_extent()` for the
+   volume mesh or `slab_thickness()` for the half space) is conditioned on
+   knowing what type a particular instance holds.
+
+   This can be accomplished by querying `is_half_space()`. Attempting to access
+   data members of the *wrong* type will throw an exception.  */
+  //@{
+
+  bool is_half_space() const {
+    return std::holds_alternative<SoftHalfSpace>(geometry_);
+  }
+
+  /** Returns a reference to the volume mesh -- calling this will throw unless
+   is_half_space() returns `false`.  */
   const VolumeMesh<double>& mesh() const {
-    return *geometry_.mesh;
+    if (is_half_space()) {
+      throw std::runtime_error(
+          "SoftGeometry::mesh() cannot be invoked for soft half space");
+    }
+    return *std::get<SoftMesh>(geometry_).mesh;
   }
 
-  /** Returns a reference to the mesh's linearized pressure field.  */
+  /** Returns a reference to the mesh's linearized pressure field -- calling
+   this will throw unless is_half_space() returns `false`.  */
   const VolumeMeshField<double, double>& pressure_field() const {
-    return *geometry_.pressure;
+    if (is_half_space()) {
+      throw std::runtime_error("SoftGeometry::pressure_field() cannot be "
+                               "invoked for soft half space");
+    }
+    return *std::get<SoftMesh>(geometry_).pressure;
   }
 
-  /** Returns a reference to the bounding volume hierarchy.  */
+  /** Returns a reference to the bounding volume hierarchy -- calling this will
+   throw unless is_half_space() returns `false`.  */
   const BoundingVolumeHierarchy<VolumeMesh<double>>& bvh() const {
-    return *geometry_.bvh;
+    if (is_half_space()) {
+      throw std::runtime_error(
+          "SoftGeometry::bvh() cannot be invoked for soft half space");
+    }
+    return *std::get<SoftMesh>(geometry_).bvh;
   }
+
+  /** Returns the half space's thickness -- calling this will throw unless
+   is_half_space() returns `true`.  */
+  double slab_thickness() const {
+    if (!is_half_space()) {
+      throw std::runtime_error(
+          "SoftGeometry::slab_thickness() cannot be invoked for soft mesh");
+    }
+    return std::get<SoftHalfSpace>(geometry_).slab_thickness;
+  }
+
+  //@}
 
  private:
-  SoftMesh geometry_;
+  std::variant<SoftHalfSpace, SoftMesh> geometry_;
 };
 
 /** Defines a rigid mesh -- a surface mesh and its bounding volume hierarchy.
@@ -309,29 +381,35 @@ std::optional<SoftGeometry> MakeSoftRepresentation(
   return {};
 }
 
-/** Creates a soft sphere (assuming the proximity properties has sufficient
+/** Creates a soft sphere (assuming the proximity properties have sufficient
  information). Requires the ('hydroelastic', 'resolution_hint') and
  ('material', 'elastic_modulus') properties.  */
 std::optional<SoftGeometry> MakeSoftRepresentation(
     const Sphere& sphere, const ProximityProperties& props);
 
-/** Creates a soft box (assuming the proximity properties has sufficient
+/** Creates a soft box (assuming the proximity properties have sufficient
  information). Requires the ('hydroelastic', 'resolution_hint') and
  ('material', 'elastic_modulus') properties.  */
 std::optional<SoftGeometry> MakeSoftRepresentation(
     const Box& box, const ProximityProperties& props);
 
-/** Creates a soft cylinder (assuming the proximity properties has sufficient
+/** Creates a soft cylinder (assuming the proximity properties have sufficient
  information). Requires the ('hydroelastic', 'resolution_hint') and
  ('material', 'elastic_modulus') properties.  */
 std::optional<SoftGeometry> MakeSoftRepresentation(
     const Cylinder& cylinder, const ProximityProperties& props);
 
-/** Creates a soft ellipsoid (assuming the proximity properties has sufficient
+/** Creates a soft ellipsoid (assuming the proximity properties have sufficient
  information). Requires the ('hydroelastic', 'resolution_hint') and
  ('material', 'elastic_modulus') properties.  */
 std::optional<SoftGeometry> MakeSoftRepresentation(
     const Ellipsoid& ellipsoid, const ProximityProperties& props);
+
+/** Creates a compliant half space (assuming the proximity properties have
+ sufficient information). Requires the ('hydroelastic', 'slab_thickness') and
+ ('material', 'elastic_modulus') properties.  */
+std::optional<SoftGeometry> MakeSoftRepresentation(
+    const HalfSpace& half_space, const ProximityProperties& props);
 
 //@}
 

@@ -12,6 +12,7 @@ const char* const kHcDissipation = "hunt_crossley_dissipation";
 const char* const kHydroGroup = "hydroelastic";
 const char* const kRezHint = "resolution_hint";
 const char* const kComplianceType = "compliance_type";
+const char* const kThickness = "slab_thickness";
 
 std::ostream& operator<<(std::ostream& out, const HydroelasticType& type) {
   switch (type) {
@@ -95,6 +96,13 @@ void AddSoftHydroelasticProperties(ProximityProperties* properties) {
   // sufficient.
   properties->AddProperty(internal::kHydroGroup, internal::kComplianceType,
                           internal::HydroelasticType::kSoft);
+}
+
+void AddSoftHydroelasticPropertiesForHalfSpace(
+    double slab_thickness, ProximityProperties* properties) {
+  DRAKE_DEMAND(properties);
+  AddSlabThickness(slab_thickness, properties);
+  AddSoftHydroelasticProperties(properties);
 }
 
 }  // namespace geometry
