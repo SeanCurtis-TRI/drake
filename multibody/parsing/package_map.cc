@@ -169,7 +169,11 @@ void PackageMap::PopulateUpstreamToDrake(const string& model_file) {
   }
   const string model_dir = filesystem::path(model_file).parent_path();
 
-  // Bail out if we can't determine the drake root.
+  PopulateUpstreamToDrakeFromFolder(model_dir);
+}
+
+void PackageMap::PopulateUpstreamToDrakeFromFolder(const string& folder) {
+  // Bail out if the model file is not part of Drake.
   const std::optional<string> maybe_drake_path = MaybeGetDrakePath();
   if (!maybe_drake_path) {
     return;
@@ -177,14 +181,14 @@ void PackageMap::PopulateUpstreamToDrake(const string& model_file) {
   // Bail out if the model file is not part of Drake.
   const string& drake_path = *maybe_drake_path;
   auto iter = std::mismatch(drake_path.begin(), drake_path.end(),
-                            model_dir.begin());
+                            folder.begin());
   if (iter.first != drake_path.end()) {
-    // The drake_path was not a prefix of model_dir.
+    // The drake_path was not a prefix of folder.
     return;
   }
 
   // Search the directory containing the model_file and "upstream".
-  PopulateUpstreamToDrakeHelper(model_dir, drake_path);
+  PopulateUpstreamToDrakeHelper(folder, drake_path);
 }
 
 void PackageMap::CrawlForPackages(const string& path) {

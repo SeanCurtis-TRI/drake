@@ -612,20 +612,15 @@ ModelInstanceIndex AddModelFromSpecification(
   return model_instance;
 }
 
-}  // namespace
-
-ModelInstanceIndex AddModelFromSdfFile(
-    const std::string& file_name,
+ModelInstanceIndex AddModelFromSdfRoot(
+    const sdf::Root& root,
     const std::string& model_name_in,
     const PackageMap& package_map,
+    const std::string& root_dir,
     MultibodyPlant<double>* plant,
     geometry::SceneGraph<double>* scene_graph) {
   DRAKE_THROW_UNLESS(plant != nullptr);
   DRAKE_THROW_UNLESS(!plant->is_finalized());
-
-  sdf::Root root;
-
-  std::string root_dir = LoadSdf(&root, file_name);
 
   if (root.ModelCount() != 1) {
     throw std::runtime_error("File must have a single <model> element.");
@@ -645,17 +640,14 @@ ModelInstanceIndex AddModelFromSdfFile(
       model, model_name, plant, package_map, root_dir);
 }
 
-std::vector<ModelInstanceIndex> AddModelsFromSdfFile(
-    const std::string& file_name,
+std::vector<ModelInstanceIndex> AddModelsFromSdfRoot(
+    const sdf::Root& root,
     const PackageMap& package_map,
+    const std::string& root_dir,
     MultibodyPlant<double>* plant,
     geometry::SceneGraph<double>* scene_graph) {
   DRAKE_THROW_UNLESS(plant != nullptr);
   DRAKE_THROW_UNLESS(!plant->is_finalized());
-
-  sdf::Root root;
-
-  std::string root_dir = LoadSdf(&root, file_name);
 
   // Throw an error if there are no models or worlds.
   if (root.ModelCount() == 0 && root.WorldCount() == 0) {
@@ -688,7 +680,7 @@ std::vector<ModelInstanceIndex> AddModelsFromSdfFile(
       // Get the model.
       const sdf::Model& model = *root.ModelByIndex(i);
       model_instances.push_back(AddModelFromSpecification(
-            model, model.Name(), plant, package_map, root_dir));
+          model, model.Name(), plant, package_map, root_dir));
     }
   } else {
     // Load the world and all the models in the world.
@@ -698,22 +690,74 @@ std::vector<ModelInstanceIndex> AddModelsFromSdfFile(
     // via `//world/joint`, per this Bitbucket comment: https://bit.ly/2udQxhp
 
     for (uint64_t frame_index = 0; frame_index < world.FrameCount();
-        ++frame_index) {
+         ++frame_index) {
       const sdf::Frame& frame = *world.FrameByIndex(frame_index);
       AddFrameFromSpecification(
           frame, world_model_instance(), plant->world_frame(), plant);
     }
 
     for (uint64_t model_index = 0; model_index < world.ModelCount();
-        ++model_index) {
+         ++model_index) {
       // Get the model.
       const sdf::Model& model = *world.ModelByIndex(model_index);
       model_instances.push_back(AddModelFromSpecification(
-            model, model.Name(), plant, package_map, root_dir));
+          model, model.Name(), plant, package_map, root_dir));
     }
   }
 
   return model_instances;
+}
+
+}  // namespace
+
+ModelInstanceIndex AddModelFromSdfFile(
+    const std::string& file_name,
+    const std::string& model_name_in,
+    const PackageMap& package_map,
+    MultibodyPlant<double>* plant,
+    geometry::SceneGraph<double>* scene_graph) {
+  sdf::Root root;
+  std::string root_dir = LoadSdf(&root, file_name);
+
+  return AddModelFromSdfRoot(root, model_name_in, package_map, root_dir, plant,
+                             scene_graph);
+}
+
+ModelInstanceIndex AddModelFromSdfString(
+    const std::string& xml_text,
+    const std::string& model_name_in,
+    const PackageMap& package_map,
+    const std::string& root_dir,
+    MultibodyPlant<double>* plant,
+    geometry::SceneGraph<double>* scene_graph) {
+  sdf::Root root;
+  ThrowAnyErrors(root.LoadSdfString(xml_text));
+
+  return AddModelFromSdfRoot(root, model_name_in, package_map, root_dir, plant,
+                             scene_graph);
+}
+
+std::vector<ModelInstanceIndex> AddModelsFromSdfFile(
+    const std::string& file_name,
+    const PackageMap& package_map,
+    MultibodyPlant<double>* plant,
+    geometry::SceneGraph<double>* scene_graph) {
+  sdf::Root root;
+  std::string root_dir = LoadSdf(&root, file_name);
+
+  return AddModelsFromSdfRoot(root, package_map, root_dir, plant, scene_graph);
+}
+
+std::vector<ModelInstanceIndex> AddModelsFromSdfString(
+    const std::string& xml_text,
+    const PackageMap& package_map,
+    const std::string& root_dir,
+    MultibodyPlant<double>* plant,
+    geometry::SceneGraph<double>* scene_graph) {
+  sdf::Root root;
+  ThrowAnyErrors(root.LoadSdfString(xml_text));
+
+  return AddModelsFromSdfRoot(root, package_map, root_dir, plant, scene_graph);
 }
 
 }  // namespace internal

@@ -583,25 +583,36 @@ ModelInstanceIndex ParseUrdf(
   return model_instance;
 }
 
-}  // namespace
-
-ModelInstanceIndex AddModelFromUrdfFile(
-    const std::string& file_name,
-    const std::string& model_name_in,
-    const PackageMap& package_map,
-    MultibodyPlant<double>* plant,
-    geometry::SceneGraph<double>* scene_graph) {
+ModelInstanceIndex AddModelFromXmlDocument(
+    const std::string& model_name_in, const PackageMap& package_map,
+    const std::string& root_dir, XMLDocument* xml_doc,
+    MultibodyPlant<double>* plant, geometry::SceneGraph<double>* scene_graph) {
+  DRAKE_DEMAND(xml_doc != nullptr);
   DRAKE_THROW_UNLESS(plant != nullptr);
   DRAKE_THROW_UNLESS(!plant->is_finalized());
 
+  if (scene_graph != nullptr && !plant->geometry_source_is_registered()) {
+    plant->RegisterAsSourceForSceneGraph(scene_graph);
+  }
+
+  return ParseUrdf(model_name_in, package_map, root_dir,
+                   xml_doc, plant);
+}
+
+}  // namespace
+
+ModelInstanceIndex AddModelFromUrdfFile(
+    const std::string& file_name, const std::string& model_name_in,
+    const PackageMap& package_map, MultibodyPlant<double>* plant,
+    geometry::SceneGraph<double>* scene_graph) {
   const std::string full_path = GetFullPath(file_name);
 
   // Opens the URDF file and feeds it into the XML parser.
   XMLDocument xml_doc;
   xml_doc.LoadFile(full_path.c_str());
   if (xml_doc.ErrorID()) {
-    throw std::runtime_error("Failed to parse XML in file " + full_path +
-                             "\n" + xml_doc.ErrorName());
+    throw std::runtime_error("Failed to parse XML in file " + full_path + "\n" +
+                             xml_doc.ErrorName());
   }
 
   // Uses the directory holding the URDF to be the root directory
@@ -612,12 +623,25 @@ ModelInstanceIndex AddModelFromUrdfFile(
     root_dir = full_path.substr(0, found);
   }
 
-  if (scene_graph != nullptr && !plant->geometry_source_is_registered()) {
-    plant->RegisterAsSourceForSceneGraph(scene_graph);
+  return AddModelFromXmlDocument(model_name_in, package_map, root_dir, &xml_doc,
+                                 plant, scene_graph);
+}
+
+ModelInstanceIndex AddModelFromUrdfString(
+    const std::string& xml_text, const std::string& model_name_in,
+    const PackageMap& package_map, const std::string& root_dir,
+    MultibodyPlant<double>* plant, geometry::SceneGraph<double>* scene_graph) {
+  // Parse the UFDF contents.
+  XMLDocument xml_doc;
+  xml_doc.Parse(xml_text.c_str(), xml_text.size());
+  if (xml_doc.ErrorID()) {
+    throw std::runtime_error(
+        fmt::format("Failed to parse XML from given string:\n{}\n\nError: {}",
+                    xml_text, xml_doc.ErrorName()));
   }
 
-  return ParseUrdf(model_name_in, package_map, root_dir,
-                   &xml_doc, plant);
+  return AddModelFromXmlDocument(model_name_in, package_map, root_dir, &xml_doc,
+                                 plant, scene_graph);
 }
 
 }  // namespace internal

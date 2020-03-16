@@ -37,6 +37,19 @@ ModelInstanceIndex AddModelFromUrdfFile(
     MultibodyPlant<double>* plant,
     geometry::SceneGraph<double>* scene_graph = nullptr);
 
+/// Variant of AddModelFromUrdfFile() for which the URDF specification is
+/// contained in an in-memory string. Furthermore, a "root directory" has to be
+/// explicitly provided to resolve any file system references contained in the
+/// XML that would ordinarily be interpreted relative to the containing file
+/// location.
+ModelInstanceIndex AddModelFromUrdfString(
+    const std::string& xml_text,
+    const std::string& model_name,
+    const PackageMap& package_map,
+    const std::string& root_dir,
+    MultibodyPlant<double>* plant,
+    geometry::SceneGraph<double>* scene_graph = nullptr);
+
 }  // namespace internal
 }  // namespace multibody
 }  // namespace drake

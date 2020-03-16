@@ -65,6 +65,15 @@ class PackageMap {
   /// search for `package.xml` files. This file must be an SDF or URDF file.
   void PopulateUpstreamToDrake(const std::string& model_file);
 
+  /// Crawls up the directory tree from @p folder to `drake` searching for
+  /// `package.xml` files. Adds the packages described by these `package.xml`
+  /// files. If @p folder is not in `drake`, this method returns without doing
+  /// anything.
+  ///
+  /// @param[in] folder The path to a directory is the start of the  search for
+  /// `package.xml` files.
+  void PopulateUpstreamToDrakeFromFolder(const std::string& folder);
+
   friend std::ostream& operator<<(std::ostream& out,
                                   const PackageMap& package_map);
 

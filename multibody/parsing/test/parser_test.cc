@@ -1,5 +1,10 @@
 #include "drake/multibody/parsing/parser.h"
 
+#include <fstream>
+#include <streambuf>
+#include <string>
+#include <utility>
+
 #include <gtest/gtest.h>
 
 #include "drake/common/filesystem.h"
@@ -180,6 +185,128 @@ GTEST_TEST(FileParserTest, PackageMapTest) {
   // Try again.
   parser.package_map().PopulateFromFolder(temp_dir);
   parser.AddModelFromFile(new_sdf_filename, "dummy" /* model name */);
+}
+
+std::string ReadFileContents(const std::string& file_name) {
+  std::ifstream file(file_name);
+  std::string result;
+  file.seekg(0, std::ios::end);
+  result.reserve(file.tellg());
+  file.seekg(0, std::ios::beg);
+  result.assign(std::istreambuf_iterator<char>{file},
+                std::istreambuf_iterator<char>{});
+  return result;
+}
+
+GTEST_TEST(StringParserTest, BasicTest) {
+  const std::string sdf_text = ReadFileContents(
+      FindResourceOrThrow("drake/multibody/benchmarks/acrobot/acrobot.sdf"));
+  const std::string urdf_text = ReadFileContents(
+      FindResourceOrThrow("drake/multibody/benchmarks/acrobot/acrobot.urdf"));
+
+  // Load from SDF using plural method.
+  // Add a second one with an overridden model_name.
+  {
+    MultibodyPlant<double> plant(0.0);
+    Parser dut(&plant);
+    EXPECT_EQ(dut.AddAllModelsFromString(sdf_text).size(), 1);
+    dut.AddModelFromString(sdf_text, "foo");
+  }
+
+  // Load from URDF using plural method.
+  // Add a second one with an overridden model_name.
+  {
+    MultibodyPlant<double> plant(0.0);
+    Parser dut(&plant);
+    EXPECT_EQ(dut.AddAllModelsFromString(urdf_text).size(), 1);
+    dut.AddModelFromString(urdf_text, "foo");
+  }
+
+  // Load an SDF then a URDF.
+  {
+    MultibodyPlant<double> plant(0.0);
+    Parser dut(&plant);
+    dut.AddModelFromString(sdf_text, "foo");
+    dut.AddModelFromString(urdf_text, "bar");
+  }
+}
+
+GTEST_TEST(StringParserTest, MultiModelTest) {
+  const std::string sdf_text = ReadFileContents(FindResourceOrThrow(
+      "drake/multibody/parsing/test/sdf_parser_test/two_models.sdf"));
+
+  // Check that the plural method loads two models.
+  {
+    MultibodyPlant<double> plant(0.0);
+    EXPECT_EQ(Parser(&plant).AddAllModelsFromString(sdf_text).size(), 2);
+  }
+
+  // The singular method cannot load a two-model file.
+  const char* const expected_error =
+      "(.*must have a single <model> element.*)";
+
+  // Check the singular method without model_name.
+  {
+    MultibodyPlant<double> plant(0.0);
+    DRAKE_EXPECT_THROWS_MESSAGE(
+        Parser(&plant).AddModelFromString(sdf_text),
+        std::exception, expected_error);
+  }
+
+  // Check the singular method with empty model_name.
+  {
+    MultibodyPlant<double> plant(0.0);
+    DRAKE_EXPECT_THROWS_MESSAGE(
+        Parser(&plant).AddModelFromString(sdf_text, ""),
+        std::exception, expected_error);
+  }
+
+  // Check the singular method with non-empty model_name.
+  {
+    MultibodyPlant<double> plant(0.0);
+    DRAKE_EXPECT_THROWS_MESSAGE(
+        Parser(&plant).AddModelFromString(sdf_text, "foo"),
+        std::exception, expected_error);
+  }
+}
+
+GTEST_TEST(StringParserTest, ModelTypeMatchTest) {
+  // All failure conditions test both singular and plural overloads.
+  MultibodyPlant<double> plant(0.0);
+
+  // Simply confirm that a root tag that isn't <model> or <sdf> reports as
+  // unclassifiable.
+  const std::string bad_root_xml = R"(<?xml version="1.0"?><root/>)";
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      Parser(&plant).AddModelFromString(bad_root_xml),
+      std::exception,
+      "The string couldn't be identified as either URDF or SDF[^]*");
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      Parser(&plant).AddAllModelsFromString(bad_root_xml),
+      std::exception,
+      "The string couldn't be identified as either URDF or SDF[^]*");
+
+  // XML has header but no content.
+  const std::string empty_Xml = R"(<?xml version="1.0"?>)";
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      Parser(&plant).AddModelFromString(empty_Xml),
+      std::exception,
+      "Can't parse model from XML string; the XML is empty[^]*");
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      Parser(&plant).AddAllModelsFromString(empty_Xml),
+      std::exception,
+      "Can't parse model from XML string; the XML is empty[^]*");
+
+  // If the string isn't even valid XML, report that (checking both singular and
+  // plural overloads).
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      Parser(&plant).AddModelFromString("I'm not XML"),
+      std::exception,
+      "Failed to parse XML from given string[^]*");
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      Parser(&plant).AddAllModelsFromString("I'm not XML"),
+      std::exception,
+      "Failed to parse XML from given string[^]*");
 }
 
 }  // namespace

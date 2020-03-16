@@ -46,6 +46,19 @@ ModelInstanceIndex AddModelFromSdfFile(
     MultibodyPlant<double>* plant,
     geometry::SceneGraph<double>* scene_graph = nullptr);
 
+/// Variant of AddModelFromSdfFile for which the SDF specification is contained
+/// in an in-memory string. Furthermore, a "root directory" has to be
+/// explicitly provided to resolve any file system references contained in the
+/// XML that would ordinarily be interpreted relative to the containing file
+/// location.
+ModelInstanceIndex AddModelFromSdfString(
+    const std::string& xml_text,
+    const std::string& model_name,
+    const PackageMap& package_map,
+    const std::string& root_dir,
+    MultibodyPlant<double>* plant,
+    geometry::SceneGraph<double>* scene_graph = nullptr);
+
 /// Parses all `<model>` elements from the SDF file specified by `file_name`
 /// and adds them to `plant`. The SDF file can contain multiple `<model>`
 /// elements. New model instances will be added to @p plant for each
@@ -74,6 +87,19 @@ std::vector<ModelInstanceIndex> AddModelsFromSdfFile(
     const PackageMap& package_map,
     MultibodyPlant<double>* plant,
     geometry::SceneGraph<double>* scene_graph = nullptr);
+
+/// Variant of AddModelsFromSdfFile for which the SDF specification is contained
+/// in an in-memory string. Furthermore, a "root directory" has to be
+/// explicitly provided to resolve any file system references contained in the
+/// XML that would ordinarily be interpreted relative to the containing file
+/// location.
+std::vector<ModelInstanceIndex> AddModelsFromSdfString(
+    const std::string& file_name,
+    const PackageMap& package_map,
+    const std::string& root_dir,
+    MultibodyPlant<double>* plant,
+    geometry::SceneGraph<double>* scene_graph = nullptr);
+
 }  // namespace internal
 }  // namespace multibody
 }  // namespace drake

@@ -64,6 +64,33 @@ class Parser final {
       const std::string& file_name,
       const std::string& model_name = {});
 
+  // TODO(SeanCurtis-TRI): It seems that this "root directory" is an invalid
+  //  crutch. No valid root_directory should be available in Drake-compatible
+  //  URDF/SDF files. They should all use packages. Figure out what to do about
+  //  that.
+  /// @name Parsing from strings
+  ///
+  /// These special methods have semantics similar to AddAllModelsFromFile() and
+  /// AddModelFromFile(). There are two key differences:
+  ///
+  ///   1. Rather than reading the text  of the XML file from disk, it is
+  ///      provided directly as a parameter.
+  ///   2. When parsing a _file_, the directory the file is in is given special
+  ///      attention. For a file, that directory can be inferred. When parsing
+  ///      from a string, it is necessary to define the _effective_ root
+  ///      directory to achieve equivalent parsing behavior regrading relative
+  ///      URIs in the XML string. If no root directory is given, it is treated
+  ///      as the current working directory.
+  //@{
+
+  std::vector<ModelInstanceIndex> AddAllModelsFromString(
+      const std::string& xml_text, const std::string& root_directory = {});
+
+  ModelInstanceIndex AddModelFromString(const std::string& xml_text,
+                                        const std::string& model_name = {},
+                                        const std::string& root_directory = {});
+  //@}
+
  private:
   PackageMap package_map_;
   MultibodyPlant<double>* const plant_;
