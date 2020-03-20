@@ -164,6 +164,21 @@ drake_cc_library(
 )
 
 drake_cc_library(
+    name = "mesh_painter_system",
+    srcs = ["mesh_painter_system.cc"],
+    hdrs = ["mesh_painter_system.h"],
+    deps = [
+        ":geometry_ids",
+        ":scene_graph",
+        "//common:essential",
+        "//geometry/proximity:make_cylinder_mesh",
+        "//geometry/proximity:volume_mesh",
+        "//systems/framework:leaf_system",
+        "@tinyobjloader",
+    ],
+)
+
+drake_cc_library(
     name = "proximity_properties",
     srcs = ["proximity_properties.cc"],
     hdrs = ["proximity_properties.h"],
