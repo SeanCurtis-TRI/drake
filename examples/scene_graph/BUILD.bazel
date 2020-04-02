@@ -54,6 +54,26 @@ drake_cc_binary(
 )
 
 drake_cc_binary(
+    name = "painting_a_mesh",
+    srcs = ["painting_a_mesh.cc"],
+    add_test_rule = 1,
+    data = [":models"],
+    test_rule_args = [
+        "--simulation_time=0.01",
+    ],
+    deps = [
+        "//geometry:geometry_visualization",
+        "//geometry:mesh_painter_system",
+        "//geometry:scene_graph",
+        "//systems/analysis:simulator",
+        "//systems/framework:diagram",
+        "//systems/lcm:lcm_pubsub_system",
+        "//systems/sensors:image_to_lcm_image_array_t",
+        "@gflags",
+    ],
+)
+
+drake_cc_binary(
     name = "simple_contact_surface_vis",
     srcs = ["simple_contact_surface_vis.cc"],
     add_test_rule = 1,
