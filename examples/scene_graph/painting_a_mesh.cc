@@ -14,10 +14,12 @@
 #include "drake/geometry/frame_kinematics_vector.h"
 #include "drake/geometry/geometry_frame.h"
 #include "drake/geometry/geometry_ids.h"
+#include "drake/geometry/input_image.h"
 #include "drake/geometry/geometry_instance.h"
 #include "drake/geometry/geometry_roles.h"
 #include "drake/geometry/geometry_visualization.h"
 #include "drake/geometry/mesh_painter_system.h"
+#include "drake/geometry/render/render_engine_vtk_factory.h"
 #include "drake/geometry/scene_graph.h"
 #include "drake/lcm/drake_lcm.h"
 #include "drake/math/rigid_transform.h"
@@ -27,7 +29,9 @@
 #include "drake/systems/framework/leaf_system.h"
 #include "drake/systems/lcm/lcm_publisher_system.h"
 #include "drake/systems/sensors/image_to_lcm_image_array_t.h"
+#include "drake/systems/sensors/image.h"
 #include "drake/systems/sensors/pixel_types.h"
+#include "drake/systems/sensors/rgbd_sensor.h"
 
 DEFINE_double(
     sim_rate, 1.0,
@@ -47,6 +51,7 @@ namespace examples {
 namespace scene_graph {
 namespace mesh_painter {
 
+using Eigen::Vector3d;
 using Eigen::Vector4d;
 using geometry::Box;
 using geometry::ConnectDrakeVisualizer;
@@ -57,19 +62,27 @@ using geometry::GeometryFrame;
 using geometry::GeometryId;
 using geometry::GeometryInstance;
 using geometry::IllustrationProperties;
+using geometry::InputImage;
 using geometry::Mesh;
 using geometry::MeshPainterSystem;
+using geometry::PerceptionProperties;
+using geometry::render::DepthCameraProperties;
+using geometry::render::RenderEngineVtkParams;
+using geometry::render::RenderLabel;
 using geometry::SceneGraph;
 using geometry::Shape;
 using geometry::SourceId;
 using lcm::DrakeLcm;
 using math::RigidTransformd;
+using math::RotationMatrixd;
 using std::make_unique;
 using std::unique_ptr;
 using systems::Context;
 using systems::DiagramBuilder;
 using systems::LeafSystem;
+using systems::sensors::Image;
 using systems::sensors::PixelType;
+using systems::sensors::RgbdSensor;
 using systems::Simulator;
 
 /** Moves a cylinder in a circular path around the world origin (intersecting
@@ -107,6 +120,11 @@ class MovingRod final : public LeafSystem<double> {
     IllustrationProperties illus_props;
     illus_props.AddProperty("phong", "diffuse", Vector4d(0.8, 0.1, 0.1, 1));
     scene_graph->AssignRole(source_id_, geometry_id_, illus_props);
+    PerceptionProperties percep_props;
+    percep_props.AddProperty("phong", "diffuse", Vector4d{0.8, 0.8, 0.8, 1.0});
+    percep_props.AddProperty("label", "id",
+                             RenderLabel(geometry_id_.get_value()));
+    scene_graph->AssignRole(source_id_, geometry_id_, percep_props);
 
     geometry_pose_port_ =
         this->DeclareAbstractOutputPort("geometry_pose",
@@ -143,6 +161,50 @@ class MovingRod final : public LeafSystem<double> {
   int geometry_pose_port_{-1};
 };
 
+/** Small utility system to take an InputImage (an image with attendant meta
+ data) output just the Image data. This allows simple visualization of image
+ outputs targeted for SceneGraph's input image ports through the library of
+ methods that simply operate on Images (e.g., drake_visualizer or writing
+ images to disk).
+
+ @system{InputImageToImage, @input_port{scene_graph_image}, @output_port{image}}
+ */
+template <PixelType kPixelType>
+class InputImageToImage final : public LeafSystem<double> {
+ public:
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(InputImageToImage)
+
+  InputImageToImage() {
+    scene_graph_input_image_port_ = this->DeclareAbstractInputPort(
+        "scene_graph_image", Value<InputImage<kPixelType>>()).get_index();
+
+    image_output_port_ =
+        this->DeclareAbstractOutputPort("image", &InputImageToImage::CalcImage)
+            .get_index();
+  }
+
+  const systems::InputPort<double>& scene_graph_input_image_port() const {
+    return systems::System<double>::get_input_port(
+        scene_graph_input_image_port_);
+  }
+
+  const systems::OutputPort<double>& image_output_port() const {
+    return systems::System<double>::get_output_port(image_output_port_);
+  }
+
+ private:
+  void CalcImage(
+      const Context<double>& context, Image<kPixelType>* image) const {
+    const auto& in_image =
+        scene_graph_input_image_port().template Eval<InputImage<kPixelType>>(
+            context);
+    *image = in_image.image();
+  }
+
+  int scene_graph_input_image_port_;
+  int image_output_port_{-1};
+};
+
 int do_main() {
   DiagramBuilder<double> builder;
 
@@ -168,6 +230,11 @@ int do_main() {
   illustration_box.AddProperty("phong", "diffuse",
                                Vector4d{0.5, 0.5, 0.45, 1.0});
   scene_graph.AssignRole(source_id, ground_id, illustration_box);
+  PerceptionProperties percep_props;
+  percep_props.AddProperty("phong", "diffuse", Vector4d{0.2, 0.5, 0.25, 1.0});
+  percep_props.AddProperty("label", "id",
+                           RenderLabel(ground_id.get_value()));
+  scene_graph.AssignRole(source_id, ground_id, percep_props);
 
   // Now visualize.
   DrakeLcm lcm;
@@ -177,30 +244,66 @@ int do_main() {
 
   // Create and visualize painter system.
   auto& painter_system = *builder.AddSystem<MeshPainterSystem>(
-      ground_id, moving_rod.geometry_id(), scene_graph, 512, 512);
+      ground_id, moving_rod.geometry_id(), 512, 512, "grid_texture",
+      &scene_graph);
   builder.Connect(scene_graph.get_query_output_port(),
                   painter_system.geometry_query_input_port());
 
   // TODO(SeanCurtis-TRI): Visualize the image.
-  auto image_to_lcm_image_array =
-      builder.template AddSystem<systems::sensors::ImageToLcmImageArrayT>();
+  auto& image_stripper =
+      *builder.template AddSystem<InputImageToImage<PixelType::kRgba8U>>();
+  builder.Connect(painter_system, image_stripper);
+
+  auto& image_to_lcm_image_array =
+      *builder.template AddSystem<systems::sensors::ImageToLcmImageArrayT>();
   const auto& texture_port =
-      image_to_lcm_image_array->DeclareImageInputPort<PixelType::kRgba8U>(
+      image_to_lcm_image_array.DeclareImageInputPort<PixelType::kRgba8U>(
           "texture");
 
-  image_to_lcm_image_array->set_name("converter");
-  auto image_array_lcm_publisher =
-      builder.template AddSystem(systems::lcm::LcmPublisherSystem::Make<
+  image_to_lcm_image_array.set_name("converter");
+  auto& image_array_lcm_publisher =
+      *builder.template AddSystem(systems::lcm::LcmPublisherSystem::Make<
           robotlocomotion::image_array_t>(
           "DRAKE_RGBD_CAMERA_IMAGES", &lcm,
           1. / FLAGS_texture_fps /* publish period */));
-  image_array_lcm_publisher->set_name("publisher");
+  image_array_lcm_publisher.set_name("publisher");
 
   builder.Connect(
-      image_to_lcm_image_array->image_array_t_msg_output_port(),
-      image_array_lcm_publisher->get_input_port());
+      image_to_lcm_image_array.image_array_t_msg_output_port(),
+      image_array_lcm_publisher.get_input_port());
 
-  builder.Connect(painter_system.texture_output_port(), texture_port);
+  builder.Connect(image_stripper.image_output_port(), texture_port);
+
+  // Add RgbdCamera
+  const std::string render_name("renderer");
+  scene_graph.AddRenderer(render_name,
+                          MakeRenderEngineVtk(RenderEngineVtkParams()));
+  DepthCameraProperties camera_prop(640, 480, M_PI_4, render_name, 0.1, 2.0);
+
+  // We need to position and orient the camera. We have the camera body frame
+  // B (see rgbd_sensor.h) and the camera frame C (see camera_info.h).
+  // By default X_BC = I in the RgbdSensor. So, to aim the camera, Cz = Bz
+  // should point from the camera position to the origin. By points *down* the
+  // image, so we need to align it in the -Wz direction. So,  we compute the
+  // basis using camera Y-ish in the By ≈ -Wz direction to compute Bx, and
+  // then use Bx an and Bz to compute By.
+  const Vector3d p_WB(0.75, -1.9, 1.1);
+  // Set rotation looking at the origin.
+  const Vector3d Bz_W = -p_WB.normalized();
+  const Vector3d Bx_W = -Vector3d::UnitZ().cross(Bz_W).normalized();
+  const Vector3d By_W = Bz_W.cross(Bx_W).normalized();
+  const RotationMatrixd R_WB =
+      RotationMatrixd::MakeFromOrthonormalColumns(Bx_W, By_W, Bz_W);
+  const RigidTransformd X_WB(R_WB, p_WB);
+
+  auto& camera = *builder.AddSystem<RgbdSensor>(
+      scene_graph.world_frame_id(), X_WB, camera_prop);
+  builder.Connect(scene_graph.get_query_output_port(),
+                  camera.query_object_input_port());
+  const auto& rgb_port =
+      image_to_lcm_image_array.DeclareImageInputPort<PixelType::kRgba8U>(
+          "color");
+  builder.Connect(camera.color_image_output_port(), rgb_port);
 
   auto diagram = builder.Build();
 

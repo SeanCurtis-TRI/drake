@@ -22,6 +22,7 @@ using systems::LeafSystem;
 using systems::rendering::PoseBundle;
 using systems::SystemTypeTag;
 using std::make_unique;
+using std::optional;
 using std::vector;
 
 namespace {
@@ -137,6 +138,18 @@ const InputPort<T>& SceneGraph<T>::get_source_pose_port(
     SourceId id) const {
   ThrowUnlessRegistered(id, "Can't acquire pose port for unknown source id: ");
   return this->get_input_port(input_source_ids_.at(id).pose_port);
+}
+
+template <typename T>
+const InputPort<T>& SceneGraph<T>::image_input_port(ImageId id) const {
+  const int port_index = initial_state_->input_image_set().port_index(id);
+  return this->get_input_port(port_index);
+}
+
+template <typename T>
+optional<ImageId> SceneGraph<T>::FindInputImageIdByName(
+    const std::string& image_name) const {
+  return initial_state_->input_image_set().FindIdByName(image_name);
 }
 
 template <typename T>

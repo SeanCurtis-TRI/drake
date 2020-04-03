@@ -7,6 +7,8 @@
 
 #include "drake/geometry/geometry_set.h"
 #include "drake/geometry/geometry_state.h"
+#include "drake/geometry/input_image.h"
+#include "drake/geometry/input_image_set.h"
 #include "drake/geometry/query_object.h"
 #include "drake/geometry/query_results/penetration_as_point_pair.h"
 #include "drake/geometry/scene_graph_inspector.h"
@@ -37,7 +39,8 @@ class QueryObject;
  current context, and performing geometric queries.
 
  @system{SceneGraph,
-   @input_port{source_pose{0}} @input_port{...} @input_port{source_pose{N-1}},
+   @input_port{source_pose{0}} @input_port{...} @input_port{source_pose{N-1}}
+   @input_port{input_image{0}} @input_port{...} @input_port{input_image{M-1}},
    @output_port{lcm_visualization} @output_port{query}
  }
 
@@ -239,7 +242,10 @@ class SceneGraph final : public systems::LeafSystem<T> {
    the inputs associated with that source. Failure to do so will be treated as
    a runtime error during the evaluation of %SceneGraph. %SceneGraph
    will detect that frames have been registered but no values have been
-   provided.  */
+   provided.
+
+   See @ref scene_graph_image_inputs "Input Images" for details on adding ports
+   to provide image inputs.  */
   //@{
 
   /** Registers a new, named source to the geometry system. The caller must save
@@ -281,6 +287,66 @@ class SceneGraph final : public systems::LeafSystem<T> {
   const systems::OutputPort<T>& get_query_output_port() const {
     return systems::System<T>::get_output_port(query_port_index_);
   }
+
+  //@}
+
+  /** @name       Input Images  @anchor scene_graph_image_inputs
+   %SceneGraph can make use of images (e.g., textures for rendering). Not all
+   images need be thought of as "parameters". Image data can be fed to
+   %SceneGraph dynamically through its input ports.
+
+   To provide an externally managed image to %SceneGraph, it must be declared
+   via RegisterInputImage(). This generates an abstract-valued input port which
+   carries a value of InputImage type. The ImageId identifier in the InputImage
+   must match the ImageId value returned by the call to RegisterInputImage()
+   to make a valid connection (although this will not be determined until the
+   image input port is actually evaluated).  */
+  //@{
+
+  /** Register an input image with `this` %SceneGraph. A new port will be added
+   which can be accessed with the returned ImageId value. The image must have
+   a unique name among _all_ input images declared on `this` %SceneGraph
+   instance. These unique names are how internal components will identify which
+   input image to access.
+
+   @param source_id     The id of the image source.
+   @param image_name    A unique name identifier for the input image resource.
+   @return A unique identifier for the input image.
+   */
+  template <systems::sensors::PixelType kPixelType>
+  ImageId RegisterInputImage(SourceId source_id,
+                             const std::string& image_name) {
+    internal::InputImageSet& images = initial_state_->mutable_input_image_set();
+    if (images.FindIdByName(image_name)) {
+      throw std::runtime_error(
+          fmt::format("Cannot register an input image with the name '{}'; it "
+                      "is already used",
+                      image_name));
+    }
+    const int port_index =
+        this->DeclareAbstractInputPort(initial_state_->GetName(source_id) +
+                                           "input_image_" + image_name,
+                                       Value<InputImage<kPixelType>>())
+            .get_index();
+    const ImageId image_id = ImageId::get_new_id();
+    images.AddInputImage(source_id, image_id, port_index, image_name);
+    return image_id;
+  }
+
+  /** Access the image input port associated with the given image identifier.
+   @throws std::runtime_error if the `id` is not a registered input image id.
+   */
+  const systems::InputPort<T>& image_input_port(ImageId id) const;
+
+  /** Reports the ImageId associated with the named input image.
+
+   @param image_name  The name of an input image as passed to an invocation of
+                      RegisterInputImage().
+   @return  The id for the input image -- `nullopt` if there is no such
+            registered input image.
+   */
+  std::optional<ImageId> FindInputImageIdByName(
+      const std::string& image_name) const;
 
   //@}
 

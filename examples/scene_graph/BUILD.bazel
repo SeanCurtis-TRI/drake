@@ -65,10 +65,12 @@ drake_cc_binary(
         "//geometry:geometry_visualization",
         "//geometry:mesh_painter_system",
         "//geometry:scene_graph",
+        "//geometry/render:render_engine_vtk",
         "//systems/analysis:simulator",
         "//systems/framework:diagram",
         "//systems/lcm:lcm_pubsub_system",
         "//systems/sensors:image_to_lcm_image_array_t",
+        "//systems/sensors:rgbd_sensor",
         "@gflags",
     ],
 )

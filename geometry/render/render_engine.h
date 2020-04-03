@@ -12,6 +12,7 @@
 #include "drake/common/drake_copyable.h"
 #include "drake/geometry/geometry_ids.h"
 #include "drake/geometry/geometry_roles.h"
+#include "drake/geometry/input_image_set.h"
 #include "drake/geometry/render/camera_properties.h"
 #include "drake/geometry/render/render_label.h"
 #include "drake/geometry/shape_specification.h"
@@ -120,6 +121,8 @@ class RenderEngine : public ShapeReifier {
    @param shape          The shape specification to add to the render engine.
    @param properties     The perception properties provided for this geometry.
    @param X_WG           The pose of the geometry relative to the world frame W.
+   @param input_images   The set of externally controlled (i.e., "input images")
+                         that have been registered with SceneGraph.
    @param needs_updates  If true, the geometry's pose will be updated via
                          UpdatePoses().
    @returns True if the %RenderEngine implementation accepted the shape for
@@ -130,10 +133,11 @@ class RenderEngine : public ShapeReifier {
                               or a geometry has already been registered with the
                               given `id`.
   */
-  bool RegisterVisual(
-      GeometryId id,
-      const Shape& shape, const PerceptionProperties& properties,
-      const math::RigidTransformd& X_WG, bool needs_updates = true);
+  bool RegisterVisual(GeometryId id, const Shape& shape,
+                      const PerceptionProperties& properties,
+                      const math::RigidTransformd& X_WG,
+                      const geometry::internal::InputImageSet& input_images,
+                      bool needs_updates = true);
 
   /** Removes the geometry indicated by the given `id` from the engine.
    @param id    The id of the geometry to remove.
@@ -160,6 +164,8 @@ class RenderEngine : public ShapeReifier {
       DoUpdateVisualPose(id, X_WG);
     }
   }
+
+//  void UpdateInputImages() = 0;
 
   /** Updates the renderer's viewpoint with given pose X_WR.
 
@@ -223,7 +229,8 @@ class RenderEngine : public ShapeReifier {
    _exclusively_ use GetRenderLabelOrThrow().  */
   virtual bool DoRegisterVisual(
       GeometryId id, const Shape& shape, const PerceptionProperties& properties,
-      const math::RigidTransformd& X_WG) = 0;
+      const math::RigidTransformd& X_WG,
+      const geometry::internal::InputImageSet& input_images) = 0;
 
   /** The NVI-function for updating the pose of a render geometry (identified
    by `id`) to the given pose X_WG.

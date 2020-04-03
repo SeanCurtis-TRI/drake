@@ -150,7 +150,8 @@ class RenderEngineVtk final : public RenderEngine,
   // @see RenderEngine::DoRegisterVisual().
   bool DoRegisterVisual(
       GeometryId id, const Shape& shape, const PerceptionProperties& properties,
-      const math::RigidTransformd& X_WG) final;
+      const math::RigidTransformd& X_WG,
+      const geometry::internal::InputImageSet& input_images) final;
 
   // @see RenderEngine::DoUpdateVisualPose().
   void DoUpdateVisualPose(GeometryId id,
@@ -233,6 +234,10 @@ class RenderEngineVtk final : public RenderEngine,
   // depth, and label) keyed by the geometry's GeometryId.
   std::unordered_map<GeometryId, std::array<vtkSmartPointer<vtkActor>, 3>>
       actors_;
+
+  // A map from the geometries with declared input image dependencies and the
+  // input images they depend on (both indicated by their corresponding ids).
+  std::unordered_map<GeometryId, ImageId> input_images_;
 };
 
 }  // namespace render

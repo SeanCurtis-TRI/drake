@@ -155,11 +155,30 @@ drake_cc_library(
         ":geometry_index",
         ":geometry_instance",
         ":geometry_set",
+        ":input_image_set",
         ":internal_frame",
         ":internal_geometry",
         ":proximity_engine",
         ":utilities",
         "//geometry/render:render_engine",
+    ],
+)
+
+drake_cc_library(
+    name = "input_image",
+    hdrs = ["input_image.h"],
+    deps = [
+        ":geometry_ids",
+        "//systems/sensors:image",
+    ],
+)
+
+drake_cc_library(
+    name = "input_image_set",
+    srcs = ["input_image_set.cc"],
+    hdrs = ["input_image_set.h"],
+    deps = [
+        ":geometry_ids",
     ],
 )
 
@@ -200,6 +219,8 @@ drake_cc_library(
     ],
     deps = [
         ":geometry_state",
+        ":input_image",
+        ":input_image_set",
         ":scene_graph_inspector",
         "//common:essential",
         "//geometry/query_results:contact_surface",

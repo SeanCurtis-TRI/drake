@@ -34,9 +34,10 @@ class RenderEngineGl final : public RenderEngine {
 
  private:
   // @see RenderEngine::DoRegisterVisual().
-  bool DoRegisterVisual(GeometryId id, const Shape& shape,
-                        const PerceptionProperties& properties,
-                        const math::RigidTransformd& X_WG) final;
+  bool DoRegisterVisual(
+      GeometryId id, const Shape& shape, const PerceptionProperties& properties,
+      const math::RigidTransformd& X_WG,
+      const geometry::internal::InputImageSet& input_images) final;
 
   // @see RenderEngine::DoUpdateVisualPose().
   void DoUpdateVisualPose(GeometryId id,

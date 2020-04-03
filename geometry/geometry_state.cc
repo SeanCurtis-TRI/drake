@@ -749,7 +749,7 @@ void GeometryState<T>::AssignRole(SourceId source_id, GeometryId geometry_id,
     auto& engine = pair.second;
     engine->RegisterVisual(
         geometry_id, geometry.shape(), *geometry.perception_properties(),
-        RigidTransformd(geometry.X_FG()), geometry.is_dynamic());
+        RigidTransformd(geometry.X_FG()), input_images_, geometry.is_dynamic());
   }
 }
 
@@ -896,6 +896,7 @@ void GeometryState<T>::AddRenderer(
       DRAKE_DEMAND(properties != nullptr);
       render_engine->RegisterVisual(id, geometry.shape(), *properties,
                                     RigidTransformd(geometry.X_FG()),
+                                    input_images_,
                                     geometry.is_dynamic());
     }
   }

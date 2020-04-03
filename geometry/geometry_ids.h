@@ -13,8 +13,11 @@ class EncodedData;
 /** Type used to identify geometry sources in SceneGraph. */
 using SourceId = drake::Identifier<class SourceTag>;
 
-/** Type used to identify geometry frames in SceneGraph.*/
+/** Type used to identify geometry frames in SceneGraph. */
 using FrameId = drake::Identifier<class FrameTag>;
+
+/** Typep used to identify source images in SceneGraph. */
+using ImageId = drake::Identifier<class ImageTag>;
 
 /** Type used to identify geometry instances in SceneGraph. */
 class GeometryId : public drake::Identifier<class GeometryTag> {

@@ -4,6 +4,7 @@ namespace drake {
 namespace geometry {
 namespace render {
 
+using geometry::internal::InputImageSet;
 using math::RigidTransformd;
 using systems::sensors::ImageDepth32F;
 using systems::sensors::ImageLabel16I;
@@ -28,7 +29,8 @@ void RenderEngineGl::RenderLabelImage(const CameraProperties&, bool,
 
 bool RenderEngineGl::DoRegisterVisual(GeometryId, const Shape&,
                                       const PerceptionProperties&,
-                                      const RigidTransformd&) {
+                                      const RigidTransformd&,
+                                      const InputImageSet&) {
   return true;
 }
 

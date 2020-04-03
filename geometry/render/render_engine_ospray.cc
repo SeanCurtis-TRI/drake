@@ -31,6 +31,7 @@ namespace render {
 
 using Eigen::Vector3d;
 using Eigen::Vector4d;
+using geometry::internal::InputImageSet;
 using math::RigidTransformd;
 using std::make_unique;
 using systems::sensors::ColorD;
@@ -71,6 +72,7 @@ struct RegistrationData {
   const PerceptionProperties& properties;
   const RigidTransformd& X_FG;
   const GeometryId id;
+  const InputImageSet& input_images;
   // The file name if the shape being registered is a mesh.
   std::optional<std::string> mesh_filename;
 };
@@ -232,9 +234,10 @@ void RenderEngineOspray::SetDefaultLightPosition(const Vector3<double>& X_DL) {
 
 bool RenderEngineOspray::DoRegisterVisual(
     GeometryId id, const Shape& shape, const PerceptionProperties& properties,
-    const RigidTransformd& X_FG) {
+    const RigidTransformd& X_FG,
+    const InputImageSet& input_images) {
   // Note: the user_data interface on reification requires a non-const pointer.
-  RegistrationData data{properties, X_FG, id};
+  RegistrationData data{properties, X_FG, id, input_images};
   shape.Reify(this, &data);
   return true;
 }

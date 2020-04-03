@@ -29,8 +29,9 @@ namespace render {
 
 using Eigen::Vector2d;
 using Eigen::Vector4d;
-using std::make_unique;
+using geometry::internal::InputImageSet;
 using math::RigidTransformd;
+using std::make_unique;
 using systems::sensors::ColorD;
 using systems::sensors::ColorI;
 using systems::sensors::ImageDepth32F;
@@ -103,6 +104,7 @@ struct RegistrationData {
   const PerceptionProperties& properties;
   const RigidTransformd& X_FG;
   const GeometryId id;
+  const InputImageSet& input_images;
   // The file name if the shape being registered is a mesh.
   std::optional<std::string> mesh_filename;
 };
@@ -278,9 +280,10 @@ void RenderEngineVtk::ImplementGeometry(const Convex& convex, void* user_data) {
 
 bool RenderEngineVtk::DoRegisterVisual(
     GeometryId id, const Shape& shape, const PerceptionProperties& properties,
-    const RigidTransformd& X_FG) {
+    const RigidTransformd& X_FG,
+    const InputImageSet& input_images) {
   // Note: the user_data interface on reification requires a non-const pointer.
-  RegistrationData data{properties, X_FG, id};
+  RegistrationData data{properties, X_FG, id, input_images};
   shape.Reify(this, &data);
   return true;
 }
@@ -297,9 +300,11 @@ void RenderEngineVtk::DoUpdateVisualPose(GeometryId id,
 }
 
 bool RenderEngineVtk::DoRemoveGeometry(GeometryId id) {
-  auto iter = actors_.find(id);
+  if (auto iter = input_images_.find(id); iter != input_images_.end()) {
+    input_images_.erase(iter);
+  }
 
-  if (iter != actors_.end()) {
+  if (auto iter = actors_.find(id); iter != actors_.end()) {
     std::array<vtkSmartPointer<vtkActor>, 3>& pipe_actors = iter->second;
     for (int i = 0; i < kNumPipelines; ++i) {
       // If the label actor hasn't been added to its renderer, this is a no-op.
@@ -322,7 +327,8 @@ RenderEngineVtk::RenderEngineVtk(const RenderEngineVtk& other)
                   make_unique<RenderingPipeline>(),
                   make_unique<RenderingPipeline>()}},
       default_diffuse_{other.default_diffuse_},
-      default_clear_color_{other.default_clear_color_} {
+      default_clear_color_{other.default_clear_color_},
+      input_images_{other.input_images_} {
   InitializePipelines();
 
   // Utility function for creating a cloned actor which *shares* the same
@@ -520,48 +526,92 @@ void RenderEngineVtk::ImplementGeometry(vtkPolyDataAlgorithm* source,
 
   // Color actor.
   auto& color_actor = actors[ImageType::kColor];
-  const std::string& diffuse_map_name =
-      data.properties.GetPropertyOrDefault<std::string>("phong", "diffuse_map",
-                                                        "");
-  // Legacy support for *implied* texture maps. If we have mesh.obj, we look for
-  // mesh.png (unless one has been specifically called out in the properties).
-  // TODO(SeanCurtis-TRI): Remove this legacy texture when objects and materials
-  //  are coherently specified by SDF/URDF/obj/mtl, etc.
-  std::string texture_name;
-  std::ifstream file_exist(diffuse_map_name);
-  if (file_exist) {
-    texture_name = diffuse_map_name;
-  } else {
-    if (!diffuse_map_name.empty()) {
-      log()->warn("Requested diffuse map could not be found: {}",
-                  diffuse_map_name);
+  if (data.properties.HasGroup("paint_shader")) {
+    const std::string& dynamic_mask = data.properties.GetPropertyOrDefault(
+        "paint_shader", "dynamic_mask", "");
+    const std::string& static_mask =
+        data.properties.GetPropertyOrDefault("paint_shader", "static_mask", "");
+    if (dynamic_mask.empty() && static_mask.empty()) {
+      throw std::runtime_error(
+          "Incomplete declaration of painter shader; missing mask "
+          "specification");
     }
-    if (diffuse_map_name.empty() && data.mesh_filename) {
-      // This is the hack to search for mesh.png as a possible texture.
-      const std::string alt_texture_name(
-          RemoveFileExtension(*data.mesh_filename) + ".png");
-      std::ifstream alt_file_exist(alt_texture_name);
-      if (alt_file_exist) texture_name = alt_texture_name;
+    if (!dynamic_mask.empty() and !static_mask.empty()) {
+      throw std::runtime_error(
+          "Error in declaration of painter shader; both dynamic and static "
+          "masks specified");
     }
-  }
-  if (!texture_name.empty()) {
-    const Vector2d& uv_scale = data.properties.GetPropertyOrDefault(
-        "phong", "diffuse_scale", Vector2d{1, 1});
-    vtkNew<vtkPNGReader> texture_reader;
-    texture_reader->SetFileName(texture_name.c_str());
-    texture_reader->Update();
-    vtkNew<vtkOpenGLTexture> texture;
-    texture->SetInputConnection(texture_reader->GetOutputPort());
-    const bool need_repeat = uv_scale[0] > 1 || uv_scale[1] > 1;
-    texture->SetRepeat(need_repeat);
-    texture->InterpolateOn();
-    color_actor->SetTexture(texture.Get());
+    if (!dynamic_mask.empty()) {
+      std::optional<ImageId> image_id =
+          data.input_images.FindIdByName(dynamic_mask);
+      if (!image_id) {
+        throw std::runtime_error(
+            fmt::format("Dynamic mask specified in perception properties '{}' "
+                        "has not been registered with SceneGraph",
+                        dynamic_mask));
+      }
+      if (!std::ifstream(dynamic_mask)) {
+        throw std::runtime_error(
+            fmt::format("Dynamic mask specified in perception properties '{}' "
+                        "cannot be found", dynamic_mask));
+      }
+      vtkNew<vtkPNGReader> texture_reader;
+      texture_reader->SetFileName(dynamic_mask.c_str());
+      texture_reader->Update();
+      vtkNew<vtkOpenGLTexture> texture;
+      texture->SetInputConnection(texture_reader->GetOutputPort());
+      texture->SetRepeat(false);
+      texture->InterpolateOn();
+      color_actor->SetTexture(texture.Get());
+      input_images_.insert({data.id, *image_id});
+    } else {
+      DRAKE_DEMAND(!static_mask.empty());
+    }
   } else {
-    const Vector4d& diffuse =
-        data.properties.GetPropertyOrDefault("phong", "diffuse",
-                                             default_diffuse_);
-    color_actor->GetProperty()->SetColor(diffuse(0), diffuse(1), diffuse(2));
-    color_actor->GetProperty()->SetOpacity(diffuse(3));
+    const std::string& diffuse_map_name =
+        data.properties.GetPropertyOrDefault<std::string>("phong",
+                                                          "diffuse_map",
+                                                          "");
+    // Legacy support for *implied* texture maps. If we have mesh.obj, we look for
+    // mesh.png (unless one has been specifically called out in the properties).
+    // TODO(SeanCurtis-TRI): Remove this legacy texture when objects and materials
+    //  are coherently specified by SDF/URDF/obj/mtl, etc.
+    std::string texture_name;
+    std::ifstream file_exist(diffuse_map_name);
+    if (file_exist) {
+      texture_name = diffuse_map_name;
+    } else {
+      if (!diffuse_map_name.empty()) {
+        log()->warn("Requested diffuse map could not be found: {}",
+                    diffuse_map_name);
+      }
+      if (diffuse_map_name.empty() && data.mesh_filename) {
+        // This is the hack to search for mesh.png as a possible texture.
+        const std::string alt_texture_name(
+            RemoveFileExtension(*data.mesh_filename) + ".png");
+        std::ifstream alt_file_exist(alt_texture_name);
+        if (alt_file_exist) texture_name = alt_texture_name;
+      }
+    }
+    if (!texture_name.empty()) {
+      const Vector2d& uv_scale = data.properties.GetPropertyOrDefault(
+          "phong", "diffuse_scale", Vector2d{1, 1});
+      vtkNew<vtkPNGReader> texture_reader;
+      texture_reader->SetFileName(texture_name.c_str());
+      texture_reader->Update();
+      vtkNew<vtkOpenGLTexture> texture;
+      texture->SetInputConnection(texture_reader->GetOutputPort());
+      const bool need_repeat = uv_scale[0] > 1 || uv_scale[1] > 1;
+      texture->SetRepeat(need_repeat);
+      texture->InterpolateOn();
+      color_actor->SetTexture(texture.Get());
+    } else {
+      const Vector4d& diffuse =
+          data.properties.GetPropertyOrDefault("phong", "diffuse",
+                                               default_diffuse_);
+      color_actor->GetProperty()->SetColor(diffuse(0), diffuse(1), diffuse(2));
+      color_actor->GetProperty()->SetOpacity(diffuse(3));
+    }
   }
   // TODO(SeanCurtis-TRI): Determine if this precludes modulating the texture
   //  with arbitrary rgba values (e.g., tinting red or making everything

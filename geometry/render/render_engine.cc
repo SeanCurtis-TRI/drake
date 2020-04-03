@@ -10,12 +10,15 @@ std::unique_ptr<RenderEngine> RenderEngine::Clone() const {
   return std::unique_ptr<RenderEngine>(DoClone());
 }
 
-bool RenderEngine::RegisterVisual(
-    GeometryId id, const drake::geometry::Shape& shape,
-    const PerceptionProperties& properties,
-    const RigidTransformd& X_WG, bool needs_updates) {
+bool RenderEngine::RegisterVisual(GeometryId id,
+                                  const drake::geometry::Shape& shape,
+                                  const PerceptionProperties& properties,
+                                  const RigidTransformd& X_WG,
+                                  const internal::InputImageSet& input_images,
+                                  bool needs_updates) {
   // TODO(SeanCurtis-TRI): Test that the id hasn't already been used.
-  const bool accepted = DoRegisterVisual(id, shape, properties, X_WG);
+  const bool accepted =
+      DoRegisterVisual(id, shape, properties, X_WG, input_images);
   if (accepted) {
     if (needs_updates) {
       update_ids_.insert(id);

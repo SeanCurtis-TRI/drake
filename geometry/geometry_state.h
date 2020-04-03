@@ -16,6 +16,7 @@
 #include "drake/geometry/geometry_index.h"
 #include "drake/geometry/geometry_roles.h"
 #include "drake/geometry/geometry_set.h"
+#include "drake/geometry/input_image_set.h"
 #include "drake/geometry/internal_frame.h"
 #include "drake/geometry/internal_geometry.h"
 #include "drake/geometry/proximity_engine.h"
@@ -145,6 +146,10 @@ class GeometryState {
 
   /** Implementation of SceneGraphInspector::FramesForSource().  */
   const FrameIdSet& FramesForSource(SourceId source_id) const;
+
+  /** Returns the input image set for this data.  */
+  internal::InputImageSet& mutable_input_image_set() { return input_images_; }
+  const internal::InputImageSet& input_image_set() { return input_images_; }
 
   //@}
 
@@ -806,6 +811,9 @@ class GeometryState {
   // frame i to the world frame.
   // TODO(SeanCurtis-TRI): Rename this to X_WFs_ to reflect multiplicity.
   std::vector<math::RigidTransform<T>> X_WF_;
+
+  // The collection of declared input images.
+  internal::InputImageSet input_images_;
 
   // The underlying geometry engine. The topology of the engine does _not_
   // change with respect to time. But its values do. This straddles the two

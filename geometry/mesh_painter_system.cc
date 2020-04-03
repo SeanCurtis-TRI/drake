@@ -6,6 +6,7 @@
 #include <fmt/format.h>
 #include <tiny_obj_loader.h>
 
+#include "drake/geometry/input_image.h"
 #include "drake/geometry/proximity/make_box_mesh.h"
 #include "drake/geometry/proximity/make_cylinder_mesh.h"
 #include "drake/geometry/proximity/posed_half_space.h"
@@ -13,6 +14,7 @@
 #include "drake/geometry/scene_graph_inspector.h"
 #include "drake/geometry/shape_specification.h"
 #include "drake/systems/sensors/image.h"
+#include "drake/systems/sensors/pixel_types.h"
 
 namespace drake {
 namespace geometry {
@@ -35,7 +37,9 @@ using systems::Context;
 using systems::InputPort;
 using systems::LeafSystem;
 using systems::OutputPort;
+using systems::sensors::Image;
 using systems::sensors::ImageRgba8U;
+using systems::sensors::PixelType;
 
 namespace {
 // The representation of the patch on a canvas. It is the surface mesh that
@@ -725,16 +729,26 @@ void RasterizeTriangle(const Vector2d& a, const Vector2d& b, const Vector2d& c,
 }  // namespace
 
 MeshPainterSystem::MeshPainterSystem(GeometryId mesh_id, GeometryId painter_id,
-                                     const SceneGraph<double>& scene_graph,
-                                     int width, int height)
+                                     int width, int height,
+                                     const std::string& name,
+                                     SceneGraph<double>* scene_graph)
     : LeafSystem<double>(),
+      source_id_(scene_graph->RegisterSource(this->get_name())),
+      image_id_(scene_graph->RegisterInputImage<PixelType::kRgba8U>(source_id_,
+                                                                    name)),
       canvas_id_(mesh_id),
       painter_id_(painter_id),
-      painter_mesh_(PainterReifier().MakePainterMesh(painter_id, scene_graph)),
-      canvas_mesh_(CanvasReifier().MakeCanvasMesh(mesh_id, scene_graph)) {
+      painter_mesh_(PainterReifier().MakePainterMesh(painter_id, *scene_graph)),
+      canvas_mesh_(CanvasReifier().MakeCanvasMesh(mesh_id, *scene_graph)) {
+  DRAKE_DEMAND(scene_graph != nullptr);
+
   geometry_query_input_port_ = &this->DeclareAbstractInputPort(
       "geometry_query", Value<QueryObject<double>>{});
-  ImageRgba8U texture_image(width, height);
+
+  // This is *probably* the wrong image type; given this is a mask, simply
+  //  an eight-bit luminance value will be enough.
+  Image<PixelType::kRgba8U> image(width, height);
+  InputImage<PixelType::kRgba8U> texture_image(image_id_, move(image));
   // TODO(SeanCurtis-TRI): Does the image get initialized to black? I'll need to
   //  do so if it hasn't been (or some user-configurable value).
   texture_output_port_ = &this->DeclareAbstractOutputPort(
@@ -749,8 +763,11 @@ const OutputPort<double>& MeshPainterSystem::texture_output_port() const {
   return *texture_output_port_;
 }
 
-void MeshPainterSystem::CalcTextureImage(const Context<double>& context,
-                                         ImageRgba8U* texture) const {
+void MeshPainterSystem::CalcTextureImage(
+    const Context<double>& context,
+    InputImage<PixelType::kRgba8U>* texture) const {
+  DRAKE_DEMAND(texture->id() == image_id_);
+
   const auto& query_object =
       geometry_query_input_port_->Eval<QueryObject<double>>(context);
   // Frames C and P are the frames of the canvas and painter objects,
@@ -764,11 +781,14 @@ void MeshPainterSystem::CalcTextureImage(const Context<double>& context,
   if (patch.mesh == nullptr) return;
 
   // Rasterize patch onto texture.
+  // TODO(SeanCurtis-TRI): This will go away when incrementing is a natural
+  //  part of accessing the mutable data.
+  texture->increment_serial_number();
   const SurfaceMesh<double>& mesh = *patch.mesh;
   const vector<Vector2d>& uvs = patch.uvs;
   for (SurfaceFace face : mesh.faces()) {
     RasterizeTriangle(uvs[face.vertex(0)], uvs[face.vertex(1)],
-                      uvs[face.vertex(2)], texture);
+                      uvs[face.vertex(2)], &texture->mutable_image());
   }
 }
 
