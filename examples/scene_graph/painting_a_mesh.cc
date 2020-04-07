@@ -248,6 +248,8 @@ int do_main() {
       &scene_graph);
   builder.Connect(scene_graph.get_query_output_port(),
                   painter_system.geometry_query_input_port());
+  builder.Connect(painter_system.texture_output_port(),
+                  scene_graph.image_input_port(painter_system.image_id()));
 
   // TODO(SeanCurtis-TRI): Visualize the image.
   auto& image_stripper =
