@@ -7,6 +7,7 @@
 #include <utility>
 #include <vector>
 
+#include "drake/common/profiler.h"
 #include "drake/common/eigen_types.h"
 #include "drake/geometry/geometry_ids.h"
 #include "drake/geometry/proximity/bounding_volume_hierarchy.h"
@@ -570,12 +571,16 @@ void SampleVolumeFieldOnSurface(
   std::vector<T> surface_e;
   const auto& mesh_M = volume_field_M.mesh();
 
+  static const common::TimerIndex timer = addTimer("Tet-Tri intersection");
+
   auto callback = [&volume_field_M, &surface_N, &surface_faces,
                    &surface_vertices_M, &surface_e, &mesh_M,
                    &X_MN](VolumeElementIndex tet_index,
                           SurfaceFaceIndex tri_index) -> BvttCallbackResult {
+    startTimer(timer);
     if (!IsFaceNormalAlongPressureGradient(volume_field_M, surface_N, X_MN,
                                            tet_index, tri_index)) {
+      lapTimer(timer);
       return BvttCallbackResult::Continue;
     }
 
@@ -593,7 +598,10 @@ void SampleVolumeFieldOnSurface(
         tet_index, mesh_M, tri_index, surface_N, X_MN);
 
     const int poly_vertex_count = static_cast<int>(polygon_vertices_M.size());
-    if (poly_vertex_count < 3) return BvttCallbackResult::Continue;
+    if (poly_vertex_count < 3) {
+      lapTimer(timer);
+      return BvttCallbackResult::Continue;
+    }
 
     const int num_previous_vertices = surface_vertices_M.size();
     // Add the new polygon vertices to the mesh vertices and construct a
@@ -617,6 +625,7 @@ void SampleVolumeFieldOnSurface(
       const T pressure = volume_field_M.EvaluateCartesian(tet_index, r_MV);
       surface_e.push_back(pressure);
     }
+    lapTimer(timer);
     return BvttCallbackResult::Continue;
   };
   bvh_M.Collide(bvh_N, X_MN, callback);

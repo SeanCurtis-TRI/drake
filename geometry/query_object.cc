@@ -2,6 +2,7 @@
 
 #include "drake/common/default_scalars.h"
 #include "drake/common/drake_assert.h"
+#include "drake/common/profiler.h"
 #include "drake/geometry/scene_graph.h"
 
 namespace drake {
@@ -107,7 +108,11 @@ QueryObject<T>::ComputeContactSurfaces() const {
 
   FullPoseUpdate();
   const GeometryState<T>& state = geometry_state();
-  return state.ComputeContactSurfaces();
+  static const common::TimerIndex timer = addTimer("ComputeContactSurfaces");
+  startTimer(timer);
+  auto results = state.ComputeContactSurfaces();
+  lapTimer(timer);
+  return results;
 }
 
 template <typename T>

@@ -12,6 +12,7 @@
 #include <gflags/gflags.h>
 
 #include "drake/common/find_resource.h"
+#include "drake/common/profiler.h"
 #include "drake/common/value.h"
 #include "drake/geometry/frame_kinematics_vector.h"
 #include "drake/geometry/geometry_frame.h"
@@ -65,6 +66,63 @@ namespace internal {
   plane is a _simpler_ version of the triangle. It therefore serves as a
   floor on how well tet-tri intersection can perform.
 
+  <h2>Running with profiling</h2>
+
+  <h3>Building with profiling enabled</h3>
+
+  To build with the profiler enabled, you must _recompile_, e.g.:
+
+  ```
+  bazel run --copt -DENABLE_TIMERS geometry/benchmarking:mesh_mesh_efficiency
+  ```
+
+  <h3>Interpreting the profiler results</h3>
+
+  The profiler is incorporated into this benchmark. With the profiler enabled,
+  it will capture high resolution measurements of several operations:
+
+    - Total simulation time (the call to simulator.AdvanceTo()) -- this excludes
+      all diagram building.
+      - All calls to QueryObject::ComputeContactSurface()
+        - All calls to the tri-tet/plane-tet function.
+      - All calls to ContactResultMaker::CalcContactResults()
+
+   The results will be output in a table that looks like this (sorry for the
+   poor formatting):
+
+   ```
+Time (s)   Samples   Total Time (s)  Label
+0.0002131649568405266      6001      1.279202906  Process Contact Surface
+0.00020712580319946677      6001      1.242961945  ComputeContactSurfaces
+4.3154817466319717e-07   2184364      0.942658297  SliceTetWithPlane
+    1.808158485         1      1.808158485  Main Simulation Loop
+
+   ```
+
+   The columns are:
+
+      - Time (s): The average time per invocation of the labeled operation.
+      - Samples: The number of times the label was called.
+      - Total Time (s): The _total_ time in seconds spent in the labeled
+        operation.
+      - Label: The label applied to the measured quantity.
+
+   Things to note:
+
+     - The number of invocations of `Process Contact Surface` and
+       `ComputeContactSurfaces` should always match.
+     - There should always be 1 invocation for `Main Simulation Loop`.
+     - Whether `--ground_as_mesh` is `true` or `false`, there should be the same
+       number of invocations of the `Tet-Tri intersection` or
+       `SliceTetWithPlane` labels, respectively. These are the number of
+       tet-feature pairs that were produced by the BVH culling; it should always
+       be the same.
+     - The primitive intersection operations that are measured have equivalent
+       effect. They both intersect a tet with its primitive (tri or plane) and
+       evaluate the mesh field on the intersection vertices.
+     - Increasing the resolution of the ball mesh (by decreasing the `--length`
+       parameter) will increase the cost of the contact surface and the number
+       of calls to the primitive intersection test.
  */
 
 using Eigen::Vector3d;
@@ -177,6 +235,8 @@ class ContactResultMaker final : public LeafSystem<double> {
  private:
   void CalcContactResults(const Context<double>& context,
                           lcmt_contact_results_for_viz* results) const {
+    static const common::TimerIndex timer = addTimer("Process Contact Surface");
+    startTimer(timer);
     const auto& query_object =
         get_geometry_query_port().Eval<QueryObject<double>>(context);
     std::vector<ContactSurface<double>> surfaces;
@@ -252,6 +312,7 @@ class ContactResultMaker final : public LeafSystem<double> {
       write_double3(pair.nhat_BA_W, info_msg.contact_force);
       write_double3(pair.nhat_BA_W, info_msg.normal);
     }
+    lapTimer(timer);
   }
 
   int geometry_query_input_port_{-1};
@@ -321,7 +382,11 @@ int do_main() {
   simulator.get_mutable_integrator().set_maximum_step_size(0.002);
   simulator.set_target_realtime_rate(FLAGS_real_time ? 1.f : 0.f);
   simulator.Initialize();
+  const common::TimerIndex main_loop = addTimer("Main Simulation Loop");
+  startTimer(main_loop);
   simulator.AdvanceTo(FLAGS_simulation_time);
+  lapTimer(main_loop);
+  std::cout << TableOfAverages() << "\n";
   return 0;
 }
 

@@ -3,6 +3,7 @@
 #include <array>
 #include <utility>
 
+#include "drake/common/profiler.h"
 #include "drake/geometry/proximity/contact_surface_utility.h"
 #include "drake/geometry/proximity/mesh_field_linear.h"
 #include "drake/geometry/proximity/volume_mesh.h"
@@ -70,6 +71,8 @@ void SliceTetWithPlane(VolumeElementIndex tet_index,
                        std::vector<T>* surface_e,
                        std::unordered_map<SortedPair<VolumeVertexIndex>,
                                           SurfaceVertexIndex>* cut_edges) {
+  static const common::TimerIndex timer = addTimer("SliceTetWithPlane");
+  startTimer(timer);
   const VolumeMesh<double>& mesh_M = field_M.mesh();
 
   T distance[4];
@@ -85,7 +88,10 @@ void SliceTetWithPlane(VolumeElementIndex tet_index,
       kMarchingTetsTable[intersection_code];
 
   // No intersecting edges --> no intersection.
-  if (intersected_edges[0] == -1) return;
+  if (intersected_edges[0] == -1) {
+    lapTimer(timer);
+    return;
+  }
 
   // Indices of the new polygon's vertices in vertices_W. There can be, at
   // most, four due to the intersection with the plane.
@@ -144,6 +150,7 @@ void SliceTetWithPlane(VolumeElementIndex tet_index,
   //  AddPolygonToMeshData that also takes the pressures.
   const Vector3<T> p_MC = X_WM.inverse() * vertices_W->back().r_MV();
   surface_e->emplace_back(field_M.EvaluateCartesian(tet_index, p_MC));
+  lapTimer(timer);
 }
 
 template <typename T>
