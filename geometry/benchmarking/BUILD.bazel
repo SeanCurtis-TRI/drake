@@ -18,6 +18,22 @@ drake_cc_binary(
 )
 
 drake_cc_binary(
+    name = "mesh_mesh_efficiency",
+    srcs = ["mesh_mesh_efficiency.cc"],
+    data = ["big_triangle.obj"],
+    deps = [
+        "//common:essential",
+        "//geometry:geometry_visualization",
+        "//geometry:scene_graph",
+        "//lcmtypes:contact_results_for_viz",
+        "//systems/analysis:simulator",
+        "//systems/framework:diagram",
+        "//systems/lcm:lcm_pubsub_system",
+        "@gflags",
+    ],
+)
+
+drake_cc_binary(
     name = "render_benchmark",
     srcs = ["render_benchmark.cc"],
     deps = [
