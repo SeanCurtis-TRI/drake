@@ -11,7 +11,9 @@
 #include "drake/geometry/input_image_set.h"
 #include "drake/geometry/query_object.h"
 #include "drake/geometry/query_results/penetration_as_point_pair.h"
+#include "drake/geometry/render_query_object.h"
 #include "drake/geometry/scene_graph_inspector.h"
+#include "drake/geometry/spatial_query_object.h"
 #include "drake/systems/framework/context.h"
 #include "drake/systems/framework/leaf_system.h"
 #include "drake/systems/rendering/pose_bundle.h"
@@ -41,7 +43,8 @@ class QueryObject;
  @system{SceneGraph,
    @input_port{source_pose{0}} @input_port{...} @input_port{source_pose{N-1}}
    @input_port{input_image{0}} @input_port{...} @input_port{input_image{M-1}},
-   @output_port{lcm_visualization} @output_port{query}
+   @output_port{lcm_visualization} @output_port{geometry_query}
+   @output_port{spatial_query} @output_port{render_query}
  }
 
  Only registered "geometry sources" can introduce geometry into %SceneGraph.
@@ -85,22 +88,38 @@ class QueryObject;
 
  @section geom_sys_outputs Outputs
 
- %SceneGraph has two output ports:
-
- __query port__: An abstract-valued port containing an instance of QueryObject.
- It provides a "ticket" for downstream LeafSystem instances to perform geometric
- queries on the %SceneGraph. To perform geometric queries, downstream
- LeafSystem instances acquire the QueryObject from %SceneGraph's output port
- and provide it as a parameter to one of %SceneGraph's query methods (e.g.,
- SceneGraph::ComputeContact()). This assumes that the querying system has
- access to a const pointer to the connected %SceneGraph instance. Use
- get_query_output_port() to acquire the output port for the query handle.
+ %SceneGraph has four output ports:
 
  __lcm visualization port__: An abstract-valued port containing an instance of
  PoseBundle. This is a convenience port designed to feed LCM update messages to
  drake_visualizer for the purpose of visualizing the state of the world's
  geometry. Additional uses of this port are strongly discouraged; instead, use
  an appropriate geometric query to obtain the state of the world's geometry.
+
+ __Query object ports__
+
+ %SceneGraph has three _query object_ ports. They support different types of
+ queries. This decomposition allows for articulating diagrams with more limited
+ dependencies. Although they may differ in the types of queries that can be
+ performed on them, they all work in the same way. They each serve as a
+ "handle" for downstream LeafSystem instances to query the state of %SceneGraph.
+ To perform such queries, downstream LeafSystem instances acquire the
+ QueryObject by connecting to %SceneGraph's output port. Connect to the
+ "smallest" query object that satisfies the query you wish to make (see below).
+
+ __geometry query port__: An abstract-valued port containing an instance of
+ QueryObject. This entails only the _properties_ of the
+ geometries themselves: e.g., shape, name, properties, poses, topology, etc.
+
+ __spatial query port__: An abstract-valued port containing an instance of
+ SpatialQueryObject. The SpatialQueryObject includes all of the queries
+ supported by QueryObject but also includes queries characterizing the spatial
+ relationships between geometries (distance, signed distance, contact, etc.)
+
+ __render query port__: An abstract-valued port containing an instance of
+ RenderQueryObject. The RenderQueryObject includes all of the queries
+ supported by QueryObject but also includes rendering queries -- drawing the
+ contents of %SceneGraph into an image.
 
  @section geom_sys_workflow Working with SceneGraph
 
@@ -114,15 +133,12 @@ class QueryObject;
  Consumers perform geometric queries upon the world geometry. %SceneGraph
  _serves_ those queries. As indicated above, in order for a LeafSystem to act
  as a consumer, it must:
-   1. define a QueryObject-valued input port and connect it to %SceneGraph's
-   corresponding output port, and
-   2. have a reference to the connected %SceneGraph instance.
+   1. define a query object-valued input port and connect it to %SceneGraph's
+   corresponding output port.
 
- With those two requirements satisfied, a LeafSystem can perform geometry
- queries by:
-   1. evaluating the QueryObject input port, and
-   2. passing the returned query object into the appropriate query method on
-   SceneGraph (e.g., SceneGraph::ComputeContact()).
+ Queries are then performd by the LeafSystem by:
+   1. evaluating the query object input port, and
+   2. invoking the appropriate query method on that object.
 
  __Producer__
 
@@ -285,7 +301,19 @@ class SceneGraph final : public systems::LeafSystem<T> {
   /** Returns the output port which produces the QueryObject for performing
    geometric queries.  */
   const systems::OutputPort<T>& get_query_output_port() const {
-    return systems::System<T>::get_output_port(query_port_index_);
+    return *query_port_;
+  }
+
+  /** Returns the output port which produces the SpatialQueryObject for
+   performing geometric queries.  */
+  const systems::OutputPort<T>& get_spatial_query_output_port() const {
+    return *spatial_query_port_;
+  }
+
+  /** Returns the output port which produces the RenderQueryObject for
+   performing geometric queries.  */
+  const systems::OutputPort<T>& get_render_query_output_port() const {
+    return *render_query_port_;
   }
 
   //@}
@@ -323,13 +351,13 @@ class SceneGraph final : public systems::LeafSystem<T> {
                       "is already used",
                       image_name));
     }
-    const int port_index =
+    const auto& port =
         this->DeclareAbstractInputPort(initial_state_->GetName(source_id) +
-                                           "input_image_" + image_name,
-                                       Value<InputImage<kPixelType>>())
-            .get_index();
+                                           "_input_image_" + image_name,
+                                       Value<InputImage<kPixelType>>());
     const ImageId image_id = ImageId::get_new_id();
-    images.AddInputImage(source_id, image_id, port_index, image_name);
+    MakeOutputDependOnInput(port, render_query_port_);
+    images.AddInputImage(source_id, image_id, port.get_index(), image_name);
     return image_id;
   }
 
@@ -849,6 +877,16 @@ class SceneGraph final : public systems::LeafSystem<T> {
   void CalcQueryObject(const systems::Context<T>& context,
                        QueryObject<T>* output) const;
 
+  // Sets the context into the output port value so downstream consumers can
+  // perform spatial queries.
+  void CalcSpatialQueryObject(const systems::Context<T>& context,
+                              SpatialQueryObject<T>* output) const;
+
+  // Sets the context into the output port value so downstream consumers can
+  // perform render queries.
+  void CalcRenderQueryObject(const systems::Context<T>& context,
+                             RenderQueryObject<T>* output) const;
+
   // Constructs a PoseBundle of length equal to the concatenation of all inputs.
   // This is the method used by the allocator for the output port.
   systems::rendering::PoseBundle<T> MakePoseBundle() const;
@@ -888,6 +926,23 @@ class SceneGraph final : public systems::LeafSystem<T> {
   const GeometryState<T>& geometry_state(
       const systems::Context<T>& context) const;
 
+  static void MakeOutputDependOnInput(const systems::InputPort<T>& in_port,
+                                      systems::LeafOutputPort<T>* output_port) {
+    // NOTE: There is no API for mutating a cache entry's dependencies. This
+    // makes sense as that change is only manifest *after* allocating a new
+    // context and that kind of coordination is tricky. However, SceneGraph
+    // already has extensive documentation about the need to reallocate after
+    // making "interesting" changes.
+    // TODO(SeanCurtis-TRI): in consultation with sherm, we should ultimately
+    //  have: LeafOutputPort<T>::set_prereqs(set<prereqs>) that will, in turn
+    //  bump the system's internal id so that it reocgnizes that previously
+    //  allocated contexts are no longer compatible with it. If we're *really*
+    //  sophisticated, only do it if changing it reflects a change.
+    auto& out_cache =
+        const_cast<systems::CacheEntry&>(output_port->cache_entry());
+    out_cache.mutable_prerequisites().insert(in_port.ticket());
+  }
+
   // A struct that stores the port indices for a given source.
   // TODO(SeanCurtis-TRI): Consider making these TypeSafeIndex values.
   struct SourcePorts {
@@ -901,8 +956,16 @@ class SceneGraph final : public systems::LeafSystem<T> {
   // The index of the output port with the PoseBundle abstract value.
   int bundle_port_index_{-1};
 
+  // We maintain mutable pointers to the query object output ports because we
+  // need to mutate their dependencies as we declare inputs. These must be
+  // assigned to in the constructor.
+
   // The index of the output port with the QueryObject abstract value.
-  int query_port_index_{-1};
+  systems::LeafOutputPort<T>* query_port_{};
+  // The index of the output port with the SpatialQueryObject abstract value.
+  systems::LeafOutputPort<T>* spatial_query_port_{};
+  // The index of the output port with the RenderQueryObject abstract value.
+  systems::LeafOutputPort<T>* render_query_port_{};
 
   // A raw pointer to the default geometry state (which serves as the model for
   // allocating contexts for this system). The instance is owned by

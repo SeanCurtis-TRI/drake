@@ -91,11 +91,12 @@ void StaticFrictionConeComplementarityNonlinearConstraint::DoEval(
   if (!query_port.HasValue(context)) {
     throw std::invalid_argument(
         "StaticEquilibriumConstraint: Cannot get a valid "
-        "geometry::QueryObject. Please refer to AddMultibodyPlantSceneGraph "
-        "on connecting MultibodyPlant to SceneGraph.");
+        "geometry::SpatialQueryObject. Please refer to "
+        "AddMultibodyPlantSceneGraph on connecting MultibodyPlant to "
+        "SceneGraph.");
   }
   const auto& query_object =
-      query_port.Eval<geometry::QueryObject<AutoDiffXd>>(context);
+      query_port.Eval<geometry::SpatialQueryObject<AutoDiffXd>>(context);
   const std::vector<geometry::SignedDistancePair<AutoDiffXd>>
       signed_distance_pairs =
           query_object.ComputeSignedDistancePairwiseClosestPoints();

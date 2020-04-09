@@ -1,5 +1,6 @@
 #include "drake/multibody/optimization/static_equilibrium_problem.h"
 
+#include "drake/geometry/spatial_query_object.h"
 #include "drake/multibody/optimization/static_equilibrium_constraint.h"
 #include "drake/multibody/optimization/static_friction_cone_complementarity_constraint.h"
 
@@ -24,11 +25,12 @@ StaticEquilibriumProblem::StaticEquilibriumProblem(
   if (!query_port.HasValue(*context_)) {
     throw std::invalid_argument(
         "StaticEquilibriumConstraint: Cannot get a valid "
-        "geometry::QueryObject. Please refer to AddMultibodyPlantSceneGraph "
-        "on connecting MultibodyPlant to SceneGraph.");
+        "geometry::SpatialQueryObject. Please refer to "
+        "AddMultibodyPlantSceneGraph on connecting MultibodyPlant to "
+        "SceneGraph.");
   }
   const auto& query_object =
-      query_port.Eval<geometry::QueryObject<AutoDiffXd>>(*context_);
+      query_port.Eval<geometry::SpatialQueryObject<AutoDiffXd>>(*context_);
   const geometry::SceneGraphInspector<AutoDiffXd>& inspector =
       query_object.inspector();
   const std::set<std::pair<geometry::GeometryId, geometry::GeometryId>>
@@ -77,11 +79,12 @@ std::vector<ContactWrench> StaticEquilibriumProblem::GetContactWrenchSolution(
   if (!query_port.HasValue(*context_)) {
     throw std::invalid_argument(
         "StaticEquilibriumConstraint: Cannot get a valid "
-        "geometry::QueryObject. Please refer to AddMultibodyPlantSceneGraph "
-        "on connecting MultibodyPlant to SceneGraph.");
+        "geometry::SpatialQueryObject. Please refer to "
+        "AddMultibodyPlantSceneGraph on connecting MultibodyPlant to "
+        "SceneGraph.");
   }
   const auto& query_object =
-      query_port.Eval<geometry::QueryObject<AutoDiffXd>>(*context_);
+      query_port.Eval<geometry::SpatialQueryObject<AutoDiffXd>>(*context_);
   // TODO(hongkai.dai) compute the signed distance between a specific pair of
   // contact, rather than all pairs of contact.
   const std::vector<geometry::SignedDistancePair<AutoDiffXd>>

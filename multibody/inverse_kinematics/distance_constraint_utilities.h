@@ -76,9 +76,9 @@ void CheckPlantIsConnectedToSceneGraph(
   if (!query_port.HasValue(plant_context)) {
     throw std::invalid_argument(
         "Kinematic constraint: Cannot get a valid "
-        "geometry::QueryObject. Either the plant's geometry query input port "
-        "is not properly connected to the SceneGraph's geometry query output "
-        "port, or the plant_context_ is incorrect. Please refer to "
+        "geometry::SpatialQueryObject. Either the plant's geometry query input "
+        "port is not properly connected to the SceneGraph's spatial query "
+        "output port, or the plant_context_ is incorrect. Please refer to "
         "AddMultibodyPlantSceneGraph on connecting MultibodyPlant to "
         "SceneGraph.");
   }

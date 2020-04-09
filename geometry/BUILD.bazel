@@ -211,11 +211,15 @@ drake_cc_library(
     name = "scene_graph",
     srcs = [
         "query_object.cc",
+        "render_query_object.cc",
         "scene_graph.cc",
+        "spatial_query_object.cc",
     ],
     hdrs = [
         "query_object.h",
+        "render_query_object.h",
         "scene_graph.h",
+        "spatial_query_object.h",
     ],
     deps = [
         ":geometry_state",
@@ -457,6 +461,14 @@ drake_cc_googletest(
 )
 
 drake_cc_googletest(
+    name = "render_query_object_test",
+    deps = [
+        ":scene_graph",
+        "//common/test_utilities:expect_throws_message",
+    ],
+)
+
+drake_cc_googletest(
     name = "scene_graph_inspector_test",
     deps = [
         ":geometry_frame",
@@ -476,6 +488,14 @@ drake_cc_googletest(
     name = "shape_to_string_test",
     deps = [
         ":shape_to_string",
+    ],
+)
+
+drake_cc_googletest(
+    name = "spatial_query_object_test",
+    deps = [
+        ":scene_graph",
+        "//common/test_utilities:expect_throws_message",
     ],
 )
 

@@ -208,6 +208,12 @@ void DoScalarDependentDefinitions(py::module m, T) {
             py_reference_internal, cls_doc.get_pose_bundle_output_port.doc)
         .def("get_query_output_port", &Class::get_query_output_port,
             py_reference_internal, cls_doc.get_query_output_port.doc)
+        .def("get_spatial_query_output_port",
+            &Class::get_spatial_query_output_port, py_reference_internal,
+            cls_doc.get_spatial_query_output_port.doc)
+        .def("get_render_query_output_port",
+            &Class::get_render_query_output_port, py_reference_internal,
+            cls_doc.get_render_query_output_port.doc)
         .def("model_inspector", &Class::model_inspector, py_reference_internal,
             cls_doc.model_inspector.doc)
         .def("RegisterSource",
@@ -345,60 +351,82 @@ void DoScalarDependentDefinitions(py::module m, T) {
         m, "QueryObject", param, doc.QueryObject.doc);
     cls  // BR
         .def("inspector", &QueryObject<T>::inspector, py_reference_internal,
-            doc.QueryObject.inspector.doc)
-        .def("ComputeSignedDistancePairwiseClosestPoints",
-            &QueryObject<T>::ComputeSignedDistancePairwiseClosestPoints,
-            py::arg("max_distance") = std::numeric_limits<double>::infinity(),
-            doc.QueryObject.ComputeSignedDistancePairwiseClosestPoints.doc)
-        .def("ComputeSignedDistancePairClosestPoints",
-            &QueryObject<T>::ComputeSignedDistancePairClosestPoints,
-            py::arg("id_A"), py::arg("id_B"),
-            doc.QueryObject.ComputeSignedDistancePairClosestPoints.doc)
-        .def("ComputePointPairPenetration",
-            &QueryObject<T>::ComputePointPairPenetration,
-            doc.QueryObject.ComputePointPairPenetration.doc)
-        .def("ComputeSignedDistanceToPoint",
-            &QueryObject<T>::ComputeSignedDistanceToPoint, py::arg("p_WQ"),
-            py::arg("threshold") = std::numeric_limits<double>::infinity(),
-            doc.QueryObject.ComputeSignedDistanceToPoint.doc)
-        .def("FindCollisionCandidates",
-            &QueryObject<T>::FindCollisionCandidates,
-            doc.QueryObject.FindCollisionCandidates.doc)
-        .def("RenderColorImage",
-            [](const Class* self, const render::CameraProperties& camera,
-                FrameId parent_frame, const math::RigidTransformd& X_PC,
-                bool show_window) {
-              systems::sensors::ImageRgba8U img(camera.width, camera.height);
-              self->RenderColorImage(
-                  camera, parent_frame, X_PC, show_window, &img);
-              return img;
-            },
-            py::arg("camera"), py::arg("parent_frame"), py::arg("X_PC"),
-            py::arg("show_window") = false,
-            doc.QueryObject.RenderColorImage.doc)
-        .def("RenderDepthImage",
-            [](const Class* self, const render::DepthCameraProperties& camera,
-                FrameId parent_frame, const math::RigidTransformd& X_PC) {
-              systems::sensors::ImageDepth32F img(camera.width, camera.height);
-              self->RenderDepthImage(camera, parent_frame, X_PC, &img);
-              return img;
-            },
-            py::arg("camera"), py::arg("parent_frame"), py::arg("X_PC"),
-            doc.QueryObject.RenderDepthImage.doc)
-        .def("RenderLabelImage",
-            [](const Class* self, const render::CameraProperties& camera,
-                FrameId parent_frame, const math::RigidTransformd& X_PC,
-                bool show_window = false) {
-              systems::sensors::ImageLabel16I img(camera.width, camera.height);
-              self->RenderLabelImage(
-                  camera, parent_frame, X_PC, show_window, &img);
-              return img;
-            },
-            py::arg("camera"), py::arg("parent_frame"), py::arg("X_PC"),
-            py::arg("show_window") = false,
-            doc.QueryObject.RenderLabelImage.doc);
+             doc.QueryObject.inspector.doc);
 
     AddValueInstantiation<QueryObject<T>>(m);
+  }
+
+  //  SpatialQueryObject
+  {
+    using Class = SpatialQueryObject<T>;
+    auto cls = DefineTemplateClassWithDefault<Class, QueryObject<T>>(
+        m, "SpatialQueryObject", param, doc.SpatialQueryObject.doc);
+    cls  // BR
+        .def("ComputeSignedDistancePairwiseClosestPoints",
+            &SpatialQueryObject<T>::ComputeSignedDistancePairwiseClosestPoints,
+            py::arg("max_distance") = std::numeric_limits<double>::infinity(),
+            doc.SpatialQueryObject.ComputeSignedDistancePairwiseClosestPoints
+                .doc)
+        .def("ComputeSignedDistancePairClosestPoints",
+            &SpatialQueryObject<T>::ComputeSignedDistancePairClosestPoints,
+            py::arg("id_A"), py::arg("id_B"),
+            doc.SpatialQueryObject.ComputeSignedDistancePairClosestPoints.doc)
+        .def("ComputePointPairPenetration",
+            &SpatialQueryObject<T>::ComputePointPairPenetration,
+            doc.SpatialQueryObject.ComputePointPairPenetration.doc)
+        .def("ComputeSignedDistanceToPoint",
+            &SpatialQueryObject<T>::ComputeSignedDistanceToPoint,
+            py::arg("p_WQ"),
+            py::arg("threshold") = std::numeric_limits<double>::infinity(),
+            doc.SpatialQueryObject.ComputeSignedDistanceToPoint.doc)
+        .def("FindCollisionCandidates",
+            &SpatialQueryObject<T>::FindCollisionCandidates,
+            doc.SpatialQueryObject.FindCollisionCandidates.doc);
+
+    AddValueInstantiation<SpatialQueryObject<T>>(m);
+  }
+
+  //  RenderQueryObject
+  {
+    using Class = RenderQueryObject<T>;
+    auto cls = DefineTemplateClassWithDefault<Class, QueryObject<T>>(
+        m, "RenderQueryObject", param, doc.RenderQueryObject.doc);
+    cls  // BR
+        .def("RenderColorImage",
+             [](const Class* self, const render::CameraProperties& camera,
+                FrameId parent_frame, const math::RigidTransformd& X_PC,
+                bool show_window) {
+               systems::sensors::ImageRgba8U img(camera.width, camera.height);
+               self->RenderColorImage(
+                   camera, parent_frame, X_PC, show_window, &img);
+               return img;
+             },
+             py::arg("camera"), py::arg("parent_frame"), py::arg("X_PC"),
+             py::arg("show_window") = false,
+             doc.RenderQueryObject.RenderColorImage.doc)
+        .def("RenderDepthImage",
+             [](const Class* self, const render::DepthCameraProperties& camera,
+                FrameId parent_frame, const math::RigidTransformd& X_PC) {
+               systems::sensors::ImageDepth32F img(camera.width, camera.height);
+               self->RenderDepthImage(camera, parent_frame, X_PC, &img);
+               return img;
+             },
+             py::arg("camera"), py::arg("parent_frame"), py::arg("X_PC"),
+             doc.RenderQueryObject.RenderDepthImage.doc)
+        .def("RenderLabelImage",
+             [](const Class* self, const render::CameraProperties& camera,
+                FrameId parent_frame, const math::RigidTransformd& X_PC,
+                bool show_window = false) {
+               systems::sensors::ImageLabel16I img(camera.width, camera.height);
+               self->RenderLabelImage(
+                   camera, parent_frame, X_PC, show_window, &img);
+               return img;
+             },
+             py::arg("camera"), py::arg("parent_frame"), py::arg("X_PC"),
+             py::arg("show_window") = false,
+             doc.RenderQueryObject.RenderLabelImage.doc);
+
+    AddValueInstantiation<RenderQueryObject<T>>(m);
   }
 
   // SignedDistancePair

@@ -244,7 +244,7 @@ int do_main() {
 
   // Create and visualize painter system.
   auto& painter_system = *builder.AddSystem<MeshPainterSystem>(
-      ground_id, moving_rod.geometry_id(), 512, 512, "grid_texture",
+      ground_id, moving_rod.geometry_id(), 512, 512, "ground_texture",
       &scene_graph);
   builder.Connect(scene_graph.get_query_output_port(),
                   painter_system.geometry_query_input_port());

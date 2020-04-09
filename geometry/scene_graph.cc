@@ -16,9 +16,12 @@ namespace drake {
 namespace geometry {
 
 using render::RenderLabel;
+using systems::CacheEntry;
 using systems::Context;
 using systems::InputPort;
+using systems::LeafOutputPort;
 using systems::LeafSystem;
+using systems::OutputPort;
 using systems::rendering::PoseBundle;
 using systems::SystemTypeTag;
 using std::make_unique;
@@ -74,9 +77,21 @@ SceneGraph<T>::SceneGraph()
                                &SceneGraph::CalcPoseBundle)
                            .get_index();
 
-  query_port_index_ =
-      this->DeclareAbstractOutputPort("query", &SceneGraph::CalcQueryObject)
-          .get_index();
+  // We'll add each kinematics input port to the dependencies of all three of
+  // these query ports as we go.
+  query_port_ =
+      &this->DeclareAbstractOutputPort(
+              "geometry_query", &SceneGraph::CalcQueryObject,
+              {this->all_state_ticket(), this->all_parameters_ticket()});
+  spatial_query_port_ =
+      &this->DeclareAbstractOutputPort(
+              "spatial_query", &SceneGraph::CalcSpatialQueryObject,
+              {this->all_state_ticket(), this->all_parameters_ticket()});
+  // In addition, the render query port will also be dependent on input images.
+  render_query_port_ =
+      &this->DeclareAbstractOutputPort(
+              "render_query", &SceneGraph::CalcRenderQueryObject,
+              {this->all_state_ticket(), this->all_parameters_ticket()});
 
   auto& pose_update_cache_entry = this->DeclareCacheEntry(
       "Cache guard for pose updates", &SceneGraph::CalcPoseUpdate,
@@ -350,10 +365,13 @@ void SceneGraph<T>::MakeSourcePorts(SourceId source_id) {
   DRAKE_ASSERT(input_source_ids_.count(source_id) == 0);
   // Create and store the input ports for this source id.
   SourcePorts& source_ports = input_source_ids_[source_id];
-  source_ports.pose_port = this->DeclareAbstractInputPort(
-                                   initial_state_->GetName(source_id) + "_pose",
-                                   Value<FramePoseVector<T>>())
-                               .get_index();
+  InputPort<T>& port = this->DeclareAbstractInputPort(
+      initial_state_->GetName(source_id) + "_pose",
+      Value<FramePoseVector<T>>());
+  MakeOutputDependOnInput(port, query_port_);
+  MakeOutputDependOnInput(port, spatial_query_port_);
+  MakeOutputDependOnInput(port, render_query_port_);
+  source_ports.pose_port = port.get_index();
 }
 
 template <typename T>
@@ -371,6 +389,40 @@ void SceneGraph<T>::CalcQueryObject(const Context<T>& context,
   //
   // See the todo in the header for an alternate formulation.
   output->set(&context, this);
+}
+
+template <typename T>
+void SceneGraph<T>::CalcSpatialQueryObject(
+    const Context<T>& context, SpatialQueryObject<T>* output) const {
+  // NOTE: This is an exception to the style guide. It takes a const reference
+  // but then hangs onto a const pointer. The guide says the parameter should
+  // itself be a const pointer. We're breaking the guide to satisfy the
+  // following constraints:
+  //   1. This function serves as the output port calc callback; the signature
+  //      *must* be a const ref.
+  //   2. The design of the QueryObject requires a persisted pointer to the
+  //      context. However, the docs for the class emphasize that this should
+  //      *not* be persisted (and copying it clears this persisted copy).
+  //
+  // See the todo in the header for an alternate formulation.
+  reinterpret_cast<QueryObject<T>*>(output)->set(&context, this);
+}
+
+template <typename T>
+void SceneGraph<T>::CalcRenderQueryObject(const Context<T>& context,
+                                          RenderQueryObject<T>* output) const {
+  // NOTE: This is an exception to the style guide. It takes a const reference
+  // but then hangs onto a const pointer. The guide says the parameter should
+  // itself be a const pointer. We're breaking the guide to satisfy the
+  // following constraints:
+  //   1. This function serves as the output port calc callback; the signature
+  //      *must* be a const ref.
+  //   2. The design of the QueryObject requires a persisted pointer to the
+  //      context. However, the docs for the class emphasize that this should
+  //      *not* be persisted (and copying it clears this persisted copy).
+  //
+  // See the todo in the header for an alternate formulation.
+  reinterpret_cast<QueryObject<T>*>(output)->set(&context, this);
 }
 
 template <typename T>

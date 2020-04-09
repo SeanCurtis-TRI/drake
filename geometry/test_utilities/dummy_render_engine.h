@@ -118,7 +118,8 @@ class DummyRenderEngine final : public render::RenderEngine {
    successfully registered shape over the lifespan of `this` instance.)  */
   bool DoRegisterVisual(GeometryId id, const Shape&,
                         const PerceptionProperties& properties,
-                        const math::RigidTransformd&) final {
+                        const math::RigidTransformd&,
+                        const internal::InputImageSet&) final {
     GetRenderLabelOrThrow(properties);
     if (force_accept_ || properties.HasGroup(include_group_name_)) {
       registered_geometries_.insert(id);
