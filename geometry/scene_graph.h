@@ -337,29 +337,14 @@ class SceneGraph final : public systems::LeafSystem<T> {
    instance. These unique names are how internal components will identify which
    input image to access.
 
+   When %SceneGraph evaluates this input port, it must be of type InputImage.
+
    @param source_id     The id of the image source.
    @param image_name    A unique name identifier for the input image resource.
    @return A unique identifier for the input image.
    */
-  template <systems::sensors::PixelType kPixelType>
   ImageId RegisterInputImage(SourceId source_id,
-                             const std::string& image_name) {
-    internal::InputImageSet& images = initial_state_->mutable_input_image_set();
-    if (images.FindIdByName(image_name)) {
-      throw std::runtime_error(
-          fmt::format("Cannot register an input image with the name '{}'; it "
-                      "is already used",
-                      image_name));
-    }
-    const auto& port =
-        this->DeclareAbstractInputPort(initial_state_->GetName(source_id) +
-                                           "_input_image_" + image_name,
-                                       Value<InputImage<kPixelType>>());
-    const ImageId image_id = ImageId::get_new_id();
-    MakeOutputDependOnInput(port, render_query_port_);
-    images.AddInputImage(source_id, image_id, port.get_index(), image_name);
-    return image_id;
-  }
+                             const std::string& image_name);
 
   /** Access the image input port associated with the given image identifier.
    @throws std::runtime_error if the `id` is not a registered input image id.

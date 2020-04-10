@@ -80,7 +80,7 @@ using std::unique_ptr;
 using systems::Context;
 using systems::DiagramBuilder;
 using systems::LeafSystem;
-using systems::sensors::Image;
+using systems::sensors::ImageRgba8U;
 using systems::sensors::PixelType;
 using systems::sensors::RgbdSensor;
 using systems::Simulator;
@@ -169,14 +169,13 @@ class MovingRod final : public LeafSystem<double> {
 
  @system{InputImageToImage, @input_port{scene_graph_image}, @output_port{image}}
  */
-template <PixelType kPixelType>
 class InputImageToImage final : public LeafSystem<double> {
  public:
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(InputImageToImage)
 
   InputImageToImage() {
     scene_graph_input_image_port_ = this->DeclareAbstractInputPort(
-        "scene_graph_image", Value<InputImage<kPixelType>>()).get_index();
+        "scene_graph_image", Value<InputImage>()).get_index();
 
     image_output_port_ =
         this->DeclareAbstractOutputPort("image", &InputImageToImage::CalcImage)
@@ -194,9 +193,9 @@ class InputImageToImage final : public LeafSystem<double> {
 
  private:
   void CalcImage(
-      const Context<double>& context, Image<kPixelType>* image) const {
+      const Context<double>& context, ImageRgba8U* image) const {
     const auto& in_image =
-        scene_graph_input_image_port().template Eval<InputImage<kPixelType>>(
+        scene_graph_input_image_port().template Eval<InputImage>(
             context);
     *image = in_image.image();
   }
@@ -252,8 +251,7 @@ int do_main() {
                   scene_graph.image_input_port(painter_system.image_id()));
 
   // TODO(SeanCurtis-TRI): Visualize the image.
-  auto& image_stripper =
-      *builder.template AddSystem<InputImageToImage<PixelType::kRgba8U>>();
+  auto& image_stripper = *builder.template AddSystem<InputImageToImage>();
   builder.Connect(painter_system, image_stripper);
 
   auto& image_to_lcm_image_array =

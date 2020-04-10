@@ -33,21 +33,14 @@ namespace geometry {
  increment the serial number, downstream consumers are not obliged to update
  their internal representation of the provided image.
 
- @tparam kPixelType  The pixel type enum that denotes the pixel format and the
-                     data type of a channel.
- */
-template <systems::sensors::PixelType kPixelType>
-// TODO(SeanCurtis-TRI): Making this generic on kPixelType causes the classic
-//  TypeHash<T> cannot operate on T=drake::geometry::InputImage<(drake::systems
-//    ::sensors::PixelType)2>; Value<T> may suffer from slightly impaired
-//    performance.
-//  Error message. This seems due to the namespace.  :-/ Look into this. If
-//  I simply hard-code the image type, this will go away entirely.
+ Currently only RGBA-channel, unsigned-byte valued images are supported.  */
+// TODO(SeanCurtis-TRI): I'm losing flexibility of passing in masks as single
+//  channel images. Investigate making this more flexible.
 class InputImage {
  public:
   DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(InputImage)
 
-  using ImageType = systems::sensors::Image<kPixelType>;
+  using ImageType = systems::sensors::ImageRgba8U;
 
   /** Default constructor for model instantiation of port types; it produces
    an otherwise invalid instance with an invalid id and a zero-area image. */

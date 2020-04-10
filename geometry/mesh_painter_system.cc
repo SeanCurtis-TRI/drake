@@ -37,7 +37,6 @@ using systems::Context;
 using systems::InputPort;
 using systems::LeafSystem;
 using systems::OutputPort;
-using systems::sensors::Image;
 using systems::sensors::ImageRgba8U;
 using systems::sensors::PixelType;
 
@@ -714,13 +713,13 @@ void RasterizeTriangle(const Vector2d& a, const Vector2d& b, const Vector2d& c,
       const double gamma = 1 - alpha - beta;
       if (alpha >= 0 && beta >= 0 && gamma >= 0) {
         // TODO(SeanCurtis-TRI): this is type
-        //  ImageTraits<PixelType::kRgba8U>::ChannelType, but I don't want to
+        //  ImageTraits<PixelType::kRgb8U>::ChannelType*, but I don't want to
         //  handle the name spaces.
         auto* pixel = image->at(x, y);
-        *pixel = 255;
-        *(pixel + 1) = 255;
-        *(pixel + 2) = 255;
-        *(pixel + 3) = 255;
+        *pixel = 255;           // red.
+        *(pixel + 1) = 255;     // green.
+        *(pixel + 2) = 255;     // blue.
+        *(pixel + 3) = 255;     // alpha.
       }
     }
   }
@@ -734,8 +733,7 @@ MeshPainterSystem::MeshPainterSystem(GeometryId mesh_id, GeometryId painter_id,
                                      SceneGraph<double>* scene_graph)
     : LeafSystem<double>(),
       source_id_(scene_graph->RegisterSource(this->get_name())),
-      image_id_(scene_graph->RegisterInputImage<PixelType::kRgba8U>(source_id_,
-                                                                    name)),
+      image_id_(scene_graph->RegisterInputImage(source_id_, name)),
       canvas_id_(mesh_id),
       painter_id_(painter_id),
       painter_mesh_(PainterReifier().MakePainterMesh(painter_id, *scene_graph)),
@@ -747,8 +745,8 @@ MeshPainterSystem::MeshPainterSystem(GeometryId mesh_id, GeometryId painter_id,
 
   // This is *probably* the wrong image type; given this is a mask, simply
   //  an eight-bit luminance value will be enough.
-  Image<PixelType::kRgba8U> image(width, height);
-  InputImage<PixelType::kRgba8U> texture_image(image_id_, move(image));
+  ImageRgba8U image(width, height);
+  InputImage texture_image(image_id_, move(image));
   // TODO(SeanCurtis-TRI): Does the image get initialized to black? I'll need to
   //  do so if it hasn't been (or some user-configurable value).
   texture_output_port_ = &this->DeclareAbstractOutputPort(
@@ -763,9 +761,8 @@ const OutputPort<double>& MeshPainterSystem::texture_output_port() const {
   return *texture_output_port_;
 }
 
-void MeshPainterSystem::CalcTextureImage(
-    const Context<double>& context,
-    InputImage<PixelType::kRgba8U>* texture) const {
+void MeshPainterSystem::CalcTextureImage(const Context<double>& context,
+                                         InputImage* texture) const {
   DRAKE_DEMAND(texture->id() == image_id_);
 
   const auto& query_object =

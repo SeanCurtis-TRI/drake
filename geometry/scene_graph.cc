@@ -156,6 +156,25 @@ const InputPort<T>& SceneGraph<T>::get_source_pose_port(
 }
 
 template <typename T>
+ImageId SceneGraph<T>::RegisterInputImage(SourceId source_id,
+                                          const std::string& image_name) {
+  internal::InputImageSet& images = initial_state_->mutable_input_image_set();
+  if (images.FindIdByName(image_name)) {
+    throw std::runtime_error(
+        fmt::format("Cannot register an input image with the name '{}'; it "
+                    "is already used",
+                    image_name));
+  }
+  const auto& port = this->DeclareAbstractInputPort(
+      initial_state_->GetName(source_id) + "_input_image_" + image_name,
+      Value<InputImage>());
+  const ImageId image_id = ImageId::get_new_id();
+  MakeOutputDependOnInput(port, render_query_port_);
+  images.AddInputImage(source_id, image_id, port.get_index(), image_name);
+  return image_id;
+}
+
+template <typename T>
 const InputPort<T>& SceneGraph<T>::image_input_port(ImageId id) const {
   const int port_index = initial_state_->input_image_set().port_index(id);
   return this->get_input_port(port_index);

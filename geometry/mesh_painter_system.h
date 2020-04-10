@@ -101,8 +101,7 @@ class MeshPainterSystem final : public systems::LeafSystem<double> {
    based on overlap between the painter object and the mesh. It only accumulates
    and makes no assumptions about the previous state of the texture.  */
   void CalcTextureImage(
-      const systems::Context<double>& context,
-      InputImage<systems::sensors::PixelType::kRgba8U>* texture) const;
+      const systems::Context<double>& context, InputImage* texture) const;
 
   const SourceId source_id_;
   const ImageId image_id_;
