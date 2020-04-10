@@ -300,7 +300,7 @@ int do_main() {
 
   auto& camera = *builder.AddSystem<RgbdSensor>(
       scene_graph.world_frame_id(), X_WB, camera_prop);
-  builder.Connect(scene_graph.get_query_output_port(),
+  builder.Connect(scene_graph.get_render_query_output_port(),
                   camera.query_object_input_port());
   const auto& rgb_port =
       image_to_lcm_image_array.DeclareImageInputPort<PixelType::kRgba8U>(
