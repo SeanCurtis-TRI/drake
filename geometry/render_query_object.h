@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <unordered_map>
 
 #include "drake/geometry/query_object.h"
 #include "drake/math/rigid_transform.h"

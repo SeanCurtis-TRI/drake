@@ -1,7 +1,10 @@
 #include "drake/geometry/render_query_object.h"
 
+#include <unordered_ma>
+
 #include "drake/common/default_scalars.h"
 #include "drake/geometry/geometry_state.h"
+#include "drake/geometry/input_image.h"
 
 namespace drake {
 namespace geometry {
@@ -12,6 +15,14 @@ using render::DepthCameraProperties;
 using systems::sensors::ImageDepth32F;
 using systems::sensors::ImageLabel16I;
 using systems::sensors::ImageRgba8U;
+
+namespace {
+
+std::unordered_map<ImageId, const InputImage*> GetInputImages() {
+
+}
+
+}  // namespace
 
 // TODO (SeanCurtis-TRI): Give this access to the input images.
 

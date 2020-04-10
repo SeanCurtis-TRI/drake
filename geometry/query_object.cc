@@ -36,6 +36,8 @@ QueryObject<T>& QueryObject<T>::operator=(const QueryObject<T>& query_object) {
   } else if (query_object.context_ && query_object.scene_graph_) {
     // Create a new baked state; make sure the source is fully updated.
     query_object.FullPoseUpdate();
+    // TODO(SeanCurtis-TRI): Add a DoBake() call here so that derived classes
+    //  have the chance to cache whatever data they need (e.g., input images).
     state_ = std::make_shared<GeometryState<T>>(query_object.geometry_state());
   }
   inspector_.set(state_.get());

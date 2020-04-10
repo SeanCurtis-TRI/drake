@@ -157,6 +157,10 @@ class RenderEngineVtk final : public RenderEngine,
   void DoUpdateVisualPose(GeometryId id,
                           const math::RigidTransformd& X_WG) final;
 
+  // @see RenderEngine::DoUpdateInputImages().
+  void DoUpdateInputImages(
+      const std::unordered_map<ImageId, const InputImage*>& external_textures) final;
+
   // @see RenderEngine::DoRemoveGeometry().
   bool DoRemoveGeometry(GeometryId id) final;
 

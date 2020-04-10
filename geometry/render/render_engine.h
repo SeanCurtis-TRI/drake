@@ -12,6 +12,7 @@
 #include "drake/common/drake_copyable.h"
 #include "drake/geometry/geometry_ids.h"
 #include "drake/geometry/geometry_roles.h"
+#include "drake/geometry/input_image.h"
 #include "drake/geometry/input_image_set.h"
 #include "drake/geometry/render/camera_properties.h"
 #include "drake/geometry/render/render_label.h"
@@ -165,7 +166,13 @@ class RenderEngine : public ShapeReifier {
     }
   }
 
-//  void UpdateInputImages() = 0;
+  /** Updates the internal representation of any textures that have been
+   declared to be externally controlled (i.e., "input images"). By default, no
+   action is taken. */
+  void UpdateInputImages(
+      const std::unordered_map<ImageId, const InputImage*>& input_images) {
+    DoUpdateInputImages(input_images);
+  }
 
   /** Updates the renderer's viewpoint with given pose X_WR.
 
@@ -239,6 +246,11 @@ class RenderEngine : public ShapeReifier {
    @param X_WG     The pose of the render geometry in the world frame.  */
   virtual void DoUpdateVisualPose(GeometryId id,
                                   const math::RigidTransformd& X_WG) = 0;
+
+  /** The NVI-function for updating externally-controlled textures (i.e.,
+   "input images". By default, no work is done.  */
+  virtual void DoUpdateInputImages(
+      const std::unordered_map<ImageId, const InputImage*>& input_images) {}
 
   /** The NVI-function for removing the geometry with the given `id`.
    @param id  The id of the geometry to remove.

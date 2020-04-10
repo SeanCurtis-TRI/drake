@@ -299,6 +299,24 @@ void RenderEngineVtk::DoUpdateVisualPose(GeometryId id,
   }
 }
 
+void RenderEngineVtk::DoUpdateInputImages(
+    const unordered_map<ImageId, const InputImage*>& external_textures) {
+  for (const auto [geometry_id, image_id] : input_images_) {
+    const auto iter = external_textures.find(image_id);
+    if (iter == external_textures.end()) {
+      throw std::runtime_error(fmt::format(
+          "A geometry (with id {}) has been configured to use an external "
+          "texture with id {}, none has been provided. Did you forget to "
+          "connect to the input image port on SceneGraph?"));
+    }
+    const InputImage* texture_data = iter->second;
+    // If it has an entry, we presume it is valid.
+    DRAKE_DEMAND(texture_data != nullptr);
+    const ImageRgba8U& texture = texture_data->image();
+    actors_[geometry_id][kColor];
+  }
+}
+
 bool RenderEngineVtk::DoRemoveGeometry(GeometryId id) {
   if (auto iter = input_images_.find(id); iter != input_images_.end()) {
     input_images_.erase(iter);
@@ -526,6 +544,8 @@ void RenderEngineVtk::ImplementGeometry(vtkPolyDataAlgorithm* source,
 
   // Color actor.
   auto& color_actor = actors[ImageType::kColor];
+  // TODO: Encapsulate this better...ultimately, I need some kind of more
+  //  generic shader concept.
   if (data.properties.HasGroup("paint_shader")) {
     const std::string& dynamic_mask = data.properties.GetPropertyOrDefault(
         "paint_shader", "dynamic_mask", "");
@@ -534,14 +554,32 @@ void RenderEngineVtk::ImplementGeometry(vtkPolyDataAlgorithm* source,
     if (dynamic_mask.empty() && static_mask.empty()) {
       throw std::runtime_error(
           "Incomplete declaration of painter shader; missing mask "
-          "specification");
+          "specification (dynamic or static)");
     }
     if (!dynamic_mask.empty() and !static_mask.empty()) {
       throw std::runtime_error(
           "Error in declaration of painter shader; both dynamic and static "
           "masks specified");
     }
-    if (!dynamic_mask.empty()) {
+    // If it's a static mask; simply load it.
+    // If it's a dynamic mask, put in a place holder that we can update later.
+    if (!static_mask.empty()) {
+      if (!std::ifstream(static_mask)) {
+        throw std::runtime_error(
+            fmt::format("Static mask specified in perception properties "
+                        "('paint_shader', 'static_mask'): '{}' cannot be found",
+                        static_mask));
+      }
+      vtkNew<vtkPNGReader> texture_reader;
+      texture_reader->SetFileName(static_mask.c_str());
+      texture_reader->Update();
+      vtkNew<vtkOpenGLTexture> texture;
+      texture->SetInputConnection(texture_reader->GetOutputPort());
+      texture->SetRepeat(false);
+      texture->InterpolateOn();
+      color_actor->SetTexture(texture.Get());
+    } else {
+      DRAKE_DEMAND(!dynamic_mask.empty());
       std::optional<ImageId> image_id =
           data.input_images.FindIdByName(dynamic_mask);
       if (!image_id) {
@@ -550,22 +588,13 @@ void RenderEngineVtk::ImplementGeometry(vtkPolyDataAlgorithm* source,
                         "has not been registered with SceneGraph",
                         dynamic_mask));
       }
-      if (!std::ifstream(dynamic_mask)) {
-        throw std::runtime_error(
-            fmt::format("Dynamic mask specified in perception properties '{}' "
-                        "cannot be found", dynamic_mask));
-      }
-      vtkNew<vtkPNGReader> texture_reader;
-      texture_reader->SetFileName(dynamic_mask.c_str());
-      texture_reader->Update();
+      input_images_.insert({data.id, *image_id});
+      vtkNew<vtkImageData> image_data;
       vtkNew<vtkOpenGLTexture> texture;
-      texture->SetInputConnection(texture_reader->GetOutputPort());
+      texture->SetInputDataObject(image_data.Get());
       texture->SetRepeat(false);
       texture->InterpolateOn();
       color_actor->SetTexture(texture.Get());
-      input_images_.insert({data.id, *image_id});
-    } else {
-      DRAKE_DEMAND(!static_mask.empty());
     }
   } else {
     const std::string& diffuse_map_name =

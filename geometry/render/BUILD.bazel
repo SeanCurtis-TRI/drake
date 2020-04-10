@@ -36,6 +36,7 @@ drake_cc_library(
         ":render_label",
         "//geometry:geometry_ids",
         "//geometry:geometry_roles",
+        "//geometry:input_image",
         "//geometry:input_image_set",
         "//geometry:shape_specification",
         "//geometry:utilities",
