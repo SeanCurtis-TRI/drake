@@ -39,9 +39,6 @@ DEFINE_double(
 DEFINE_double(
     texture_fps, 30.0,
     "The frequency in Hz at which the texture is painted, defaults to 30 Hz");
-DEFINE_double(
-    duration, 2 * M_PI,
-    "The duration to run the simulation in seconds; defaults to 6.28 s");
 DEFINE_string(
     painter_shape, "cylinder",
     "The shape to use as the painter object; should be 'cylinder' or 'box'");
@@ -85,8 +82,14 @@ using systems::sensors::PixelType;
 using systems::sensors::RgbdSensor;
 using systems::Simulator;
 
-/** Moves a cylinder in a circular path around the world origin (intersecting
- the z = 0 plane in the world frame with its long axis parallel with Wz).
+constexpr double kDelay = 1.0;
+
+/** Animates a rod.
+
+   - It starts above the z = 0 plane.
+   - Drops down to the plane (in kDelay seconds).
+   - Traces out a circle.
+   - Traces out a number of "petals" around the central circle.
 
  @system{MovingRod,, @output_port{geometry_pose} }
 
@@ -121,7 +124,7 @@ class MovingRod final : public LeafSystem<double> {
     illus_props.AddProperty("phong", "diffuse", Vector4d(0.8, 0.1, 0.1, 1));
     scene_graph->AssignRole(source_id_, geometry_id_, illus_props);
     PerceptionProperties percep_props;
-    percep_props.AddProperty("phong", "diffuse", Vector4d{0.8, 0.8, 0.8, 1.0});
+    percep_props.AddProperty("phong", "diffuse", Vector4d{0.8, 0.1, 0.1, 1.0});
     percep_props.AddProperty("label", "id",
                              RenderLabel(geometry_id_.get_value()));
     scene_graph->AssignRole(source_id_, geometry_id_, percep_props);
@@ -141,19 +144,45 @@ class MovingRod final : public LeafSystem<double> {
   GeometryId geometry_id() const { return geometry_id_; }
 
  private:
-  void CalcFramePoseOutput(
-      const Context<double>& context, FramePoseVector<double>* poses) const {
+  void CalcFramePoseOutput(const Context<double>& context,
+                           FramePoseVector<double>* poses) const {
     RigidTransformd pose;
-    const double p_WF_x = std::cos(context.get_time());
-    const double p_WF_y = std::sin(context.get_time());
-    pose.set_translation({p_WF_x, p_WF_y, p_WF_z});
+    double t = context.get_time();
+    const double inner_r = 0.9;
+    const double outer_r = 1.2;
+    const double delta = outer_r - inner_r;
+    const double middle_r = inner_r + delta / 2;
+
+    double x, y, z;
+    if (t < kDelay) {
+      // Drop to the ground plane.
+      x = inner_r;
+      y = 0;
+      z = p_WF_z + (kDelay - t) * kRodLength * 0.4;
+    } else if (t < kDelay + 2 * M_PI) {
+      // Draw a circle.
+      t -= kDelay;
+      x = inner_r * std::cos(t);
+      y = inner_r * std::sin(t);
+      z = p_WF_z;
+    } else {
+      // Draw "petals"; for longer simulation times, it will keep repeating
+      // the petals loop.
+      t -= kDelay - 2 * M_PI;
+      const double ray_r = std::cos(t * 20) * delta / 2;
+      x = (middle_r + ray_r) * std::cos(t);
+      y = (middle_r + ray_r) * std::sin(t);
+      z = p_WF_z;
+    }
+    pose.set_translation({x, y, z});
+
     *poses = {{frame_id_, pose}};
   }
 
   SourceId source_id_;
   FrameId frame_id_;
   GeometryId geometry_id_;
-  static constexpr double kRodRadius{0.1};
+  static constexpr double kRodRadius{0.075};
   static constexpr double kRodLength{1.0};
   // The z-component of the painter frame in the world frame.
   static constexpr double p_WF_z{kRodLength * 0.4};
@@ -233,6 +262,10 @@ int do_main() {
   percep_props.AddProperty("phong", "diffuse", Vector4d{0.2, 0.5, 0.25, 1.0});
   percep_props.AddProperty("label", "id",
                            RenderLabel(ground_id.get_value()));
+  // NOTE: The name "ground_texture" must match the name given to the
+  // MeshPainterSystem below -- it's how SceneGraph knows to apply that system's
+  // image to this geometry.
+  percep_props.AddProperty("paint_shader", "dynamic_mask", "ground_texture");
   scene_graph.AssignRole(source_id, ground_id, percep_props);
 
   // Now visualize.
@@ -287,9 +320,10 @@ int do_main() {
   // image, so we need to align it in the -Wz direction. So,  we compute the
   // basis using camera Y-ish in the By ≈ -Wz direction to compute Bx, and
   // then use Bx an and Bz to compute By.
-  const Vector3d p_WB(0.75, -1.9, 1.1);
+  const Vector3d p_WB = Vector3d(0.75, -1.9, 1.5) * 1.5;
+  const Vector3d p_WT{0, -0.5, 0};
   // Set rotation looking at the origin.
-  const Vector3d Bz_W = -p_WB.normalized();
+  const Vector3d Bz_W = (p_WT - p_WB).normalized();
   const Vector3d Bx_W = -Vector3d::UnitZ().cross(Bz_W).normalized();
   const Vector3d By_W = Bz_W.cross(Bx_W).normalized();
   const RotationMatrixd R_WB =
@@ -312,7 +346,7 @@ int do_main() {
   simulator.get_mutable_integrator().set_maximum_step_size(0.002);
   simulator.set_target_realtime_rate(FLAGS_sim_rate);
   simulator.Initialize();
-  simulator.AdvanceTo(2 * M_PI);  // One period of the circular motion.
+  simulator.AdvanceTo(4 * M_PI + kDelay);  // Delay + 2 circles.
 
   return 0;
 }

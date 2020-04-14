@@ -239,9 +239,15 @@ class RenderEngineVtk final : public RenderEngine,
   std::unordered_map<GeometryId, std::array<vtkSmartPointer<vtkActor>, 3>>
       actors_;
 
+  // An image dependency; the id of the image it depends on and the serial
+  // number of the version of that image that is actually in VTK memory.
+  struct ImageDependency {
+    ImageId id{};
+    int serial_number{};
+  };
   // A map from the geometries with declared input image dependencies and the
   // input images they depend on (both indicated by their corresponding ids).
-  std::unordered_map<GeometryId, ImageId> input_images_;
+  std::unordered_map<GeometryId, ImageDependency> input_images_;
 };
 
 }  // namespace render

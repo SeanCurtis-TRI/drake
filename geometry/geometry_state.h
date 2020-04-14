@@ -16,6 +16,7 @@
 #include "drake/geometry/geometry_index.h"
 #include "drake/geometry/geometry_roles.h"
 #include "drake/geometry/geometry_set.h"
+#include "drake/geometry/input_image.h"
 #include "drake/geometry/input_image_set.h"
 #include "drake/geometry/internal_frame.h"
 #include "drake/geometry/internal_geometry.h"
@@ -149,7 +150,9 @@ class GeometryState {
 
   /** Returns the input image set for this data.  */
   internal::InputImageSet& mutable_input_image_set() { return input_images_; }
-  const internal::InputImageSet& input_image_set() { return input_images_; }
+  const internal::InputImageSet& input_image_set() const {
+    return input_images_;
+  }
 
   //@}
 
@@ -485,6 +488,15 @@ class GeometryState {
 
   /** Implementation of SceneGraph::RegisteredRendererNames().  */
   std::vector<std::string> RegisteredRendererNames() const;
+
+  /** Updates the render engine(s) based on a collection of live input images.
+   If `name` is the empty string, all render engines will be updated. If `name`
+   is non-empty, only the renderer associated with that name will be updated.
+   @throws std::runtime_error if no RenderEngine matches the non-empty `name.
+   */
+  void UpdateInputImages(
+      const std::unordered_map<ImageId, const InputImage*>& input_images,
+      const std::string& name = "");
 
   /** Implementation of QueryObject::RenderColorImage().
    @pre All poses have already been updated.  */

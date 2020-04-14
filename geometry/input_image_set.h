@@ -12,6 +12,18 @@ namespace drake {
 namespace geometry {
 namespace internal {
 
+/* The record of an input image declaration.  */
+struct InputImageDeclaration {
+  SourceId source_id;
+  ImageId image_id;
+  int port_index;
+  std::string name;
+};
+
+// TODO(SeanCurtis-tri): Is there any real reason to have this class? Why not
+//  just have the map? It's a bit nicer to have the long stl struct given a
+//  nicer name; but that's a lot of code just for an alias.
+
 /* The collection of all registered input image _declarations_ for a SceneGraph
  instance. This doesn't include the images themselves, as they are provided by
  the corresponding input ports.  */
@@ -40,15 +52,13 @@ class InputImageSet {
    @throws std::runtime_error if the id doesn't represent a declared image. */
   int port_index(ImageId id) const;
 
- private:
-  struct ImageDeclaration {
-    SourceId source_id;
-    ImageId image_id;
-    int port_index;
-    std::string name;
-  };
+  /* The set of declarations in this set. */
+  const std::unordered_map<ImageId, InputImageDeclaration>& images() const {
+    return images_;
+  }
 
-  std::unordered_map<ImageId, ImageDeclaration> images_;
+ private:
+  std::unordered_map<ImageId, InputImageDeclaration> images_;
 };
 
 }  // internal

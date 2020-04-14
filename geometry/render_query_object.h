@@ -24,7 +24,7 @@ namespace geometry {
  @tparam_nonsymbolic_scalar
 */
 template <typename T>
-class RenderQueryObject : public QueryObject<T> {
+class RenderQueryObject final : public QueryObject<T> {
  public:
   DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(RenderQueryObject)
 
@@ -98,6 +98,28 @@ class RenderQueryObject : public QueryObject<T> {
                         systems::sensors::ImageLabel16I* label_image_out) const;
 
   //@}
+
+ private:
+  /* When "baking" the RenderQueryObject, we pull all input images and give all
+   render engines a chance to update their internal representation.  */
+  void DoBake() override;
+
+  /* Gives the render engine(s) a chance to update their textures based on the
+   set of live input images. If a name is provided, only the render engine
+   with that name is updated. If the name is an empty string, all render
+   engines get updated.
+
+   Note: This is marked const although it does updating. This is a cache
+   workaround. Ultimately, this should be properly handled in the caching system
+   where the images get updated based on a cache entry.
+
+   @throws std::runtime_error if the non-empty name does not refer to a valid
+                              RenderEngine instance.  */
+  void UpdateInputImages( const std::string renderer_name = "") const;
+
+  /* Collects up all of the _live_ input images. The map will be empty if there
+   are no input images _or_ if the query object is no longer live.  */
+  std::unordered_map<ImageId, const InputImage*> CollectLiveInputImages() const;
 };
 
 }  // namespace geometry

@@ -66,6 +66,8 @@ class QueryObject {
   /** Constructs a default QueryObject (all pointers are null). */
   QueryObject() = default;
 
+  virtual ~QueryObject() = default;
+
   /** @name Implements CopyConstructible, CopyAssignable, MoveConstructible, MoveAssignable
 
    Calling the copy constructor or assignment will turn a _live_ %QueryObject
@@ -132,9 +134,32 @@ class QueryObject {
     FullPoseUpdate();
   }
 
+  /** Throws an exception if the QueryObject is neither "live" nor "baked" (see
+   class docs for discussion). */
+  void ThrowIfNotCallable() const {
+    if (!is_callable()) {
+      throw std::runtime_error(
+          "Attempting to perform query on invalid QueryObject.");
+    }
+  }
+
   /** Access the GeometryState associated with this QueryObject.
    @pre ThrowIfNotCallable() has been invoked prior to this. */
   const GeometryState<T>& geometry_state() const;
+
+  /** Returns a pointer to the underlying scene graph, if this query object is
+   live. Otherwise, `nullptr`.  */
+  const SceneGraph<T>* scene_graph() const { return scene_graph_; }
+
+  /** Returns a pointer to the underlying context, if this query object is
+   live. Otherwise, `nullptr`.  */
+  const systems::Context<T>* context() const { return context_; }
+
+  // TODO(SeanCurtis-TRI): This functionality needs to be tested.
+  /** When a live query object is turned into a baked query object, this virtual
+   method will be called, giving derived classes the chance to do any additional
+   work necessary to cache data.  By default, no work is done.  */
+  virtual void DoBake() {}
 
  private:
   // SceneGraph is the only class that may call set().
@@ -174,15 +199,6 @@ class QueryObject {
   // Reports if the object can be copied; it must either be callable or default.
   bool is_copyable() const {
     return is_callable() || is_default();
-  }
-
-  // Throws an exception if the QueryObject is neither "live" nor "baked" (see
-  // class docs for discussion).
-  void ThrowIfNotCallable() const {
-    if (!is_callable()) {
-      throw std::runtime_error(
-          "Attempting to perform query on invalid QueryObject.");
-    }
   }
 
   // TODO(SeanCurtis-TRI): Consider an alternate formulation. This stores

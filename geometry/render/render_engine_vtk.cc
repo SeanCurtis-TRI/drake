@@ -32,6 +32,7 @@ using Eigen::Vector4d;
 using geometry::internal::InputImageSet;
 using math::RigidTransformd;
 using std::make_unique;
+using std::unordered_map;
 using systems::sensors::ColorD;
 using systems::sensors::ColorI;
 using systems::sensors::ImageDepth32F;
@@ -301,19 +302,37 @@ void RenderEngineVtk::DoUpdateVisualPose(GeometryId id,
 
 void RenderEngineVtk::DoUpdateInputImages(
     const unordered_map<ImageId, const InputImage*>& external_textures) {
-  for (const auto [geometry_id, image_id] : input_images_) {
-    const auto iter = external_textures.find(image_id);
+  for (auto& [geometry_id, external_image] : input_images_) {
+    const auto iter = external_textures.find(external_image.id);
     if (iter == external_textures.end()) {
       throw std::runtime_error(fmt::format(
           "A geometry (with id {}) has been configured to use an external "
           "texture with id {}, none has been provided. Did you forget to "
           "connect to the input image port on SceneGraph?"));
     }
+
     const InputImage* texture_data = iter->second;
-    // If it has an entry, we presume it is valid.
-    DRAKE_DEMAND(texture_data != nullptr);
-    const ImageRgba8U& texture = texture_data->image();
-    actors_[geometry_id][kColor];
+
+    if (external_image.serial_number != texture_data->serial_number()) {
+      external_image.serial_number = texture_data->serial_number();
+      // If it has an entry, we presume it is valid.
+      DRAKE_DEMAND(texture_data != nullptr);
+      const ImageRgba8U& texture = texture_data->image();
+
+      auto* vtk_texture = actors_[geometry_id][kColor]->GetTexture();
+      vtkImageData* image_data = vtk_texture->GetInput();
+      DRAKE_DEMAND(image_data != nullptr);
+      const int* dim = image_data->GetDimensions();
+      if (dim[0] != texture.width() || dim[1] != texture.height()) {
+        image_data->SetDimensions(texture.width(), texture.height(), 1);
+        image_data->AllocateScalars(VTK_UNSIGNED_CHAR, 4);
+      }
+      unsigned char
+          * pixel = static_cast<unsigned char*>(image_data->GetScalarPointer());
+      const int byte_count = texture.width() * texture.height() * 4;
+      memcpy(pixel, texture.at(0, 0), byte_count);
+      vtk_texture->Modified();
+    }
   }
 }
 
@@ -588,7 +607,7 @@ void RenderEngineVtk::ImplementGeometry(vtkPolyDataAlgorithm* source,
                         "has not been registered with SceneGraph",
                         dynamic_mask));
       }
-      input_images_.insert({data.id, *image_id});
+      input_images_.insert({data.id, {*image_id, -1}});
       vtkNew<vtkImageData> image_data;
       vtkNew<vtkOpenGLTexture> texture;
       texture->SetInputDataObject(image_data.Get());

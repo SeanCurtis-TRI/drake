@@ -17,8 +17,8 @@ void InputImageSet::AddInputImage(SourceId source_id, ImageId image_id,
                       name, id));
     }
   }
-  images_.insert({image_id,
-                  ImageDeclaration{source_id, image_id, port_index, name}});
+  images_.insert(
+      {image_id, InputImageDeclaration{source_id, image_id, port_index, name}});
 }
 
 const std::string InputImageSet::name(ImageId id) const {

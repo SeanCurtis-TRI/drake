@@ -665,7 +665,7 @@ void RasterizeTriangle(const Vector2d& a, const Vector2d& b, const Vector2d& c,
   auto calc_image_coord = [w, h](const Vector2d& uv) {
     // TODO(SeanCurtis-TRI): What about negative uv values?
     const double u = uv[0] - static_cast<int>(uv[0]);
-    const double v = 1 - (uv[1] - static_cast<int>(uv[1]));
+    const double v = uv[1] - static_cast<int>(uv[1]);
     return Vector2d{u * w, v * h};
   };
   const Vector2d A = calc_image_coord(a);
@@ -716,10 +716,12 @@ void RasterizeTriangle(const Vector2d& a, const Vector2d& b, const Vector2d& c,
         //  ImageTraits<PixelType::kRgb8U>::ChannelType*, but I don't want to
         //  handle the name spaces.
         auto* pixel = image->at(x, y);
-        *pixel = 255;           // red.
-        *(pixel + 1) = 255;     // green.
-        *(pixel + 2) = 255;     // blue.
-        *(pixel + 3) = 255;     // alpha.
+        *pixel = 0;           // red.
+        *(pixel + 1) = 0;     // green.
+        *(pixel + 2) = 0;     // blue.
+        // NOTE: We are currently relying on alpha to have been pre-configured
+        // to be 255 (see the constructor of MeshPainterSystem). If that
+        // changes, we may have to set alpha directly.
       }
     }
   }
@@ -743,9 +745,13 @@ MeshPainterSystem::MeshPainterSystem(GeometryId mesh_id, GeometryId painter_id,
   geometry_query_input_port_ = &this->DeclareAbstractInputPort(
       "geometry_query", Value<QueryObject<double>>{});
 
-  // This is *probably* the wrong image type; given this is a mask, simply
-  //  an eight-bit luminance value will be enough.
-  ImageRgba8U image(width, height);
+  // TODO(SeanCurtis-TRI): This is *probably* the wrong image type; given this
+  //  is a mask, simply an eight-bit luminance value will be enough. However,
+  //  that requires SceneGraph to support heterogeneous texture types.
+
+  // Initialize the image with all bytes set to 255 -- a white, fully opaque
+  // image. We'll paint opaque black onto the texture.
+  ImageRgba8U image(width, height, 255);
   InputImage texture_image(image_id_, move(image));
   // TODO(SeanCurtis-TRI): Does the image get initialized to black? I'll need to
   //  do so if it hasn't been (or some user-configurable value).

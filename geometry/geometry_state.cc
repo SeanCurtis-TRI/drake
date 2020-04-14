@@ -913,6 +913,22 @@ std::vector<std::string> GeometryState<T>::RegisteredRendererNames() const {
 }
 
 template <typename T>
+void GeometryState<T>::UpdateInputImages(
+    const std::unordered_map<ImageId, const InputImage*>& input_images,
+    const std::string& name) {
+  if (name.empty()) {
+    // Do all render engines.
+    for (auto& [name, engine] : render_engines_) {
+      engine->UpdateInputImages(input_images);
+    }
+  } else {
+    auto& engine =
+        const_cast<render::RenderEngine&>(GetRenderEngineOrThrow(name));
+    engine.UpdateInputImages(input_images);
+  }
+}
+
+template <typename T>
 void GeometryState<T>::RenderColorImage(const render::CameraProperties& camera,
                                         FrameId parent_frame,
                                         const RigidTransformd& X_PC,
