@@ -121,10 +121,10 @@ class MovingRod final : public LeafSystem<double> {
     // will handle all of that itself.
 
     IllustrationProperties illus_props;
-    illus_props.AddProperty("phong", "diffuse", Vector4d(0.8, 0.1, 0.1, 1));
+    illus_props.AddProperty("phong", "diffuse", Vector4d(0.2, 0.2, 0.8, 1));
     scene_graph->AssignRole(source_id_, geometry_id_, illus_props);
     PerceptionProperties percep_props;
-    percep_props.AddProperty("phong", "diffuse", Vector4d{0.8, 0.1, 0.1, 1.0});
+    percep_props.AddProperty("phong", "diffuse", Vector4d{0.2, 0.2, 0.8, 1.0});
     percep_props.AddProperty("label", "id",
                              RenderLabel(geometry_id_.get_value()));
     scene_graph->AssignRole(source_id_, geometry_id_, percep_props);
@@ -266,6 +266,12 @@ int do_main() {
   // MeshPainterSystem below -- it's how SceneGraph knows to apply that system's
   // image to this geometry.
   percep_props.AddProperty("paint_shader", "dynamic_mask", "ground_texture");
+  percep_props.AddProperty(
+      "paint_shader", "paint_diffuse",
+      FindResourceOrThrow("drake/examples/scene_graph/diag_gradient.png"));
+  percep_props.AddProperty("paint_shader", "canvas_diffuse",
+                           Vector4d{0.9, 0.85, 0.7, 1.0});
+
   scene_graph.AssignRole(source_id, ground_id, percep_props);
 
   // Now visualize.
@@ -283,7 +289,6 @@ int do_main() {
   builder.Connect(painter_system.texture_output_port(),
                   scene_graph.image_input_port(painter_system.image_id()));
 
-  // TODO(SeanCurtis-TRI): Visualize the image.
   auto& image_stripper = *builder.template AddSystem<InputImageToImage>();
   builder.Connect(painter_system, image_stripper);
 

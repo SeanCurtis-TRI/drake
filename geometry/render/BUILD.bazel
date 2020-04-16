@@ -99,7 +99,7 @@ drake_cc_library(
         ":render_engine",
         ":render_engine_vtk_base",
         "//common",
-        "//geometry/render/shaders:depth_shaders",
+        "//geometry/render/shaders",
         "//systems/sensors:color_palette",
         "//systems/sensors:vtk_util",
         "@eigen",

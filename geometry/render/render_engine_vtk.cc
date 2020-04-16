@@ -20,6 +20,7 @@
 #include "drake/common/text_logging.h"
 #include "drake/geometry/render/render_engine_vtk_base.h"
 #include "drake/geometry/render/shaders/depth_shaders.h"
+#include "drake/geometry/render/shaders/painter_shader.h"
 #include "drake/systems/sensors/color_palette.h"
 #include "drake/systems/sensors/vtk_util.h"
 
@@ -31,7 +32,9 @@ using Eigen::Vector2d;
 using Eigen::Vector4d;
 using geometry::internal::InputImageSet;
 using math::RigidTransformd;
+using shaders::PainterShader;
 using std::make_unique;
+using std::optional;
 using std::unordered_map;
 using systems::sensors::ColorD;
 using systems::sensors::ColorI;
@@ -319,7 +322,11 @@ void RenderEngineVtk::DoUpdateInputImages(
       DRAKE_DEMAND(texture_data != nullptr);
       const ImageRgba8U& texture = texture_data->image();
 
-      auto* vtk_texture = actors_[geometry_id][kColor]->GetTexture();
+      // TODO(SeanCurtis-TRI) Get the name of the texture from PainterShader.
+      auto* vtk_texture =
+          actors_[geometry_id][kColor]->GetProperty()->GetTexture(
+              "masktexture");
+      DRAKE_DEMAND(vtk_texture);
       vtkImageData* image_data = vtk_texture->GetInput();
       DRAKE_DEMAND(image_data != nullptr);
       const int* dim = image_data->GetDimensions();
@@ -384,11 +391,22 @@ RenderEngineVtk::RenderEngineVtk(const RenderEngineVtk& other)
       vtkActor& source = *source_actors[i];
       vtkActor& clone = *clone_actors[i];
 
+      // TODO(SeanCurtis-TRI): This needs to work more generally for whatever
+      //  shaders and shader-related data are present.
+      // TODO(SeanCurtis-TRI): Rather than applying textures to the *actor*, if
+      //  I applied it to its *mapper* then I wouldn't have to do the texture
+      //  wiring in the render engine copy. Generally, the more I shove into the
+      //  mapper the better.
+
       if (source.GetTexture() == nullptr) {
         clone.GetProperty()->SetColor(source.GetProperty()->GetColor());
         clone.GetProperty()->SetOpacity(source.GetProperty()->GetOpacity());
       } else {
         clone.SetTexture(source.GetTexture());
+      }
+      const auto& source_textures = source.GetProperty()->GetAllTextures();
+      for (auto& [name, texture] : source_textures) {
+        clone.GetProperty()->SetTexture(name.c_str(), texture);
       }
 
       // NOTE: The clone renderer and original renderer *share* polygon
@@ -549,6 +567,7 @@ void RenderEngineVtk::ImplementGeometry(vtkPolyDataAlgorithm* source,
   // Label actor.
   const RenderLabel label = GetRenderLabelOrThrow(data.properties);
   if (label != RenderLabel::kDoNotRender) {
+    connect_actor(ImageType::kLabel);
     // NOTE: We only configure the label actor if it doesn't have to "do not
     // render" label applied. We *have* created an actor and connected it to
     // a mapper; but otherwise, we leave it disconnected.
@@ -558,63 +577,29 @@ void RenderEngineVtk::ImplementGeometry(vtkPolyDataAlgorithm* source,
     label_actor->GetProperty()->LightingOff();
     const auto color = RenderEngine::GetColorDFromLabel(label);
     label_actor->GetProperty()->SetColor(color.r, color.g, color.b);
-    connect_actor(ImageType::kLabel);
   }
 
   // Color actor.
   auto& color_actor = actors[ImageType::kColor];
+  connect_actor(ImageType::kColor);
+
   // TODO: Encapsulate this better...ultimately, I need some kind of more
   //  generic shader concept.
-  if (data.properties.HasGroup("paint_shader")) {
-    const std::string& dynamic_mask = data.properties.GetPropertyOrDefault(
-        "paint_shader", "dynamic_mask", "");
-    const std::string& static_mask =
-        data.properties.GetPropertyOrDefault("paint_shader", "static_mask", "");
-    if (dynamic_mask.empty() && static_mask.empty()) {
-      throw std::runtime_error(
-          "Incomplete declaration of painter shader; missing mask "
-          "specification (dynamic or static)");
-    }
-    if (!dynamic_mask.empty() and !static_mask.empty()) {
-      throw std::runtime_error(
-          "Error in declaration of painter shader; both dynamic and static "
-          "masks specified");
-    }
-    // If it's a static mask; simply load it.
-    // If it's a dynamic mask, put in a place holder that we can update later.
-    if (!static_mask.empty()) {
-      if (!std::ifstream(static_mask)) {
-        throw std::runtime_error(
-            fmt::format("Static mask specified in perception properties "
-                        "('paint_shader', 'static_mask'): '{}' cannot be found",
-                        static_mask));
-      }
-      vtkNew<vtkPNGReader> texture_reader;
-      texture_reader->SetFileName(static_mask.c_str());
-      texture_reader->Update();
-      vtkNew<vtkOpenGLTexture> texture;
-      texture->SetInputConnection(texture_reader->GetOutputPort());
-      texture->SetRepeat(false);
-      texture->InterpolateOn();
-      color_actor->SetTexture(texture.Get());
-    } else {
-      DRAKE_DEMAND(!dynamic_mask.empty());
+  optional<PainterShader> painter_shader = PainterShader::Make(data.properties);
+  if (painter_shader) {
+    if (painter_shader->is_dynamic()) {
+      // For a dynamic shader, make sure that the input image is available.
       std::optional<ImageId> image_id =
-          data.input_images.FindIdByName(dynamic_mask);
+          data.input_images.FindIdByName(painter_shader->mask_name());
       if (!image_id) {
         throw std::runtime_error(
             fmt::format("Dynamic mask specified in perception properties '{}' "
                         "has not been registered with SceneGraph",
-                        dynamic_mask));
+                        painter_shader->mask_name()));
       }
       input_images_.insert({data.id, {*image_id, -1}});
-      vtkNew<vtkImageData> image_data;
-      vtkNew<vtkOpenGLTexture> texture;
-      texture->SetInputDataObject(image_data.Get());
-      texture->SetRepeat(false);
-      texture->InterpolateOn();
-      color_actor->SetTexture(texture.Get());
     }
+    painter_shader->AssignToActor(color_actor.Get());
   } else {
     const std::string& diffuse_map_name =
         data.properties.GetPropertyOrDefault<std::string>("phong",
@@ -665,8 +650,6 @@ void RenderEngineVtk::ImplementGeometry(vtkPolyDataAlgorithm* source,
   //  with arbitrary rgba values (e.g., tinting red or making everything
   //  slightly transparent). In other words, should opacity be set regardless
   //  of whether a texture exists?
-
-  connect_actor(ImageType::kColor);
 
   // Depth actor; always gets wired in with no additional work.
   connect_actor(ImageType::kDepth);

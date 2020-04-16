@@ -13,12 +13,25 @@ drake_cc_package_library(
     name = "shaders",
     deps = [
         ":depth_shaders",
+        ":painter_shader",
     ],
 )
 
 drake_cc_library(
     name = "depth_shaders",
     hdrs = ["depth_shaders.h"],
+)
+
+drake_cc_library(
+    name = "painter_shader",
+    srcs = ["painter_shader.cc"],
+    hdrs = ["painter_shader.h"],
+    deps = [
+        "//common:essential",
+        "//geometry:geometry_roles",
+        "@vtk//:vtkIOImage",
+        "@vtk//:vtkRenderingOpenGL2",
+    ],
 )
 
 add_lint_tests()
