@@ -414,8 +414,11 @@ class PainterReifier final : public ShapeReifier {
   }
 
  private:
+
   // Currently, we're implementing only a subset of shapes that we have
   // whitelisted.
+  using ShapeReifier::ImplementGeometry;
+
   void ImplementGeometry(const Cylinder& cylinder, void*) final {
     // TODO(SeanCurtis-TRI): Using the hydroelastic tessellation of the volume
     //  creates tets along the length of the cylinder and on the interior.
@@ -472,9 +475,11 @@ class CanvasReifier final : public ShapeReifier {
     return move(mesh_);
   }
 
- private:
   // TODO(SeanCurtis-TRI): We can create a canvas from arbitrary shapes as long
   //  as we generate UVs for the shapes.
+
+ private:
+  using ShapeReifier::ImplementGeometry;
 
   // Currently, only meshes can be canvases.
   void ImplementGeometry(const Mesh& mesh_spec, void*) final {
@@ -642,7 +647,7 @@ void RasterizeTriangle(const Vector2d& a, const Vector2d& b, const Vector2d& c,
           ┆                  ┆                        ┆                  ┆
           └┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┘                        └┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┘
 
-            It actually renders as:
+            It actually rasterizes as:
                             ┌┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┐
                             ┆                  ┆
                             ┆  │---            ┆
@@ -686,16 +691,16 @@ void RasterizeTriangle(const Vector2d& a, const Vector2d& b, const Vector2d& c,
   DRAKE_DEMAND(min_x <= max_x);
   DRAKE_DEMAND(min_y <= max_y);
 
-  auto calc_bary_i = [](const Vector2d& p, const Vector2d& a, const Vector2d& b,
-                        const Vector2d& c) {
-    const Vector2d p_ba{a[1] - b[1], b[0] - a[0]};
-    const double det_ab = a[0]*b[1] - a[1]*b[0];
-    const double denom = p_ba.dot(c) + det_ab;
+  auto calc_bary_i = [](const Vector2d& p, const Vector2d& v0,
+                        const Vector2d& v1, const Vector2d& v2) {
+    const Vector2d p_v1v0{v0[1] - v1[1], v1[0] - v0[0]};
+    const double det_v0v1 = v0[0] * v1[1] - v0[1] * v1[0];
+    const double denom = p_v1v0.dot(v2) + det_v0v1;
     // If the denominator is zero, the triangle is degenerate and I can consider
-    // that I have *no* contribution from vertex c and I should just interpolate
-    // between vertices a and b.
+    // that I have *no* contribution from vertex v2 and I should just interpolate
+    // between vertices v0 and v1.
     if (denom < 1e-15) return 0.0;
-    const double num = p_ba.dot(p) + det_ab;
+    const double num = p_v1v0.dot(p) + det_v0v1;
 
     return num / denom;
   };

@@ -1,6 +1,7 @@
 #include "drake/geometry/render_query_object.h"
 
 #include "drake/common/default_scalars.h"
+#include "drake/common/unused.h"
 #include "drake/geometry/geometry_state.h"
 #include "drake/geometry/input_image.h"
 #include "drake/geometry/scene_graph.h"
@@ -81,6 +82,7 @@ RenderQueryObject<T>::CollectLiveInputImages() const {
       declared_images = state.input_image_set().images();
   unordered_map<ImageId, const InputImage*> input_images;
   for (const auto& [image_id, declaration] : declared_images) {
+    unused(declaration);
     const InputImage* image =
         &sg->image_input_port(image_id).template Eval<InputImage>(
             *this->context());

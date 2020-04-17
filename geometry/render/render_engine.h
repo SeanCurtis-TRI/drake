@@ -10,6 +10,7 @@
 #include <Eigen/Dense>
 
 #include "drake/common/drake_copyable.h"
+#include "drake/common/unused.h"
 #include "drake/geometry/geometry_ids.h"
 #include "drake/geometry/geometry_roles.h"
 #include "drake/geometry/input_image.h"
@@ -248,9 +249,11 @@ class RenderEngine : public ShapeReifier {
                                   const math::RigidTransformd& X_WG) = 0;
 
   /** The NVI-function for updating externally-controlled textures (i.e.,
-   "input images". By default, no work is done.  */
+   `input images`. By default, no work is done.  */
   virtual void DoUpdateInputImages(
-      const std::unordered_map<ImageId, const InputImage*>& input_images) {}
+      const std::unordered_map<ImageId, const InputImage*>& input_images) {
+    unused(input_images);
+  }
 
   /** The NVI-function for removing the geometry with the given `id`.
    @param id  The id of the geometry to remove.

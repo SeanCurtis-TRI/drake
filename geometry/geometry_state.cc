@@ -11,6 +11,7 @@
 #include "drake/common/autodiff.h"
 #include "drake/common/default_scalars.h"
 #include "drake/common/text_logging.h"
+#include "drake/common/unused.h"
 #include "drake/geometry/geometry_frame.h"
 #include "drake/geometry/geometry_instance.h"
 #include "drake/geometry/geometry_roles.h"
@@ -918,7 +919,8 @@ void GeometryState<T>::UpdateInputImages(
     const std::string& name) {
   if (name.empty()) {
     // Do all render engines.
-    for (auto& [name, engine] : render_engines_) {
+    for (auto& [engine_name, engine] : render_engines_) {
+      unused(engine_name);
       engine->UpdateInputImages(input_images);
     }
   } else {
