@@ -20,6 +20,7 @@ using Eigen::Vector4d;
 using std::optional;
 using std::string;
 using std::variant;
+using systems::sensors::ColorD;
 
 namespace {
 
@@ -30,8 +31,7 @@ variant<Vector4d, string> FindColor(const char* group, const char* property,
         "Error in declaration of painter shader; no definition for '{}'. "
         "Should be either a texture name or an RGBA color", property));
   }
-  const AbstractValue& value =
-      properties.GetPropertyAbstract(group, property);
+  const AbstractValue& value = properties.GetPropertyAbstract(group, property);
   const auto* file_name = value.maybe_get_value<string>();
   if (file_name) {
     if (!std::ifstream(*file_name)) {
@@ -63,12 +63,20 @@ void AddTextureFromFile(const string& texture_name, const string& file_name,
   property->SetTexture(texture_name.c_str(), texture.Get());
 }
 
-constexpr char kFragmentShader[] = R"__(
+constexpr char kRgbaFragmentShader[] = R"__(
     vec4 mask_color = texture(masktexture, tcoordVCVSOutput);
     vec4 canvas_color = {};
     vec4 paint_color = {};
     vec4 final_color =
         mask_color.x * canvas_color + (1 - mask_color.x) * paint_color;
+    gl_FragData[0] = gl_FragData[0] * final_color;
+)__";
+
+constexpr char kLabelFragmentShader[] = R"__(
+    vec4 mask_color = texture(masktexture, tcoordVCVSOutput);
+    vec4 canvas_color = {};
+    vec4 paint_color = {};
+    vec4 final_color = mask_color.x > 0.5 ? canvas_color : paint_color;
     gl_FragData[0] = gl_FragData[0] * final_color;
 )__";
 
@@ -110,21 +118,80 @@ optional<PainterShader> PainterShader::Make(
   variant<Vector4d, string> paint =
       FindColor(kGroup, "paint_diffuse", properties);
 
-  return PainterShader{is_dynamic, mask_name, canvas, paint};
+  const bool has_canvas_label = properties.HasProperty(kGroup, "canvas_label");
+  const bool has_paint_label = properties.HasProperty(kGroup, "paint_label");
+  if (has_canvas_label != has_paint_label) {
+    throw std::runtime_error(
+        fmt::format("Error in declaration of painter shader; when specifying "
+                    "shader labels, both 'canvas_label' and 'paint_label' must "
+                    "be specified: only '{}_label' has been defined",
+                    has_canvas_label ? "canvas" : "paint"));
+  }
+  optional<RenderLabel> canvas_label{};
+  optional<RenderLabel> paint_label{};
+  if (has_canvas_label) {
+    canvas_label = properties.GetProperty<RenderLabel>(kGroup, "canvas_label");
+    paint_label = properties.GetProperty<RenderLabel>(kGroup, "paint_label");
+    if (*canvas_label == RenderLabel::kDoNotRender ||
+        *paint_label == RenderLabel::kDoNotRender) {
+      throw std::runtime_error(
+          fmt::format("Neither 'canvas_label' ({}) nor 'paint_label' ({}) are "
+                      "allowed to be kDoNotRender ({})",
+                      *canvas_label, *paint_label, RenderLabel::kDoNotRender));
+    }
+  }
+
+  return PainterShader{is_dynamic, mask_name,    canvas,
+                       paint,      canvas_label, paint_label};
 }
 
-void PainterShader::AssignToActor(vtkActor* actor) const {
-  // TODO(SeanCurtis-TRI): Distinguish between static and dynamic here.
+void PainterShader::AssignRgbaToActor(vtkActor* actor) const {
   auto* mapper = vtkOpenGLPolyDataMapper::SafeDownCast(actor->GetMapper());
 
   const std::string canvas_color = canvas_shader_string();
   const std::string paint_color = paint_shader_string();
   mapper->AddShaderReplacement(
       vtkShader::Fragment, "//VTK::TCoord::Impl", true,
-      fmt::format(kFragmentShader, canvas_color, paint_color).c_str(), true);
+      fmt::format(kRgbaFragmentShader, canvas_color, paint_color).c_str(),
+      true);
 
   // Add textures where appropriate.
+  AssignMaskTextureToActor(actor);
+  if (canvas_color[0] == 't') {
+    AddTextureFromFile("canvastexture", std::get<string>(canvas_color_),
+                       actor->GetProperty());
+  }
 
+  if (paint_color[0] == 't') {
+    AddTextureFromFile("painttexture", std::get<string>(paint_color_),
+                       actor->GetProperty());
+  }
+}
+
+void PainterShader::AssignLabelToActor(
+    vtkActor* actor,
+    const std::function<ColorD(RenderLabel)>& label_encoder) const {
+  DRAKE_DEMAND(canvas_label_.has_value() && paint_label_.has_value());
+
+  const ColorD canvas_color = label_encoder(*canvas_label_);
+  const std::string canvas_color_str = fmt::format(
+      "vec4({}, {}, {}, 1.0)", canvas_color.r, canvas_color.g, canvas_color.b);
+  const ColorD paint_color = label_encoder(*paint_label_);
+  const std::string paint_color_str = fmt::format(
+      "vec4({}, {}, {}, 1.0)", paint_color.r, paint_color.g, paint_color.b);
+
+  auto* mapper = vtkOpenGLPolyDataMapper::SafeDownCast(actor->GetMapper());
+  mapper->AddShaderReplacement(
+      vtkShader::Fragment, "//VTK::TCoord::Impl", true,
+      fmt::format(kLabelFragmentShader, canvas_color_str, paint_color_str)
+          .c_str(),
+      true);
+
+  // Add textures where appropriate.
+  AssignMaskTextureToActor(actor);
+}
+
+void PainterShader::AssignMaskTextureToActor(vtkActor* actor) const {
   if (is_dynamic_) {
     // If dynamic, we insert a texture with a place holder chunk of image data.
     vtkNew<vtkImageData> image_data;
@@ -136,16 +203,6 @@ void PainterShader::AssignToActor(vtkActor* actor) const {
   } else {
     // If static, simply add the texture file.
     AddTextureFromFile("masktexture", mask_name_, actor->GetProperty());
-  }
-
-  if (canvas_color[0] == 't') {
-    AddTextureFromFile("canvastexture", std::get<string>(canvas_color_),
-                       actor->GetProperty());
-  }
-
-  if (paint_color[0] == 't') {
-    AddTextureFromFile("painttexture", std::get<string>(paint_color_),
-                       actor->GetProperty());
   }
 }
 

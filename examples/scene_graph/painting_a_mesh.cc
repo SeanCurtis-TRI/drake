@@ -20,6 +20,7 @@
 #include "drake/geometry/geometry_visualization.h"
 #include "drake/geometry/mesh_painter_system.h"
 #include "drake/geometry/render/render_engine_vtk_factory.h"
+#include "drake/geometry/render/render_label.h"
 #include "drake/geometry/scene_graph.h"
 #include "drake/lcm/drake_lcm.h"
 #include "drake/math/rigid_transform.h"
@@ -65,6 +66,7 @@ using geometry::MeshPainterSystem;
 using geometry::PerceptionProperties;
 using geometry::render::DepthCameraProperties;
 using geometry::render::RenderEngineVtkParams;
+using geometry::render::RenderLabel;
 using geometry::render::RenderLabel;
 using geometry::SceneGraph;
 using geometry::Shape;
@@ -271,6 +273,12 @@ int do_main() {
       FindResourceOrThrow("drake/examples/scene_graph/diag_gradient.png"));
   percep_props.AddProperty("paint_shader", "canvas_diffuse",
                            Vector4d{0.9, 0.85, 0.7, 1.0});
+  percep_props.AddProperty("paint_shader", "canvas_label",
+                           RenderLabel(ground_id.get_value()));
+  // Pick an arbitrarily large label value for the paint label so that the
+  // labels can be easily _visually_ distinguished in the image -- otherwise,
+  // the number has no significance.
+  percep_props.AddProperty("paint_shader", "paint_label", RenderLabel(200));
 
   scene_graph.AssignRole(source_id, ground_id, percep_props);
 
@@ -312,7 +320,7 @@ int do_main() {
 
   builder.Connect(image_stripper.image_output_port(), texture_port);
 
-  // Add RgbdCamera
+  // Add RgbdSensor.
   const std::string render_name("renderer");
   scene_graph.AddRenderer(render_name,
                           MakeRenderEngineVtk(RenderEngineVtkParams()));
@@ -343,6 +351,10 @@ int do_main() {
       image_to_lcm_image_array.DeclareImageInputPort<PixelType::kRgba8U>(
           "color");
   builder.Connect(camera.color_image_output_port(), rgb_port);
+  const auto& label_port =
+      image_to_lcm_image_array.DeclareImageInputPort<PixelType::kLabel16I>(
+          "label");
+  builder.Connect(camera.label_image_output_port(), label_port);
 
   auto diagram = builder.Build();
 

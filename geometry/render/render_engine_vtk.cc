@@ -318,27 +318,33 @@ void RenderEngineVtk::DoUpdateInputImages(
 
     if (external_image.serial_number != texture_data->serial_number()) {
       external_image.serial_number = texture_data->serial_number();
-      // If it has an entry, we presume it is valid.
-      DRAKE_DEMAND(texture_data != nullptr);
-      const ImageRgba8U& texture = texture_data->image();
+      for (const auto type : {kColor, kLabel}) {
+        // If it has an entry, we presume it is valid.
+        DRAKE_DEMAND(texture_data != nullptr);
+        const ImageRgba8U& texture = texture_data->image();
 
-      // TODO(SeanCurtis-TRI) Get the name of the texture from PainterShader.
-      auto* vtk_texture =
-          actors_[geometry_id][kColor]->GetProperty()->GetTexture(
-              "masktexture");
-      DRAKE_DEMAND(vtk_texture);
-      vtkImageData* image_data = vtk_texture->GetInput();
-      DRAKE_DEMAND(image_data != nullptr);
-      const int* dim = image_data->GetDimensions();
-      if (dim[0] != texture.width() || dim[1] != texture.height()) {
-        image_data->SetDimensions(texture.width(), texture.height(), 1);
-        image_data->AllocateScalars(VTK_UNSIGNED_CHAR, 4);
+        // TODO(SeanCurtis-TRI) Get the name of the texture from PainterShader.
+        auto* vtk_texture =
+            actors_[geometry_id][type]->GetProperty()->GetTexture(
+                "masktexture");
+        // The texture _must_ be used for color, but is optionally used for
+        // label.
+        DRAKE_DEMAND(type == kLabel || vtk_texture);
+        if (vtk_texture) {
+          vtkImageData* image_data = vtk_texture->GetInput();
+          DRAKE_DEMAND(image_data != nullptr);
+          const int* dim = image_data->GetDimensions();
+          if (dim[0] != texture.width() || dim[1] != texture.height()) {
+            image_data->SetDimensions(texture.width(), texture.height(), 1);
+            image_data->AllocateScalars(VTK_UNSIGNED_CHAR, 4);
+          }
+          unsigned char* pixel =
+              static_cast<unsigned char*>(image_data->GetScalarPointer());
+          const int byte_count = texture.width() * texture.height() * 4;
+          memcpy(pixel, texture.at(0, 0), byte_count);
+          vtk_texture->Modified();
+        }
       }
-      unsigned char
-          * pixel = static_cast<unsigned char*>(image_data->GetScalarPointer());
-      const int byte_count = texture.width() * texture.height() * 4;
-      memcpy(pixel, texture.at(0, 0), byte_count);
-      vtk_texture->Modified();
     }
   }
 }
@@ -564,19 +570,30 @@ void RenderEngineVtk::ImplementGeometry(vtkPolyDataAlgorithm* source,
     pipelines_[image_type]->renderer->AddActor(actors[image_type].Get());
   };
 
+  // TODO(SeanCurtis-TRI): Handle shaders in a more generic way in the future.
+  //  Have a "shader factory" that will consume the properties and produce a
+  //  shader as appropriate. This will require a shader base class API.
+  optional<PainterShader> painter_shader = PainterShader::Make(data.properties);
+
   // Label actor.
-  const RenderLabel label = GetRenderLabelOrThrow(data.properties);
-  if (label != RenderLabel::kDoNotRender) {
+  if (painter_shader && painter_shader->has_labels()) {
     connect_actor(ImageType::kLabel);
-    // NOTE: We only configure the label actor if it doesn't have to "do not
-    // render" label applied. We *have* created an actor and connected it to
-    // a mapper; but otherwise, we leave it disconnected.
-    auto& label_actor = actors[ImageType::kLabel];
-    // This is to disable shadows and to get an object painted with a single
-    // color.
-    label_actor->GetProperty()->LightingOff();
-    const auto color = RenderEngine::GetColorDFromLabel(label);
-    label_actor->GetProperty()->SetColor(color.r, color.g, color.b);
+    painter_shader->AssignLabelToActor(actors[ImageType::kLabel].Get(),
+                                       &RenderEngine::GetColorDFromLabel);
+  } else {
+    const RenderLabel label = GetRenderLabelOrThrow(data.properties);
+    if (label != RenderLabel::kDoNotRender) {
+      connect_actor(ImageType::kLabel);
+      // NOTE: We only configure the label actor if it doesn't have to "do not
+      // render" label applied. We *have* created an actor and connected it to
+      // a mapper; but otherwise, we leave it disconnected.
+      auto& label_actor = actors[ImageType::kLabel];
+      // This is to disable shadows and to get an object painted with a single
+      // color.
+      label_actor->GetProperty()->LightingOff();
+      const auto color = RenderEngine::GetColorDFromLabel(label);
+      label_actor->GetProperty()->SetColor(color.r, color.g, color.b);
+    }
   }
 
   // Color actor.
@@ -585,7 +602,6 @@ void RenderEngineVtk::ImplementGeometry(vtkPolyDataAlgorithm* source,
 
   // TODO: Encapsulate this better...ultimately, I need some kind of more
   //  generic shader concept.
-  optional<PainterShader> painter_shader = PainterShader::Make(data.properties);
   if (painter_shader) {
     if (painter_shader->is_dynamic()) {
       // For a dynamic shader, make sure that the input image is available.
@@ -599,7 +615,7 @@ void RenderEngineVtk::ImplementGeometry(vtkPolyDataAlgorithm* source,
       }
       input_images_.insert({data.id, {*image_id, -1}});
     }
-    painter_shader->AssignToActor(color_actor.Get());
+    painter_shader->AssignRgbaToActor(color_actor.Get());
   } else {
     const std::string& diffuse_map_name =
         data.properties.GetPropertyOrDefault<std::string>("phong",
