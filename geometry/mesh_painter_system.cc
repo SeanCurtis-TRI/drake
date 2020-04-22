@@ -488,8 +488,17 @@ class CanvasReifier final : public ShapeReifier {
     std::vector<tinyobj::material_t> materials;  // Ignored.
     std::string err;
 
+    // Tinyobj doesn't infer the search directory from the directory containing
+    // the obj file. We have to provide that directory; of course, this assumes
+    // that the material library reference is relative to the obj directory.
+    // *Not* providing a valid base directory will cause tiny obj to crash while
+    // parsing a file that references a mtllib file.
+    const size_t pos = mesh_spec.filename().find_last_of('/');
+    const std::string obj_folder = mesh_spec.filename().substr(0, pos + 1);
+    const char* mtl_basedir = obj_folder.c_str();
+
     bool ret = tinyobj::LoadObj(&attrib, &shapes, &materials, &err,
-                                mesh_spec.filename().c_str(), nullptr,
+                                mesh_spec.filename().c_str(), mtl_basedir,
                                 true /* triangulate */);
 
     // NOTE: Reading a gibberish file that is *not* an OBJ doesn't necessarily
