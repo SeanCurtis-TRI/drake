@@ -354,27 +354,56 @@ void DoScalarDependentDefinitions(py::module m, T) {
         .def("inspector", &QueryObject<T>::inspector, py_reference_internal,
             doc.QueryObject.inspector.doc)
         .def("ComputeSignedDistancePairwiseClosestPoints",
-            &QueryObject<T>::ComputeSignedDistancePairwiseClosestPoints,
+            [](const Class* self, double max_distance) {
+              WarnDeprecated(
+                  "QueryObject::ComputeSignedDistancePairwiseClosestPoints "
+                  "is deprecated. Please use ProximityQueryObject instead.");
+              return self->ComputeSignedDistancePairwiseClosestPoints(
+                  max_distance);
+            },
             py::arg("max_distance") = std::numeric_limits<double>::infinity(),
             doc.QueryObject.ComputeSignedDistancePairwiseClosestPoints.doc)
         .def("ComputeSignedDistancePairClosestPoints",
-            &QueryObject<T>::ComputeSignedDistancePairClosestPoints,
+            [](const Class* self, GeometryId id_A, GeometryId id_B) {
+              WarnDeprecated(
+                  "QueryObject::ComputeSignedDistancePairClosestPoints "
+                  "is deprecated. Please use ProximityQueryObject instead.");
+              return self->ComputeSignedDistancePairClosestPoints(id_A, id_B);
+            },
             py::arg("id_A"), py::arg("id_B"),
             doc.QueryObject.ComputeSignedDistancePairClosestPoints.doc)
         .def("ComputePointPairPenetration",
-            &QueryObject<T>::ComputePointPairPenetration,
+            [](const Class* self) {
+              WarnDeprecated(
+                  "QueryObject::ComputePointPairPenetration "
+                  "is deprecated. Please use ProximityQueryObject instead.");
+              return self->ComputePointPairPenetration();
+            },
             doc.QueryObject.ComputePointPairPenetration.doc)
         .def("ComputeSignedDistanceToPoint",
-            &QueryObject<T>::ComputeSignedDistanceToPoint, py::arg("p_WQ"),
+            [](const Class* self, const double threshold) {
+              WarnDeprecated(
+                  "QueryObject::ComputeSignedDistanceToPoint "
+                  "is deprecated. Please use ProximityQueryObject instead.");
+              return self->ComputeSignedDistanceToPoint(threshold);
+            },
             py::arg("threshold") = std::numeric_limits<double>::infinity(),
             doc.QueryObject.ComputeSignedDistanceToPoint.doc)
         .def("FindCollisionCandidates",
-            &QueryObject<T>::FindCollisionCandidates,
+            [](const Class* self) {
+              WarnDeprecated(
+                  "QueryObject::FindCollisionCandidates "
+                  "is deprecated. Please use ProximityQueryObject instead.");
+              return self->FindCollisionCandidates();
+            },
             doc.QueryObject.FindCollisionCandidates.doc)
         .def("RenderColorImage",
             [](const Class* self, const render::CameraProperties& camera,
                 FrameId parent_frame, const math::RigidTransformd& X_PC,
                 bool show_window) {
+              WarnDeprecated(
+                  "QueryObject::RenderColorImage "
+                  "is deprecated. Please use PerceptionQueryObject instead.");
               systems::sensors::ImageRgba8U img(camera.width, camera.height);
               self->RenderColorImage(
                   camera, parent_frame, X_PC, show_window, &img);
@@ -386,6 +415,9 @@ void DoScalarDependentDefinitions(py::module m, T) {
         .def("RenderDepthImage",
             [](const Class* self, const render::DepthCameraProperties& camera,
                 FrameId parent_frame, const math::RigidTransformd& X_PC) {
+              WarnDeprecated(
+                  "QueryObject::RenderDepthImage "
+                  "is deprecated. Please use PerceptionQueryObject instead.");
               systems::sensors::ImageDepth32F img(camera.width, camera.height);
               self->RenderDepthImage(camera, parent_frame, X_PC, &img);
               return img;
@@ -396,6 +428,9 @@ void DoScalarDependentDefinitions(py::module m, T) {
             [](const Class* self, const render::CameraProperties& camera,
                 FrameId parent_frame, const math::RigidTransformd& X_PC,
                 bool show_window = false) {
+              WarnDeprecated(
+                  "QueryObject::RenderLabelImage "
+                  "is deprecated. Please use PerceptionQueryObject instead.");
               systems::sensors::ImageLabel16I img(camera.width, camera.height);
               self->RenderLabelImage(
                   camera, parent_frame, X_PC, show_window, &img);

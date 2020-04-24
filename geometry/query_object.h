@@ -180,6 +180,7 @@ class QueryObject {
    @returns A vector populated with all detected penetrations characterized as
             point pairs.
    @note    Silently ignore Mesh geometries. */
+  DRAKE_DEPRECATED("2020-08-01", "Use the ProximityQueryObject instead.")
   std::vector<PenetrationAsPointPair<double>> ComputePointPairPenetration()
       const;
 
@@ -226,6 +227,7 @@ class QueryObject {
 
    @returns A vector populated with all detected intersections characterized as
             contact surfaces.  */
+  DRAKE_DEPRECATED("2020-08-01", "Use the ProximityQueryObject instead.")
   std::vector<ContactSurface<T>> ComputeContactSurfaces() const;
 
   /** Reports pair-wise intersections and characterizes each non-empty
@@ -251,6 +253,7 @@ class QueryObject {
    @param[out] point_pairs  The vector that fall back point pair data will be
                             added to. The vector will _not_ be cleared.
    @pre Neither `surfaces` nor `point_pairs` is nullptr.  */
+  DRAKE_DEPRECATED("2020-08-01", "Use the ProximityQueryObject instead.")
   void ComputeContactSurfacesWithFallback(
       std::vector<ContactSurface<T>>* surfaces,
       std::vector<PenetrationAsPointPair<double>>* point_pairs) const;
@@ -263,11 +266,13 @@ class QueryObject {
 
    @returns A vector populated with collision pair candidates.
    @note    Silently ignore Mesh geometries. */
+  DRAKE_DEPRECATED("2020-08-01", "Use the ProximityQueryObject instead.")
   std::vector<SortedPair<GeometryId>> FindCollisionCandidates() const;
 
   /** Reports true if there are _any_ collisions between unfiltered pairs in the
    world.
    @note Silently ignore Mesh geometries. */
+  DRAKE_DEPRECATED("2020-08-01", "Use the ProximityQueryObject instead.")
   bool HasCollisions() const;
 
   //@}
@@ -354,6 +359,7 @@ class QueryObject {
    @returns The signed distance (and supporting data) for all unfiltered
             geometry pairs whose distance is less than or equal to
             `max_distance`.  */
+  DRAKE_DEPRECATED("2020-08-01", "Use the ProximityQueryObject instead.")
   std::vector<SignedDistancePair<T>> ComputeSignedDistancePairwiseClosestPoints(
       const double max_distance =
           std::numeric_limits<double>::infinity()) const;
@@ -365,6 +371,7 @@ class QueryObject {
 
    @throws if either geometry id is invalid, or if the pair (id_A, id_B) has
            been marked as filtered.  */
+  DRAKE_DEPRECATED("2020-08-01", "Use the ProximityQueryObject instead.")
   SignedDistancePair<T> ComputeSignedDistancePairClosestPoints(
       GeometryId id_A, GeometryId id_B) const;
 
@@ -444,6 +451,7 @@ class QueryObject {
                               distance values (and supporting data).
                               See SignedDistanceToPoint.
    */
+  DRAKE_DEPRECATED("2020-08-01", "Use the ProximityQueryObject instead.")
   std::vector<SignedDistanceToPoint<T>>
   ComputeSignedDistanceToPoint(const Vector3<T> &p_WQ,
                                const double threshold
@@ -476,6 +484,7 @@ class QueryObject {
    @param X_PC                  The pose of the camera body in the world frame.
    @param show_window           If true, the render window will be displayed.
    @param[out] color_image_out  The rendered color image. */
+  DRAKE_DEPRECATED("2020-08-01", "Use the PerceptionQueryObject instead.")
   void RenderColorImage(const render::CameraProperties& camera,
                         FrameId parent_frame,
                         const math::RigidTransformd& X_PC,
@@ -493,6 +502,7 @@ class QueryObject {
    @param parent_frame          The id for the camera's parent frame.
    @param X_PC                  The pose of the camera body in the world frame.
    @param[out] depth_image_out  The rendered depth image. */
+  DRAKE_DEPRECATED("2020-08-01", "Use the PerceptionQueryObject instead.")
   void RenderDepthImage(const render::DepthCameraProperties& camera,
                         FrameId parent_frame,
                         const math::RigidTransformd& X_PC,
@@ -506,6 +516,7 @@ class QueryObject {
    @param X_PC                  The pose of the camera body in the world frame.
    @param show_window           If true, the render window will be displayed.
    @param[out] label_image_out  The rendered label image. */
+  DRAKE_DEPRECATED("2020-08-01", "Use the PerceptionQueryObject instead.")
   void RenderLabelImage(const render::CameraProperties& camera,
                         FrameId parent_frame,
                         const math::RigidTransformd& X_PC,

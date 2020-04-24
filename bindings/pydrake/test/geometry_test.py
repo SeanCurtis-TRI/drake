@@ -385,47 +385,75 @@ class TestGeometry(unittest.TestCase):
                     perception_query_object]:
             self.assertIsInstance(q_o.inspector(), SceneGraphInspector)
 
-        # Proximity queries -- all of these will produce empty results.
-        for q_o in [query_object,
-                    proximity_query_object]:
-            results = q_o.ComputeSignedDistancePairwiseClosestPoints()
-            self.assertEqual(len(results), 0)
-            results = q_o.ComputePointPairPenetration()
-            self.assertEqual(len(results), 0)
-            results = q_o.ComputeSignedDistanceToPoint(p_WQ=(1, 2, 3))
-            self.assertEqual(len(results), 0)
-            results = q_o.FindCollisionCandidates()
-            self.assertEqual(len(results), 0)
-
-            # ComputeSignedDistancePairClosestPoints() requires two valid
-            # geometry ids. There are none in this SceneGraph instance. Rather
-            # than populating the SceneGraph, we look for the exception thrown
-            # in response to invalid ids as evidence of correct binding.
+        # Deprecated proximity queries on QueryObject.
+        with catch_drake_warnings(expected_count=1):
+            query_object.ComputeSignedDistancePairwiseClosestPoints()
+        with catch_drake_warnings(expected_count=1):
+            query_object.ComputePointPairPenetration()
+        with catch_drake_warnings(expected_count=1):
+            query_object.ComputeSignedDistanceToPoint(p_WQ=(1, 2, 3))
+        with catch_drake_warnings(expected_count=1):
+            query_object.FindCollisionCandidates
+        with catch_drake_warnings(expected_count=1):
             self.assertRaisesRegex(
                 RuntimeError,
                 "The geometry given by id \\d+ does not reference a geometry" +
                 " that can be used in a signed distance query",
-                q_o.ComputeSignedDistancePairClosestPoints,
+                query_object.ComputeSignedDistancePairClosestPoints,
                 mut.GeometryId.get_new_id(), mut.GeometryId.get_new_id())
+
+        # Proximity queries -- all of these will produce empty results.
+        results = proximity_query_object.ComputeSignedDistancePairwiseClosestPoints()
+        self.assertEqual(len(results), 0)
+        results = proximity_query_object.ComputePointPairPenetration()
+        self.assertEqual(len(results), 0)
+        results = proximity_query_object.ComputeSignedDistanceToPoint(p_WQ=(1, 2, 3))
+        self.assertEqual(len(results), 0)
+        results = proximity_query_object.FindCollisionCandidates()
+        self.assertEqual(len(results), 0)
+        # ComputeSignedDistancePairClosestPoints() requires two valid geometry
+        # ids. There are none in this SceneGraph instance. Rather than
+        # populating the SceneGraph, we look for the exception thrown in
+        # response to invalid ids as evidence of correct binding.
+        self.assertRaisesRegex(
+            RuntimeError,
+            "The geometry given by id \\d+ does not reference a geometry" +
+            " that can be used in a signed distance query",
+            proximity_query_object.ComputeSignedDistancePairClosestPoints,
+            mut.GeometryId.get_new_id(), mut.GeometryId.get_new_id())
 
         # Confirm rendering API returns images of appropriate type.
         d_camera = mut.render.DepthCameraProperties(
             width=320, height=240, fov_y=pi/6, renderer_name=renderer_name,
             z_near=0.1, z_far=5.0)
-        for q_o in [query_object,
-                    perception_query_object]:
-            image = q_o.RenderColorImage(
-                camera=d_camera, parent_frame=SceneGraph.world_frame_id(),
-                X_PC=RigidTransform())
-            self.assertIsInstance(image, ImageRgba8U)
-            image = q_o.RenderDepthImage(
-                camera=d_camera, parent_frame=SceneGraph.world_frame_id(),
-                X_PC=RigidTransform())
-            self.assertIsInstance(image, ImageDepth32F)
-            image = q_o.RenderLabelImage(
-                camera=d_camera, parent_frame=SceneGraph.world_frame_id(),
-                X_PC=RigidTransform())
-            self.assertIsInstance(image, ImageLabel16I)
+
+        # Deprecated render queries on QueryObject.
+        with catch_drake_warnings(expected_count=1):
+            query_object.RenderColorImage(
+            camera=d_camera, parent_frame=SceneGraph.world_frame_id(),
+            X_PC=RigidTransform())
+        with catch_drake_warnings(expected_count=1):
+            query_object.RenderColorImage(
+            camera=d_camera, parent_frame=SceneGraph.world_frame_id(),
+            X_PC=RigidTransform())
+        with catch_drake_warnings(expected_count=1):
+            query_object.RenderLabelImage(
+            camera=d_camera, parent_frame=SceneGraph.world_frame_id(),
+            X_PC=RigidTransform())
+
+        # Valid render queries on PerceptionQueryObject.
+        image = perception_query_object.RenderColorImage(
+            camera=d_camera, parent_frame=SceneGraph.world_frame_id(),
+            X_PC=RigidTransform())
+        self.assertIsInstance(image, ImageRgba8U)
+        image = perception_query_object.RenderDepthImage(
+            camera=d_camera, parent_frame=SceneGraph.world_frame_id(),
+            X_PC=RigidTransform())
+        self.assertIsInstance(image, ImageDepth32F)
+        image = perception_query_object.RenderLabelImage(
+            camera=d_camera, parent_frame=SceneGraph.world_frame_id(),
+            X_PC=RigidTransform())
+        self.assertIsInstance(image, ImageLabel16I)
 
     def test_read_obj_to_surface_mesh(self):
         mesh_path = FindResourceOrThrow("drake/geometry/test/quad_cube.obj")
