@@ -1,64 +1,40 @@
 #pragma once
 
+#include "drake/geometry/query_object.h"
 #include "drake/math/rigid_transform.h"
+#include "drake/systems/sensors/image.h"
 
 namespace drake {
 namespace geometry {
 
-/** The %QueryObject serves as a mechanism to perform geometry queries on the
- world's geometry. The SceneGraph has an abstract-valued port that contains
- a  %QueryObject (i.e., a %QueryObject-valued output port).
+/** A variant of a QueryObject which renders the SceneGraph world -- color,
+ depth, etc. --  in addition to the queries made available by QueryObject.
+ SceneGraph has an abstract-valued port that contains a %PerceptionQueryObject
+ (i.e., a %PerceptionQueryObject-valued output port).
 
- To perform geometry queries on SceneGraph:
-   - a LeafSystem must have a %QueryObject-valued input port and connect it to
-     the corresponding query output port on SceneGraph,
-   - the querying LeafSystem can evaluate the input port, retrieving a `const
-     QueryObject&` in return, and, finally,
-   - invoke the appropriate method on the %QueryObject.
-
- The const reference returned by the input port is considered "live" - it is
- linked to the context, system, and cache (making full use of all of those
- mechanisms). This const reference should _never_ be persisted; doing so can
- lead to erroneous query results. It is simpler and more advisable to acquire it
- for evaluation in a limited scope (e.g., CalcTimeDerivatives()) and then
- discard it. If a %QueryObject is needed for many separate functions in a
- LeafSystem, each should re-evaluate the input port. The underlying caching
- mechanism should make the cost of this negligible.
-
- The %QueryObject _can_ be copied. The copied instance is no longer "live"; it
- is now "baked". Essentially, it freezes the state of the live scene graph in
- its current configuration and disconnects it from the system and context. This
- means, even if the original context changes values, the copied/baked instance
- will always reproduce the same query results. This baking process is not cheap
- and should not be done without consideration.
-
- <h2>Queries and scalar type</h2>
-
- A %QueryObject _cannot_ be converted to a different scalar type. A %QueryObject
- of scalar type T can only be acquired from the output port of a SceneGraph
- of type T evaluated on a corresponding Context, also of type T.
-
- %QueryObject's support for arbitrary scalar type is incomplete. Not all queries
- support all scalar types to the same degree. In some cases the level of support
- is obvious (such as when the query is declared *explicitly* in terms of a
- double-valued scalar -- see ComputePointPairPenetration()). In other cases,
- where the query is expressed in terms of scalar `T`, the query may have
- restrictions. If a query has restricted scalar support, it is included in
- the query's documentation.
+ Other than the additional queries that this class provides above and beyond
+ that of QueryObject, acquiring a reference to a %PerceptionQueryObject, working
+ with it, the semantics of copying it, etc., are all the same as the parent
+ class. Please refer to QueryObject's documentation for details.
 
  @tparam_nonsymbolic_scalar
 */
 template <typename T>
-class QueryObject {
+class PerceptionQueryObject : public QueryObject<T> {
  public:
+  DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(PerceptionQueryObject)
+
+  /** Constructs a default %PerceptionQueryObject (all pointers are null). */
+  PerceptionQueryObject() = default;
+
   /**
    @anchor render_queries
    @name                Render Queries
 
    The methods support queries along the lines of "What do I see?" They support
    simulation of sensors. External entities define a sensor camera -- its
-   extrinsic and intrinsic properties and %QueryObject renders into the
-   provided image.
+   extrinsic and intrinsic properties and %PerceptionQueryObject renders into
+   the provided image.
 
    <!-- TODO(SeanCurtis-TRI): Currently, pose is requested as a transform of
    double. This puts the burden on the caller to be compatible. Provide
@@ -112,7 +88,6 @@ class QueryObject {
                         systems::sensors::ImageLabel16I* label_image_out) const;
 
   //@}
-
 };
 
 }  // namespace geometry
