@@ -3,6 +3,7 @@
 #include <limits>
 #include <vector>
 
+#include "drake/geometry/query_object.h"
 #include "drake/geometry/query_results/contact_surface.h"
 #include "drake/geometry/query_results/penetration_as_point_pair.h"
 #include "drake/geometry/query_results/signed_distance_pair.h"
@@ -11,52 +12,26 @@
 namespace drake {
 namespace geometry {
 
-/** The %QueryObject serves as a mechanism to perform geometry queries on the
- world's geometry. The SceneGraph has an abstract-valued port that contains
- a  %QueryObject (i.e., a %QueryObject-valued output port).
+/** A variant of a QueryObject which performs proximity queries -- contact,
+ signed distance, etc. -- in addition to the queries made available by
+ QueryObject. SceneGraph has an abstract-valued port that contains a
+ %ProximityQueryObject (i.e., a %ProximityQueryObject-valued output port).
 
- To perform geometry queries on SceneGraph:
-   - a LeafSystem must have a %QueryObject-valued input port and connect it to
-     the corresponding query output port on SceneGraph,
-   - the querying LeafSystem can evaluate the input port, retrieving a `const
-     QueryObject&` in return, and, finally,
-   - invoke the appropriate method on the %QueryObject.
-
- The const reference returned by the input port is considered "live" - it is
- linked to the context, system, and cache (making full use of all of those
- mechanisms). This const reference should _never_ be persisted; doing so can
- lead to erroneous query results. It is simpler and more advisable to acquire it
- for evaluation in a limited scope (e.g., CalcTimeDerivatives()) and then
- discard it. If a %QueryObject is needed for many separate functions in a
- LeafSystem, each should re-evaluate the input port. The underlying caching
- mechanism should make the cost of this negligible.
-
- The %QueryObject _can_ be copied. The copied instance is no longer "live"; it
- is now "baked". Essentially, it freezes the state of the live scene graph in
- its current configuration and disconnects it from the system and context. This
- means, even if the original context changes values, the copied/baked instance
- will always reproduce the same query results. This baking process is not cheap
- and should not be done without consideration.
-
- <h2>Queries and scalar type</h2>
-
- A %QueryObject _cannot_ be converted to a different scalar type. A %QueryObject
- of scalar type T can only be acquired from the output port of a SceneGraph
- of type T evaluated on a corresponding Context, also of type T.
-
- %QueryObject's support for arbitrary scalar type is incomplete. Not all queries
- support all scalar types to the same degree. In some cases the level of support
- is obvious (such as when the query is declared *explicitly* in terms of a
- double-valued scalar -- see ComputePointPairPenetration()). In other cases,
- where the query is expressed in terms of scalar `T`, the query may have
- restrictions. If a query has restricted scalar support, it is included in
- the query's documentation.
+ Other than the additional queries that this class provides above and beyond
+ that of QueryObject, acquiring a reference to a %ProximityQueryObject, working
+ with it, the semantics of copying it, etc., are all the same as the parent
+ class. Please refer to QueryObject's documentation for details.
 
  @tparam_nonsymbolic_scalar
 */
 template <typename T>
-class QueryObject {
+class ProximityQueryObject : public QueryObject<T> {
  public:
+  DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(ProximityQueryObject)
+
+  /** Constructs a default ProximityQueryObject (all pointers are null). */
+  ProximityQueryObject() = default;
+
   /**
    @anchor collision_queries
    @name                Collision Queries
@@ -73,7 +48,7 @@ class QueryObject {
 
    These methods are affected by collision filtering; element pairs that
    have been filtered will not produce contacts, even if their collision
-   geometry is penetrating.     */
+   geometry is penetrating.  */
   //@{
 
   /** Computes the penetrations across all pairs of geometries in the world
@@ -99,10 +74,11 @@ class QueryObject {
    AutoDiffXd support. At the very least, it should be declared on T and throw
    for AutoDiffXd. This is related to PR 11143
    https://github.com/RobotLocomotion/drake/pull/11143. In that PR, MBP is
-   taking responsibility to know whether or not QueryObject supports AutoDiff
-   penetration queries; MBP should not be responsible for that knowledge. By
-   moving the exception into SceneGraph, it removes the false dependency and
-   allows us to gradually increase the AutoDiff support for penetration.
+   taking responsibility to know whether or not ProximityQueryObject supports
+   AutoDiff penetration queries; MBP should not be responsible for that
+   knowledge. By moving the exception into SceneGraph, it removes the false
+   dependency and allows us to gradually increase the AutoDiff support for
+   penetration.
    -->
 
    @returns A vector populated with all detected penetrations characterized as
@@ -372,11 +348,11 @@ class QueryObject {
                               distance values (and supporting data).
                               See SignedDistanceToPoint.
    */
-  std::vector<SignedDistanceToPoint<T>>
-  ComputeSignedDistanceToPoint(const Vector3<T> &p_WQ,
-                               const double threshold
-                               = std::numeric_limits<double>::infinity()) const;
+  std::vector<SignedDistanceToPoint<T>> ComputeSignedDistanceToPoint(
+      const Vector3<T>& p_WQ,
+      const double threshold = std::numeric_limits<double>::infinity()) const;
   //@}
+
 };
 
 }  // namespace geometry
