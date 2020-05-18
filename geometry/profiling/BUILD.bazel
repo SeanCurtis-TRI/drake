@@ -48,9 +48,31 @@ drake_cc_binary(
     ],
 )
 
+drake_cc_binary(
+    name = "convex_collision_cost",
+    srcs = ["convex_collision_cost.cc"],
+    add_test_rule = 1,
+    data = [":models"],
+    test_rule_args = [
+        "--simulation_time=0.01",
+    ],
+    deps = [
+        ":contact_result_maker",
+        "//common:find_resource",
+        "//geometry:geometry_visualization",
+        "//geometry:scene_graph",
+        #"//lcmtypes:contact_results_for_viz",
+        "//systems/analysis:explicit_euler_integrator",
+        "//systems/analysis:simulator",
+        #"//systems/framework:diagram",
+        "//systems/lcm:lcm_pubsub_system",
+        "@gflags",
+    ],
+)
+
 filegroup(
     name = "models",
-    srcs = _EVO_MESH,
+    srcs = _EVO_MESH + glob(["meshes/**/*.obj",]),
 )
 
 add_lint_tests()
