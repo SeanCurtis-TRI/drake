@@ -3,6 +3,7 @@
 load(
     "@drake//tools/skylark:drake_cc.bzl",
     "drake_cc_binary",
+    "drake_cc_library",
 )
 load("//tools/lint:lint.bzl", "add_lint_tests")
 load("@drake//tools/workspace:forward_files.bzl", "forward_files")
@@ -14,6 +15,17 @@ _EVO_MESH = forward_files(
     visibility = ["//visibility:private"],
 )
 
+drake_cc_library(
+    name = "contact_result_maker",
+    srcs = ["contact_result_maker.cc"],
+    hdrs = ["contact_result_maker.h"],
+    deps = [
+        "//geometry:scene_graph",
+        "//lcmtypes:contact_results_for_viz",
+        "//systems/framework:leaf_system",
+    ]
+)
+
 drake_cc_binary(
     name = "contact_surface_rigid_bowl_soft_ball",
     srcs = ["contact_surface_rigid_bowl_soft_ball.cc"],
@@ -23,6 +35,7 @@ drake_cc_binary(
         "--simulation_time=0.01",
     ],
     deps = [
+        ":contact_result_maker",
         "//common",
         "//geometry:geometry_visualization",
         "//geometry:scene_graph",
