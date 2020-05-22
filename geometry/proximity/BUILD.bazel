@@ -389,6 +389,7 @@ drake_cc_library(
     deps = [
         ":collision_filter_legacy",
         ":proximity_utilities",
+        "//common:profiler",
         "//geometry/query_results:penetration_as_point_pair",
         "@fcl",
     ],

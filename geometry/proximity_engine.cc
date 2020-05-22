@@ -14,6 +14,7 @@
 
 #include "drake/common/default_scalars.h"
 #include "drake/common/eigen_types.h"
+#include "drake/common/profiler.h"
 #include "drake/common/text_logging.h"
 #include "drake/geometry/proximity/collision_filter_legacy.h"
 #include "drake/geometry/proximity/collisions_exist_callback.h"
@@ -747,6 +748,9 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
 
   std::vector<PenetrationAsPointPair<double>> ComputePointPairPenetration()
       const {
+    static const common::TimerIndex query_timer =
+        addTimer("ProximityEngine::ComputePointPairPenetration");
+    startTimer(query_timer);
     std::vector<PenetrationAsPointPair<double>> contacts;
     penetration_as_point_pair::CallbackData data{&collision_filter_, &contacts};
 
@@ -757,7 +761,7 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
     // anchored against anchored because those pairs are implicitly filtered.
     FclCollide(dynamic_tree_, anchored_tree_, &data,
                penetration_as_point_pair::Callback);
-
+    lapTimer(query_timer);
     return contacts;
   }
 

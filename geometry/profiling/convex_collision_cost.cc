@@ -44,6 +44,7 @@
 #include <gflags/gflags.h>
 
 #include "drake/common/find_resource.h"
+#include "drake/common/profiler.h"
 #include "drake/geometry/geometry_frame.h"
 #include "drake/geometry/geometry_instance.h"
 #include "drake/geometry/geometry_roles.h"
@@ -317,10 +318,12 @@ int do_main() {
   simulator.reset_integrator<ExplicitEulerIntegrator<double>>(
       FLAGS_simulation_time);
   simulator.set_target_realtime_rate(FLAGS_realtime_rate);
-  // simulator.Initialize();
+  const common::TimerIndex sim_timer = addTimer("Simulation::AdvanceTo");
   using clock = std::chrono::steady_clock;
   const clock::time_point start = clock::now();
+  startTimer(sim_timer);
   simulator.AdvanceTo(FLAGS_simulation_time);
+  lapTimer(sim_timer);
   const clock::time_point end = clock::now();
   const double wall_clock_time =
       std::chrono::duration<double>(end - start).count();
@@ -333,6 +336,9 @@ int do_main() {
   const auto& stats = contact_results->point_pair_stats();
   std::cout << "  Collision evaluations: " << stats.evaluations << "\n";
   std::cout << "  Total contacts:        " << stats.total_contacts << "\n";
+
+  std::cout << "\n\nProfiler results\n";
+  std::cout << TableOfAverages() << "\n";
   return 0;
 }
 

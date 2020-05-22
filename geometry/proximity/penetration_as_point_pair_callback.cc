@@ -4,6 +4,7 @@
 #include <utility>
 
 #include "drake/common/eigen_types.h"
+#include "drake/common/profiler.h"
 
 namespace drake {
 namespace geometry {
@@ -52,7 +53,11 @@ bool Callback(CollisionObjectd* fcl_object_A_ptr,
   CollisionResultd result;
 
   // Perform nearphase collision detection
+  static const common::TimerIndex primitive_timer =
+      addTimer("Element-element FCL collision");
+  startTimer(primitive_timer);
   collide(&fcl_object_A, &fcl_object_B, request, result);
+  lapTimer(primitive_timer);
 
   if (!result.isCollision()) return false;
 

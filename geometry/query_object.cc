@@ -2,6 +2,7 @@
 
 #include "drake/common/default_scalars.h"
 #include "drake/common/drake_assert.h"
+#include "drake/common/profiler.h"
 #include "drake/geometry/scene_graph.h"
 
 namespace drake {
@@ -74,11 +75,16 @@ const RigidTransform<T>& QueryObject<T>::X_WG(GeometryId id) const {
 template <typename T>
 std::vector<PenetrationAsPointPair<double>>
 QueryObject<T>::ComputePointPairPenetration() const {
+  static const common::TimerIndex query_timer =
+      addTimer("QueryObject::ComputePointPairPenetration");
+  startTimer(query_timer);
   ThrowIfNotCallable();
 
   FullPoseUpdate();
   const GeometryState<T>& state = geometry_state();
-  return state.ComputePointPairPenetration();
+  auto results = state.ComputePointPairPenetration();
+  lapTimer(query_timer);
+  return results;
 }
 
 template <typename T>
