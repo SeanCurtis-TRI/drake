@@ -3,9 +3,9 @@
 
  This creates a grid of unit spheres. The unit sphere can be either an idealized
  unit sphere or a discrete representation of the unit sphere (to varying
- degrees of refinment). The spheres are oriented randomly and spin around their
+ degrees of refinement). The spheres are oriented randomly and spin around their
  z-axes with random speeds. Each unit sphere is in contact with the spheres
- adjancet to it in the grid along the x-, y-, and z-axes. A simulation is run
+ adjacent to it in the grid along the x-, y-, and z-axes. A simulation is run
  for a fixed time period and metrics are collected:
 
    - Time spent advancing the time.
