@@ -61,12 +61,25 @@ drake_cc_binary(
         "//common:find_resource",
         "//geometry:geometry_visualization",
         "//geometry:scene_graph",
-        #"//lcmtypes:contact_results_for_viz",
         "//systems/analysis:explicit_euler_integrator",
         "//systems/analysis:simulator",
-        #"//systems/framework:diagram",
         "//systems/lcm:lcm_pubsub_system",
         "@gflags",
+    ],
+)
+
+drake_cc_binary(
+    name = "fridge_test",
+    srcs = ["fridge_test.cc"],
+    add_test_rule = 1,
+    deps = [
+        "//geometry:geometry_visualization",
+        "//geometry:scene_graph",
+        "//multibody/parsing",
+        "//multibody/plant",
+        "//systems/framework:diagram",
+        "//systems/lcm:lcm_pubsub_system",
+        #"@gflags",
     ],
 )
 
