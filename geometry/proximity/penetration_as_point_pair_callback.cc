@@ -35,6 +35,10 @@ bool Callback(CollisionObjectd* fcl_object_A_ptr,
   // GeometryId for colliding geometries.
   EncodedData encoding_A(fcl_object_A);
   EncodedData encoding_B(fcl_object_B);
+  static const common::TimerIndex callback_timer =
+      addTimer("Penetration as point pair callback - ignore time, consider counts");
+  startTimer(callback_timer);
+  lapTimer(callback_timer);
 
   const bool can_collide = data.collision_filter.CanCollideWith(
       encoding_A.encoding(), encoding_B.encoding());
