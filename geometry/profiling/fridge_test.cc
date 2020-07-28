@@ -6,6 +6,8 @@
  */
 #include <string>
 
+#include <gflags/gflags.h>
+
 #include "drake/common/profiler.h"
 #include "drake/geometry/geometry_instance.h"
 #include "drake/geometry/geometry_visualization.h"
@@ -14,12 +16,18 @@
 #include "drake/math/rigid_transform.h"
 #include "drake/math/rotation_matrix.h"
 #include "drake/multibody/plant/multibody_plant.h"
-// #include "drake/multibody/parsing/package_map.h"
 #include "drake/multibody/parsing/parser.h"
 #include "drake/systems/framework/context.h"
 #include "drake/systems/framework/diagram_builder.h"
 #include "drake/systems/framework/output_port.h"
 #include "drake/systems/lcm/lcm_publisher_system.h"
+
+DEFINE_bool(has_contact, true,
+            "If true, the box will be in contact with the fridge. If false "
+            "the box will be near the fridge, but not in contact");
+DEFINE_bool(as_convex, true,
+            "If true, the collision geometry is convex meshes. If false, they "
+            "are boxes");
 
 namespace drake {
 namespace geometry {
@@ -42,8 +50,10 @@ int do_main() {
   auto& sg = *builder.AddSystem<SceneGraph>();
   // Parse refrigerator.
   Parser parser(&mbp, &sg);
+  const std::string fridge_path =
+      "/home/seancurtis/Downloads/fl_convex/Fridge/";
   const std::string fridge =
-      "/home/seancurtis/Downloads/fl_convex/Fridge/Fridge.urdf";
+      fridge_path + (FLAGS_as_convex ? "Fridge.urdf" : "FridgeBox.urdf");
   parser.AddAllModelsFromFile(fridge);
   mbp.Finalize();
 
@@ -58,13 +68,13 @@ int do_main() {
   const RigidTransformd X_WS{RotationMatrixd::MakeZRotation(M_PI / 7)};
 
   const geometry::SourceId s_id = sg.RegisterSource("main_program");
-  const RigidTransformd X_SB{Vector3d(0.9, -0.2, 0.45)};
+  const double p_SBx = FLAGS_has_contact ? 0.9 : 0.94;
+  const RigidTransformd X_SB{Vector3d(p_SBx, -0.2, 0.45)};
   auto geo = std::make_unique<geometry::GeometryInstance>(
       X_WS * X_SB, std::make_unique<geometry::Box>(1.0, 1.0, 1.0), "counter");
   geometry::ProximityProperties props;
   const geometry::GeometryId box_id = geo->id();
   geo->set_proximity_properties(std::move(props));
-  std::cout << "Adding anchored box\n";
   sg.RegisterAnchoredGeometry(s_id, std::move(geo));
   DRAKE_DEMAND(sg.model_inspector().GetProximityProperties(box_id));
 
@@ -118,6 +128,6 @@ int do_main() {
 }  // namespace drake
 
 int main(int argc, char* argv[]) {
-  //   gflags::ParseCommandLineFlags(&argc, &argv, true);
+  gflags::ParseCommandLineFlags(&argc, &argv, true);
   return drake::geometry::profiling::convex::do_main();
 }

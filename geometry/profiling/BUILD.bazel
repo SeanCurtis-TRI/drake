@@ -79,7 +79,7 @@ drake_cc_binary(
         "//multibody/plant",
         "//systems/framework:diagram",
         "//systems/lcm:lcm_pubsub_system",
-        #"@gflags",
+        "@gflags",
     ],
 )
 
