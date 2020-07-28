@@ -65,10 +65,18 @@ int do_main() {
   // Visualize (optionally)
   ConnectDrakeVisualizer(&builder, sg, nullptr, Role::kProximity);
 
+#if 0
+  const RigidTransformd X_WS{};
+  const RigidTransformd X_SF{Vector3d(0, 0, 0.8)};
+#else
   const RigidTransformd X_WS{RotationMatrixd::MakeZRotation(M_PI / 7)};
+  const RigidTransformd X_SF{RotationMatrixd::MakeZRotation( M_PI) *
+                             RotationMatrixd::MakeXRotation(M_PI / 2),
+                             Vector3d(0, 0, 0.8)};
+#endif
 
   const geometry::SourceId s_id = sg.RegisterSource("main_program");
-  const double p_SBx = FLAGS_has_contact ? 0.9 : 0.94;
+  const double p_SBx = FLAGS_has_contact ? 0.9 : 0.95;
   const RigidTransformd X_SB{Vector3d(p_SBx, -0.2, 0.45)};
   auto geo = std::make_unique<geometry::GeometryInstance>(
       X_WS * X_SB, std::make_unique<geometry::Box>(1.0, 1.0, 1.0), "counter");
@@ -89,9 +97,6 @@ int do_main() {
   // identity, we'll guarantee overlaping bounding boxes.
   auto& mbp_context = mbp.GetMyMutableContextFromRoot(context.get());
   const auto& fridge_body = mbp.GetBodyByName("body");
-  const RigidTransformd X_SF{RotationMatrixd::MakeZRotation( M_PI) *
-                             RotationMatrixd::MakeXRotation(M_PI / 2),
-                             Vector3d(0, 0, 0.8)};
   mbp.SetFreeBodyPose(&mbp_context, fridge_body, X_WS * X_SF);
 
   // Initialize things.
