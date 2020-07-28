@@ -750,17 +750,27 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
       const {
     static const common::TimerIndex query_timer =
         addTimer("ProximityEngine::ComputePointPairPenetration");
+    static const common::TimerIndex dynamic_timer =
+        addTimer("ProximityEngine::ComputePointPairPenetration - dyn-dyn");
+    static const common::TimerIndex anchor_timer =
+        addTimer("ProximityEngine::ComputePointPairPenetration - dyn-anc");
+
     startTimer(query_timer);
     std::vector<PenetrationAsPointPair<double>> contacts;
     penetration_as_point_pair::CallbackData data{&collision_filter_, &contacts};
 
+    startTimer(dynamic_timer);
     // Perform a query of the dynamic objects against themselves.
     dynamic_tree_.collide(&data, penetration_as_point_pair::Callback);
+    lapTimer(dynamic_timer);
 
+    startTimer(anchor_timer);
     // Perform a query of the dynamic objects against the anchored. We don't do
     // anchored against anchored because those pairs are implicitly filtered.
     FclCollide(dynamic_tree_, anchored_tree_, &data,
                penetration_as_point_pair::Callback);
+    lapTimer(anchor_timer);
+
     lapTimer(query_timer);
     return contacts;
   }

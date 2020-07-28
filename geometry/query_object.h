@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 
+#include "drake/common/profiler.h"
 #include "drake/geometry/query_results/contact_surface.h"
 #include "drake/geometry/query_results/penetration_as_point_pair.h"
 #include "drake/geometry/query_results/signed_distance_pair.h"
@@ -541,7 +542,11 @@ class QueryObject {
   // object (see class docs for discussion).
   void FullPoseUpdate() const {
     // TODO(SeanCurtis-TRI): Modify this when the cache system is in place.
+    static const common::TimerIndex update_timer =
+        addTimer("QueryObject::FullPoseUpdate");
+    startTimer(update_timer);
     if (scene_graph_) scene_graph_->FullPoseUpdate(*context_);
+    lapTimer(update_timer);
   }
 
   // Reports true if this object is configured so that it can support a query.

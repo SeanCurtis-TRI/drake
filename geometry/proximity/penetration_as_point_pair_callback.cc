@@ -21,6 +21,20 @@ using fcl::Contactd;
 bool Callback(CollisionObjectd* fcl_object_A_ptr,
               CollisionObjectd* fcl_object_B_ptr,
               void* callback_data) {
+  static const common::TimerIndex early_exit_timer =
+      addTimer("Penetration as point pair callback - filtered");
+  static const common::TimerIndex false_positive_timer =
+      addTimer("Penetration as point pair callback - false positive");
+  static const common::TimerIndex true_positive_timer =
+      addTimer("Penetration as point pair callback - true positive");
+  static const common::TimerIndex filter_timer =
+      addTimer("Element-element collision filtering");
+  static const common::TimerIndex primitive_timer =
+      addTimer("Element-element FCL collision");
+  startTimer(early_exit_timer);
+  startTimer(false_positive_timer);
+  startTimer(true_positive_timer);
+
   // NOTE: Although this function *takes* non-const pointers to satisfy the
   // fcl api, it should not exploit the non-constness to modify the collision
   // objects. We ensure this by immediately assigning to a const version and
@@ -35,18 +49,19 @@ bool Callback(CollisionObjectd* fcl_object_A_ptr,
   // GeometryId for colliding geometries.
   EncodedData encoding_A(fcl_object_A);
   EncodedData encoding_B(fcl_object_B);
-  static const common::TimerIndex callback_timer =
-      addTimer("Penetration as point pair callback - ignore time, consider counts");
-  startTimer(callback_timer);
-  lapTimer(callback_timer);
 
+  startTimer(filter_timer);
   const bool can_collide = data.collision_filter.CanCollideWith(
       encoding_A.encoding(), encoding_B.encoding());
+  lapTimer(filter_timer);
 
   // NOTE: Here and below, false is returned regardless of whether collision
   // is detected or not because true tells the broadphase manager to terminate.
   // Since we want *all* collisions, we return false.
-  if (!can_collide) return false;
+  if (!can_collide) {
+    lapTimer(early_exit_timer);
+    return false;
+  }
 
   // Unpack the callback data
   const CollisionRequestd& request = data.request;
@@ -57,13 +72,14 @@ bool Callback(CollisionObjectd* fcl_object_A_ptr,
   CollisionResultd result;
 
   // Perform nearphase collision detection
-  static const common::TimerIndex primitive_timer =
-      addTimer("Element-element FCL collision");
   startTimer(primitive_timer);
   collide(&fcl_object_A, &fcl_object_B, request, result);
   lapTimer(primitive_timer);
 
-  if (!result.isCollision()) return false;
+  if (!result.isCollision()) {
+    stopTimer(false_positive_timer);
+    return false;
+  }
 
   // Process the contact points
   // NOTE: This assumes that the request is configured to use a single
@@ -110,6 +126,7 @@ bool Callback(CollisionObjectd* fcl_object_A_ptr,
   }
   data.point_pairs.push_back(std::move(penetration));
 
+  lapTimer(true_positive_timer);
   return false;
 }
 
