@@ -648,7 +648,7 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
 
     // Create fcl::Convex.
     auto fcl_convex = make_shared<fcl::Convexd>(
-        vertices, num_faces, faces);
+        vertices, num_faces, faces, false);
     TakeShapeOwnership(fcl_convex, user_data);
     ProcessHydroelastic(convex, user_data);
 
