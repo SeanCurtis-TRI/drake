@@ -113,7 +113,9 @@ int do_main() {
   const auto& qo =
       sg.get_query_output_port().Eval<QueryObject<double>>(sg_context);
   int contact_count = -1;
-  for (int i = 0; i < 50; ++i) {
+  const common::TimerIndex main_loop = addTimer("Main loop");
+  startTimer(main_loop);
+  for (int i = 0; i < 500; ++i) {
     const auto& results = qo.ComputePointPairPenetration();
     if (contact_count < 0) {
       contact_count = static_cast<int>(results.size());
@@ -122,6 +124,7 @@ int do_main() {
       std::cout << i << " has " << contact_count << " contacts\n";
     }
   }
+  lapTimer(main_loop);
 
   std::cout << TableOfAverages() << "\n";
 
