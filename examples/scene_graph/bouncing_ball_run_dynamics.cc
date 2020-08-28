@@ -3,9 +3,11 @@
 
 #include <gflags/gflags.h>
 
+#include "drake/common/text_logging.h"
 #include "drake/examples/scene_graph/bouncing_ball_plant.h"
 #include "drake/geometry/geometry_instance.h"
 #include "drake/geometry/geometry_visualization.h"
+#include "drake/geometry/render/gl_renderer/render_engine_gl_factory.h"
 #include "drake/geometry/render/render_engine_vtk_factory.h"
 #include "drake/geometry/scene_graph.h"
 #include "drake/geometry/shape_specification.h"
@@ -27,6 +29,7 @@ DEFINE_bool(color, true, "Sets the enabled camera to render color");
 DEFINE_bool(depth, true, "Sets the enabled camera to render depth");
 DEFINE_bool(label, true, "Sets the enabled camera to render label");
 DEFINE_double(render_fps, 10, "Frames per simulation second to render");
+DEFINE_double(gl, false, "Switches the render engine to RenderEngineGl");
 
 namespace drake {
 namespace examples {
@@ -45,6 +48,7 @@ using geometry::IllustrationProperties;
 using geometry::PerceptionProperties;
 using geometry::ProximityProperties;
 using geometry::render::DepthCameraProperties;
+using geometry::render::RenderEngineGlParams;
 using geometry::render::RenderEngineVtkParams;
 using geometry::render::RenderLabel;
 using geometry::SceneGraph;
@@ -62,8 +66,15 @@ int do_main() {
   auto scene_graph = builder.AddSystem<SceneGraph<double>>();
   scene_graph->set_name("scene_graph");
   const std::string render_name("renderer");
-  scene_graph->AddRenderer(render_name,
-                           MakeRenderEngineVtk(RenderEngineVtkParams()));
+  if (FLAGS_gl) {
+    log()->info("RenderEngineGl active RenderEngine");
+    scene_graph->AddRenderer(render_name,
+                             MakeRenderEngineGl(RenderEngineGlParams()));
+  } else {
+    log()->info("RenderEngineVtk active RenderEngine");
+    scene_graph->AddRenderer(render_name,
+                             MakeRenderEngineVtk(RenderEngineVtkParams()));
+  }
 
   // Create two bouncing balls --> two plants. Put the balls at positions
   // mirrored over the origin (<0.25, 0.25> and <-0.25, -0.25>, respectively).
@@ -120,7 +131,7 @@ int do_main() {
     // image, so we need to align it in the -Wz direction. So,  we compute the
     // basis using camera Y-ish in the By ≈ -Wz direction to compute Bx, and
     // then use Bx an and Bz to compute By.
-    const Vector3d p_WB(0.3, -1, 0.25);
+    const Vector3d p_WB(0.3, -1, 0.5);
     // Set rotation looking at the origin.
     const Vector3d Bz_W = -p_WB.normalized();
     const Vector3d Bx_W = -Vector3d::UnitZ().cross(Bz_W).normalized();

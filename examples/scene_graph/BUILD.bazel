@@ -22,6 +22,7 @@ drake_cc_library(
     name = "bouncing_ball_plant",
     srcs = ["bouncing_ball_plant.cc"],
     hdrs = ["bouncing_ball_plant.h"],
+    data = [":models"],
     deps = [
         ":bouncing_ball_vector",
         "//geometry:geometry_ids",
@@ -42,6 +43,7 @@ drake_cc_binary(
         ":bouncing_ball_plant",
         "//geometry:geometry_visualization",
         "//geometry:scene_graph",
+        "//geometry/render/gl_renderer:gl_renderer",
         "//geometry/render:render_engine_vtk",
         "//systems/analysis:simulator",
         "//systems/framework:diagram",
@@ -78,6 +80,7 @@ filegroup(
         "**/*.sdf",
         "**/*.urdf",
         "**/*.xml",
+        "**/*.png",
     ]),
     visibility = ["//visibility:public"],
 )

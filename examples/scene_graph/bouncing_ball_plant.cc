@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "drake/common/eigen_types.h"
+#include "drake/common/find_resource.h"
 #include "drake/geometry/geometry_frame.h"
 #include "drake/geometry/geometry_instance.h"
 #include "drake/geometry/geometry_roles.h"
@@ -23,12 +24,13 @@ using geometry::IllustrationProperties;
 using geometry::PenetrationAsPointPair;
 using geometry::PerceptionProperties;
 using geometry::ProximityProperties;
-using geometry::render::RenderLabel;
 using geometry::SceneGraph;
 using geometry::SourceId;
 using geometry::Sphere;
+using geometry::render::RenderLabel;
 using math::RigidTransform;
 using math::RigidTransformd;
+using math::RotationMatrixd;
 using std::make_unique;
 using systems::Context;
 
@@ -57,15 +59,25 @@ BouncingBallPlant<T>::BouncingBallPlant(SourceId source_id,
       source_id, GeometryFrame("ball_frame"));
   ball_id_ = scene_graph->RegisterGeometry(
       source_id, ball_frame_id_,
-      make_unique<GeometryInstance>(RigidTransformd::Identity(), /*X_FG*/
-                                    make_unique<Sphere>(diameter_ / 2.0),
-                                    "ball"));
+      make_unique<GeometryInstance>(
+          RigidTransformd(RotationMatrixd::MakeZRotation(-M_PI / 2)), /*X_FG*/
+          make_unique<Sphere>(diameter_ / 2.0),
+          // make_unique<geometry::Box>(diameter_, diameter_, diameter_),
+          // make_unique<geometry::Cylinder>(diameter_, diameter_),
+          // make_unique<geometry::Capsule>(diameter_, diameter_),
+          // make_unique<geometry::Ellipsoid>(diameter_ / 2, diameter_,
+          //                                  diameter_ * 2),
+          // make_unique<geometry::HalfSpace>(),
+          "ball"));
   // Use the default material.
   scene_graph->AssignRole(source_id, ball_id_, IllustrationProperties());
   scene_graph->AssignRole(source_id, ball_id_, ProximityProperties());
   PerceptionProperties perception_properties;
   perception_properties.AddProperty("phong", "diffuse",
                                     Vector4d{0.8, 0.8, 0.8, 1.0});
+  perception_properties.AddProperty(
+      "phong", "diffuse_map",
+      FindResourceOrThrow("drake/examples/scene_graph/diag_gradient.png"));
   perception_properties.AddProperty("label", "id",
                                     RenderLabel(ball_id_.get_value()));
   scene_graph->AssignRole(source_id, ball_id_, perception_properties);
