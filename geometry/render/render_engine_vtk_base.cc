@@ -142,18 +142,18 @@ class DrakeCubeSource : public vtkPolyDataAlgorithm {
 
      face axis |  Fx |  Fy | map key
      --------- | --- | --- | -------
-         +x    | -By |  Bz |   0
-         -x    |  By |  Bz |   1
+         +x    |  By |  Bz |   0
+         -x    | -By |  Bz |   1
          +y    | -Bx |  Bz |   2
          -y    |  Bx |  Bz |   3
          +z    |  Bx |  By |   4
          -z    |  Bx | -By |   5
 
     We encode the basis for each face in the table below as:
-      {Bi, si, Bj, sj, Bk, sk} such that:
-         Fx = si * Vector3d::Unit(Bi);
-         Fy = sj * Vector3d::Unit(Bj);
-         Fz = sk * Vector3d::Unit(Bk);
+      {Bi, sign_i, Bj, sign_j, Bk, sign_k} such that:
+         Fx = sign_i * Vector3d::Unit(Bi);
+         Fy = sign_j * Vector3d::Unit(Bj);
+         Fz = sign_k * Vector3d::Unit(Bk);
     */
     constexpr int basis_F[6][6] = {{1, 1, 2, 1, 0, 1},     // +x face.
                                    {1, -1, 2, 1, 0, -1},   // -x face.
@@ -198,7 +198,7 @@ class DrakeCubeSource : public vtkPolyDataAlgorithm {
         // corresponding uv coordinate UV = s * (P + 1) / 2. In other words, we:
         //   - shift the square from (-1, -1)x(1, 1) to (0, 0)x(2, 2)
         //   - scale to (0, 0)x(1, 1)
-        //   - scale again by the uv_scale to (0, 0)x(s, s).
+        //   - scale again by the uv_scale to (0, 0)x(s₀, s₁).
         const double uv[] = {(x + 1) * 0.5 * uv_scale_[0],
                              (y + 1) * 0.5 * uv_scale_[1]};
         newTCoords->InsertNextTuple(uv);

@@ -456,7 +456,7 @@ class RenderEngineVtkTest : public ::testing::Test {
   }
 
   RgbaColor expected_color_{kDefaultVisualColor, 255};
-  RgbaColor expected_outlier_color_{kDefaultVisualColor, 255};
+  RgbaColor expected_outlier_color_{kTerrainColorI, 255};
   float expected_outlier_depth_{3.f};
   float expected_object_depth_{2.f};
   RenderLabel expected_label_;
@@ -667,10 +667,8 @@ TEST_F(RenderEngineVtkTest, BoxTest) {
 
       PerformCenterShapeTest(
           renderer_.get(),
-          fmt::format("Box test - {}",
-                      use_texture ?
-                      (texture_scaled ? "scaled texture" : "unscaled texture") :
-                      "diffuse color")
+          fmt::format("Box test - {} - scale {}",
+                      use_texture ? "texture" : "diffuse color", texture_scale)
               .c_str());
     }
   }
