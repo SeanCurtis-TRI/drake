@@ -44,6 +44,7 @@ drake_cc_package_library_gl_per_os(
         ":shader_program",
         ":shader_program_data",
         ":shape_meshes",
+        ":texture_library",
     ],
     visibility = ["//visibility:public"],
 )
@@ -99,6 +100,7 @@ drake_cc_library_gl_ubuntu_only(
         ":shader_program",
         ":shader_program_data",
         ":shape_meshes",
+        ":texture_library",
         "//common:essential",
         "//geometry/render:render_engine",
         "//geometry/render:render_label",
@@ -172,6 +174,17 @@ drake_cc_library_gl_ubuntu_only(
     ],
 )
 
+drake_cc_library_gl_ubuntu_only(
+    name = "texture_library",
+    srcs = ["texture_library.cc"],
+    hdrs = ["texture_library.h"],
+    deps = [
+        "//common:essential",
+        "//geometry/render/gl_renderer:opengl_context",
+        "@vtk//:vtkIOImage",
+    ],
+)
+
 drake_cc_googletest_gl_ubuntu_only(
     name = "buffer_dim_test",
     deps = [
@@ -209,6 +222,7 @@ drake_cc_googletest_gl_ubuntu_only(
         "//conditions:default": [],
     }),
     data = [
+        "//geometry/render:test_models",
         "//systems/sensors:test_models",
     ],
     tags = vtk_test_tags(),

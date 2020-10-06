@@ -6,10 +6,14 @@
 
 #include <fmt/format.h>
 
+#include "drake/common/filesystem.h"
+#include "drake/common/never_destroyed.h"
+
 namespace drake {
 namespace geometry {
 namespace render {
 
+using Eigen::Vector2d;
 using Eigen::Vector3d;
 using internal::BufferDim;
 using internal::MeshData;
@@ -21,6 +25,7 @@ using internal::RenderType;
 using internal::ShaderId;
 using internal::ShaderProgram;
 using internal::ShaderProgramData;
+using internal::TextureLibrary;
 using math::RigidTransformd;
 using std::make_shared;
 using std::make_unique;
@@ -155,6 +160,147 @@ void main() {
   color.rgb = diffuse_color.rgb * max(dot(nhat_C, light_dir_C), 0.0);
 })""";
 };
+
+/* The built-in shader for texture diffuse colored objects. This shader supports
+ all geometries with a ("phong", "diffuse_map") property. */
+class DefaultTextureColorShader final : public internal::ShaderProgram {
+ public:
+  DefaultTextureColorShader(const DefaultTextureColorShader&) = default;
+  DefaultTextureColorShader& operator=(const DefaultTextureColorShader&) =
+      delete;
+  DefaultTextureColorShader(DefaultTextureColorShader&&) = default;
+  DefaultTextureColorShader& operator==(DefaultTextureColorShader&&) = delete;
+
+  /* Constructs the texture shader with the given library. The library will be
+   used to access OpenGl textures.  */
+  explicit DefaultTextureColorShader(TextureLibrary* library)
+      : ShaderProgram(), library_(*library) {
+    DRAKE_DEMAND(library != nullptr);
+    LoadFromSources(kVertexShader, kFragmentShader);
+    // We explicitly specify the texture unit associated with this image (see
+    // SetInstanceParameters()).
+    diffuse_map_loc_ = GetUniformLocation("diffuse_map");
+    glUniform1i(diffuse_map_loc_, 0);  // This texture is GL_TEXTURE0.
+    diffuse_scale_loc_ = GetUniformLocation("diffuse_map_scale");
+    normal_mat_loc_ = GetUniformLocation("normal_mat");
+  }
+
+  void SetInstanceParameters(const ShaderProgramData& data) const final {
+    glActiveTexture(GL_TEXTURE0);
+    const auto& my_data = data.value().get_value<InstanceData>();
+    glBindTexture(GL_TEXTURE_2D, my_data.texture_id);
+    glUniform2fv(diffuse_scale_loc_, 1, my_data.texture_scale.data());
+  }
+
+ private:
+  std::unique_ptr<ShaderProgram> DoClone() const final {
+    return make_unique<DefaultTextureColorShader>(*this);
+  }
+
+  struct InstanceData {
+    GLuint texture_id;
+    Vector2<float> texture_scale;
+  };
+
+  std::optional<ShaderProgramData>
+  DoCreateProgramData(const PerceptionProperties& properties) const final {
+    if (!properties.HasProperty("phong", "diffuse_map")) return std::nullopt;
+    const string& file_name =
+        properties.GetProperty<string>("phong", "diffuse_map");
+    std::optional<GLuint> texture_id = library_.GetTextureId(file_name);
+
+    if (!texture_id.has_value()) return std::nullopt;
+
+    const auto& scale = properties.GetPropertyOrDefault(
+        "phong", "diffuse_scale", Vector2d(1, 1));
+
+    return ShaderProgramData{shader_id(), AbstractValue::Make(
+      InstanceData{*texture_id, scale.cast<float>()})};
+  }
+
+  void DoModelViewMatrix(const Eigen::Matrix4f& X_CglM,
+                         const Vector3d& scale) const override {
+    // When rendering *illuminated* objects, we have to account for the surface
+    // normals. In principle, we only need to *rotate* the normals from the
+    // model frame to the camera frame. However, if the geometry has undergone
+    // non-uniform scaling, we must *first* scale the normals by the inverse
+    // scale. So, the normal_mat below handles the scaling and the rotation. It
+    // relies on the shader to handle normalization of the scaled normals.
+    const Eigen::DiagonalMatrix<float, 3, 3> inv_scale(
+        Vector3<float>(1.0 / scale(0), 1.0 / scale(1), 1.0 / scale(2)));
+    const Eigen::Matrix3f normal_mat = X_CglM.block<3, 3>(0, 0) * inv_scale;
+    glUniformMatrix3fv(normal_mat_loc_, 1, GL_FALSE, normal_mat.data());
+  }
+
+  TextureLibrary& library_;
+
+  GLint diffuse_map_loc_{};
+  GLint diffuse_scale_loc_{};
+
+  // The location of the "normal_mat" uniform in the shader.
+  GLint normal_mat_loc_{};
+
+  // The vertex shader:
+  //   - Transforms the vertex into device coordinates.
+  //     - Technically, we don't have to have model_view and projection
+  //       matrices separate to do this. But keeping them separate makes this
+  //       trivially compatible with the other shaders.
+  //   - Transforms the normal into camera coordinates and performs a
+  //     rudimentary phong lighting calculation with a *directional* light
+  //     pointing in the camera's view direction.
+  // could combine modelview and projection matrices into a single transform,
+  // but there's no real value in doing so. Leaving it as is maintains
+  // compatibility with the depth shader.
+  static constexpr char kVertexShader[] = R"""(
+#version 330
+layout(location = 0) in vec3 p_MV;
+layout(location = 1) in vec3 n_M;
+layout(location = 2) in vec2 tex_coord_in;
+uniform mat4 model_view_matrix;
+uniform mat4 projection_matrix;
+uniform mat3 normal_mat;
+varying vec4 p_CV;
+varying vec3 n_C;
+varying vec2 tex_coord;
+void main() {
+  // X_CM = model_view_matrix (although X may not be a *rigid* transform).
+  p_CV = model_view_matrix * vec4(p_MV, 1);
+  gl_Position = projection_matrix * p_CV;
+
+  // R_CM = normal_mat (although R may also include scaling).
+  n_C = normal_mat * n_M;
+  // TODO(SeanCurtis-TRI): Support transforms for texture coordinates.
+  tex_coord = tex_coord_in;
+})""";
+
+  // For each fragment from a geometry, it simply colors the fragment with the
+  // provided label encoded as an RGBA color.
+  static constexpr char kFragmentShader[] = R"""(
+#version 330
+uniform sampler2D diffuse_map;
+uniform vec2 diffuse_map_scale;
+varying vec4 p_CV;
+varying vec3 n_C;
+varying vec2 tex_coord;
+out vec4 color;
+void main() {
+  // The light is "infinitely" far away in the (0, 0, 1) direction; so it is
+  // a fixed direction to *every* point.
+  vec3 light_dir_C = vec3(0, 0, 1);
+  // NOTE: Depending on triangle size and variance of normal direction over
+  // that triangle, n_C may not be unit length; consider normalizing it.
+  vec3 nhat_C = normalize(n_C);
+  // Note: We're clipping the texture coordinates *here* using fract() rather
+  //  than setting the texture to GL_REPEAT. Setting it GL_REPEAT can lead to
+  //  unsightly visual artifacts when a texture is supposed to exactly align
+  //  with a triangle edge, but there are floating point errors in interpolation
+  //  which cause the texture to be sampled on the other side.
+  vec4 map_rgba = texture(diffuse_map, fract(tex_coord * diffuse_map_scale));
+  color.rgb = map_rgba.rgb * max(dot(nhat_C, light_dir_C), 0.0);
+  color.a = map_rgba.a;
+})""";
+};
+
 /* The built-in shader for objects in depth images. By default, the shader
  supports all geometries.  */
 class DefaultDepthShader final : public internal::ShaderProgram {
@@ -312,6 +458,7 @@ void main() {
 RenderEngineGl::RenderEngineGl(RenderEngineGlParams params)
     : RenderEngine(params.default_label),
       opengl_context_(make_shared<OpenGlContext>()),
+      texture_library_(make_shared<TextureLibrary>(opengl_context_.get())),
       parameters_(std::move(params)) {
   // Configuration of basic OpenGl state.
   opengl_context_->MakeCurrent();
@@ -329,6 +476,9 @@ RenderEngineGl::RenderEngineGl(RenderEngineGlParams params)
   // texture to be "more preferred" than color from rgba, so we add it the
   // texture color shader *after* the rgba color shader.
   AddShader(make_unique<DefaultRgbaColorShader>(params.default_diffuse),
+            RenderType::kColor);
+
+  AddShader(make_unique<DefaultTextureColorShader>(texture_library_.get()),
             RenderType::kColor);
 
   // Depth shaders -- a single shader that accepts all geometry.
@@ -540,12 +690,39 @@ void RenderEngineGl::ImplementGeometry(const Ellipsoid& ellipsoid,
 
 void RenderEngineGl::ImplementGeometry(const Mesh& mesh, void* user_data) {
   OpenGlGeometry geometry = GetMesh(mesh.filename());
-  ImplementGeometry(geometry, user_data, Vector3d(1, 1, 1) * mesh.scale());
+  ImplementMesh(geometry, user_data, Vector3d(1, 1, 1) * mesh.scale(),
+                mesh.filename());
 }
 
 void RenderEngineGl::ImplementGeometry(const Convex& convex, void* user_data) {
   OpenGlGeometry geometry = GetMesh(convex.filename());
-  ImplementGeometry(geometry, user_data, Vector3d(1, 1, 1) * convex.scale());
+  ImplementMesh(geometry, user_data, Vector3d(1, 1, 1) * convex.scale(),
+                convex.filename());
+}
+
+void RenderEngineGl::ImplementMesh(const internal::OpenGlGeometry& geometry,
+                                   void* user_data,
+                                   const Vector3<double>& scale,
+                                   const std::string& file_name) {
+  const RegistrationData& data = *static_cast<RegistrationData*>(user_data);
+  if (data.properties.HasProperty("phong", "diffuse_map")) {
+    ImplementGeometry(geometry, user_data, scale);
+    return;
+  }
+  // In order to maintain compatibility with RenderEngintVtk, we need to provide
+  // functionality in which a mesh of the name foo.obj can be matched to a
+  // potential png called foo.png. We rely on the fact that passing in a diffuse
+  // map that doesn't refer to a real file will silently fall back to rgba
+  // diffuse. So, we'll create a copy of the user data, set the diffuse_map
+  // property to appropriately named image and let it percolate through. We
+  // can't and don't want to change the underlying properties because they are
+  // visible to the user.
+  PerceptionProperties temp_props(data.properties);
+  filesystem::path file_path(file_name);
+  const string png_name = file_path.replace_extension(".png").string();
+  temp_props.AddProperty("phong", "diffuse_map", png_name);
+  RegistrationData temp_data{data.id, data.X_WG, temp_props};
+  ImplementGeometry(geometry, &temp_data, scale);
 }
 
 bool RenderEngineGl::DoRegisterVisual(GeometryId id, const Shape& shape,
@@ -860,22 +1037,24 @@ OpenGlGeometry RenderEngineGl::CreateGlGeometry(const MeshData& mesh_data) {
   // Create the vertex array object (VAO).
   glCreateVertexArrays(1, &geometry.vertex_array);
 
-
   // Create the vertex buffer object (VBO).
   glCreateBuffers(1, &geometry.vertex_buffer);
 
-  // We're representing the vertex data as a concatenation of positions and
-  // normals (i.e., (VVVNNN)). There should be an equal number of vertices and
-  // normals.
+  // We're representing the vertex data as a concatenation of positions, normals
+  // and texture coordinates (i.e., (VVVNNNUUU)). There should be an equal
+  // number of vertices, normals, and texture coordinates.
   DRAKE_DEMAND(mesh_data.positions.rows() == mesh_data.normals.rows());
+  DRAKE_DEMAND(mesh_data.positions.rows() == mesh_data.uvs.rows());
   const int v_count = mesh_data.positions.rows();
   vector<GLfloat> vertex_data;
-  // 3 floats each for position and normals.
-  vertex_data.reserve(v_count * (3 + 3));
+  // 3 floats each for position and normal, 2 for texture coordinates.
+  vertex_data.reserve(v_count * (3 + 3 + 2));
   vertex_data.insert(vertex_data.end(), mesh_data.positions.data(),
                      mesh_data.positions.data() + v_count * 3);
   vertex_data.insert(vertex_data.end(), mesh_data.normals.data(),
                      mesh_data.normals.data() + v_count * 3);
+  vertex_data.insert(vertex_data.end(), mesh_data.uvs.data(),
+                     mesh_data.uvs.data() + v_count * 2);
   glNamedBufferStorage(geometry.vertex_buffer,
                        vertex_data.size() * sizeof(GLfloat),
                        vertex_data.data(), 0);
@@ -893,6 +1072,14 @@ OpenGlGeometry RenderEngineGl::CreateGlGeometry(const MeshData& mesh_data) {
   glVertexArrayAttribFormat(geometry.vertex_array, normal_attrib, 3, GL_FLOAT,
                             GL_FALSE, 0);
   glEnableVertexArrayAttrib(geometry.vertex_array, normal_attrib);
+
+  const int uv_attrib = 2;
+  glVertexArrayVertexBuffer(
+      geometry.vertex_array, uv_attrib, geometry.vertex_buffer,
+      2 * mesh_data.positions.size() * sizeof(GLfloat), 2 * sizeof(GLfloat));
+  glVertexArrayAttribFormat(geometry.vertex_array, uv_attrib, 2, GL_FLOAT,
+                            GL_FALSE, 0);
+  glEnableVertexArrayAttrib(geometry.vertex_array, uv_attrib);
 
   // Create the index buffer object (IBO).
   glCreateBuffers(1, &geometry.index_buffer);
