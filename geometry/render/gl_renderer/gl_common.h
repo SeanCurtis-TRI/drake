@@ -11,7 +11,7 @@ namespace internal {
 //  for multiple RenderEngine types.
 /* Rendering types available. Used to index into render-type-dependent data
  structures.  */
-enum RenderType { kLabel = 0, kDepth, kTypeCount };
+enum RenderType { kColor = 0, kLabel, kDepth, kTypeCount };
 
 }  // namespace internal
 }  // namespace render
