@@ -1,0 +1,45 @@
+# -*- python -*-
+
+load(
+    "@drake//tools/skylark:drake_cc.bzl",
+    "drake_cc_googletest",
+    "drake_cc_library",
+)
+load("//tools/lint:lint.bzl", "add_lint_tests")
+
+drake_cc_library(
+    name = "mesh_slice",
+    srcs = ["mesh_slice.cc"],
+    hdrs = ["mesh_slice.h"],
+    deps = [
+        "//geometry:geometry_ids",
+        "//geometry:scene_graph",
+        "//geometry:shape_specification",
+        "//geometry/proximity:obj_to_surface_mesh",
+        "//multibody/tree:rotational_inertia",
+        "//systems/framework:context",
+    ],
+)
+
+filegroup(
+    name = "models",
+    srcs = glob([
+        "**/*.obj",
+        "**/*.mtl",
+        "**/*.sdf",
+        "**/*.urdf",
+        "**/*.xml",
+    ]),
+    visibility = ["//visibility:public"],
+)
+
+drake_cc_googletest(
+    name = "mesh_slice_test",
+    data = [":models"],
+    deps = [
+        ":mesh_slice",
+        "//common/test_utilities:eigen_matrix_compare",
+    ],
+)
+
+add_lint_tests()
