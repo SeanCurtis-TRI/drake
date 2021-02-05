@@ -85,6 +85,16 @@ class Plane {
   /* Gets the plane's normal expressed in frame F. */
   const Vector3<T>& normal() const { return nhat_F_; }
 
+  /* Reports a point on the plane. The planar equation is n̂⋅x⃗ - d, if we chose
+  x⃗ = d⋅n̂, then:
+    n̂⋅x⃗ - d
+    n̂⋅(d⋅n̂) - d
+    d⋅n̂⋅n̂ - d
+    d⋅1 - d     // given |n̂| = 1.
+    0
+  */
+  Vector3<T> point_on_plane() const { return displacement_ * nhat_F_; }
+
  private:
   // Used to validate the "already normalized" plane normal in debug mode.
   static void ThrowIfInsufficientlyNormal(const Vector3<T>& n) {

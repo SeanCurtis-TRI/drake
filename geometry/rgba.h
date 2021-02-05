@@ -66,5 +66,7 @@ class Rgba {
   double a_{};
 };
 
+std::ostream& operator<<(std::ostream& out, const Rgba& rgba);
+
 }  // namespace geometry
 }  // namespace drake
