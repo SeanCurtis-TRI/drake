@@ -97,7 +97,7 @@ class ShapeToLcm : public ShapeReifier {
     // Box width, height, and thickness.
     geometry_data_.float_data.push_back(50);
     geometry_data_.float_data.push_back(50);
-    const float thickness = 1;
+    const float thickness = 0;
     geometry_data_.float_data.push_back(thickness);
 
     // The final pose of the box is the half-space's pose pre-multiplied by
