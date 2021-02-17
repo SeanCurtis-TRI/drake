@@ -1,5 +1,7 @@
 #include <chrono>
 #include <memory>
+#include <utility>
+#include <vector>
 
 #include <gflags/gflags.h>
 
@@ -62,6 +64,8 @@ using geometry::render::MakeRenderEngineGl;
 using geometry::render::MakeRenderEngineVtk;
 using math::RigidTransformd;
 using math::RotationMatrixd;
+using std::pair;
+using std::vector;
 using systems::sensors::ImageRgba8U;
 
 /* Creates a camera pose for a camera whose origin is at point Co, it is aimed
@@ -167,35 +171,48 @@ int do_main() {
             << "\n";
   diagram->Publish(*context);
 
-  /* Render the scene. */
-  ImageRgba8U image(FLAGS_width, FLAGS_height);
-  geometry::render::ColorRenderCamera color_camera{
-      {renderer_name,
-       /* These intrinsics are taken from fmk000_sim_launch.json.
-        {2560, 2048, 1220.3556, 1220.3556, 1280, 1024}
-        they should be equivalent to the intrinsics created by the default
-        values implemented below.  */
-       {FLAGS_width, FLAGS_height, FLAGS_fov_y},
-       {0.1, FLAGS_far},
-       RigidTransformd{}},
-      FLAGS_show_window};
-  std::cout << "Rendering " << FLAGS_render_samples << " times\n";
-  std::cout << "  Image size: " << FLAGS_width << ", " << FLAGS_height << "\n";
-  {
-    auto start = std::chrono::high_resolution_clock::now();
-    for (int i = 0; i < FLAGS_render_samples; ++i) {
-      query_object.RenderColorImage(color_camera, scene_graph.world_frame_id(),
-                                    X_WC, &image);
+  for (const auto& size : vector<pair<int, int>>{
+           {10, 8}, {160, 128}, {640, 512}, {1280, 1024}, {2560, 2048}}) {
+    /* Render the scene. */
+    const int w = size.first;
+    const int h = size.second;
+    ImageRgba8U image(w, h);
+    geometry::render::ColorRenderCamera color_camera{
+        {renderer_name,
+         /* These intrinsics are taken from fmk000_sim_launch.json.
+          {2560, 2048, 1220.3556, 1220.3556, 1280, 1024}
+          they should be equivalent to the intrinsics created by the default
+          values implemented below.  */
+         {w, h, FLAGS_fov_y},
+         {0.1, FLAGS_far},
+         RigidTransformd{}},
+        FLAGS_show_window};
+    vector<double> times;
+    times.reserve(FLAGS_render_samples);
+    std::cout << "Rendering " << FLAGS_render_samples << " times\n";
+    std::cout << "  Image size: " << w << ", " << h << "\n";
+    {
+      for (int i = 0; i < FLAGS_render_samples; ++i) {
+        // Jiggle the camera along the x-axis.
+        const RigidTransformd X_RW(Vector3d{0.01 - ((i % 2) * 0.02), 0, 0});
+        auto start = std::chrono::high_resolution_clock::now();
+        query_object.RenderColorImage(
+            color_camera, scene_graph.world_frame_id(), X_RW * X_WC, &image);
+        auto end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double, std::milli> elapsed = end - start;
+        times.push_back(elapsed.count());
+      }
+      std::cout << "Times (ms): ";
+      for (double t : times) {
+        std::cout << t << " ";
+      }
+      std::cout << "\n";
     }
-    auto end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double, std::milli> elapsed = end - start;
-    std::cout << "  " << (elapsed.count() / FLAGS_render_samples)
-              << " ms per render\n";
-  }
-  if (!FLAGS_img_dir.empty()) {
-    systems::sensors::SaveToPng(
-        image, fmt::format("{}/fl_color_image_{}.png", FLAGS_img_dir,
-                           FLAGS_gl ? "gl" : "vtk"));
+    if (!FLAGS_img_dir.empty()) {
+      systems::sensors::SaveToPng(
+          image, fmt::format("{}/fl_color_image_{}_{}_{}.png", FLAGS_img_dir,
+                             FLAGS_gl ? "gl" : "vtk", w, h));
+    }
   }
   if (FLAGS_show_window) {
     std::cout << "Hit enter to continue: ";
