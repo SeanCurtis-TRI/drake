@@ -332,10 +332,9 @@ class DistanceToPoint {
     // i-th coordinate.
     const Eigen::Vector3d h = box.side / 2.0;
     Vector3<T> p_GN_G, grad_G;
-    bool is_Q_on_edge_or_vertex{};
-    std::tie(p_GN_G, grad_G, is_Q_on_edge_or_vertex) =
+    bool is_grad_W_unique{};
+    std::tie(p_GN_G, grad_G, is_grad_W_unique) =
         ComputeDistanceToBox(h, p_GQ_G);
-    const bool is_grad_W_unique = !is_Q_on_edge_or_vertex;
     const Vector3<T> grad_W = X_WG_.rotation() * grad_G;
     const Vector3<T> p_WN = X_WG_ * p_GN_G;
     T distance = grad_W.dot(p_WQ_ - p_WN);
@@ -419,24 +418,32 @@ class DistanceToPoint {
     Vector2<T> p_BN;
     // The gradient vector expressed in B's frame in coordinates (r,z).
     Vector2<T> grad_B;
-    bool is_Q_on_edge_or_vertex{};
-    std::tie(p_BN, grad_B, is_Q_on_edge_or_vertex) =
-        ComputeDistanceToBox(h, p_BQ);
+    bool is_grad_W_unique{};
+    std::tie(p_BN, grad_B, is_grad_W_unique) = ComputeDistanceToBox(h, p_BQ);
 
     // Transform coordinates from (r,z) in B's frame to (x,y,z) in G's frame.
     const Vector3<T> p_GN = rz_to_xyz(p_BN);
     const Vector3<T> grad_G = rz_to_xyz(grad_B);
 
+    #if 1
+    // Gradient vector should be expressed in the world frame.
+    const Vector3<T> grad_W = X_WG_.rotation() * grad_G;
+    const T distance = grad_B.dot(p_BQ - p_BN);
+    std::cerr << "  grad_W: " << grad_W.transpose() << "\n";
+    std::cerr << "  distance: " << distance << "\n";
+#else
     // Use R_WG for vectors. Use X_WG for points.
     const auto& R_WG = X_WG_.rotation();
     const Vector3<T> grad_W = R_WG * grad_G;
     const Vector3<T> p_WN = X_WG_ * p_GN;
     T distance = grad_W.dot(p_WQ_ - p_WN);
+#endif
     // TODO(hongkai.dai): grad_W is not unique when Q is on the top or
     // bottom rims of the cylinder, or when it is inside the box and on the
-    // central axis, with the nearest feature being the barrel of the cylinder.
+    // central axis, with the nearest feature being the barrel of the
+    // cylinder.
     return SignedDistanceToPoint<T>{geometry_id_, p_GN, distance, grad_W,
-                                    true /* is_grad_W_unique */};
+                                    is_grad_W_unique};
   }
 
   /* Reports the "sign" of x with a small modification; Sign(0) --> 1.
@@ -446,29 +453,62 @@ class DistanceToPoint {
   static U Sign(const U& x) { return (x < U(0.0)) ? U(-1.0) : U(1.0); }
 
   /* Picks the axis i whose coordinate p(i) is closest to the boundary value
-   ±bounds(i). If there are ties, we prioritize according to an arbitrary
-   ordering: +x,-x,+y,-y,+z,-z.
+   ±bounds(i). "Closest" is defined relative to a threshold. In addition to the
+   axis, we also report if the point's two closest bounds are the same distance
+   within that tolerance. This indicates whether the point lies on the medial
+   axis of the rectangular region.
+
+   In the case of multiple bounds on *different* axes being equally close, there
+   is no guarantee which axis will be selected.
 
    Note: the two vector types can be different scalars, they must be extractable
    to double.
 
+   @pre `p` must lie *within* the bounds (inclusive of the bounds themselves).
+   @retval {axis_index, single_closest}  The pair of values consisting of the
+           axis which contains the closest bound (although no direct indication
+           of whether it is + or - bounds(axis_index), and `true` if that
+           bound is *uniquely* the closest.
    @tparam dim The number of rows in the column vector.
    @tparam U   The scalar type of the point `p`; defaults to T.  */
   template <int dim, typename U = T>
-  static int ExtremalAxis(const Vector<U, dim>& p,
-                          const Vector<double, dim>& bounds) {
+  static std::pair<int, bool> ExtremalAxis(const Vector<U, dim>& p,
+                                           const Vector<double, dim>& bounds) {
+    // Condition epsilon on the size of the bounds.
+    const double kEps = DistanceToPointRelativeTolerance(bounds.maxCoeff());
     double min_dist = std::numeric_limits<double>::infinity();
     int axis = -1;
+    bool is_unique = true;
     for (int i = 0; i < dim; ++i) {
-      for (const auto bound : {bounds(i), -bounds(i)}) {
+      for (const double bound : {bounds(i), -bounds(i)}) {
         const double dist = std::abs(bound - ExtractDoubleOrThrow(p(i)));
-        if (dist < min_dist) {
-          min_dist = dist;
-          axis = i;
+        /* This is attempting two things simultaneously:
+           1. Detect if the two closest faces are "equally" close, and
+           2. Preserve the historical behavior of reporting the historical
+              behavior of favoring faces in the order of +x, -x, +y, -y, +z, -z
+              order.
+
+           To achieve the first point, we need to recognize that a subsequent
+           face is as close as the closest face we've observed. This includes
+           any distance that is within epsilon of the best known distance
+           (including being *farther*). The original if test tests for epsilon
+           farther, and the assignment to is_unique handles up to epsilon
+           closer.
+
+           However, for the second point, we want to make sure that the most
+           minimum value monotonically decreases (and brings its axis along).
+           To that end, we confirm the current distance is strictly less than
+           the previous distance before updating axis.  */
+        if (dist <= min_dist + kEps) {
+          is_unique = dist < min_dist - kEps;
+          if (dist < min_dist) {
+            min_dist = dist;
+            axis = i;
+          }
         }
       }
     }
-    return axis;
+    return {axis, is_unique};
   }
 
   /* Calculates the signed distance from a query point Q to a box, G. The box
@@ -483,10 +523,10 @@ class DistanceToPoint {
                    [-h(0),h(0)]x[-h(1),h(1)] in 2D or
                    [-h(0),h(0)]x[-h(1),h(1)]x[-h(2),h(2)] in 3D.
    @param p_GQ_G   The position of the query point Q in G's frame.
-   @retval {p_GN_G, grad_G, is_Q_on_edge_or_vertex}   The tuple of the position
-                   of the nearest point N in G's frame and the gradient vector
-                   in the same frame G, together with the type of the nearest
-                   feature.
+   @retval {p_GN_G, grad_G, is_grad_unique}   The tuple of the position
+                   of the nearest point N in G's frame, a/the gradient vector
+                   in the same frame G, and a report of whether the reported
+                   gradient vector is unique (true) or not.
    @tparam dim     The dimension, must be 2 or 3.  */
   template <int dim>
   static std::tuple<Vector<T, dim>, Vector<T, dim>, bool> ComputeDistanceToBox(
@@ -540,6 +580,10 @@ class DistanceToPoint {
       num_dim_on_boundary += location(i) == Location::kBoundary ? 1 : 0;
     }
     const bool is_Q_on_edge_or_vertex = num_dim_on_boundary >= 2 ? true : false;
+    // Our best knowledge *so far* as to whether the gradient for Q is unique
+    // or not; Q lying on an edge or vertex is sufficient, but not necessary
+    // to know it is not unique. (See below where Q lies *inside* the box.)
+    bool grad_is_unique = !is_Q_on_edge_or_vertex;
 
     // Initialize the position of the nearest point N on ∂B as that of C.
     // Note: if Q is outside or on the boundary of B, then C is N. In the
@@ -555,6 +599,7 @@ class DistanceToPoint {
       DRAKE_DEMAND(distance != 0.);
       grad_G = p_NQ_G / distance;
     } else if ((location.array() == Location::kBoundary).any()) {
+      // Q lies on the boundary of the box.
       for (int i = 0; i < dim; ++i) {
         if (location(i) == Location::kBoundary) {
           grad_G(i) = Sign(ExtractDoubleOrThrow(p_GC_G(i)));
@@ -563,19 +608,23 @@ class DistanceToPoint {
       grad_G.normalize();
     } else {
       // Q is inside the box.
-      // In 2D (3D), the nearest point N is the axis-aligned projection of Q
-      // onto one of the edge (faces) of the box.  The gradient vector is along
-      // that direction.
-      int axis = ExtremalAxis(p_GQ_G, h);
-      // NOTE: This will do funny things to the derivatives; this functionally
-      // treats it as constant w.r.t. all derivatives. However, as the point
-      // rolls from one Voronoi region to another, it goes funny.
+      // In 2D/3D, the nearest point(s) N is the axis-aligned projection of Q
+      // onto one of the edges/faces of the box. A valid gradient vector points
+      // in the direction of that edge/face outward pointing normal.
+      const auto [axis, not_on_medial_axis] = ExtremalAxis(p_GQ_G, h);
+      grad_is_unique &= not_on_medial_axis;
+      // NOTE: The gradient on the interior of the box is piecewise constant,
+      // where each "piece" is the Voronoi region for the corresponding box
+      // face. There are discontinuities in the gradient at the interface of
+      // Voronoi regions -- i.e., on the medial axis. We need to detect when
+      // we are on the medial axis and report a non-unique gradient.
       double sign = Sign(ExtractDoubleOrThrow(p_GQ_G(axis)));
+      // These have been previously initialized to p_GC_G and Zero,
+      // respectively.
       p_GN_G(axis) = sign * h(axis);
       grad_G(axis) = sign;
     }
-
-    return std::make_tuple(p_GN_G, grad_G, is_Q_on_edge_or_vertex);
+    return std::make_tuple(p_GN_G, grad_G, grad_is_unique);
   }
 
  private:

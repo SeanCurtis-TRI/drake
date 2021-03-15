@@ -75,8 +75,6 @@ class PointShapeAutoDiffSignedDistanceTester {
 
     // We take the gradient of the signed distance query w.r.t p_WQ.
     Vector3<AutoDiffXd> p_WQ_ad = math::initializeAutoDiff(p_WQ);
-    // The size of the variables we take gradient with (p_WQ) is 3.
-    const int grad_size = 3;
     DistanceToPoint<AutoDiffXd> distance_to_point(
         GeometryId::get_new_id(), X_WG_.cast<AutoDiffXd>(), p_WQ_ad);
 
@@ -122,7 +120,7 @@ class PointShapeAutoDiffSignedDistanceTester {
     if (grad_W_squared_norm.derivatives().size() > 0) {
       auto grad_W_unit_length_derivative_compare =
           CompareMatrices(grad_W_squared_norm.derivatives(),
-                          Eigen::VectorXd::Zero(grad_size), tolerance_);
+                          Vector3d::Zero(), tolerance_);
       if (!grad_W_unit_length_derivative_compare) {
         if (error) failure << "\n";
         error = true;
@@ -154,7 +152,14 @@ class PointShapeAutoDiffSignedDistanceTester {
         error = true;
         failure << "Gradient of p_WQ does not equal to gradient of (p_WN + "
                    "distance * grad_W):\n"
-                << p_WQ_derivative_compare.message();
+                << p_WQ_derivative_compare.message()
+                << "\n\n component derivatives"
+                << "\n  dp_WN_ad_dp_WQ:\n"
+                << math::autoDiffToGradientMatrix(p_WN_ad)
+                << "\n  dp_GN_ad_dp_WQ:\n"
+                << math::autoDiffToGradientMatrix(result.p_GN)
+                << "\n  dgrad_W_dp_WQ:\n"
+                << math::autoDiffToGradientMatrix(result.grad_W);
       }
     }
 
@@ -216,6 +221,8 @@ GTEST_TEST(DistanceToPoint, Sphere) {
 //     the derivative computed by hand (grad_W).
 GTEST_TEST(DistanceToPoint, Box) {
   const double kEps = 4 * std::numeric_limits<double>::epsilon();
+  constexpr bool kInside = true;
+  constexpr bool kUnique = true;
 
   // Provide some arbitrary pose of the box in the world.
   const RotationMatrix<double> R_WG(
@@ -232,12 +239,16 @@ GTEST_TEST(DistanceToPoint, Box) {
         for (double z : {-1, 1}) {
           const Vector3d p_NQ_G{x, y, z};
           const Vector3d p_GN_G = p_NQ_G.cwiseProduct(box.side / 2);
-          // The query point lies outside the box.
-          EXPECT_TRUE(tester.Test(p_GN_G, p_NQ_G));
-          // The query point lies on the vertex of the box.
-          EXPECT_TRUE(tester.Test(p_GN_G, Vector3d::Zero(),
-                                  false /* not inside the box */,
-                                  false /* not well defined */));
+          {
+            SCOPED_TRACE("Query point outside the box");
+            EXPECT_TRUE(tester.Test(p_GN_G, p_NQ_G));
+          }
+          {
+            SCOPED_TRACE("Query point lies on vertex of the box");
+            EXPECT_TRUE(tester.Test(p_GN_G, Vector3d::Zero(),
+                                    !kInside,
+                                    !kUnique));
+          }
         }
       }
     }
@@ -260,7 +271,7 @@ GTEST_TEST(DistanceToPoint, Box) {
         EXPECT_TRUE(tester.Test(p_GN_G, p_NQ_G));
         // The query point lies on the edge of the box.
         EXPECT_TRUE(tester.Test(p_GN_G, Vector3d::Zero(),
-                                false /* not inside the box */,
+                                !kInside,
                                 false /* not well defined */));
 
         // A query point *inside* the box would not be nearest the edge.
@@ -268,23 +279,48 @@ GTEST_TEST(DistanceToPoint, Box) {
     }
   }
 
-  // Case point lies *outside* the box, nearest a face.
+  // Case: Nearest point lies on a face.
   {
+    const Vector3d half_size = box.side / 2;
+    std::cerr << "\nBOX HALF SIZE: " << half_size.transpose() << "\n";
+    const double delta = half_size.minCoeff() / 2;
     for (double sign : {-1, 1}) {
       for (int axis : {0, 1, 2}) {
-        Vector3d vhat_NG = Vector3d::Zero();
-        vhat_NG(axis) = sign;
-        Vector3d p_NQ_G = 1.5 * vhat_NG;
-        const Vector3d p_GN_G = vhat_NG.cwiseProduct(box.side / 2);
+        // For each face, we want to select a nearest point N such that we know
+        // exactly how far it is away from the medial axis. If N is offset from
+        // one of the face's vertices by d units, along the other two axes, then
+        // it is also d units away from the medial axis. So, if query point Q is
+        // pushed inside the box d units, it lies on the medial axis. If less
+        // than d units, it is closest to the face. (If the point is *farther*
+        // than d units, the test will fail as a *different* face will be
+        // closer).
+        Vector3d offset = Vector3d::Constant(delta);
+        offset(axis) = 0;
+        Vector3d vertex{1, 1, 1};
+        vertex(axis) = sign;
+        const Vector3d p_GN_G = vertex.cwiseProduct(half_size) - offset;
+        const Vector3d nhat_G = sign * Vector3d::Unit(axis);
 
-        // The query point lies outside the box.
-        EXPECT_TRUE(tester.Test(p_GN_G, p_NQ_G));
-
-        // The query point lies on the face of the box.
-        EXPECT_TRUE(tester.Test(p_GN_G, Vector3d::Zero()));
-
-        // The query point lies inside the box.
-        EXPECT_TRUE(tester.Test(p_GN_G, -0.1 * vhat_NG, true /* is inside */));
+        {
+          SCOPED_TRACE("Query point outside the box, near a face");
+          EXPECT_TRUE(tester.Test(p_GN_G, nhat_G));
+        }
+        {
+          SCOPED_TRACE("Query point lies on the box face");
+          // The query point lies on the face of the box.
+          EXPECT_TRUE(tester.Test(p_GN_G, Vector3d::Zero()));
+        }
+        {
+          SCOPED_TRACE("Query point inside the box on the medial axis");
+          EXPECT_TRUE(
+              tester.Test(p_GN_G, -delta * nhat_G, kInside, !kUnique));
+        }
+        {
+          SCOPED_TRACE("Query point inside the box near a single face");
+          // The query point lies inside the box.
+          EXPECT_TRUE(
+              tester.Test(p_GN_G, -0.9 * delta * nhat_G, kInside, kUnique));
+        }
       }
     }
   }
@@ -406,6 +442,8 @@ GTEST_TEST(DistanceToPoint, Halfspace) {
 //     the derivative computed by hand (grad_W).
 GTEST_TEST(DistanceToPoint, Cylinder) {
   const double kEps = 4 * std::numeric_limits<double>::epsilon();
+  constexpr bool kInside = true;
+  constexpr bool kUnique = true;
 
   // Provide some arbitrary pose of the cylinder in the world.
   const RotationMatrix<double> R_WG(
@@ -416,32 +454,54 @@ GTEST_TEST(DistanceToPoint, Cylinder) {
   PointShapeAutoDiffSignedDistanceTester<fcl::Cylinderd> tester(&cylinder, X_WG,
                                                                 kEps);
 
+  /* TODO(SeanCurtis-TRI) Need to confirm multiple medial axes cases.
+    1. Cylinder *with* central axis
+      - lies on top cone
+      - lies on bottom cone
+      - lies on central axis.
+    2. Cylinder *without* central axis (a disk)
+      - lies on top cone
+      - lies on bottom cone
+      - lies on central *disk*.
+    Based on the structure of the code, how much of that is *unique*?
+    Ostensibly, it's not strictly necessary, but it gives a warm fuzzy feeling.
+   */
   // Case: Nearest point is on the cap.
   {
     // Test top and bottom caps.
+    const double r = cylinder.radius;
+    // The distance the point N will be from the circular edge.
+    const double edge_distance = cylinder.radius * 0.25;
+    // Position vector from cap center C to nearest point N.
+    const Vector3d p_CN_G =
+        Vector3d{1, 1, 0}.normalized() * (r - edge_distance);
+
     for (double sign : {-1, 1}) {
-      // The nearest point N is the cap of the cylinder -- slightly perturbed to
-      // be away from the cap center.
-      const Vector3d p_GN_G{cylinder.radius * 0.25, cylinder.radius * 0.25,
-                            sign * cylinder.lz / 2};
+      // The normal for the current cap.
+      const Vector3d nhat_G{0, 0, sign};
+      // The position of the targeted cap
+      const Vector3d p_GC_G = nhat_G * (cylinder.lz / 2);
+      // Position N edge_distance units away from the cap edge.
+      const Vector3d p_GN_G = p_GC_G + p_CN_G;
 
       // The query point lies outside the cylinder
-      EXPECT_TRUE(tester.Test(p_GN_G, Vector3d{0, 0, sign * 0.75}));
+      EXPECT_TRUE(tester.Test(p_GN_G, 0.75 * nhat_G, !kInside, kUnique));
 
       // The query point lies on the cap of the cylinder.
-      EXPECT_TRUE(tester.Test(p_GN_G, Vector3d{0, 0, 0}));
+      EXPECT_TRUE(tester.Test(p_GN_G, Vector3d{0, 0, 0}, !kInside, kUnique));
 
       // The query point lies just inside the cap of the cylinder.
-      EXPECT_TRUE(tester.Test(p_GN_G, Vector3d{0, 0, -0.1 * sign},
-                              true /* is inside */));
+      EXPECT_TRUE(
+          tester.Test(p_GN_G, -0.9 * edge_distance * nhat_G, kInside, kUnique));
 
+      // The query point lies inside the cap of the cylinder on the medial axis.
+      EXPECT_TRUE(
+          tester.Test(p_GN_G, -edge_distance * nhat_G, kInside, kUnique));
       // The query point lies outside, but *on* the central axis.
+      EXPECT_TRUE(tester.Test(p_GC_G, 1.5 * nhat_G, !kInside, kUnique));
+      EXPECT_TRUE(tester.Test(p_GC_G, Vector3d{0, 0, 0}, !kInside, kUnique));
       EXPECT_TRUE(
-          tester.Test(Vector3d{0, 0, cylinder.lz / 2}, Vector3d{0, 0, 1.5}));
-      EXPECT_TRUE(
-          tester.Test(Vector3d{0, 0, cylinder.lz / 2}, Vector3d{0, 0, 0}));
-      EXPECT_TRUE(tester.Test(Vector3d{0, 0, cylinder.lz / 2},
-                              Vector3d{0, 0, -0.1}, true /* is inside */));
+          tester.Test(p_GC_G, -edge_distance * nhat_G, kInside, kUnique));
     }
   }
 
@@ -459,10 +519,10 @@ GTEST_TEST(DistanceToPoint, Cylinder) {
       const Vector3d p_GN_G = p_NQ_G.cwiseProduct(dim);
 
       // The query point lies outside the cylinder.
-      EXPECT_TRUE(tester.Test(p_GN_G, p_NQ_G));
+      EXPECT_TRUE(tester.Test(p_GN_G, p_NQ_G, !kInside, kUnique));
 
       // The query point lies on the cap of the cylinder.
-      EXPECT_TRUE(tester.Test(p_GN_G, Vector3d::Zero()));
+      EXPECT_TRUE(tester.Test(p_GN_G, Vector3d::Zero(), !kInside, !kUnique));
 
       // A query point *inside* the cylinder would not be nearest the rim.
     }
@@ -485,13 +545,13 @@ GTEST_TEST(DistanceToPoint, Cylinder) {
           dim.cwiseProduct(Vector3d{cos_theta, sin_theta, sign});
 
       // The query point lies outside the cylinder.
-      EXPECT_TRUE(tester.Test(p_GN_G, p_NQ_G));
+      EXPECT_TRUE(tester.Test(p_GN_G, p_NQ_G, !kInside, kUnique));
 
       // The query point lies on the barrel of the cylinder.
-      EXPECT_TRUE(tester.Test(p_GN_G, Vector3d::Zero()));
+      EXPECT_TRUE(tester.Test(p_GN_G, Vector3d::Zero(), !kInside, kUnique));
 
       // The query point lies inside the cylinder.
-      EXPECT_TRUE(tester.Test(p_GN_G, -0.1 * p_NQ_G, true /* is inside */));
+      EXPECT_TRUE(tester.Test(p_GN_G, -0.1 * p_NQ_G, kInside, kUnique));
     }
   }
 }

@@ -442,40 +442,54 @@ class QueryObject {
    above formula.
 
    <h3>Scalar support</h3>
+
    This query only supports computing distances from the point to spheres,
    boxes, and cylinders for both `double` and `AutoDiffXd` scalar types. If
    the SceneGraph contains any other geometry shapes, they will be silently
    ignored.
 
-   @note For a sphere G, the signed distance function φᵢ(p) has an undefined
-   gradient vector at the center of the sphere--every point on the sphere's
-   surface has the same distance to the center.  In this case, we will assign
-   ∇φᵢ(p) the unit vector Gx (x-directional vector of G's frame) expressed
-   in World frame.
+   <h3>Uniqueness of the reported gradient</h3>
 
-   @note For a box, at a point p on an edge or a corner of the box, the signed
-   distance function φᵢ(p) has an undefined gradient vector.  In this case, we
-   will assign a unit vector in the direction of the average of the outward
-   face unit normals of the incident faces of the edge or the corner.
-   A point p is considered being on a face, or an edge, or a corner of the
-   box if it lies within a certain tolerance from them.
+   As defined above, the signed distance to a point is conceptually a function
+   of p and N, the nearest point on the surface to p. If N is unique, the
+   gradient is likewise unique. If N is *not* unique, the gradient will not
+   be unique. Therefore, the gradient function is not continuous at these
+   locations.
 
-   @note For a box B, if a point p is inside the box, and it is equidistant to
-   to multiple nearest faces, the signed distance function φᵢ(p) at p will have
-   an undefined gradient vector. There is a nearest point candidate associated
-   with each nearest face. In this case, we arbitrarily pick the point Nᵢ
-   associated with one of the nearest faces.  Please note that, due to the
-   possible round off error arising from applying a pose X_WG to B, there is no
-   guarantee which of the nearest faces will be used.
+   Almost every shape has at least one point where N is not unique, therefore
+   almost no shape has a continuous gradient function (the sole exception is the
+   half space). This is true whether the shape itself is smooth, or discrete,
+   as the following examples illustrate.
 
-   @note The signed distance function is a continuous function with respect to
-   the position of the query point, but its gradient vector field may
-   not be continuous. Specifically at a position equidistant to multiple
-   nearest points, its gradient vector field is not continuous.
+     - __*Sphere*__: By definition, the center of the sphere is equidistant to
+       all points on the surface.
+     - __*Cylinder*__: Cylinders have a medial axis consisting of two cones
+       connected by a line segment by their apexes (or two truncated cones
+       sharing a common disk, depending on the cylinder's aspect ratio). Every
+       point on the medial axis is equidistant to at least two points (and
+       possibly an infinite number). This medial axis includes the edges *on*
+       the surface between the cylinder's caps and barrel.
+     - __*Box*__: As with cylinders, the box's has a similar medial axis.
+       However, the cones are replaced with four-sided pyramids. The medial axis
+       includes the vertices and edges on the surface of the box.
 
-   @note For a convex object, outside the object at positive distance from
-   the boundary, the signed distance function is smooth (having continuous
-   first-order partial derivatives).
+   The common pattern is that *every* shape of finite extent has a medial axis
+   on its interior defined as the locus of all points equidistant to multiple
+   surface points. For convex shapes, the gradient discontinuities are limited
+   to the domain of the medial axis (contained within the shape). When we
+   eventually add support for non-convex shapes, we will likewise introduce
+   discontinuities *outside* the bounds of the shape.
+
+   When the point lies "sufficiently near" (based on numerical tolerances) a
+   shape's medial axis, the gradient reported will be valid in that it is unit
+   length and points to *one* of the nearest points on the surface, but
+   otherwise makes no promises as to *which* of the set is used. Callers should
+   rely solely on `SignedDistanceToPoint::is_grad_W_unique` to recognize
+   non-uniqueness.
+
+   @note For all shapes, the distance function is continuous. For *convex*
+   shapes, the the signed distance function is smooth (having continuous
+   first-order partial derivatives) everywhere strictly *outside* the shape.
 
    @param[in] p_WQ            Position of a query point Q in world frame W.
    @param[in] threshold       We ignore any object beyond this distance.
