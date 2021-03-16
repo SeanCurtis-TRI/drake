@@ -75,6 +75,10 @@ class PointShapeAutoDiffSignedDistanceTester {
 
     // We take the gradient of the signed distance query w.r.t p_WQ.
     Vector3<AutoDiffXd> p_WQ_ad = math::initializeAutoDiff(p_WQ);
+    std::cerr << "\nDISTANCE TO POINT\n";
+    std::cerr << "   p_GN_G: " << p_GN_G.transpose() << "\n";
+    std::cerr << "   p_NQ_G: " << p_NQ_G.transpose() << "\n";
+    std::cerr << "   p_GQ_G: " << p_GQ.transpose() << "\n";
     DistanceToPoint<AutoDiffXd> distance_to_point(
         GeometryId::get_new_id(), X_WG_.cast<AutoDiffXd>(), p_WQ_ad);
 
@@ -432,7 +436,7 @@ GTEST_TEST(DistanceToPoint, Halfspace) {
 //  issue and will be addressed with a reformulation of the point-cylinder
 //  calculation. When fixed, these tests will become meaningful, so we're
 //  leaving it in to prevent losing the effort.
-#if 0
+
 // Simple smoke test for signed distance to Cylinder. It does the following:
 //   Perform test of three different points w.r.t. a cylinder: outside, on
 //     surface, and inside.
@@ -555,7 +559,6 @@ GTEST_TEST(DistanceToPoint, Cylinder) {
     }
   }
 }
-#endif
 
 // Helper functions to indicate expectation on whether I get a distance result
 // with a cylinder based on scalar type.

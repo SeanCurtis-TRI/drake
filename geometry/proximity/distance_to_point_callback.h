@@ -338,6 +338,10 @@ class DistanceToPoint {
     const Vector3<T> grad_W = X_WG_.rotation() * grad_G;
     const Vector3<T> p_WN = X_WG_ * p_GN_G;
     T distance = grad_W.dot(p_WQ_ - p_WN);
+    std::cerr << "operator(Box)\n"
+              << "  p_GN_G: " << p_GN_G.transpose() << "\n"
+              << "  grad_W: " << grad_W.transpose() << "\n"
+              << "  unique: " << is_grad_W_unique << "\n";
     return SignedDistanceToPoint<T>{geometry_id_, p_GN_G, distance, grad_W,
                                     is_grad_W_unique};
   }
@@ -404,6 +408,10 @@ class DistanceToPoint {
     const Vector2<T> v_GBr = near_center_line
                                  ? Vector2<T>(1., 0.)
                                  : Vector2<T>(p_GQ(0), p_GQ(1)) / r_Q;
+    std::cerr << "CYLINDER\n";
+    std::cerr << "  near_center_line: " << near_center_line << "\n";
+    std::cerr << "  v_GBr: " << v_GBr.transpose() << "\n";
+
     auto rz_to_xyz = [&v_GBr](Vector2<T> rz) -> Vector3<T> {
       const T r = rz(0);
       const T z = rz(1);
@@ -412,6 +420,7 @@ class DistanceToPoint {
 
     // Transform Q from 3D cylinder G to 2D box B.
     const Vector2<T> p_BQ = xyz_to_rz(p_GQ);
+    std::cerr << "  p_BQ: " << p_BQ.transpose() << "\n";
 
     // The position of the nearest point N expressed in 2D box B's frame in
     // coordinates (r,z).
@@ -420,10 +429,15 @@ class DistanceToPoint {
     Vector2<T> grad_B;
     bool is_grad_W_unique{};
     std::tie(p_BN, grad_B, is_grad_W_unique) = ComputeDistanceToBox(h, p_BQ);
+    std::cerr << "  p_BN: " << p_BN.transpose() << "\n";
+    std::cerr << "  grad_B: " << grad_B.transpose() << "\n";
+    std::cerr << "  is_grad_W_unique: " << is_grad_W_unique << "\n";
 
     // Transform coordinates from (r,z) in B's frame to (x,y,z) in G's frame.
     const Vector3<T> p_GN = rz_to_xyz(p_BN);
     const Vector3<T> grad_G = rz_to_xyz(grad_B);
+    std::cerr << "  p_GN: " << p_GN.transpose() << "\n";
+    std::cerr << "  grad_G: " << grad_G.transpose() << "\n";
 
     #if 1
     // Gradient vector should be expressed in the world frame.
@@ -481,7 +495,9 @@ class DistanceToPoint {
     bool is_unique = true;
     for (int i = 0; i < dim; ++i) {
       for (const double bound : {bounds(i), -bounds(i)}) {
+        std::cerr << "Bound: " << bound << "\n";
         const double dist = std::abs(bound - ExtractDoubleOrThrow(p(i)));
+        std::cerr << "   dist: " << dist << "\n";
         /* This is attempting two things simultaneously:
            1. Detect if the two closest faces are "equally" close, and
            2. Preserve the historical behavior of reporting the historical
@@ -501,7 +517,10 @@ class DistanceToPoint {
            the previous distance before updating axis.  */
         if (dist <= min_dist + kEps) {
           is_unique = dist < min_dist - kEps;
+          std::cerr << "     Possible candidate: uniqueness: " << is_unique << "\n";
+
           if (dist < min_dist) {
+            std::cerr << "   Definitely smaller: " << dist << ", " << i << "\n";
             min_dist = dist;
             axis = i;
           }
@@ -583,7 +602,9 @@ class DistanceToPoint {
     // Our best knowledge *so far* as to whether the gradient for Q is unique
     // or not; Q lying on an edge or vertex is sufficient, but not necessary
     // to know it is not unique. (See below where Q lies *inside* the box.)
+    std::cerr << "is_Q_on_edge_or_vertex: " << is_Q_on_edge_or_vertex << "\n";
     bool grad_is_unique = !is_Q_on_edge_or_vertex;
+    std::cerr << "grad_is_unique:         " << grad_is_unique << "\n";
 
     // Initialize the position of the nearest point N on ∂B as that of C.
     // Note: if Q is outside or on the boundary of B, then C is N. In the
@@ -594,11 +615,13 @@ class DistanceToPoint {
 
     if ((location.array() == Location::kOutside).any()) {
       // Q is outside the box.
+      std::cerr << "Q is outside the box!\n";
       Vector<T, dim> p_NQ_G = p_GQ_G - p_GN_G;
       distance = p_NQ_G.norm();
       DRAKE_DEMAND(distance != 0.);
       grad_G = p_NQ_G / distance;
     } else if ((location.array() == Location::kBoundary).any()) {
+      std::cerr << "Q lies on the boundary of the box\n";
       // Q lies on the boundary of the box.
       for (int i = 0; i < dim; ++i) {
         if (location(i) == Location::kBoundary) {
@@ -607,12 +630,15 @@ class DistanceToPoint {
       }
       grad_G.normalize();
     } else {
+      std::cerr << "Q lies inside the box\n";
       // Q is inside the box.
       // In 2D/3D, the nearest point(s) N is the axis-aligned projection of Q
       // onto one of the edges/faces of the box. A valid gradient vector points
       // in the direction of that edge/face outward pointing normal.
       const auto [axis, not_on_medial_axis] = ExtremalAxis(p_GQ_G, h);
+      std::cerr << "   Q is NOT on medial axis: " << not_on_medial_axis << "\n";
       grad_is_unique &= not_on_medial_axis;
+      std::cerr << "  grad is unique: " << grad_is_unique << "\n";
       // NOTE: The gradient on the interior of the box is piecewise constant,
       // where each "piece" is the Voronoi region for the corresponding box
       // face. There are discontinuities in the gradient at the interface of
@@ -624,6 +650,9 @@ class DistanceToPoint {
       p_GN_G(axis) = sign * h(axis);
       grad_G(axis) = sign;
     }
+    std::cerr << "Making:\n  p_GN_G: (" << p_GN_G.transpose()
+              << "\n  grad_G: " << grad_G.transpose()
+              << "\n  grad_is_unique: " << grad_is_unique << "\n";
     return std::make_tuple(p_GN_G, grad_G, grad_is_unique);
   }
 
