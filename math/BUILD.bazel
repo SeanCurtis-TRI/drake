@@ -141,6 +141,7 @@ drake_cc_library(
         "rotation_matrix.h",
     ],
     deps = [
+        ":small_matrix_fast_methods",
         "//common:default_scalars",
         "//common:drake_bool",
         "//common:essential",
