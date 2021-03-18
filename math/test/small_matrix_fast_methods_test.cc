@@ -46,6 +46,34 @@ GTEST_TEST(TestSmallMatrixFastMethods, TestRotationCompositions) {
   EXPECT_TRUE(CompareMatrices(MtN, MtN_expected, 0));
 }
 
+GTEST_TEST(TestSmallMatrixFastMethods, TestInPlaceRotationCompositions) {
+  Matrix3d M, N;
+  M << 1, 5, 9,
+       2, 6, 10,
+       3, 7, 11;
+  N << 13, 17, 21,
+       14, 18, 22,
+       15, 19, 23;
+  const Matrix3d MN_expected = M * N;
+  const Matrix3d MtN_expected = M.transpose() * N;
+
+  Matrix3d Mwork = M, Nwork = N;  // Copies to overwrite.
+
+  // Results should be perfect match with integer elements.
+  ComposeRR(Mwork.data(), Nwork.data(), Mwork.data());  // Mwork=M*N
+  EXPECT_TRUE(CompareMatrices(Mwork, MN_expected, 0));
+  Mwork = M;  // Restore value.
+  ComposeRR(Mwork.data(), Nwork.data(), Nwork.data());  // Nwork=M*N
+  EXPECT_TRUE(CompareMatrices(Nwork, MN_expected, 0));
+  Nwork = N;
+
+  ComposeRinvR(Mwork.data(), Nwork.data(), Mwork.data());  // Mwork=Mᵀ*N
+  EXPECT_TRUE(CompareMatrices(Mwork, MtN_expected, 0));
+  Mwork = M;
+  ComposeRinvR(Mwork.data(), Nwork.data(), Nwork.data());  // Nwork=Mᵀ*N
+  EXPECT_TRUE(CompareMatrices(Nwork, MtN_expected, 0));
+}
+
 GTEST_TEST(TestSmallMatrixFastMethods, TestTransformCompositions) {
   Matrix34d M, N;
   M << 1, 4, 7, 10,
@@ -78,6 +106,23 @@ GTEST_TEST(TestSmallMatrixFastMethods, TestTransformCompositions) {
   // Should be a perfect match with integer elements.
   EXPECT_TRUE(CompareMatrices(MN, MN_expected, 0));
   EXPECT_TRUE(CompareMatrices(MinvN, MinvN_expected, 0));
+
+  // Now test in-place compositions.
+  Matrix34d Mwork = M, Nwork = N;
+  ComposeXX(Mwork.data(), Nwork.data(), Mwork.data());  // Mwork=M*N
+  EXPECT_TRUE(CompareMatrices(Mwork, MN_expected, 0));
+  Mwork = M;  // Restore value.
+
+  ComposeXX(Mwork.data(), Nwork.data(), Nwork.data());  // Nwork=M*N
+  EXPECT_TRUE(CompareMatrices(Nwork, MN_expected, 0));
+  Nwork = N;  // Restore value.
+
+  ComposeXinvX(Mwork.data(), Nwork.data(), Mwork.data());  // Mwork=M⁻¹*N
+  EXPECT_TRUE(CompareMatrices(Mwork, MinvN_expected, 0));
+  Mwork = M;
+
+  ComposeXinvX(Mwork.data(), Nwork.data(), Nwork.data());  // Nwork=M⁻¹*N
+  EXPECT_TRUE(CompareMatrices(Nwork, MinvN_expected, 0));
 }
 }  // namespace
 

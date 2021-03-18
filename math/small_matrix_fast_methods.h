@@ -15,9 +15,8 @@ matrices in nine consecutive doubles.
 
 This method can also be used to form the product of two general 3x3 matrices.
 
-Here we calculate `R_AC = R_AB * R_BC`.
-
-@pre The memory pointed to by R_AC is distinct from both of the inputs. */
+Here we calculate `R_AC = R_AB * R_BC`. It is OK for R_AC to overlap
+with one or both inputs. */
 extern void ComposeRR(const double* R_AB, const double* R_BC, double* R_AC);
 
 /** Composes the inverse of a drake::math::RotationMatrix<double> object with
@@ -29,9 +28,8 @@ Because the inverse of a RotationMatrix is just its transpose, this method can
 also be used to form the product of the transpose of a general 3x3 matrix with
 another (non-transposed) 3x3 matrix.
 
-Here we calculate `R_AC = R_BA⁻¹ * R_BC`.
-
-@pre The memory pointed to by R_AC is distinct from both of the inputs.*/
+Here we calculate `R_AC = R_BA⁻¹ * R_BC`. It is OK for R_AC to overlap
+with one or both inputs. */
 extern void ComposeRinvR(const double* R_BA, const double* R_BC, double* R_AC);
 
 /** Composes two drake::math::RigidTransform<double> objects as quickly as
@@ -42,9 +40,8 @@ the last three are a translation vector.
 Note that this is a method specialized for RigidTransforms and is not just a
 matrix multiply.
 
-Here we calculate `X_AC = X_AB * X_BC`.
-
-@pre The memory pointed to by X_AC is distinct from both of the inputs.*/
+Here we calculate `X_AC = X_AB * X_BC`. It is OK for X_AC to overlap
+with one or both inputs. */
 extern void ComposeXX(const double* X_AB, const double* X_BC, double* X_AC);
 
 /** Composes the inverse of a drake::math::RigidTransform<double> object with
@@ -56,9 +53,8 @@ the last three are a translation vector.
 Note that this is a method specialized for RigidTransforms and is not just a
 matrix multiply.
 
-Here we calculate `X_AC = X_BA⁻¹ * X_BC`.
-
-@pre The memory pointed to by X_AC is distinct from both of the inputs.*/
+Here we calculate `X_AC = X_BA⁻¹ * X_BC`. It is OK for X_AC to overlap
+with one or both inputs. */
 extern void ComposeXinvX(const double* X_BA, const double* X_BC, double* X_AC);
 
 /** Returns `true` if we are using the portable fallback implementations for

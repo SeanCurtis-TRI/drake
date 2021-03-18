@@ -1,5 +1,7 @@
 #include "drake/math/small_matrix_fast_methods.h"
 
+#include <algorithm>
+
 #if defined(__AVX2__) && defined(__FMA__)
 #include <cstdint>
 
@@ -15,7 +17,10 @@ to maximize the chance that a dumb compiler can generate fast code.
 The AVX methods are optionally defined depending on the compiler flags used
 for this compilation unit. If defined, the no-suffix methods like ComposeRR()
 are implemented with the "_avx" methods, otherwise with the portable "_cpp"
-methods. */
+methods.
+
+Note that in all cases the three-argument methods can assume that the output
+is distinct from either of the inputs. */
 
 namespace {
 /* Dot product of a row of l and a column of m, where both l and m are 3x3s
@@ -29,11 +34,9 @@ in column order. */
 double col_x_col(const double* l, const double* m) {
   return l[0] * m[0] + l[1] * m[1] + l[2] * m[2];
 }
-}  // namespace
 
-/* Composition of rotation matrices R_AC = R_AB * R_BC. Each matrix is 9
-consecutive doubles in column order. */
-void ComposeRR_cpp(const double* R_AB, const double* R_BC, double* R_AC) {
+/* @pre R_AC is disjoint in memory from the inputs. */
+void ComposeRR_noalias(const double* R_AB, const double* R_BC, double* R_AC) {
   R_AC[0] = row_x_col(&R_AB[0], &R_BC[0]);
   R_AC[1] = row_x_col(&R_AB[1], &R_BC[0]);
   R_AC[2] = row_x_col(&R_AB[2], &R_BC[0]);
@@ -44,10 +47,10 @@ void ComposeRR_cpp(const double* R_AB, const double* R_BC, double* R_AC) {
   R_AC[7] = row_x_col(&R_AB[1], &R_BC[6]);
   R_AC[8] = row_x_col(&R_AB[2], &R_BC[6]);
 }
-/* Composition of rotation matrices R_AC = R_BA⁻¹ * R_BC. Each matrix is 9
-consecutive doubles in column order (the inverse can be viewed as the same
-matrix in row order). */
-void ComposeRinvR_cpp(const double* R_BA, const double* R_BC, double* R_AC) {
+
+/* @pre R_AC is disjoint in memory from the inputs. */
+void ComposeRinvR_noalias(const double* R_BA, const double* R_BC,
+                          double* R_AC) {
   R_AC[0] = col_x_col(&R_BA[0], &R_BC[0]);
   R_AC[1] = col_x_col(&R_BA[3], &R_BC[0]);
   R_AC[2] = col_x_col(&R_BA[6], &R_BC[0]);
@@ -59,31 +62,70 @@ void ComposeRinvR_cpp(const double* R_BA, const double* R_BC, double* R_AC) {
   R_AC[8] = col_x_col(&R_BA[6], &R_BC[6]);
 }
 
-/* Composition of transforms X_AC = X_AB * X_BC.
-Rotation matrix and position vector are adjacent in memory in 12 consecutive
-doubles, in column order. */
-void ComposeXX_cpp(const double* X_AB, const double* X_BC, double* X_AC) {
-  const double* p_AB = X_AB + 9; const double* p_BC = X_BC + 9;
+/* @pre X_AC is disjoint in memory from the inputs. */
+void ComposeXX_noalias(const double* X_AB, const double* X_BC, double* X_AC) {
+  const double* p_AB = X_AB + 9;
+  const double* p_BC = X_BC + 9;
   double* p_AC = X_AC + 9;
 
-  ComposeRR_cpp(X_AB, X_BC, X_AC);  // Just works with the first 9 elements.
+  ComposeRR_noalias(X_AB, X_BC, X_AC);  // Just works with first 9 elements.
   p_AC[0] = p_AB[0] + row_x_col(&X_AB[0], p_BC);
   p_AC[1] = p_AB[1] + row_x_col(&X_AB[1], p_BC);
   p_AC[2] = p_AB[2] + row_x_col(&X_AB[2], p_BC);
 }
 
-/* Composition of transforms X_AC = X_BA⁻¹ * X_BC.
-Rotation matrix and position vector are adjacent in memory in 12 consecutive
-doubles, in column order. */
-void ComposeXinvX_cpp(const double* X_BA, const double* X_BC, double* X_AC) {
-  const double* p_BA = X_BA + 9; const double* p_BC = X_BC + 9;
+/* @pre X_AC is disjoint in memory from the inputs. */
+void ComposeXinvX_noalias(const double* X_BA, const double* X_BC,
+                          double* X_AC) {
+  const double* p_BA = X_BA + 9;
+  const double* p_BC = X_BC + 9;
   double* p_AC = X_AC + 9;
 
-  ComposeRinvR_cpp(X_BA, X_BC, X_AC);  // Just works with the first 9 elements.
-  const double p_AC_B[3] = {p_BC[0]-p_BA[0], p_BC[1]-p_BA[1], p_BC[2]-p_BA[2]};
+  ComposeRinvR_noalias(X_BA, X_BC, X_AC);  // Just works with first 9 elements.
+  const double p_AC_B[3] = {p_BC[0] - p_BA[0], p_BC[1] - p_BA[1],
+                            p_BC[2] - p_BA[2]};
   p_AC[0] = col_x_col(&X_BA[0], p_AC_B);
   p_AC[1] = col_x_col(&X_BA[3], p_AC_B);
   p_AC[2] = col_x_col(&X_BA[6], p_AC_B);
+}
+
+}  // namespace
+
+/* Composition of rotation matrices R_AC = R_AB * R_BC. Each matrix is 9
+consecutive doubles in column order. */
+void ComposeRR_cpp(const double* R_AB, const double* R_BC, double* R_AC) {
+  double R_AC_temp[9];  // Protect from overlap with inputs.
+  ComposeRR_noalias(R_AB, R_BC, R_AC_temp);
+  std::copy(R_AC_temp, R_AC_temp+9, R_AC);
+}
+
+/* Composition of rotation matrices R_AC = R_BA⁻¹ * R_BC. Each matrix is 9
+consecutive doubles in column order (the inverse can be viewed as the same
+matrix in row order). */
+void ComposeRinvR_cpp(const double* R_BA, const double* R_BC, double* R_AC) {
+  double R_AC_temp[9];  // Protect from overlap with inputs.
+  ComposeRinvR_noalias(R_BA, R_BC, R_AC_temp);
+  std::copy(R_AC_temp, R_AC_temp+9, R_AC);
+}
+
+/* Composition of transforms X_AC = X_AB * X_BC.
+Rotation matrix and position vector are adjacent in memory in 12 consecutive
+doubles, in column order. Note that we are taking advantage of the fact that the
+result matrix does not overlap the inputs. */
+void ComposeXX_cpp(const double* X_AB, const double* X_BC, double* X_AC) {
+  double X_AC_temp[12];  // Protect from overlap with inputs.
+  ComposeXX_noalias(X_AB, X_BC, X_AC_temp);
+  std::copy(X_AC_temp, X_AC_temp+12, X_AC);
+}
+
+/* Composition of transforms X_AC = X_BA⁻¹ * X_BC.
+Rotation matrix and position vector are adjacent in memory in 12 consecutive
+doubles, in column order. Note that we are taking advantage of the fact that the
+result matrix does not overlap the inputs. */
+void ComposeXinvX_cpp(const double* X_BA, const double* X_BC, double* X_AC) {
+  double X_AC_temp[12];  // Protect from overlap with inputs.
+  ComposeXinvX_noalias(X_BA, X_BC, X_AC_temp);
+  std::copy(X_AC_temp, X_AC_temp+12, X_AC);
 }
 
 #if defined(__AVX2__) && defined(__FMA__)
@@ -93,11 +135,6 @@ namespace {
 // Turn d into d d d d.
 __m256d four(double d) {
   return _mm256_set1_pd(d);
-}
-
-// Turn *d into *d *d *d *d.
-__m256d four(const double* d) {
-  return _mm256_broadcast_sd(d);
 }
 
 /* Composition of rotation matrices R_AC = R_AB * R_BC.
@@ -134,26 +171,32 @@ void ComposeRR_avx(const double* R_AB, const double* R_BC, double* R_AC) {
   const __m256d col1 = _mm256_loadu_pd(a+3);           // d e f (g)  g unused
   const __m256d col2 = _mm256_maskload_pd(a+6, mask);  // g h i (0)
 
+  const __m256d ABCD = _mm256_loadu_pd(A);             // A B C D
+  const __m256d EFGH = _mm256_loadu_pd(A+4);           // E F G H
+  const double I = *(A+8);                             // I
+
+  __m256d res;
+
   // Column rst
-  __m256d res = _mm256_mul_pd(col0, four(A));   // aA bA cA (dA)
-  res = _mm256_fmadd_pd(col1, four(A+1), res);  // aA+dB bA+eB cA+fB (dA+gB)
-  res = _mm256_fmadd_pd(col2, four(A+2), res);  // aA+dB+gC bA+eB+hC cA+fB+iC
-                                                //                    (dA+gB+0C)
-  _mm256_storeu_pd(r, res);                     // r s t (u)  will overwrite u
+  res = _mm256_mul_pd(col0, four(ABCD[0]));         // aA bA cA (dA)
+  res = _mm256_fmadd_pd(col1, four(ABCD[1]), res);  // aA+dB bA+eB cA+fB (dA+gB)
+  res = _mm256_fmadd_pd(col2, four(ABCD[2]), res);  // aA+dB+gC bA+eB+hC
+                                                    //       cA+fB+iC (dA+gB+0C)
+  _mm256_storeu_pd(r, res);  // r s t (u)  will overwrite u
 
   // Column uvw
-  res = _mm256_mul_pd(col0, four(A+3));         // aD bD cD (dD)
-  res = _mm256_fmadd_pd(col1, four(A+4), res);  // aD+dE bD+eE cD+fE (dD+gE)
-  res = _mm256_fmadd_pd(col2, four(A+5), res);  // aD+dE+gF bD+eE+hF cD+fE+iF
-                                                //                    (dD+gE+0F)
-  _mm256_storeu_pd(r+3, res);                   // u v w (x)  will overwrite x
+  res = _mm256_mul_pd(col0, four(ABCD[3]));         // aD bD cD (dD)
+  res = _mm256_fmadd_pd(col1, four(EFGH[0]), res);  // aD+dE bD+eE cD+fE (dD+gE)
+  res = _mm256_fmadd_pd(col2, four(EFGH[1]), res);  // aD+dE+gF bD+eE+hF
+                                                    //       cD+fE+iF (dD+gE+0F)
+  _mm256_storeu_pd(r+3, res);  // u v w (x)  will overwrite x
 
   // Column xyz
-  res = _mm256_mul_pd(col0, four(A+6));         // aG bG cG (dG)
-  res = _mm256_fmadd_pd(col1, four(A+7), res);  // aG+dH bG+eH cG+fH (dG+gH)
-  res = _mm256_fmadd_pd(col2, four(A+8), res);  // aG+dH+gI bG+eH+hI cG+fH+iI
-                                                //                    (dG+gH+0I)
-  _mm256_maskstore_pd(r+6, mask, res);          // x y z
+  res = _mm256_mul_pd(col0, four(EFGH[2]));         // aG bG cG (dG)
+  res = _mm256_fmadd_pd(col1, four(EFGH[3]), res);  // aG+dH bG+eH cG+fH (dG+gH)
+  res = _mm256_fmadd_pd(col2, four(I), res);        // aG+dH+gI bG+eH+hI
+                                                    //       cG+fH+iI (dG+gH+0I)
+  _mm256_maskstore_pd(r+6, mask, res);  // x y z
 
   // The compiler will generate a vzeroupper instruction if needed.
 }
@@ -183,7 +226,9 @@ load or store past the last element.
 
 We end up doing 3*4 + 6*8 = 60 flops to get 45 useful ones. However, we do that
 in only 9 floating point instructions (3 packed multiplies, 6 packed
-fused-multiply-adds). */
+fused-multiply-adds).
+
+It is OK if the result R_AC overlaps one or both of the inputs. */
 void ComposeRinvR_avx(const double* R_BA, const double* R_BC, double* R_AC) {
   constexpr uint64_t yes  = uint64_t(1ull << 63);
   constexpr uint64_t no  = uint64_t(0);
@@ -439,6 +484,7 @@ void ComposeXinvX(const double* X_BA, const double* X_BC, double* X_AC) {
 /* Use portable methods. */
 bool IsUsingPortableCompositionMethods() { return true; }
 
+/* The portable methods are externally callable (for testing). */
 void ComposeRR(const double* R_AB, const double* R_BC, double* R_AC) {
   ComposeRR_cpp(R_AB, R_BC, R_AC);
 }
