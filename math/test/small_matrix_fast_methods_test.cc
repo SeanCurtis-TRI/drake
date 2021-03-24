@@ -44,19 +44,8 @@ GTEST_TEST(TestSmallMatrixFastMethods, TestRotationCompositions) {
   // Should be a perfect match with integer elements.
   EXPECT_TRUE(CompareMatrices(MN, MN_expected, 0));
   EXPECT_TRUE(CompareMatrices(MtN, MtN_expected, 0));
-}
 
-GTEST_TEST(TestSmallMatrixFastMethods, TestInPlaceRotationCompositions) {
-  Matrix3d M, N;
-  M << 1, 5, 9,
-       2, 6, 10,
-       3, 7, 11;
-  N << 13, 17, 21,
-       14, 18, 22,
-       15, 19, 23;
-  const Matrix3d MN_expected = M * N;
-  const Matrix3d MtN_expected = M.transpose() * N;
-
+  // Now test in-place compositions.
   Matrix3d Mwork = M, Nwork = N;  // Copies to overwrite.
 
   // Results should be perfect match with integer elements.

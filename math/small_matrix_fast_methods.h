@@ -28,7 +28,7 @@ Because the inverse of a RotationMatrix is just its transpose, this method can
 also be used to form the product of the transpose of a general 3x3 matrix with
 another (non-transposed) 3x3 matrix.
 
-Here we calculate `R_AC = R_BA⁻¹ * R_BC`. It is OK for R_AC to overlap
+Here we calculate `R_AC = R_BAᵀ * R_BC`. It is OK for R_AC to overlap
 with one or both inputs. */
 extern void ComposeRinvR(const double* R_BA, const double* R_BC, double* R_AC);
 
