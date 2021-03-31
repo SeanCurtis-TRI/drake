@@ -12,6 +12,7 @@
 #include "drake/common/test_utilities/eigen_matrix_compare.h"
 #include "drake/common/test_utilities/expect_throws_message.h"
 #include "drake/geometry/geometry_ids.h"
+#include "drake/geometry/proximity/volume_to_surface_mesh.h"
 #include "drake/math/rigid_transform.h"
 #include "drake/math/roll_pitch_yaw.h"
 
@@ -1147,6 +1148,42 @@ bool FindElement(Vector3d p_MQ, const VolumeMesh<double>& volume_M,
   return false;
 }
 
+std::ostream& operator<<(std::ostream& out, const SurfaceMesh<double>& mesh) {
+  out << "verts = [";
+  for (SurfaceVertexIndex i(0); i < mesh.num_vertices(); ++i) {
+    const auto& v = mesh.vertex(i).r_MV();
+    out << "\n         ( " << v.x() << ", " << v.y() << ", " << v.z()
+        << "),    # Vertex " << i;
+  }
+  out << "\n        ]\n";
+  out << "faces = [";
+  for (SurfaceFaceIndex i(0); i < mesh.num_elements(); ++i) {
+    const auto& tri = mesh.element(i);
+    out << "\n          [";
+    for (int v = 0; v < 3; ++v) out << " " << tri.vertex(v) << ", ";
+    out << "],     # Face " << i;
+  }
+  out << "\n        ]";
+  return out;
+}
+
+void PrintForBlender(const std::string& name, const SurfaceMesh<double>& mesh_F,
+                     const RigidTransformd& X_WF) {
+  std::cerr << mesh_F << "\n";
+  std::cerr << "X_WF = Matrix((\n";
+  const auto& m = X_WF.GetAsMatrix34();
+  for (int r = 0; r < 3; ++r) {
+    std::cerr << "               (";
+    for (int c = 0; c < 4; ++c) {
+      std::cerr << " " << m(r, c) << ",";
+    }
+    std::cerr << "),\n";
+  }
+  std::cerr << "               ( 0, 0, 0, 1)))\n";
+  std::cerr << "add_mesh(\"" << name << "\", "
+            << "verts, faces, X_WM=X_WF)\n\n";
+}
+
 // Tests ComputeContactSurfaceFromSoftVolumeRigidSurface as we move the rigid
 // geometry around. Currently uses double as the scalar type.
 // TODO(DamrongGuoy): More comprehensive tests. We should have a better way
@@ -1179,7 +1216,11 @@ GTEST_TEST(MeshIntersectionTest, ComputeContactSurfaceSoftRigidMoving) {
   // the one-unit downward translation, so that the apex of the rigid pyramid R
   // is at the center of the soft octahedron S.
   {
-    const auto X_SR = RigidTransformd(-Vector3d::UnitZ());
+    const RigidTransformd X_SR{
+        RotationMatrixd{Eigen::AngleAxisd(M_PI / 4, Vector3d::UnitZ())},
+        -Vector3d::UnitZ()};
+    // const RigidTransformd X_SR{Vector3d{0.1, 0.1, -1.0}};
+    // const auto X_SR = RigidTransformd(-Vector3d::UnitZ());
     const auto X_WR = X_WS * X_SR;
     // Contact surface C is expressed in World frame.
     const auto contact = ComputeContactSurfaceFromSoftVolumeRigidSurface(
@@ -1187,7 +1228,12 @@ GTEST_TEST(MeshIntersectionTest, ComputeContactSurfaceSoftRigidMoving) {
         X_WR);
     // TODO(DamrongGuoy): More comprehensive checks on the mesh of the contact
     //  surface. Here we only check the number of triangles.
-    EXPECT_EQ(12, contact->mesh_W().num_faces());
+    std::cerr << std::setprecision(10);
+
+    PrintForBlender("rigid", *surface_R, X_WR);
+    PrintForBlender("soft", ConvertVolumeToSurfaceMesh(*volume_S), X_WS);
+    PrintForBlender("contact", contact->mesh_W(), {});
+    EXPECT_EQ(24, contact->mesh_W().num_faces());
 
     // Point Q is coincident with the center vertex of the soft mesh volume_S.
     // The point C on the contact surface is coincident with Q. Check that the

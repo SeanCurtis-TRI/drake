@@ -128,7 +128,7 @@ void ComposeXinvX_cpp(const double* X_BA, const double* X_BC, double* X_AC) {
   std::copy(X_AC_temp, X_AC_temp+12, X_AC);
 }
 
-#if defined(__AVX2__) && defined(__FMA__)
+#if defined(__AVX2__) && defined(__FMA__) // && defined(__SEANS_WALL__)
 
 namespace {
 

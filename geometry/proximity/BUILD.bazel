@@ -796,6 +796,7 @@ drake_cc_googletest(
     name = "mesh_intersection_test",
     deps = [
         ":mesh_intersection",
+        "volume_to_surface_mesh",
         "//common/test_utilities:eigen_matrix_compare",
         "//common/test_utilities:expect_throws_message",
     ],
