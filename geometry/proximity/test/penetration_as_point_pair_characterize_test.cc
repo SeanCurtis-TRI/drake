@@ -68,14 +68,14 @@ INSTANTIATE_TEST_SUITE_P(
     testing::Values(
         QueryInstance(kCapsule, kCapsule, 2e-5),
         QueryInstance(kCapsule, kEllipsoid, 2e-4),
-        QueryInstance(kCapsule, kSphere, 3e-15),
+        QueryInstance(kCapsule, kSphere, 5e-15),
 
 
         QueryInstance(kEllipsoid, kEllipsoid, 5e-4),
         QueryInstance(kEllipsoid, kSphere, 2e-4),
 
 
-        QueryInstance(kSphere, kSphere, 3e-15)),
+        QueryInstance(kSphere, kSphere, 5e-15)),
     QueryInstanceName);
 // clang-format on
 

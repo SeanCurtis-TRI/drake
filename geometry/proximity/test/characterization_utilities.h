@@ -300,7 +300,7 @@ class CharacterizeResultTest : public ::testing::Test {
                 |    error    |
                 |-------------|     e = query.error
                 |             |
-               e/2            e
+               e/3            e
 
    This gives us a reasonably tight bound on the error.
 
@@ -313,7 +313,7 @@ class CharacterizeResultTest : public ::testing::Test {
                              3
 
    If the expected error is already functionally epsilon, than having the worst
-   error being smaller than epsilon/2 is no bad thing.
+   error being smaller than epsilon/3 is no bad thing.
 
    N.B. This testing strategy is *atypical*. Rather than just asserting the
    answer is no worse than an expected level of precision, we also want to
