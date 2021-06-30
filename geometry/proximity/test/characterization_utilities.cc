@@ -481,45 +481,55 @@ std::optional<double> CharacterizeResultTest<T>::ComputeErrorMaybe(
 }
 
 template <typename T>
+vector<ContactConfiguration<T>>
+CharacterizeResultTest<T>::MakeContactConfigurations(
+    const Shape& shape_A, const Shape& shape_B) const {
+  vector<ContactConfiguration<T>> configs;
+
+  const vector<ShapeTangentPlane<T>> samples_A =
+      ShapeConfigurations<T>(shape_A, 0).configs();
+  const vector<ShapeTangentPlane<T>> samples_B =
+      ShapeConfigurations<T>(shape_B, 0).configs();
+
+  for (const auto& sample_A : samples_A) {
+    const Vector3<T>& p_WA = sample_A.point;
+    const Vector3<T>& a_norm_W = sample_A.normal;
+    for (const auto& sample_B : samples_B) {
+      /* The most we can force these shapes into penetration is the largest
+       reported max depth for each sample. */
+      const double max_penetration_distance =
+          std::max(sample_A.max_depth, sample_B.max_depth);
+      const Vector3<T>& p_WB = sample_B.point;
+      const Vector3<T>& b_norm_W = sample_B.normal;
+      configs.push_back({AlignPlanes(p_WA, a_norm_W, p_WB, b_norm_W), a_norm_W,
+                         max_penetration_distance,
+                         sample_B.description + " vs " + sample_A.description});
+    }
+  }
+  return configs;
+}
+
+template <typename T>
 vector<Configuration<T>> CharacterizeResultTest<T>::MakeConfigurations(
     const Shape& shape_A, const Shape& shape_B,
     const vector<double>& signed_distances) const {
+  vector<ContactConfiguration<T>> contact_configs =
+      MakeContactConfigurations(shape_A, shape_B);
   vector<Configuration<T>> configs;
   for (const double signed_distance : signed_distances) {
-    /* In order to pose the geometries, we start with X_WA = X_WB = I. That
-     means all quantities measured and expressed in frames A and B, are
-     likewise measured and expressed in the world frame. The notation below
-     reflects this. */
-    const vector<ShapeTangentPlane<T>> samples_A =
-        ShapeConfigurations<T>(shape_A, signed_distance).configs();
-    const vector<ShapeTangentPlane<T>> samples_B =
-        ShapeConfigurations<T>(shape_B, signed_distance).configs();
-    for (const auto& sample_A : samples_A) {
-      const Vector3<T>& p_WA = sample_A.point;
-      const Vector3<T>& a_norm_W = sample_A.normal;
-      /* The witness point. When penetrating, signed_distance is negative and
-       we offset from the surface *into* the shape (via the negatively scaled
-       normal). When separating, we move in the positive direction.  */
-      const Vector3<T> p_WC = p_WA + a_norm_W * signed_distance;
-      for (const auto& sample_B : samples_B) {
-        /* We can only combine these two samples if at least *one* of them
-         can accommodate the requested penetration depth. Note that the sample
-         record the value of the maximum *depth* (negative of signed distance).
-         */
-        using std::max;
-        if (max(sample_A.max_depth, sample_B.max_depth) < -signed_distance) {
-          continue;
-        }
-        const Vector3<T>& p_WB = sample_B.point;
-        const Vector3<T>& b_norm_W = sample_B.normal;
-        const std::string relates =
-            signed_distance < 0
-                ? " penetrates into "
-                : (signed_distance > 0 ? " separated from " : " touching ");
-        configs.push_back(
-            {AlignPlanes(p_WC, a_norm_W, p_WB, b_norm_W), signed_distance,
-             sample_B.description + relates + sample_A.description});
-      }
+    for (const auto& contact_config : contact_configs) {
+      /* We can only use this configuration if it can accommodate the requested
+       penetration depth. */
+      if (contact_config.max_penetration_distance < -signed_distance) continue;
+      const std::string relates =
+          signed_distance < 0
+              ? ": penetrating"
+              : (signed_distance > 0 ? ": separated" : ": touching");
+      /* A further translation in A of body B along the separating direction. */
+      const RigidTransform<T> X(contact_config.separating_dir_A *
+                                signed_distance);
+      configs.push_back({X * contact_config.X_AB, signed_distance,
+                         contact_config.description + relates});
     }
   }
   return configs;

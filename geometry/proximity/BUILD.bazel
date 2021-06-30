@@ -679,6 +679,14 @@ drake_cc_googletest(
 )
 
 drake_cc_googletest(
+    name = "collisions_exist_characterize_test",
+    deps = [
+        ":characterization_utilities",
+        ":collisions_exist_callback",
+    ],
+)
+
+drake_cc_googletest(
     name = "contact_surface_test",
     deps = [
         "//common/test_utilities:eigen_matrix_compare",

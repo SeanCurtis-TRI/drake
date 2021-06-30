@@ -105,6 +105,23 @@ std::ostream& operator<<(std::ostream& out, const QueryInstance& c);
 std::string QueryInstanceName(
     const testing::TestParamInfo<QueryInstance>& info);
 
+/* A base configuration is a relative pose between two shapes (A and B defined
+ in similarly named frames), such that the two shapes are *touching*. A further
+ displacement vector is provided which is perpendicular to the contact plane.
+ By applying an additional transform along this vector, the shapes can be
+ given an exact signed distance relative to each other.
+ 
+ Given the relative poses, there is a limited amount the shapes can be pushed
+ into each other to produce the expected negative (penetrating) signed distance
+ value. That maximum penetration distance is also recorded. */
+template <typename T>
+struct ContactConfiguration {
+  math::RigidTransform<T> X_AB;
+  Vector3<T> separating_dir_A;
+  double max_penetration_distance;
+  std::string description;
+};
+
 /* Defines a test configuration for two shapes: the pose between the two
  shapes, the expected signed_distance, and a description to aid in assessing
  test failure. */
@@ -305,6 +322,10 @@ class CharacterizeResultTest : public ::testing::Test {
    @pre expected_distance != 0. */
   std::optional<double> ComputeErrorMaybe(double expected_distance) const;
 
+  /* Creates a set of curated contact configurations for the two shapes. */
+  std::vector<ContactConfiguration<T>> MakeContactConfigurations(
+      const Shape& shape_A, const Shape& shape_B) const;
+
   // TODO(SeanCurtis-TRI) I don't need a bunch of configurations if my
   //  expectation is that it will fail. So, I should use that information to
   //  reduce the work I do.
@@ -385,7 +406,9 @@ class CharacterizeResultTest : public ::testing::Test {
 
   /* Each subclass should define the distances over which it should be
    evaluated. */
-  virtual std::vector<double> TestDistances() const = 0;
+  virtual std::vector<double> TestDistances() const {
+    throw std::logic_error("Not implemented!");
+  };
 
   /* Generates a geometry id for the given collision object, encodes the id
    into the object, and returns the id.  */

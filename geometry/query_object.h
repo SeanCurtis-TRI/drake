@@ -349,8 +349,14 @@ class QueryObject {
   /** Applies a conservative culling mechanism to create a subset of all
    possible geometry pairs based on non-zero intersections. A geometry pair
    that is *absent* from the results is either a) culled by collision filters or
-   b) *known* to be separated. The caller is responsible for confirming that
-   the remaining, unculled geometry pairs are *actually* in collision.
+   b) *known* to be separated. The returned results are guaranteed to include
+   all colliding pairs. There are no guarantees about how many additional
+   non-colliding pairs may also be included (in the worst case, the result could
+   contain nothing but non-colliding pairs). There are also no guarantees about
+   how close the geometries in a non-colliding pair *actually* are. Do not
+   assume because a pair has been considered a candidate that they are even
+   "approximately" intersecting. It is the *caller's* responsibility to
+   distinguish colliding and non-colliding pairs from the result.
 
    @returns A vector populated with collision pair candidates (the order will
             remain constant for a fixed population but can change as geometry
@@ -359,6 +365,52 @@ class QueryObject {
 
   /** Reports true if there are _any_ collisions between unfiltered pairs in the
    world.
+
+   <h3>Characterizing the returned values</h3>
+
+   Unlike the other queries, which report a numerical value whose accuracy can
+   be quantified, the quality of service provided by *this* method is better
+   characterized with the question, "When will I get the wrong answer?" The
+   answer could be wrong for one of two reasons: separated geometries are
+   considered to be intersecting or penetrating geometries are considered to be
+   separated. The two tables below indicate the largest error for which the
+   wrong answer was reported.
+
+   <!-- TODO: Is is true I need to worry about *both* modes? It may well be
+    that I only get false classifications on one side.
+    
+    TODO: Signed distance == 0 --> "collision"?  -->
+
+   We use the same geometries and basic methodology as documented in
+   @ref query_object_precision_methodology "class's documentation" (in terms of
+   test geometry scales, etc.)
+
+   |           |   %Box  | %Capsule | %Convex | %Cylinder | %Ellipsoid | %HalfSpace |  %Mesh  | %Sphere |
+   | --------: | :-----: | :------: | :-----: | :-------: | :--------: | :--------: | :-----: | :-----: |
+   | Box       |         |  ░░░░░░  |  ░░░░░  |  ░░░░░░░  |   ░░░░░░   |   ░░░░░░   |  ░░░░░  |  ░░░░░  |
+   | Capsule   |         |          |  ░░░░░  |  ░░░░░░░  |   ░░░░░░   |   ░░░░░░   |  ░░░░░  |  ░░░░░  |
+   | Convex    |         |          |         |  ░░░░░░░  |   ░░░░░░   |   ░░░░░░   |  ░░░░░  |  ░░░░░  |
+   | Cylinder  |         |          |         |           |   ░░░░░░   |   ░░░░░░   |  ░░░░░  |  ░░░░░  |
+   | Ellipsoid |         |          |         |           |            |   ░░░░░░   |  ░░░░░  |  ░░░░░  |
+   | HalfSpace |         |          |         |           |            |            |  ░░░░░  |  ░░░░░  |
+   | Mesh      |         |          |         |           |            |            |         |  ░░░░░  |
+   | Sphere    |         |          |         |           |            |            |         |         |
+   __*Table 3*__: The largest *separation* distance at which two geometries were
+    incorrectly considered to be in penetration.
+
+   |           |   %Box  | %Capsule | %Convex | %Cylinder | %Ellipsoid | %HalfSpace |  %Mesh  | %Sphere |
+   | --------: | :-----: | :------: | :-----: | :-------: | :--------: | :--------: | :-----: | :-----: |
+   | Box       |         |  ░░░░░░  |  ░░░░░  |  ░░░░░░░  |   ░░░░░░   |   ░░░░░░   |  ░░░░░  |  ░░░░░  |
+   | Capsule   |         |          |  ░░░░░  |  ░░░░░░░  |   ░░░░░░   |   ░░░░░░   |  ░░░░░  |  ░░░░░  |
+   | Convex    |         |          |         |  ░░░░░░░  |   ░░░░░░   |   ░░░░░░   |  ░░░░░  |  ░░░░░  |
+   | Cylinder  |         |          |         |           |   ░░░░░░   |   ░░░░░░   |  ░░░░░  |  ░░░░░  |
+   | Ellipsoid |         |          |         |           |            |   ░░░░░░   |  ░░░░░  |  ░░░░░  |
+   | HalfSpace |         |          |         |           |            |            |  ░░░░░  |  ░░░░░  |
+   | Mesh      |         |          |         |           |            |            |         |  ░░░░░  |
+   | Sphere    |         |          |         |           |            |            |         |         |
+   __*Table 4*__: The largest *penetration* distance at which two geometries
+     were incorrectly considered to be in penetration.
+
    @warning For Mesh shapes, their convex hulls are used in this query. It is
             *not* computationally efficient or particularly accurate.  */
   bool HasCollisions() const;
@@ -449,7 +501,7 @@ class QueryObject {
    | HalfSpace | throwsᵃ |  throwsᵃ | throwsᵃ |  throwsᵃ  |  throwsᵃ   |   throwsᵃ  |  ░░░░░  |  ░░░░░  |
    | Mesh      |    ᶜ    |    ᶜ     |    ᶜ    |     ᶜ     |      ᶜ     |   throwsᵃ  |    ᶜ    |  ░░░░░  |
    | Sphere    |  3e-15  |  6e-15   |   3e-6  |   5e-15   |    4e-5    |    3e-15   |    ᶜ    |  6e-15  |
-   __*Table 3*__: Worst observed error (in m) for 2mm penetration/separation
+   __*Table 5*__: Worst observed error (in m) for 2mm penetration/separation
    between geometries approximately 20cm in size for `T` = `double`.
 
    |           |   %Box  | %Capsule | %Convex | %Cylinder | %Ellipsoid | %HalfSpace |  %Mesh  | %Sphere |
@@ -462,7 +514,7 @@ class QueryObject {
    | HalfSpace | throwsᵃ |  throwsᵃ | throwsᵃ |  throwsᵃ  |  throwsᵃ   |   throwsᵃ  |  ░░░░░  |  ░░░░░  |
    | Mesh      |    ᶜ    |    ᶜ     |    ᶜ    |     ᶜ     |      ᶜ     |      ᵃ     |    ᶜ    |  ░░░░░  |
    | Sphere    |  2e-15  |  throwsᵇ | throwsᵇ |  throwsᵇ  |  throwsᵇ   |    2e-15   |    ᶜ    |  5e-15  |
-   __*Table 4*__: Worst observed error (in m) for 2mm penetration/separation
+   __*Table 6*__: Worst observed error (in m) for 2mm penetration/separation
    between geometries approximately 20cm in size for `T` =
    @ref drake::AutoDiffXd "AutoDiffXd".
 
@@ -558,7 +610,7 @@ class QueryObject {
    | :----: | :-----: | :------: | :-----: | :-------: | :--------: | :--------: | :-----: | :-----: |
    | double |  2e-15  |   4e-15  |    ᵃ    |   3e-15   |      ᵃ     |    5e-15   |    ᵃ    |  4e-15  |
    | ADXd   |  1e-15  |   4e-15  |    ᵃ    |     ᵃ     |      ᵃ     |    5e-15   |    ᵃ    |  3e-15  |
-   __*Table 5*__: Worst observed error (in m) for 2mm penetration/separation
+   __*Table 7*__: Worst observed error (in m) for 2mm penetration/separation
    between geometry approximately 20cm in size and a point.
 
    - ᵃ Unsupported geometry/scalar combinations are simply ignored; no results
