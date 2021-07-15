@@ -2286,71 +2286,47 @@ GTEST_TEST(GraphvizTest, Ports) {
   EXPECT_THAT(dot, ::testing::HasSubstr("{{<u0>u0|<u1>u1} | {<y0>y0}}"));
 }
 
-// This system schedules two simultaneous publish events with
-// GetPerStepEvents(). Both events have abstract data, but of different types.
-// Both events have different custom handler callbacks. And DoPublish() is also
-// overridden.
+// This system declares multiple events with the same triggers. We use it to
+// confirm that LeafSystem's event dispatch logic handles *all* simultaneous
+// events. We override DoPublish() so that we can count invocations of DoPublish
+// by the DispatchHandler, but otherwise delegate to the LeafSystem
+// implementation.
 class TestTriggerSystem : public LeafSystem<double> {
  public:
-  TestTriggerSystem() {}
+  TestTriggerSystem() {
+    this->DeclarePerStepPublishEvent(&TestTriggerSystem::Handler1);
+    this->DeclarePerStepPublishEvent(&TestTriggerSystem::Handler2);
+  }
 
   void DoPublish(
       const Context<double>& context,
       const std::vector<const PublishEvent<double>*>& events) const override {
-    for (const PublishEvent<double>* event : events) {
-      if (event->get_trigger_type() == TriggerType::kForced)
-        continue;
-
-      // Call custom callback handler.
-      event->handle(*this, context);
-    }
-
-    publish_count_++;
+    ++publish_count_;
+    LeafSystem<double>::DoPublish(context, events);
   }
 
-  void DoGetPerStepEvents(
-      const Context<double>& context,
-      CompositeEventCollection<double>* events) const override {
-    {
-      PublishEvent<double> event(
-          std::bind(&TestTriggerSystem::StringCallback, this,
-              std::placeholders::_1, std::placeholders::_2,
-              std::make_shared<const std::string>("hello")));
-      event.AddToComposite(TriggerType::kPerStep, events);
-    }
+  int handler1_count() const { return handler1_count_; }
 
-    {
-      PublishEvent<double> event(
-          std::bind(&TestTriggerSystem::IntCallback, this,
-              std::placeholders::_1, std::placeholders::_2, 42));
-      event.AddToComposite(TriggerType::kPerStep, events);
-    }
-  }
+  int handler2_count() const { return handler2_count_; }
 
-  const std::vector<std::string>& get_string_data() const {
-    return string_data_;
-  }
-
-  const std::vector<int>& get_int_data() const { return int_data_; }
-
-  int get_publish_count() const { return publish_count_; }
+  int publish_count() const { return publish_count_; }
 
  private:
-  // Pass data by a shared_ptr<const stuff>.
-  void StringCallback(const Context<double>&, const PublishEvent<double>&,
-      std::shared_ptr<const std::string> data) const {
-    string_data_.push_back(*data);
+  // The handler simply increments its unique counter.
+  EventStatus Handler1(const Context<double>&) const {
+    ++handler1_count_;
+    return EventStatus::Succeeded();
   }
 
-  // Pass data by value.
-  void IntCallback(const Context<double>&, const PublishEvent<double>&,
-      int data) const {
-    int_data_.push_back(data);
+  // The handler simply increments its unique counter.
+  EventStatus Handler2(const Context<double>&) const {
+    ++handler2_count_;
+    return EventStatus::Succeeded();
   }
 
   // Stores data copied from the abstract values in handled events.
-  mutable std::vector<std::string> string_data_;
-  mutable std::vector<int> int_data_;
+  mutable int handler1_count_{0};
+  mutable int handler2_count_{0};
   mutable int publish_count_{0};
 };
 
@@ -2358,47 +2334,43 @@ class TriggerTest : public ::testing::Test {
  protected:
   void SetUp() override {
     context_ = dut_.CreateDefaultContext();
-    info_ = dut_.AllocateCompositeEventCollection();
-    leaf_info_ =
-        dynamic_cast<const LeafCompositeEventCollection<double>*>(info_.get());
-    DRAKE_DEMAND(leaf_info_ != nullptr);
+    events_ = dut_.AllocateCompositeEventCollection();
+    leaf_events_ =
+        dynamic_cast<const LeafCompositeEventCollection<double>*>(events_.get());
+    DRAKE_DEMAND(leaf_events_ != nullptr);
   }
 
   TestTriggerSystem dut_;
   std::unique_ptr<Context<double>> context_;
-  std::unique_ptr<CompositeEventCollection<double>> info_;
-  const LeafCompositeEventCollection<double>* leaf_info_;
+  std::unique_ptr<CompositeEventCollection<double>> events_;
+  const LeafCompositeEventCollection<double>* leaf_events_;
 };
 
-// After handling of the events, int_data_ should be {42},
-// string_data_ should be {"hello"}.
-// Then forces a Publish() call on dut_, which should only increase
-// publish_count_ without changing any of the data_ vectors.
+// Tests that the leaf system event dispatcher handles multiple simultaneous
+// events.
+After handling of the events, handler1 and handler2 counts and publish
+// count should be 1. After a subsequent force Publish() call, only the
+// publish count should go up.
 TEST_F(TriggerTest, AbstractTrigger) {
   // Schedules two publish events.
-  dut_.GetPerStepEvents(*context_, info_.get());
-  const auto& events = leaf_info_->get_publish_events().get_events();
+  dut_.GetPerStepEvents(*context_, events_.get());
+  const auto& events = leaf_events_->get_publish_events().get_events();
   EXPECT_EQ(events.size(), 2);
 
   // Calls handler.
-  dut_.Publish(*context_, info_->get_publish_events());
+  dut_.Publish(*context_, events_->get_publish_events());
 
   // Checks string_data_ in dut.
-  const auto& string_data = dut_.get_string_data();
-  EXPECT_EQ(string_data.size(), 1);
-  EXPECT_EQ(string_data.front(), "hello");
-
-  // Checks int_data_ in dut.
-  const auto& int_data = dut_.get_int_data();
-  EXPECT_EQ(int_data.size(), 1);
-  EXPECT_EQ(int_data.front(), 42);
+  EXPECT_EQ(dut_.handler1_count(), 1);
+  EXPECT_EQ(dut_.handler2_count(), 1);
+  EXPECT_EQ(dut_.publish_count(), 1);
 
   // Now force a publish call, this should only increment the counter, without
   // touching any of the x_data_ in dut.
   dut_.Publish(*context_);
-  EXPECT_EQ(dut_.get_publish_count(), 2);
-  EXPECT_EQ(string_data.size(), 1);
-  EXPECT_EQ(int_data.size(), 1);
+  EXPECT_EQ(dut_.handler1_count(), 1);
+  EXPECT_EQ(dut_.handler2_count(), 1);
+  EXPECT_EQ(dut_.publish_count(), 2);
 }
 
 // The custom context type for the CustomContextSystem.
