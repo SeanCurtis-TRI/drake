@@ -31,7 +31,8 @@ class PyPlotVisualizer(LeafSystem):
 
         self.set_name('pyplot_visualization')
         self.timestep = draw_period
-        self.DeclarePeriodicPublish(draw_period, 0.0)
+        self.DeclarePeriodicEvent(draw_period, 0.0,
+                                  PublishEvent(self.update_window))
 
         if ax is None:
             self.fig = plt.figure(facecolor=facecolor, figsize=figsize)
@@ -66,8 +67,7 @@ class PyPlotVisualizer(LeafSystem):
                 trigger_type=TriggerType.kInitialization,
                 callback=on_initialize))
 
-    def DoPublish(self, context, event):
-        LeafSystem.DoPublish(self, context, event)
+    def update_window(self, context, event):
         if self._show:
             self.draw(context)
             self.fig.canvas.draw()
