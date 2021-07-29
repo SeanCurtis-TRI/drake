@@ -10,8 +10,11 @@
 namespace drake {
 namespace geometry {
 
+namespace internal {
+// Forward declarations.
 template <typename T>
 class GeometryState;
+}  // namespace internal
 
 /** The %GeometrySet, as its name implies, is a convenience class for defining a
  set of geometries. What makes it unique from a simple `std::set<GeometryId>`
@@ -266,7 +269,7 @@ class GeometrySet {
   // Provide access to the two entities that need access to the set's internals.
   friend class GeometrySetTester;
   template <typename>
-  friend class GeometryState;
+  friend class internal::GeometryState;
 
   // Returns the frame ids in the set.
   const std::unordered_set<FrameId> frames() const { return frame_ids_; }

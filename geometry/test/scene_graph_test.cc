@@ -30,12 +30,13 @@ namespace drake {
 namespace geometry {
 
 using internal::DummyRenderEngine;
+using internal::GeometryState;
 using math::RigidTransformd;
-using systems::Context;
-using systems::rendering::PoseBundle;
-using systems::System;
 using std::make_unique;
 using std::unique_ptr;
+using systems::Context;
+using systems::System;
+using systems::rendering::PoseBundle;
 
 // Friend class for working with QueryObjects in a test context.
 class QueryObjectTest {

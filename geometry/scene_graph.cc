@@ -15,6 +15,7 @@
 namespace drake {
 namespace geometry {
 
+using internal::GeometryState;
 using render::RenderLabel;
 using std::make_unique;
 using std::vector;

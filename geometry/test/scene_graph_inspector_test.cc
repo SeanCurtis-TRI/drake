@@ -12,6 +12,10 @@
 namespace drake {
 namespace geometry {
 
+using internal::GeometryState;
+using math::RigidTransformd;
+using std::make_unique;
+
 // Helper class for testing the SceneGraphInspector; specifically to create
 // a geometry state and instantiate the inspector.
 class SceneGraphInspectorTester {
@@ -28,9 +32,6 @@ class SceneGraphInspectorTester {
 };
 
 namespace {
-
-using math::RigidTransformd;
-using std::make_unique;
 
 // Simply exercises all the methods to confirm there's no build or execution
 // problems. NOTE: All methods on SceneGraphInspector should be invoked here.

@@ -974,8 +974,8 @@ class SceneGraph final : public systems::LeafSystem<T> {
 
   // Collects all of the *dynamic* frames that have geometries with the given
   // role.
-  std::vector<FrameId> GetDynamicFrames(const GeometryState<T>& g_state,
-                                        Role role) const;
+  std::vector<FrameId> GetDynamicFrames(
+      const internal::GeometryState<T>& g_state, Role role) const;
 
   // Refreshes the pose of the various engines which exploits the caching
   // infrastructure.
@@ -994,11 +994,12 @@ class SceneGraph final : public systems::LeafSystem<T> {
 
   // Extracts a mutable reference to the underlying abstract geometry state from
   // the given context.
-  GeometryState<T>& mutable_geometry_state(systems::Context<T>* context) const;
+  internal::GeometryState<T>& mutable_geometry_state(
+      systems::Context<T>* context) const;
 
   // Extracts a reference to the underlying abstract geometry state from the
   // given context.
-  const GeometryState<T>& geometry_state(
+  const internal::GeometryState<T>& geometry_state(
       const systems::Context<T>& context) const;
 
   // A struct that stores the port indices for a given source.
@@ -1019,7 +1020,7 @@ class SceneGraph final : public systems::LeafSystem<T> {
 
   // SceneGraph owns its configured model; it gets copied into the context when
   // the context is set to its "default" state.
-  GeometryState<T> model_;
+  internal::GeometryState<T> model_;
 
   SceneGraphInspector<T> model_inspector_;
 

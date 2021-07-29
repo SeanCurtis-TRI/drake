@@ -28,20 +28,14 @@
 namespace drake {
 namespace geometry {
 
-#ifndef DRAKE_DOXYGEN_CXX
-namespace internal {
-
-class GeometryVisualizationImpl;
-
-}  // namespace internal
-#endif
-
 class GeometryFrame;
 
 class GeometryInstance;
 
 template <typename T>
 class SceneGraph;
+
+namespace internal {
 
 /** @name Structures for maintaining the entity relationships  */
 //@{
@@ -51,17 +45,12 @@ using FrameIdSet = std::unordered_set<FrameId>;
 
 //@}
 
-// TODO(SeanCurtis-TRI): Move GeometryState into `internal` namespace (and then
-//  I can kill the `@note` in the class documentation).
-
 /**
  The context-dependent state of SceneGraph. This serves as an AbstractValue
  in the context. SceneGraph's time-dependent state includes more than just
  values; objects can be added to or removed from the world over time. Therefore,
  SceneGraph's context-dependent state includes values (the poses) and
  structure (the topology of the world).
-
- @note This is intended as an internal class only.
 
  @tparam_nonsymbolic_scalar
 */
@@ -72,7 +61,7 @@ class GeometryState {
 
   /** An object that represents the range of FrameId values in the state. It
    is used in range-based for loops to iterate through registered frames.  */
-  using FrameIdRange = internal::MapKeyRange<FrameId, internal::InternalFrame>;
+  using FrameIdRange = MapKeyRange<FrameId, InternalFrame>;
 
   /** Default constructor.  */
   GeometryState();
@@ -585,7 +574,7 @@ class GeometryState {
   }
 
   // Allow SceneGraph unique access to the state members to perform queries.
-  friend class SceneGraph<T>;
+  friend class drake::geometry::SceneGraph<T>;
 
   // Friend declaration so that the internals of the state can be confirmed in
   // unit tests.
@@ -656,7 +645,7 @@ class GeometryState {
   // Recursively updates the frame and geometry _pose_ information for the tree
   // rooted at the given frame, whose parent's pose in the world frame is given
   // as `X_WP`.
-  void UpdatePosesRecursively(const internal::InternalFrame& frame,
+  void UpdatePosesRecursively(const InternalFrame& frame,
                               const math::RigidTransform<T>& X_WP,
                               const FramePoseVector<T>& poses);
 
@@ -667,10 +656,10 @@ class GeometryState {
   }
 
   // Convenience function for accessing geometry whether dynamic or anchored.
-  const internal::InternalGeometry* GetGeometry(GeometryId id) const;
+  const InternalGeometry* GetGeometry(GeometryId id) const;
 
   // Convenience function for accessing geometry whether dynamic or anchored.
-  internal::InternalGeometry* GetMutableGeometry(GeometryId id);
+  InternalGeometry* GetMutableGeometry(GeometryId id);
 
   // Reports if the given name is unique in the given frame and role.
   bool NameIsUnique(FrameId id, Role role, const std::string& name) const;
@@ -682,9 +671,9 @@ class GeometryState {
 
   // Confirms that the given role assignment is valid and return the geometry
   // if valid. Throws if not.
-  internal::InternalGeometry& ValidateRoleAssign(SourceId source_id,
-                                                 GeometryId geometry_id,
-                                                 Role role, RoleAssign assign);
+  InternalGeometry& ValidateRoleAssign(SourceId source_id,
+                                       GeometryId geometry_id, Role role,
+                                       RoleAssign assign);
 
   // Attempts to remove the indicated `role` from the indicated geometry.
   // Returns true if removed (false doesn't imply "failure", just nothing to
@@ -717,8 +706,8 @@ class GeometryState {
   // This function handles the special case. It confirms all proper ownership
   // and, assuming the ids and relationships are valid, returns the frame
   // requested.
-  const internal::InternalFrame& ValidateAndGetFrame(SourceId source_id,
-                                                     FrameId frame_id) const;
+  const InternalFrame& ValidateAndGetFrame(SourceId source_id,
+                                           FrameId frame_id) const;
 
   // Retrieves the requested renderer (if supported), throwing otherwise.
   const render::RenderEngine& GetRenderEngineOrThrow(
@@ -763,10 +752,10 @@ class GeometryState {
       source_anchored_geometry_map_;
 
   // The frame data, keyed on unique frame identifier.
-  std::unordered_map<FrameId, internal::InternalFrame> frames_;
+  std::unordered_map<FrameId, InternalFrame> frames_;
 
   // The geometry data, keyed on unique geometry identifiers.
-  std::unordered_map<GeometryId, internal::InternalGeometry> geometries_;
+  std::unordered_map<GeometryId, InternalGeometry> geometries_;
 
   // This provides the look up from the internal index of a frame to its frame
   // id. It is constructed so that the index value of any position in the vector
@@ -820,7 +809,7 @@ class GeometryState {
   // evaluation based on the previous data, but its internal data structures
   // rely on temporal coherency to speed up the calculations. Thus we persist
   // and copy it.
-  copyable_unique_ptr<internal::ProximityEngine<T>> geometry_engine_;
+  copyable_unique_ptr<ProximityEngine<T>> geometry_engine_;
 
   // The collection of all registered renderers.
   std::unordered_map<std::string, copyable_unique_ptr<render::RenderEngine>>
@@ -829,5 +818,7 @@ class GeometryState {
   // The version for this geometry data.
   GeometryVersion geometry_version_;
 };
+
+}  // namespace internal
 }  // namespace geometry
 }  // namespace drake

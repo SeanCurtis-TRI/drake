@@ -27,13 +27,10 @@
 
 namespace drake {
 namespace geometry {
+namespace internal {
 
 using Eigen::Translation3d;
 using Eigen::Vector3d;
-using internal::DummyRenderEngine;
-using internal::InternalFrame;
-using internal::InternalGeometry;
-using internal::ProximityEngine;
 using math::RigidTransform;
 using math::RigidTransformd;
 using render::RenderLabel;
@@ -147,8 +144,6 @@ class GeometryStateTester {
   GeometryState<T>* state_;
 };
 
-namespace internal {
-
 class ProximityEngineTester {
  public:
   static const hydroelastic::Geometries& hydroelastic_geometries(
@@ -156,8 +151,6 @@ class ProximityEngineTester {
     return engine.hydroelastic_geometries();
   }
 };
-
-}  // namespace internal
 
 namespace {
 
@@ -2539,7 +2532,7 @@ TEST_F(GeometryStateTest, ModifyProximityProperties) {
   // the only way to do that is by looking at the hydroelastic representation.
   // Originally, it should have none, after the update, it should.
   const auto& hydroelastic_geometries =
-      internal::ProximityEngineTester::hydroelastic_geometries(
+      ProximityEngineTester::hydroelastic_geometries(
           gs_tester_.proximity_engine());
 
   // Configure and confirm initial state.
@@ -2554,7 +2547,7 @@ TEST_F(GeometryStateTest, ModifyProximityProperties) {
   EXPECT_EQ(props->GetProperty<int>("prop1", "value"),
             props1.GetProperty<int>("prop1", "value"));
   EXPECT_EQ(hydroelastic_geometries.hydroelastic_type(geometries_[0]),
-            internal::HydroelasticType::kUndefined);
+            HydroelasticType::kUndefined);
 
   DRAKE_EXPECT_NO_THROW(geometry_state_.AssignRole(
       source_id_, geometries_[0], props2, RoleAssign::kReplace));
@@ -2570,7 +2563,7 @@ TEST_F(GeometryStateTest, ModifyProximityProperties) {
   EXPECT_EQ(props->GetProperty<int>("prop2", "value"),
             props2.GetProperty<int>("prop2", "value"));
   EXPECT_EQ(hydroelastic_geometries.hydroelastic_type(geometries_[0]),
-            internal::HydroelasticType::kRigid);
+            HydroelasticType::kRigid);
 }
 
 // Test the ability to reassign illustration properties to a geometry that
@@ -3907,5 +3900,6 @@ TEST_F(GeometryStateNoRendererTest, PerceptionRoleWithoutRenderer) {
 //    3. Calling the appropriate render engine.
 
 }  // namespace
+}  // namespace internal
 }  // namespace geometry
 }  // namespace drake

@@ -8,9 +8,11 @@
 namespace drake {
 namespace geometry {
 
+namespace internal {
 // Forward declarations.
 template <typename T>
 class GeometryState;
+}  // namespace internal
 
 /** Class for configuring "collision filters"; collision filters limit the scope
  of various proximity queries.
@@ -114,7 +116,7 @@ class CollisionFilterManager {
  private:
   /* Only GeometryState can construct a collision filter manager. */
   template <typename>
-  friend class GeometryState;
+  friend class internal::GeometryState;
 
   /* Constructs the manager for a `filter` with the appropriate callback for
    resolving GeometrySet into set of GeometryIds. */

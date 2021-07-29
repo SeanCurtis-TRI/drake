@@ -6,6 +6,13 @@
 
 namespace drake {
 namespace geometry {
+
+namespace internal {
+// Forward declarations.
+template <typename T>
+class GeometryState;
+}  // namespace internal
+
 /**
 A version numbering class that reports revisions of SceneGraph's geometric data.
 
@@ -47,7 +54,7 @@ class GeometryVersion {
    through the API provided by SceneGraphInspector if they want the version.
    They then may choose to retain a copy if needed. */
   template <typename T>
-  friend class GeometryState;
+  friend class internal::GeometryState;
 
   /* Facilitates testing. */
   friend class GeometryVersionTest;

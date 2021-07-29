@@ -23,10 +23,9 @@
 
 namespace drake {
 namespace geometry {
+namespace internal {
 
 template <typename T> class GeometryState;
-
-namespace internal {
 
 /* The underlying engine for performing geometric _proximity_ queries.
  It owns the geometry instances and, once it has been provided with the poses

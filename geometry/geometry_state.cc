@@ -20,11 +20,8 @@
 
 namespace drake {
 namespace geometry {
+namespace internal {
 
-using internal::convert_to_double;
-using internal::InternalFrame;
-using internal::InternalGeometry;
-using internal::ProximityEngine;
 using math::RigidTransform;
 using math::RigidTransformd;
 using render::ColorRenderCamera;
@@ -115,7 +112,7 @@ std::string get_missing_id_message<GeometryId>(const GeometryId& key) {
 template <typename T>
 GeometryState<T>::GeometryState()
     : self_source_(SourceId::get_new_id()),
-      geometry_engine_(make_unique<internal::ProximityEngine<T>>()) {
+      geometry_engine_(make_unique<ProximityEngine<T>>()) {
   source_names_[self_source_] = "SceneGraphInternal";
 
   const FrameId world = InternalFrame::world_frame_id();
@@ -301,7 +298,7 @@ std::vector<GeometryId> GeometryState<T>::GetGeometries(
 template <typename T>
 GeometryId GeometryState<T>::GetGeometryIdByName(
     FrameId frame_id, Role role, const std::string& name) const {
-  const std::string canonical_name = internal::CanonicalizeStringName(name);
+  const std::string canonical_name = CanonicalizeStringName(name);
 
   GeometryId result;
   int count = 0;
@@ -420,8 +417,8 @@ bool GeometryState<T>::CollisionFiltered(GeometryId id1, GeometryId id2) const {
   std::string base_message =
       "Can't report collision filter status between geometries " +
           to_string(id1) + " and " + to_string(id2) + "; ";
-  const internal::InternalGeometry* geometry1 = GetGeometry(id1);
-  const internal::InternalGeometry* geometry2 = GetGeometry(id2);
+  const InternalGeometry* geometry1 = GetGeometry(id1);
+  const InternalGeometry* geometry2 = GetGeometry(id2);
   if (geometry1 != nullptr && geometry2 != nullptr) {
     if (geometry1->has_proximity_role() && geometry2->has_proximity_role()) {
       return !geometry_engine_->collision_filter().CanCollideWith(
@@ -680,7 +677,7 @@ bool GeometryState<T>::IsValidGeometryName(
   FindOrThrow(frame_id, frames_, [frame_id]() {
     return "Given frame id is not valid: " + to_string(frame_id);
   });
-  const std::string name = internal::CanonicalizeStringName(candidate_name);
+  const std::string name = CanonicalizeStringName(candidate_name);
   if (name.empty()) return false;
   return NameIsUnique(frame_id, role, name);
 }
@@ -1122,7 +1119,7 @@ void GeometryState<T>::RemoveGeometryUnchecked(GeometryId geometry_id,
 
 template <typename T>
 void GeometryState<T>::UpdatePosesRecursively(
-    const internal::InternalFrame& frame, const RigidTransform<T>& X_WP,
+    const InternalFrame& frame, const RigidTransform<T>& X_WP,
     const FramePoseVector<T>& poses) {
   const auto frame_id = frame.id();
   const auto& X_PF = poses.value(frame_id);
@@ -1261,7 +1258,7 @@ bool GeometryState<T>::RemoveFromRendererUnchecked(
 
 template <typename T>
 bool GeometryState<T>::RemoveProximityRole(GeometryId geometry_id) {
-  internal::InternalGeometry* geometry = GetMutableGeometry(geometry_id);
+  InternalGeometry* geometry = GetMutableGeometry(geometry_id);
   DRAKE_DEMAND(geometry != nullptr);
 
   // Geometry is not registered with the proximity engine.
@@ -1276,7 +1273,7 @@ bool GeometryState<T>::RemoveProximityRole(GeometryId geometry_id) {
 
 template <typename T>
 bool GeometryState<T>::RemoveIllustrationRole(GeometryId geometry_id) {
-  internal::InternalGeometry* geometry = GetMutableGeometry(geometry_id);
+  InternalGeometry* geometry = GetMutableGeometry(geometry_id);
   DRAKE_DEMAND(geometry != nullptr);
 
   // Geometry has no illustration role.
@@ -1289,7 +1286,7 @@ bool GeometryState<T>::RemoveIllustrationRole(GeometryId geometry_id) {
 
 template <typename T>
 bool GeometryState<T>::RemovePerceptionRole(GeometryId geometry_id) {
-  internal::InternalGeometry* geometry = GetMutableGeometry(geometry_id);
+  InternalGeometry* geometry = GetMutableGeometry(geometry_id);
   DRAKE_DEMAND(geometry != nullptr);
 
   // Geometry has no perception role.
@@ -1344,10 +1341,11 @@ RigidTransformd GeometryState<T>::GetDoubleWorldPose(FrameId frame_id) const {
   if (frame_id == InternalFrame::world_frame_id()) {
     return RigidTransformd::Identity();
   }
-  const internal::InternalFrame& frame = GetValueOrThrow(frame_id, frames_);
-  return internal::convert_to_double(X_WF_[frame.index()]);
+  const InternalFrame& frame = GetValueOrThrow(frame_id, frames_);
+  return convert_to_double(X_WF_[frame.index()]);
 }
 
+}  // namespace internal
 }  // namespace geometry
 }  // namespace drake
 
@@ -1355,4 +1353,4 @@ RigidTransformd GeometryState<T>::GetDoubleWorldPose(FrameId frame_id) const {
 // AutoDiffXd. Update things appropriately when more non-symbolic scalars
 // are available.
 DRAKE_DEFINE_CLASS_TEMPLATE_INSTANTIATIONS_ON_DEFAULT_NONSYMBOLIC_SCALARS(
-    class ::drake::geometry::GeometryState)
+    class ::drake::geometry::internal::GeometryState)

@@ -96,7 +96,7 @@ class SceneGraphInspector {
 
    This includes the id for the world frame.  */
   DRAKE_DEPRECATED("2021-11-01", "Please use GetAllFrameIds() instead.")
-  typename GeometryState<T>::FrameIdRange all_frame_ids() const {
+  typename internal::GeometryState<T>::FrameIdRange all_frame_ids() const {
     DRAKE_DEMAND(state_ != nullptr);
     return state_->get_frame_ids();
   }
@@ -106,7 +106,8 @@ class SceneGraphInspector {
    no changes to the topology. The ids includes the world frame's id.  */
   typename std::vector<FrameId> GetAllFrameIds() const {
     DRAKE_DEMAND(state_ != nullptr);
-    typename GeometryState<T>::FrameIdRange range = state_->get_frame_ids();
+    typename internal::GeometryState<T>::FrameIdRange range =
+        state_->get_frame_ids();
     return std::vector<FrameId>(range.begin(), range.end());
   }
 
@@ -519,9 +520,9 @@ class SceneGraphInspector {
   // Sets the scene graph data to inspect -- the inspector does _not_ own the
   // data and expects that the lifespan of the provided data is longer than
   // the inspector.
-  void set(const GeometryState<T>* state) { state_ = state; }
+  void set(const internal::GeometryState<T>* state) { state_ = state; }
 
-  const GeometryState<T>* state_{nullptr};
+  const internal::GeometryState<T>* state_{nullptr};
 };
 
 }  // namespace geometry

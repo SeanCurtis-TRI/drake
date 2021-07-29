@@ -15,6 +15,7 @@ namespace drake {
 namespace geometry {
 
 using Eigen::Vector3d;
+using internal::GeometryState;
 using math::RigidTransformd;
 using render::ColorRenderCamera;
 using render::DepthRenderCamera;

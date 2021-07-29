@@ -736,7 +736,7 @@ class QueryObject {
 
   // Access the GeometryState associated with this QueryObject.
   // @pre ThrowIfNotCallable() has been invoked prior to this.
-  const GeometryState<T>& geometry_state() const;
+  const internal::GeometryState<T>& geometry_state() const;
 
   // Sets the query object to be *live*. That means the `context` and
   // `scene_graph` cannot be null.
@@ -814,7 +814,7 @@ class QueryObject {
 
   // When a QueryObject is copied to a "baked" version, it contains a fully
   // updated GeometryState. Copies of bakes all share the same version.
-  std::shared_ptr<const GeometryState<T>> state_{};
+  std::shared_ptr<const internal::GeometryState<T>> state_{};
 };
 
 }  // namespace geometry
