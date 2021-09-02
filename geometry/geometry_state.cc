@@ -692,7 +692,7 @@ void GeometryState<T>::AssignRole(SourceId source_id, GeometryId geometry_id,
   InternalGeometry& geometry =
       ValidateRoleAssign(source_id, geometry_id, Role::kProximity, assign);
 
-  geometry_version_.modify_proximity();
+  // geometry_version_.modify_proximity();
   switch (assign) {
     case RoleAssign::kNew: {
       // The set of geometries G such that I need to introduce filtered pairs

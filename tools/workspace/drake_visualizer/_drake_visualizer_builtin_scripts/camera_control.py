@@ -1,5 +1,5 @@
 from director import applogic
-from PythonQt import QtCore, QtGui
+from PythonQt import QtGui
 
 import numpy as np
 
@@ -196,7 +196,6 @@ class CameraController:
             '&Configure Camera')
         self.configure_action.connect('triggered()', self.show_dialog)
         self.dlg = _ConfigDialog(applogic.getMainWindow())
-        self.show_dialog()
 
     def show_dialog(self):
         self.dlg.set_view(applogic.getCurrentRenderView())

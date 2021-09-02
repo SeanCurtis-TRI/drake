@@ -49,6 +49,8 @@ LcmPublisherSystem::LcmPublisherSystem(
   DeclareAbstractInputPort("lcm_message", *serializer_->CreateDefaultValue());
 
   set_name(make_name(channel_));
+  this->DeclareForcedPublishEvent(
+      &LcmPublisherSystem::PublishInputAsLcmMessage);
   if (publish_triggers.find(TriggerType::kPeriodic) != publish_triggers.end()) {
     DRAKE_THROW_UNLESS(publish_period > 0.0);
     const double offset = 0.0;
