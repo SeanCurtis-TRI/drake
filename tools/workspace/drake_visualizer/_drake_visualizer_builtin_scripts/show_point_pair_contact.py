@@ -223,10 +223,10 @@ class ContactVisualizer:
             point = np.array([contact.contact_point[0],
                               contact.contact_point[1],
                               contact.contact_point[2]])
-            force = np.array([contact.contact_force[0],
-                              contact.contact_force[1],
-                              contact.contact_force[2]])
-            mag = np.linalg.norm(force)
+            force_on_B = np.array([contact.contact_force[0],
+                                   contact.contact_force[1],
+                                   contact.contact_force[2]])
+            mag = np.linalg.norm(force_on_B)
 
             if mag < self.min_magnitude:
                 continue
@@ -238,28 +238,34 @@ class ContactVisualizer:
             if self.magnitude_mode == ContactVisModes.kFixedLength:
                 # mag must be > 0 otherwise this force would be skipped.
                 scale /= mag
-            vis_force = force * scale
+            vis_force_on_B = force_on_B * scale
 
             # In point_pair_contact_info, the force is defined as the force
             # *on body B*. That is what's placed in
-            # lcmt_point_pair_contact_info_for_viz.
-            # However, for two bodies (1, 2), MBP provides no guarantees which
-            # body is "body1" and which is "body2". Some contacts could be
-            # reported as (1, 2) and some as (2, 1). In order to aggregate all
-            # such interactions into a single debug artifact, we need to
-            # reconcile the ordering.
+            # lcmt_point_pair_contact_info_for_viz. However, hydroelastic
+            # contact reports the force on body 1. So, we'll reverse the order
+            # here so that they report forces consistently.
+            vis_force_on_A = -vis_force_on_B
+
+            # There is a potential problem, however. For two bodies (1, 2), MBP
+            # provides no guarantees which body is "body1" and which is
+            # "body2". Some contacts could be reported as (1, 2) and some as
+            # (2, 1). In order to aggregate all such interactions into a single
+            # debug artifact, we need to reconcile the ordering. Hence, we
+            # define *two* keys (1, 2) and (2, 1) to do look ups.
 
             force_format = "Force on {} from {}"
-            key = force_format.format(contact.body2_name, contact.body1_name)
-            alt_key = force_format.format(contact.body1_name,
-                                          contact.body2_name)
+            key = force_format.format(contact.body1_name, contact.body2_name)
+            alt_key = force_format.format(contact.body2_name,
+                                          contact.body1_name)
 
             if key in collision_pair_to_forces:
-                collision_pair_to_forces[key].append((point, vis_force))
+                collision_pair_to_forces[key].append((point, vis_force_on_A))
             elif alt_key in collision_pair_to_forces:
-                collision_pair_to_forces[alt_key].append((point, -vis_force))
+                collision_pair_to_forces[alt_key].append(
+                    (point, -vis_force_on_A))
             else:
-                collision_pair_to_forces[key] = [(point, vis_force)]
+                collision_pair_to_forces[key] = [(point, vis_force_on_A)]
 
         if self.magnitude_mode == ContactVisModes.kAutoScale:
             auto_scale = 1.0 / max_force

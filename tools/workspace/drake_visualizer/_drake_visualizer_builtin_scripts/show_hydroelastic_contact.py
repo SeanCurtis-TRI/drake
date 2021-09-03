@@ -189,16 +189,22 @@ class _ConfigDialog(QtGui.QDialog):
         layout.addWidget(contact_data_grp, row, 0, 1, 2)
         row += 1
 
-        # Whether to show the force and moment vectors.
         contact_layout.addWidget(
-            QtGui.QLabel('Render contact force and moment '
-                         'vectors'),
+            QtGui.QLabel('Render contact force vector'),
             contact_row, 0)
-        self.show_spatial_force = QtGui.QCheckBox()
-        self.show_spatial_force.setChecked(visualizer.show_spatial_force)
-        self.show_spatial_force.setToolTip('Renders the contact forces (in '
-                                           'red) and moments (in blue)')
-        contact_layout.addWidget(self.show_spatial_force, contact_row, 1)
+        self.show_force = QtGui.QCheckBox()
+        self.show_force.setChecked(visualizer.show_moment)
+        self.show_force.setToolTip('Renders the contact forces (in green)')
+        contact_layout.addWidget(self.show_force, contact_row, 1)
+        contact_row += 1
+
+        contact_layout.addWidget(
+            QtGui.QLabel('Render contact moment vector'),
+            contact_row, 0)
+        self.show_moment = QtGui.QCheckBox()
+        self.show_moment.setChecked(visualizer.show_moment)
+        self.show_moment.setToolTip('Renders the contact moment (in blue)')
+        contact_layout.addWidget(self.show_moment, contact_row, 1)
         contact_row += 1
 
         # Whether to show the per-quadrature-point traction vectors.
@@ -919,7 +925,8 @@ class HydroelasticContactVisualizer:
         self.show_contact_edges = True
         self.show_pressure = True
         self.max_pressure_observed = 0
-        self.show_spatial_force = True
+        self.show_force = True
+        self.show_moment = True
         self.show_traction_vectors = False
         self.show_slip_velocity_vectors = False
         self.magnitude_mode = ContactVisModes.kFixedLength
@@ -953,8 +960,8 @@ class HydroelasticContactVisualizer:
                                        self.toggle_show_pressure)
         self.dlg.show_contact_edges.connect("toggled(bool)",
                                             self.toggle_show_edges)
-        self.dlg.show_spatial_force.connect("toggled(bool)",
-                                            self.toggle_show_spatial_force)
+        self.dlg.show_force.connect("toggled(bool)", self.toggle_show_force)
+        self.dlg.show_moment.connect("toggled(bool)", self.toggle_show_moment)
         self.dlg.show_traction_vectors.connect(
             "toggled(bool)", self.toggle_show_traction_vectors)
         self.dlg.show_slip_velocity_vectors.connect(
@@ -1069,9 +1076,14 @@ class HydroelasticContactVisualizer:
         self.show_contact_edges = state
         self.update_visual_data_from_message()
 
-    def toggle_show_spatial_force(self, state):
+    def toggle_show_force(self, state):
         """Slot for dialog widget"""
-        self.show_spatial_force = state
+        self.show_force = state
+        self.update_visual_data_from_message()
+
+    def toggle_show_moment(self, state):
+        """Slot for dialog widget"""
+        self.show_moment = state
         self.update_visual_data_from_message()
 
     def toggle_show_traction_vectors(self, state):
@@ -1265,7 +1277,7 @@ class HydroelasticContactVisualizer:
         # Determine scaling magnitudes if autoscaling is activated.
         if self.magnitude_mode == ContactVisModes.kAutoScale:
             for surface in msg.hydroelastic_contacts:
-                if self.show_spatial_force:
+                if self.show_force or self.show_moment:
                     force = np.array([surface.force_C_W[0],
                                       surface.force_C_W[1],
                                       surface.force_C_W[2]])
@@ -1320,7 +1332,7 @@ class HydroelasticContactVisualizer:
 
             # Draw the spatial force.
             force_data = None
-            if self.show_spatial_force:
+            if self.show_force or self.show_moment:
                 force_data = DebugData()
                 point = np.array([surface.centroid_W[0],
                                   surface.centroid_W[1],
@@ -1337,7 +1349,7 @@ class HydroelasticContactVisualizer:
                 moment_mag = np.linalg.norm(moment)
 
                 # Draw the force arrow if it's of sufficient magnitude.
-                if force_mag > self.min_magnitude:
+                if self.show_force and force_mag > self.min_magnitude:
                     scale = self.global_scale
                     if self.magnitude_mode == ContactVisModes.kFixedLength:
                         # magnitude must be > 0 otherwise this force would be
@@ -1347,11 +1359,11 @@ class HydroelasticContactVisualizer:
                     force_data.addArrow(
                         start=point,
                         end=point + auto_force_scale * force * scale,
-                        tubeRadius=0.002,
-                        headRadius=0.004, color=[1, 0, 0])
+                        tubeRadius=0.005,
+                        headRadius=0.01, color=[0, 1, 0])
 
                 # Draw the moment arrow if it's of sufficient magnitude.
-                if moment_mag > self.min_magnitude:
+                if self.show_moment and moment_mag > self.min_magnitude:
                     scale = self.global_scale
                     if self.magnitude_mode == ContactVisModes.kFixedLength:
                         # magnitude must be > 0 otherwise this moment would be
@@ -1361,8 +1373,8 @@ class HydroelasticContactVisualizer:
                     force_data.addArrow(
                         start=point,
                         end=point + auto_moment_scale * moment * scale,
-                        tubeRadius=0.002,
-                        headRadius=0.004, color=[0, 0, 1])
+                        tubeRadius=0.005,
+                        headRadius=0.01, color=[0, 0, 1])
             # TODO(SeanCurtis-TRI) See show_point_pair_contact.py. But if we
             #  ever had a single body represented with multiple contact
             #  geometries, we could end up with body pairs (A, B) and (B, A).
