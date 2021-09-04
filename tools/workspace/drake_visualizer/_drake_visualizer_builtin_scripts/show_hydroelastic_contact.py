@@ -16,7 +16,10 @@ from drake import (
     lcmt_viewer_load_robot,
 )
 
-from _drake_visualizer_builtin_scripts import scoped_singleton_func
+from _drake_visualizer_builtin_scripts import (
+    scoped_singleton_func,
+    screen_capture
+)
 from _drake_visualizer_builtin_scripts.show_point_pair_contact \
     import ContactVisModes
 # TODO(seancurtis-TRI) Make the dialog box for scaling force arrows in
@@ -288,6 +291,10 @@ class _ConfigDialog(QtGui.QDialog):
         layout.addWidget(self.pressure_value_label, row, 0)
         self.reset_button = QtGui.QPushButton('Reset max observed pressure')
         layout.addWidget(self.reset_button, row, 1)
+        row += 1
+
+        self.screen_cap = screen_capture.ScreenCaptureWidget("hydro_contact")
+        layout.addWidget(self.screen_cap, row, 0, 1, 2)
         row += 1
 
         # Accept/cancel.
@@ -974,6 +981,7 @@ class HydroelasticContactVisualizer:
                                        self.set_min_magnitude)
         self.dlg.reset_button.connect("clicked()",
                                       self.clear_max_observed_pressure)
+        self.show_dialog()
 
     def create_color_map(self):
         if self.color_map_mode == ColorMapModes.kFlameMap:
@@ -1243,10 +1251,13 @@ class HydroelasticContactVisualizer:
         self._contact_sub.setSpeedLimit(30)
 
         # Always set the active view, just to be safe.
-        self.visual_model.set_view(applogic.getCurrentRenderView())
+        view = applogic.getCurrentRenderView()
+        self.visual_model.set_view(view)
         self.visual_model.update_contact_directories(msg)
         self.message = msg
         self.update_visual_data_from_message()
+
+        self.dlg.screen_cap.grab_screen(view)
 
     def update_visual_data_from_message(self):
         """Updates the visual state based on the currently owned message. This
