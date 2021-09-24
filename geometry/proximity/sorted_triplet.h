@@ -6,6 +6,7 @@
 #include <utility>
 
 #include "drake/common/drake_copyable.h"
+#include "drake/common/hash.h"
 #include "drake/common/is_less_than_comparable.h"
 
 namespace drake {
@@ -15,8 +16,8 @@ namespace internal {
 // TODO(DamrongGuoy): If we add hash_append, change the documentation below
 //  to say it can be used with std::unordered_map and std::unordered_set.
 
-// This class is similar to the drake::SortedPair class. However, this class
-// uses a triplet of homogeneous types. Both SortedPair and SortedTriplet
+// This class is similar to the drake::geometry::internal::SortedTriplet class. However, this class
+// uses a triplet of homogeneous types. Both SortedTriplet and SortedTriplet
 // sort the values such that one value is less than or equal to the next one.
 // The SortedTriplet class can be used to generate keys for std::map (or
 // std::set) from triplets of objects. However, it cannot be used to
@@ -58,8 +59,32 @@ struct SortedTriplet {
 
   // TODO(DamrongGuoy): Add Swap(t) to swap `this` and `t`.
 
-  // TODO(DamrongGuoy): Add hash_append(HashAlgorithm&, SortedTriplet&) to
-  //  implement the hash_append concept.
+  /// Implements the @ref hash_append concept.
+  template <class HashAlgorithm>
+  friend void hash_append(HashAlgorithm& hasher,
+                          const SortedTriplet& t) noexcept {
+    using drake::hash_append;
+    hash_append(hasher, t.objects_[0]);
+    hash_append(hasher, t.objects_[1]);
+    hash_append(hasher, t.objects_[2]);
+  }
+
+  /// @name Support for using SortedTriplet in structured bindings.
+  //@{
+  template<std::size_t Index>
+  std::tuple_element_t<Index, SortedTriplet<T>>& get() {
+    if constexpr (Index == 0) return objects_[0];
+    if constexpr (Index == 1) return objects_[1];
+    if constexpr (Index == 2) return objects_[2];
+  }
+
+  template<std::size_t Index>
+  const std::tuple_element_t<Index, SortedTriplet<T>>& get() const {
+    if constexpr (Index == 0) return objects_[0];
+    if constexpr (Index == 1) return objects_[1];
+    if constexpr (Index == 2) return objects_[2];
+  }
+  //@}
 
  private:
   // The three objects in the order of T::operator<.
@@ -89,7 +114,32 @@ inline bool operator<(const SortedTriplet<T>& x, const SortedTriplet<T>& y) {
 }  // namespace geometry
 }  // namespace drake
 
+namespace std {
+
 // TODO(DamrongGuoy): Implement std::swap().
 
-// TODO(DamrongGuoy): Implement std::hash<SortedTriplet<T>>.
+/// Provides std::hash<SortedTriplet<T>>.
+template <class T>
+struct hash<drake::geometry::internal::SortedTriplet<T>>
+    : public drake::DefaultHash {};
+#if defined(__GLIBCXX__)
+// https://gcc.gnu.org/onlinedocs/libstdc++/manual/unordered_associative.html
+template <class T>
+struct __is_fast_hash<hash<drake::geometry::internal::SortedTriplet<T>>>
+    : std::false_type {};
+#endif
 
+/// Support using `SortedTriplet<T>` in structured bindings.  E.g.,
+///
+///    SortedTriplet<Foo> triplet(Foo(1), Foo(2), Foo(3));
+///    const auto& [a, b, c] = triplet;
+template <typename T>
+struct tuple_size<drake::geometry::internal::SortedTriplet<T>>
+    : integral_constant<size_t, 2> {};
+
+template <size_t Index, typename T>
+struct tuple_element<Index, drake::geometry::internal::SortedTriplet<T>> {
+  using type = T;
+};
+
+}  // namespace std
