@@ -8,28 +8,28 @@ namespace drake {
 namespace pydrake {
 namespace {
 
-void def_geometry_all(py::module m) {
-  py::dict vars = m.attr("__dict__");
-  py::exec(
-      "from pydrake.geometry import *\n"
-      "from pydrake.geometry.render import *\n"
-      "from pydrake.geometry.optimization import *\n",
-      py::globals(), vars);
-}
+// void def_geometry_all(py::module m) {
+//   py::dict vars = m.attr("__dict__");
+//   py::exec(
+//       "from pydrake.geometry import *\n"
+//       "from pydrake.geometry.render import *\n"
+//       "from pydrake.geometry.optimization import *\n",
+//       py::globals(), vars);
+// }
 
 PYBIND11_MODULE(geometry, m) {
   PYDRAKE_PREVENT_PYTHON3_MODULE_REIMPORT(m);
-  py::module::import("pydrake.math");
+  // py::module::import("pydrake.math");
 
   /* The order of execution matters -- a module may rely on the definition
    of bindings executed prior to it. */
-  DefineGeometryCommon(m);
-  DefineGeometryHydro(m);
-  DefineGeometryRender(m.def_submodule("render"));
-  DefineGeometryOptimization(m.def_submodule("optimization"));
+  // DefineGeometryCommon(m);
+  // DefineGeometryHydro(m);
+  // DefineGeometryRender(m.def_submodule("render"));
+  // DefineGeometryOptimization(m.def_submodule("optimization"));
   DefineGeometrySceneGraph(m);
   DefineGeometryVisualizers(m);
-  def_geometry_all(m.def_submodule("all"));
+  // def_geometry_all(m.def_submodule("all"));
 }
 
 }  // namespace
