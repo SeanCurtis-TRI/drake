@@ -400,10 +400,7 @@ drake_py_library(
     visibility = ["//tmp:__pkg__"],
     deps = [
         ":framework_py",
-        ":jupyter_widgets_py",
         "//bindings/pydrake:geometry_py",
-        "//bindings/pydrake/multibody:parsing_py",
-        "//bindings/pydrake/multibody:plant_py",
     ],
 )
 
