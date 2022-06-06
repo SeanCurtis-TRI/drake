@@ -762,6 +762,9 @@ void DoScalarDependentDefinitions(py::module m, T) {
             py::arg("coulomb_friction"),
             cls_doc.RegisterCollisionGeometry
                 .doc_5args_body_X_BG_shape_name_coulomb_friction)
+        .def("SwapCollisionGeometries", &Class::SwapCollisionGeometries,
+            py::arg("body"), py::arg("old_id"), py::arg("new_id"),
+            cls_doc.SwapCollisionGeometries.doc)
         .def("GetFloatingBaseBodies", &Class::GetFloatingBaseBodies,
             cls_doc.GetFloatingBaseBodies.doc)
         .def("get_source_id", &Class::get_source_id, cls_doc.get_source_id.doc)
@@ -781,7 +784,7 @@ void DoScalarDependentDefinitions(py::module m, T) {
             cls_doc.GetBodyFrameIdIfExists.doc)
         .def("GetCollisionGeometriesForBody",
             &Class::GetCollisionGeometriesForBody, py::arg("body"),
-            py_rvp::reference_internal,
+            py_rvp::copy, //reference_internal,
             cls_doc.GetCollisionGeometriesForBody.doc)
         .def("num_collision_geometries", &Class::num_collision_geometries,
             cls_doc.num_collision_geometries.doc)
