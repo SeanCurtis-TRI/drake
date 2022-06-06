@@ -94,15 +94,6 @@ class MultibodyPlantDiscreteUpdateManagerAttorney {
     return plant.CalcForceElementsContribution(context, forces);
   }
 
-  // TODO(xuchenhan-tri): Remove this when SceneGraph takes control of all
-  //  geometries.
-  /* Returns the per-body arrays of collision geometries indexed by BodyIndex
-   for the given `plant`. */
-  static const std::vector<std::vector<geometry::GeometryId>>&
-  collision_geometries(const MultibodyPlant<T>& plant) {
-    return plant.collision_geometries_;
-  }
-
   static double default_contact_stiffness(const MultibodyPlant<T>& plant) {
     return plant.penalty_method_contact_parameters_.geometry_stiffness;
   }

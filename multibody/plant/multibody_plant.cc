@@ -379,7 +379,6 @@ MultibodyPlant<T>::MultibodyPlant(
   // TODO(eric.cousineau): Combine all of these elements into one struct, make
   // it less brittle.
   visual_geometries_.emplace_back();  // Entries for the "world" body.
-  collision_geometries_.emplace_back();
   X_WB_default_list_.emplace_back();
   // Add the world body to the graph.
   multibody_graph_.AddBody(world_body().name(), world_body().model_instance());
@@ -553,9 +552,6 @@ geometry::GeometryId MultibodyPlant<T>::RegisterCollisionGeometry(
       body, X_BG, shape, GetScopedName(*this, body.model_instance(), name));
 
   scene_graph_->AssignRole(*source_id_, id, std::move(properties));
-  DRAKE_ASSERT(static_cast<int>(collision_geometries_.size()) == num_bodies());
-  collision_geometries_[body.index()].push_back(id);
-  ++num_collision_geometries_;
   return id;
 }
 
@@ -572,9 +568,15 @@ geometry::GeometryId MultibodyPlant<T>::RegisterCollisionGeometry(
 
 template <typename T>
 const std::vector<geometry::GeometryId>&
-MultibodyPlant<T>::GetCollisionGeometriesForBody(const Body<T>& body) const {
-  DRAKE_ASSERT(body.index() < num_bodies());
-  return collision_geometries_[body.index()];
+MultibodyPlant<T>::GetCollisionGeometriesForBody(
+    const systems::Context<T>& context, const Body<T>& body) const {
+  std::optional<geometry::FrameId> frame_id =
+      GetBodyFrameIdIfExists(body.index());
+  if (!frame_id.has_value()) return {};
+
+  const geometry::SceneGraphInspector<T>& inspector =
+      EvalGeometryQueryInput(context).inspector();
+  return inspector.GetGeometries(frame_id.value(), geometry::Role::kProximity);
 }
 
 template <typename T>
@@ -739,7 +741,6 @@ void MultibodyPlant<T>::Finalize() {
   internal::MultibodyTreeSystem<T>::Finalize();
   if (geometry_source_is_registered()) {
     ApplyDefaultCollisionFilters();
-    ExcludeCollisionsWithVisualGeometry();
   }
   FinalizePlantOnly();
 }
@@ -939,25 +940,6 @@ void MultibodyPlant<T>::ApplyDefaultCollisionFilters() {
     scene_graph_->collision_filter_manager().Apply(
         CollisionFilterDeclaration().ExcludeWithin(geometries));
   }
-}
-
-template <typename T>
-void MultibodyPlant<T>::ExcludeCollisionsWithVisualGeometry() {
-  DRAKE_DEMAND(geometry_source_is_registered());
-  geometry::GeometrySet visual;
-  for (const auto& body_geometries : visual_geometries_) {
-    visual.Add(body_geometries);
-  }
-  geometry::GeometrySet collision;
-  for (const auto& body_geometries : collision_geometries_) {
-    collision.Add(body_geometries);
-  }
-  // clang-format off
-  scene_graph_->collision_filter_manager().Apply(
-      CollisionFilterDeclaration()
-          .ExcludeWithin(visual)
-          .ExcludeBetween(visual, collision));
-  // clang-format on
 }
 
 template <typename T>

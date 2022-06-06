@@ -793,8 +793,6 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
     geometry_id_to_body_index_ = other.geometry_id_to_body_index_;
     visual_geometries_ = other.visual_geometries_;
     num_visual_geometries_ = other.num_visual_geometries_;
-    collision_geometries_ = other.collision_geometries_;
-    num_collision_geometries_ = other.num_collision_geometries_;
     X_WB_default_list_ = other.X_WB_default_list_;
     contact_model_ = other.contact_model_;
     contact_surface_representation_ =
@@ -879,11 +877,8 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
     // std::vector of geometry ids for that body. The emplace_back() below
     // resizes visual_geometries_ to store the geometry ids for the body we
     // just added.
-    // Similarly for the collision_geometries_ vector.
     DRAKE_DEMAND(visual_geometries_.size() == body.index());
     visual_geometries_.emplace_back();
-    DRAKE_DEMAND(collision_geometries_.size() == body.index());
-    collision_geometries_.emplace_back();
     DRAKE_DEMAND(X_WB_default_list_.size() == body.index());
     X_WB_default_list_.emplace_back();
     RegisterRigidBodyWithSceneGraph(body);
@@ -1346,6 +1341,16 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
   /// @see RegisterCollisionGeometry(), Finalize()
   const std::vector<geometry::GeometryId>& GetCollisionGeometriesForBody(
       const Body<T>& body) const;
+
+  /// Returns an array of GeometryId's identifying the different contact
+  /// geometries for `body` previously registered with a SceneGraph as defined
+  /// in the given `context`.
+  /// @note This method can be called at any time during the lifetime of `this`
+  /// plant, either pre- or post-finalize, see Finalize().
+  /// Post-finalize calls will always return the same value.
+  /// @see RegisterCollisionGeometry(), Finalize()
+  const std::vector<geometry::GeometryId>& GetCollisionGeometriesForBody(
+      const systems::Context<T>& context, const Body<T>& body) const;
 
   /// Excludes the collision geometries between two given collision filter
   /// groups.
@@ -4111,14 +4116,6 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
     return num_visual_geometries_;
   }
 
-  /// Returns the number of geometries registered for contact modeling.
-  /// This method can be called at any time during the lifetime of `this` plant,
-  /// either pre- or post-finalize, see Finalize().
-  /// Post-finalize calls will always return the same value.
-  int num_collision_geometries() const {
-    return num_collision_geometries_;
-  }
-
   /// Returns the unique id identifying `this` plant as a source for a
   /// SceneGraph.
   /// Returns `nullopt` if `this` plant did not register any geometry.
@@ -4257,11 +4254,6 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
   // corresponds to the largest penalty parameter (smaller violation errors)
   // that still guarantees stability.
   void SetUpJointLimitsParameters();
-
-  // This is a *temporary* method to eliminate visual geometries from collision
-  // while we wait for geometry roles to be introduced.
-  // TODO(SeanCurtis-TRI): Remove this when geometry roles are introduced.
-  void ExcludeCollisionsWithVisualGeometry();
 
   // Helper method to declare state, cache entries, and ports after Finalize().
   void DeclareStateCacheAndPorts();
@@ -4900,14 +4892,6 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
 
   // The total number of GeometryId values within visual_geometries_.
   int num_visual_geometries_{0};
-
-  // Per-body arrays of collision geometries indexed by BodyIndex.
-  // That is, collision_geometries_[body_index] corresponds to the array of
-  // collision geometries for body with index body_index.
-  std::vector<std::vector<geometry::GeometryId>> collision_geometries_;
-
-  // The total number of GeometryId values within collision_geometries_.
-  int num_collision_geometries_{0};
 
   // The model used by the plant to compute contact forces. Keep this in sync
   // with the default value in multibody_plant_config.h; there are already
