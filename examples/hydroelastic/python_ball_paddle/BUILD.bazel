@@ -22,4 +22,13 @@ filegroup(
     ],
 )
 
+drake_py_binary(
+    name = "swap_stuff",
+    srcs = ["swap_stuff.py"],
+    data = [":ball_paddle_files"],
+    deps = [
+        "//bindings/pydrake",
+    ],
+)
+
 add_lint_tests()
