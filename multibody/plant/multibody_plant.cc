@@ -575,16 +575,21 @@ void MultibodyPlant<T>::SwapCollisionGeometries(const Body<T>& body,
                                                 GeometryId old_id,
                                                 GeometryId new_id) {
   DRAKE_ASSERT(body.index() < num_bodies());
+  if (geometry_id_to_body_index_.erase(old_id) == 0) {
+    throw std::logic_error(fmt::format(
+        "Can't swap geometry ids for body '{}', geometry is {} is not"
+        " a collision geometry for the body",
+        body.name(), old_id));
+  }
+  DRAKE_DEMAND(geometry_id_to_body_index_.count(new_id) == 0);
+  geometry_id_to_body_index_[new_id] = body.index();
   for (GeometryId& id : collision_geometries_[body.index()]) {
     if (id == old_id) {
       id = new_id;
-      return;
+      break;
     }
   }
-  throw std::logic_error(
-      fmt::format("Can't swap geometry ids for body '{}', geometry is {} is not"
-                  " a collision geometry for the body",
-                  body.name(), old_id));
+  return;
 }
 
 template <typename T>
