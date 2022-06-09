@@ -4,6 +4,7 @@
 
 #include "drake/bindings/pydrake/common/cpp_template_pybind.h"
 #include "drake/bindings/pydrake/common/default_scalars_pybind.h"
+#include "drake/bindings/pydrake/common/deprecation_pybind.h"
 #include "drake/bindings/pydrake/common/eigen_geometry_pybind.h"
 #include "drake/bindings/pydrake/common/eigen_pybind.h"
 #include "drake/bindings/pydrake/common/serialize_pybind.h"
@@ -1202,13 +1203,19 @@ PYBIND11_MODULE(plant, m) {
   {
     using Class = ContactResultsToLcmSystem<T>;
     constexpr auto& cls_doc = doc.ContactResultsToLcmSystem;
-    py::class_<Class, systems::LeafSystem<T>>(
-        m, "ContactResultsToLcmSystem", cls_doc.doc)
-        .def(py::init<const MultibodyPlant<T>&>(), py::arg("plant"),
-            cls_doc.ctor.doc)
-        .def("get_contact_result_input_port",
-            &Class::get_contact_result_input_port, py_rvp::reference_internal,
-            cls_doc.get_contact_result_input_port.doc)
+    py::class_<Class, systems::LeafSystem<T>> cls(
+        m, "ContactResultsToLcmSystem", cls_doc.doc);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+    cls.def(py_init_deprecated<Class, const MultibodyPlant<T>&>(
+                cls_doc.ctor.doc_deprecated),
+        py::arg("plant"), cls_doc.ctor.doc_deprecated);
+#pragma GCC diagnostic pop
+    cls.def("get_contact_result_input_port",
+           &Class::get_contact_result_input_port, py_rvp::reference_internal,
+           cls_doc.get_contact_result_input_port.doc)
+        .def("get_query_object_input_port", &Class::get_query_object_input_port,
+            py_rvp::reference_internal, cls_doc.get_query_object_input_port.doc)
         .def("get_lcm_message_output_port", &Class::get_lcm_message_output_port,
             py_rvp::reference_internal,
             cls_doc.get_lcm_message_output_port.doc);
@@ -1234,7 +1241,8 @@ PYBIND11_MODULE(plant, m) {
       py::keep_alive<3, 1>(),
       // Keep alive, transitive: `lcm` keeps `builder` alive.
       py::keep_alive<4, 1>(),
-      doc.ConnectContactResultsToDrakeVisualizer.doc_5args);
+      doc.ConnectContactResultsToDrakeVisualizer
+          .doc_5args_builder_plant_scene_graph_lcm_publish_period);
 
   {
     using Class = PropellerInfo;

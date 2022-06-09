@@ -10,6 +10,7 @@
 
 #include "drake/common/default_scalars.h"
 #include "drake/common/drake_copyable.h"
+#include "drake/common/drake_deprecated.h"
 #include "drake/geometry/geometry_ids.h"
 #include "drake/geometry/scene_graph.h"
 #include "drake/lcmt_contact_results_for_viz.hpp"
@@ -48,6 +49,13 @@ struct FullBodyName {
   int geometry_count;
 };
 
+/* A table of per-GeometryId FullBodyName entries and the GeometryVersion the
+ table is associated with. */
+struct GeometryNameTable {
+  geometry::GeometryVersion version;
+  std::unordered_map<geometry::GeometryId, FullBodyName> names;
+};
+
 /* Facilitate unit testing. See ContactResultsToLcmSystem::Equals(). */
 bool operator==(const FullBodyName& n1, const FullBodyName& n2);
 
@@ -66,10 +74,12 @@ bool operator==(const FullBodyName& n1, const FullBodyName& n2);
 
  <h3>Constructing instances</h3>
 
- Generally, you shouldn't construct %ContactResultsToLcmSystem instances
- directly. We recommend using one of the overloaded
+ %ContactResultsToLcmSystem is meaningless unless included in a diagram with
+ appropriate MultibodyPlant and SceneGraph instances which provide the full
+ contact data. As such, the only mechanism for instantiating an instance of
+ *this* system is via using one of the overloaded
  @ref contact_result_vis_creation "ConnectContactResultsToDrakeVisualizer()"
- functions to add contact visualization to your diagram.
+ functions to add contact visualization to a diagram.
 
  <h3>How contacts are described in visualization</h3>
 
@@ -93,10 +103,21 @@ bool operator==(const FullBodyName& n1, const FullBodyName& n2);
  to be instantiated as double valued. If a diagram with a different scalar
  type is required, it should subsequently be scalar converted.
 
+ <h3>Scalar support</h3>
+
+ As noted before, instances of this system can only be created via a call to
+ @ref contact_result_vis_creation "ConnectContactResultsToDrakeVisualizer()".
+ Those functions only produce `double`-valued instances. A diagram containing
+ %ContactResultsToLcmSystem can be scalar converted to both AutoDiffXd and
+ symbolic::Expression. The output port of the AutoDiffXd-valued instance can
+ be successfully evaluated. Attempting to do so for the
+ symbolic::Expression-valued instance will throw.
+
  @system
  name: ContactResultsToLcmSystem
  input_ports:
  - u0
+ - query_object
  output_ports:
  - y0
  @endsystem
@@ -114,76 +135,100 @@ class ContactResultsToLcmSystem final : public systems::LeafSystem<T> {
    @pre The `plant` parameter (or a fully equivalent plant) connects to `this`
         system's input port.
    @pre The `plant` parameter is finalized. */
+  DRAKE_DEPRECATED("2022-10-01",
+                   "Please use ConnectContactResultsToDrakeVisualizer().")
   explicit ContactResultsToLcmSystem(const MultibodyPlant<T>& plant);
 
   /** Scalar-converting copy constructor. */
   template <typename U>
   explicit ContactResultsToLcmSystem(const ContactResultsToLcmSystem<U>& other)
-      : ContactResultsToLcmSystem<T>(true) {
-    geometry_id_to_body_name_map_ = other.geometry_id_to_body_name_map_;
-    body_names_ = other.body_names_;
-  }
+      : ContactResultsToLcmSystem<T>() {}
 
   const systems::InputPort<T>& get_contact_result_input_port() const;
+  const systems::InputPort<T>& get_query_object_input_port() const;
   const systems::OutputPort<T>& get_lcm_message_output_port() const;
 
  private:
+  /* We don't want people arbitrarily constructing this instance; they should
+   use the ConnectContactResultsToDrakeVisualizer() functions instead. */
+  ContactResultsToLcmSystem();
+
   friend class ContactResultsToLcmTester;
-  // The connection function gets friend access so it can call the "name lookup
-  // functor" constructor.
-  friend systems::lcm::LcmPublisherSystem* ConnectWithNameLookup(
-      systems::DiagramBuilder<double>*, const MultibodyPlant<double>&,
-      const systems::OutputPort<double>&, const geometry::SceneGraph<double>&,
-      lcm::DrakeLcmInterface*, std::optional<double>);
 
-  // Allow different specializations to access each other's private data for
-  // scalar conversion.
-  template <typename U> friend class ContactResultsToLcmSystem;
-
-  // Special constructor that handles configuring ports. Used by both public
-  // constructor and scalar-converting copy constructor.
-  explicit ContactResultsToLcmSystem(bool);
-
-  // Constructs the system using a "name lookup functor" (mapping geometry ids
-  // to geometry names).
-  ContactResultsToLcmSystem(
-      const MultibodyPlant<T>& plant,
-      const std::function<std::string(geometry::GeometryId)>&
-          geometry_name_lookup);
+  // The connection function gets friend access so it can call the default
+  // constructor.
+  friend systems::lcm::LcmPublisherSystem*
+  ConnectContactResultsToDrakeVisualizer(systems::DiagramBuilder<double>*,
+                                         const systems::OutputPort<double>&,
+                                         const systems::OutputPort<double>&,
+                                         lcm::DrakeLcmInterface*,
+                                         const std::optional<double>);
 
   void CalcLcmContactOutput(const systems::Context<T>& context,
                             lcmt_contact_results_for_viz* output) const;
 
-  // Reports if the other system is equivalent to this one. This can be used to
-  // make sure the scalar copy converter has been updated. Every instance member
-  // should be included in this function.
-  template <typename U = T>
-  bool Equals(const ContactResultsToLcmSystem<U>& other) const {
-    return this->get_name() == other.get_name() &&
-           contact_result_input_port_index_ ==
-               other.contact_result_input_port_index_ &&
-           message_output_port_index_ == other.message_output_port_index_ &&
-           geometry_id_to_body_name_map_ ==
-               other.geometry_id_to_body_name_map_ &&
-           body_names_ == other.body_names_;
-  }
+  // Computes the full geometry name table based on the current geometry
+  // configuration as defined in the given `context`.
+  void CalcHydroGeometryNames(const systems::Context<T>& context,
+                              internal::GeometryNameTable* name_table) const;
+
+  const std::unordered_map<geometry::GeometryId, internal::FullBodyName>&
+  EvalHydroGeometryNames(const systems::Context<T>& context) const;
+
+  // Caches the names of each MultibodyPlant body. The vector encodes an
+  // implicit mapping between body i and its name; the ith entry in vector is
+  // the name of body i.
+  void CalcPointBodyNames(const systems::Context<T>& context,
+                          std::vector<std::string>* body_names) const;
+
+  const std::vector<std::string>& EvalPointBodyNames(
+      const systems::Context<T>& context) const;
 
   // Named indices for the i/o ports.
   systems::InputPortIndex contact_result_input_port_index_;
+  systems::InputPortIndex query_object_input_port_index_;
   systems::OutputPortIndex message_output_port_index_;
 
+  /* ContactResultsToLcmSystem stores a "model" of the set of proximity
+   geometries appropriate for the current configuration of MultibodyPlant and
+   SceneGraph. Currently, MultibodyPlant's configuration cannot change after
+   finalization but SceneGraph does allow for modification of the geometries
+   associated with a body. We need to detect changes to SceneGraph's proximity
+   version and update the model accordingly.
+
+   Ideally, there would be an input port that is GeometryVersion valued.
+   SceneGraph would provide it. Every time GeometryVersion changes, we'd get
+   a signal. The cache entry would simply depend on that input signal. So, when
+   the version changes, we'd automatically recompute the table.
+
+   We don't currently have that. (And won't for the forseeable future.) So,
+   we're going to simulate the effect. And as along as we're doing that, we can
+   tailor it a bit more tightly. GeometryVersion can change in perception,
+   illustration, or proximity ways. We only care about proximity.
+
+   We create a cache entry that contains the table of data per geometry and
+   the version from which the table was created. When we process a contact
+   result, we need to assess whether or not the version of SceneGraph's data
+   has changed. Connected to a QueryObject, we can easily query the current
+   version. If it's different from our current value (retrieved by evaluating
+   the cache entry), we mark the entry as dirty and then re-evaluate it.
+
+   This approach is parallelizaable, because the table is always associated in
+   the context with the SceneGraph version. It's parallelizable. */
+
   // TODO(SeanCurtis-TRI): There is some incoherence in how body names are
-  //  stored based on contact type (point vs hydro).
-  //  geometry_id_to_body_name_map_ is exclusively used by hydro, and
-  //  body_names_ is exclusively used for point contact. They should be
+  //  stored based on contact type (point vs hydro). Hydro uses a cache entry
+  //  mapping geometry id to FullBodyName (with associated version/mutex
+  //  overhead). Point makes exclusive use of body_names_. They should be
   //  reconciled.
 
-  // A mapping from geometry IDs to per-body name data.
-  std::unordered_map<geometry::GeometryId, internal::FullBodyName>
-      geometry_id_to_body_name_map_;
+  /* The index of the cache entry that stores the name data for fully qualified
+   body/geometry names used by hydroelastic contact results. */
+  systems::CacheIndex hydro_name_data_cache_index_{};
 
-  // A mapping from body index values to body names.
-  std::vector<std::string> body_names_;
+  /* The index of the cache entry that stores the names of all MultibodyPlant
+   body names used by point contact results. */
+  systems::CacheIndex point_body_name_cache_index_{};
 };
 
 /** @name Visualizing contact results
@@ -201,24 +246,34 @@ class ContactResultsToLcmSystem final : public systems::LeafSystem<T> {
  - adds systems multibody::ContactResultsToLcmSystem and LcmPublisherSystem to
    the Diagram and connects the draw message output to the publisher input,
  - connects a ContactResults<double>-valued output port to the
+   ContactResultsToLcmSystem system,
+ - connects a QueryObject<double>-valued output port to the
    ContactResultsToLcmSystem system, and
  - sets the publishing rate based on publish_period.
 
  The two overloads differ in the following way:
 
-  - One overload takes an OutputPort and one doesn't. This determines what is
-    connected to the ContactResultsToLcmSystem input port. The overload that
-    specifies an OutputPort will attempt to connect that port. The one that
-    doesn't will connect the given plant's contact results output port.
+  - One overload takes a pair of OutputPort instances and one does not. This
+    determines what is connected to the ContactResultsToLcmSystem input ports.
+    The overload that specifies two OutputPort instances will attempt to connect
+    those ports. The one that doesn't will connect the given plant's contact
+    results output port and scene_graph's query object output port to the
+    corresponding input ports on the ContactResultsToLcmSystem system.
 
  The parameters have the following semantics:
 
  @param builder                The diagram builder being used to construct the
                                Diagram. Systems will be added to this builder.
- @param plant                  The System in `builder` containing the plant
-                               whose contact results are to be visualized.
- @param scene_graph            The SceneGraph that will determine how the
-                               geometry names will appear in the lcm message.
+ @param plant                  (System overload) The System in `builder`
+                               containing the plant whose contact results are to
+                               be visualized.
+ @param scene_graph            (System overload) The SceneGraph that will
+                               determine how the geometry names will appear in
+                               the lcm message.
+ @param contact_results_port   The optional port that will be connected to the
+                               ContactResultsToLcmSystem (as documented above).
+ @param contact_results_port   The optional port that will be connected to the
+                               ContactResultsToLcmSystem (as documented above).
  @param publish_period         An optional period to pass along to the
                                LcmPublisherSystem constructor; when null, a
                                reasonable default period will be used.
@@ -227,19 +282,17 @@ class ContactResultsToLcmSystem final : public systems::LeafSystem<T> {
                                internally if none is supplied. If one is given,
                                it must remain alive at least as long as the
                                diagram built from `builder`.
- @param contact_results_port   The optional port that will be connected to the
-                               ContactResultsToLcmSystem (as documented above).
 
  @returns (for all overloads) the LcmPublisherSystem (in case callers, e.g.,
           need to change the default publishing rate).
 
  @pre `plant` is contained within the supplied `builder`.
  @pre `scene_graph` is contained with the supplied `builder`.
- @pre `contact_results_port` (if given) belongs to a system that is an immediate
-      child of `builder`. */
+ @pre `contact_results_port` and `query_object_port` (if given) belong to
+      systems that are immediate children of `builder`. */
 //@{
 
-/** MultibodyPlant-connecting overload.
+/** System-connecting overload.
  @ingroup visualization */
 systems::lcm::LcmPublisherSystem* ConnectContactResultsToDrakeVisualizer(
     systems::DiagramBuilder<double>* builder,
@@ -252,9 +305,8 @@ systems::lcm::LcmPublisherSystem* ConnectContactResultsToDrakeVisualizer(
  @ingroup visualization */
 systems::lcm::LcmPublisherSystem* ConnectContactResultsToDrakeVisualizer(
     systems::DiagramBuilder<double>* builder,
-    const MultibodyPlant<double>& plant,
-    const geometry::SceneGraph<double>& scene_graph,
     const systems::OutputPort<double>& contact_results_port,
+    const systems::OutputPort<double>& query_object_port,
     lcm::DrakeLcmInterface* lcm = nullptr,
     std::optional<double> publish_period = std::nullopt);
 

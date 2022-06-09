@@ -79,6 +79,7 @@ from pydrake.common.cpp_param import List
 from pydrake.common import FindResourceOrThrow
 from pydrake.common.deprecation import install_numpy_warning_filters
 from pydrake.common.test_utilities import numpy_compare
+from pydrake.common.test_utilities.deprecation import catch_drake_warnings
 from pydrake.common.test_utilities.pickle_compare import assert_pickle
 from pydrake.common.value import AbstractValue, Value
 from pydrake.geometry import (
@@ -2046,23 +2047,41 @@ class TestPlant(unittest.TestCase):
                     plant.get_contact_surface_representation(), rep)
 
     def test_contact_results_to_lcm(self):
+        # TODO(2022-10-01) When completing the deprecations on
+        # ContactResultsToLcmSystem, we'll simply eliminate this test because
+        # we want to direct all usages to the Connect....() API.
+
+        # During the deprecation period, the test changed from using a fixed
+        # value ContactResult on the context to a full diagram with plant and
+        # scene graph. The new ContactResultsToLcm requires
+        # ContactResults.plant() to be defined; the default constructor cannot
+        # do that. None of this *really* matters as the constructor under test
+        # is going away.
+
         # ContactResultsToLcmSystem
         file_name = FindResourceOrThrow(
             "drake/multibody/benchmarks/acrobot/acrobot.sdf")
-        plant = MultibodyPlant_[float](0.0)
+        builder = DiagramBuilder_[float]()
+        plant, scene_graph = AddMultibodyPlantSceneGraph(builder, 0.0)
 
         Parser(plant).AddModelFromFile(file_name)
         plant.Finalize()
-        plant.set_penetration_allowance(penetration_allowance=0.0001)
-        plant.set_stiction_tolerance(v_stiction=0.001)
-        self.assertIsInstance(
-            plant.get_contact_penalty_method_time_scale(), float)
-        contact_results_to_lcm = ContactResultsToLcmSystem(plant=plant)
-        context = contact_results_to_lcm.CreateDefaultContext()
-        contact_results_to_lcm.get_input_port(0).FixValue(
-            context, ContactResults_[float]())
+        with catch_drake_warnings(expected_count = 1) as w:
+            contact_results_to_lcm = ContactResultsToLcmSystem(plant=plant)
+            self.assertIn("Please use ConnectContactResultsToDrakeVisualizer",
+                          str(w[0].message))
+        builder.AddSystem(contact_results_to_lcm)
+        builder.Connect(
+            plant.get_contact_results_output_port(),
+            contact_results_to_lcm.get_contact_result_input_port())
+        builder.Connect(scene_graph.get_query_output_port(),
+                        contact_results_to_lcm.get_query_object_input_port())
+        diagram = builder.Build()
+        diagram_context = diagram.CreateDefaultContext()
+        results_context = diagram.GetSubsystemContext(contact_results_to_lcm,
+                                                      diagram_context)
         output = contact_results_to_lcm.AllocateOutput()
-        contact_results_to_lcm.CalcOutput(context, output)
+        contact_results_to_lcm.CalcOutput(results_context, output)
         result = output.get_data(0)
         self.assertIsInstance(result, AbstractValue)
 
