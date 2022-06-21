@@ -384,6 +384,10 @@ MultibodyPlant<T>::MultibodyPlant(
   // Add the world body to the graph.
   multibody_graph_.AddBody(world_body().name(), world_body().model_instance());
   DeclareSceneGraphPorts();
+  plant_port_ = this->DeclareAbstractOutputPort(
+                        "multibody_plant", &MultibodyPlant<T>::CalcPlantPointer,
+                        {this->nothing_ticket()})
+                    .get_index();
 }
 
 template <typename T>
@@ -426,6 +430,10 @@ MultibodyPlant<T>::MultibodyPlant(const MultibodyPlant<U>& other)
   }
 
   DeclareSceneGraphPorts();
+  plant_port_ = this->DeclareAbstractOutputPort(
+                        "multibody_plant", &MultibodyPlant<T>::CalcPlantPointer,
+                        {this->nothing_ticket()})
+                    .get_index();
 
   // Do accounting for MultibodyGraph
   for (BodyIndex index(0); index < num_bodies(); ++index) {
@@ -3525,6 +3533,12 @@ void MultibodyPlant<T>::CalcFramePoseOutput(
 }
 
 template <typename T>
+void MultibodyPlant<T>::CalcPlantPointer(
+    const Context<T>&, const MultibodyPlant<T>** plant_pointer) const {
+  *plant_pointer = this;
+}
+
+template <typename T>
 void MultibodyPlant<T>::CalcReactionForces(
     const systems::Context<T>& context,
     std::vector<SpatialForce<T>>* F_CJc_Jc_array) const {
@@ -3651,6 +3665,12 @@ template <typename T>
 const OutputPort<T>& MultibodyPlant<T>::get_geometry_poses_output_port()
 const {
   return systems::System<T>::get_output_port(geometry_pose_port_);
+}
+
+template <typename T>
+const OutputPort<T>& MultibodyPlant<T>::get_multibody_plant_output_port()
+    const {
+  return systems::System<T>::get_output_port(plant_port_);
 }
 
 template <typename T>

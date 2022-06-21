@@ -140,6 +140,7 @@ output_ports:
 - '<em style="color:gray">
   model_instance_name[i]</em>_generalized_contact_forces'
 - <span style="color:green">geometry_pose</span>
+- multibody_plant
 @endsystem
 
 The ports whose names begin with <em style="color:gray">
@@ -719,6 +720,12 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
   /// Returns the output port of frames' poses to communicate with a
   /// SceneGraph.
   const systems::OutputPort<T>& get_geometry_poses_output_port() const;
+
+  /// Returns the output port which provides a pointer to `this` plant.
+  /// Downstream systems can use it to perform static queries on plant
+  /// configuration. The pointer returned by evaluating the port is guaranteed
+  /// to not be null.
+  const systems::OutputPort<T>& get_multibody_plant_output_port() const;
   /// @} <!-- Input and output ports -->
 
   /// @anchor mbp_construction
@@ -4544,6 +4551,9 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
   void CalcFramePoseOutput(const systems::Context<T>& context,
                            geometry::FramePoseVector<T>* poses) const;
 
+  void CalcPlantPointer(const systems::Context<T>& context,
+                        const MultibodyPlant<T>** plant_pointer) const;
+
   void CopyContactResultsOutput(
       const systems::Context<T>& context,
       ContactResults<T>* contact_results) const;
@@ -4919,6 +4929,9 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
   // velocities and thus no generalized forces.
   std::vector<systems::OutputPortIndex>
       instance_generalized_contact_forces_output_ports_;
+
+  // An output port providing a pointer to *this* plant.
+  systems::OutputPortIndex plant_port_;
 
   // A graph representing the body/joint topology of the multibody plant (Not
   // to be confused with the spanning-tree model we will build for analysis.)
