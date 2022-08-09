@@ -1,9 +1,102 @@
 ---
 title: Troubleshooting common problems
+layout: page_with_toc
 ---
+
+<!-- TODO(SeanCurtis-TRI): The table of contents, by configuration in
+ _config.yml, only includes levels 1 & 2. This document would benefit from
+ including level 3. The key topics are all marked with ### (equivalent to <h3>).
+ Seeing these topics in the TOC would aid in top-down exploration.
+
+ Initial investigation suggests this simply isn't possible:
+ https://stackoverflow.com/questions/20890654/customize-automatically-generated-toc-on-jekyll-kramdown-site
+  It would require setting the global configuration to level 3 and then actively
+ excluding entries that are currently omitted with the 1,2 configuration. -->
+{% include toc.md %}
+<article class="markdown-body" markdown="1">
 
 This page contains a collection of tips and tricks for resolving common
 problems.
+
+# System Framework
+
+## Exception messages
+
+### Context-System mismatch {#framework-context-system-mismatch}
+
+The error message will include one of the following:
+
+  - `The Context passed to the FooSystem '::_::foo_system' belongs to the root diagram.`
+  - `The Context passed to the root diagram belongs to another system; it was created for the system '::_::foo_system'`
+  - `The Context passed to the BarSystem '::_::bar_system' belongs to another system; it was created for the system '::_::foo_system'`
+
+<!-- TODO(SeanCurtis-TRI): This overview of Systems and Contexts would be
+ better in a doxygen module and just referenced here. Ping Russ to see if his
+ textbook covers this material and if we can/should steal it. -->
+
+<h4>Contexts and Systems: An Overview</h4>
+
+For every `System` ([C++][c_System], [Python][p_System]) there is a
+corresponding `Context` ([C++][c_Context], [Python][p_Context]). The `System`
+and `Context` work together like a struct and collection functions do in classic
+C. The `Context` holds the data values and the `System` defines the operations
+on that data.
+
+For example, a `MultibodyPlant` ([C++][c_MultibodyPlant],
+[Python][p_MultibodyPlant]) is such a system. We can use an instance of a
+`MultibodyPlant` to create one or more `Context`s. Each `Context` contains the
+continuous and discrete state values for the plant's model. These `Context`s
+can be configured to represent the model in different configurations. However,
+if we want to evaluate some mechanical property (e.g., composite inertia of a
+robotic arm), we invoke a method on the plant, passing one of the contexts.
+
+We can combine multiple `System`s into a `Diagram` ([C++][c_Diagram],
+[Python][p_Diagram]). The `System`s within a `Diagram` will typically have their
+ports connected -- this is how the `System`s work together.
+
+`Context`s similarly form a parallel hierarchical structure. The `Context`
+associated with a `Diagram` is the combination of all of the `Context`s
+associated with the `System`s inside that `Diagram`. The port connections
+between `System`s in the `Diagram` are mirrored in the `Diagram`'s `Context`.
+
+<h4>Why did I get this error and how do I get rid of it?</h4>
+
+Many `System` APIs require a `Context`. It is important to pass the *right*
+`Context` into the API. What's the difference between a "right" and "wrong"
+`Context`?
+
+  - The right `Context` was allocated by the `System` being evaluated.
+  - If the `System` is part of a `Diagram`, then the `Context` provided should
+    come from the `Diagram`s `Context` (see below for how to do this).
+
+The most common error is to pass the `Diagram`'s `Context` into the constituent
+`System`'s API. We'll illustrate this using a `Diagram` with a `MultibodyPlant`.
+The solution is to use either `GetMyContextFromRoot()`
+([C++][c_GetMyContextFromRoot], [Python][p_GetMyContextFromRoot]) or
+`GetMyMutableContextFromRoot()` ([C++][c_GetMyMutableContextFromRoot], [Python]
+[p_GetMyMutableContextFromRoot]) as appropriate to extract a particular
+`System`'s `Context` from its `Diagram`'s `Context`.
+
+```py
+  builder = DiagramBuilder()
+  plant, _ = AddMultibodyPlantSceneGraph(builder=builder, time_step=1e-3)
+  ...  # Populate the plant with interesting stuff.
+  diagram = builder.Build()
+  # Create a Context for diagram.
+  context = diagram.CreateDefaultContext()
+
+  my_body = plant.GetBodyByName("my_body")
+  X_WB = RigidTransform(...)  # Define a pose for the body.
+  # Error! plant has been given diagram's context.
+  plant.SetFreeBodyPose(context=context, body=base, X_WB=X_WB_desired)
+
+  # Get the Context for plant from diagram's context.
+  plant_context = plant.GetMyContextFromRoot(root_context=context)
+  # Successful operation; the provided context belongs to plant.
+  plant.SetFreeBodyPose(context=plant_context, body=base, X_WB=X_WB_desired)
+```
+
+See the notes on [System Compatibility][https://drake.mit.edu/doxygen_cxx/group__system__compatibility.html] for further discussion.
 
 # MultibodyPlant
 
@@ -81,4 +174,8 @@ The connection can be reported as missing for several reasons:
 [c_Diagram]: https://drake.mit.edu/doxygen_cxx/classdrake_1_1systems_1_1_diagram.html
 [p_Diagram]: https://drake.mit.edu/pydrake/pydrake.systems.framework.html#pydrake.systems.framework.Diagram
 [c_GetMyContextFromRoot]: https://drake.mit.edu/doxygen_cxx/classdrake_1_1systems_1_1_system.html#ae7fa91d2b2102457ced3361207724e52
-[p_GetMyContextFromRoot]: https://drake.mit.edu/pydrake/pydrake.systems.framework.html#pydrake.systems.framework.System_.System_[float].GetMyContextFromRoot
+[p_GetMyContextFromRoot]: https://drake.mit.edu/pydrake/pydrake.systems.framework.html#pydrake.systems.framework.System_.System_[float].GetMyMutableContextFromRoot
+[c_GetMyMutableContextFromRoot]: https://drake.mit.edu/doxygen_cxx/classdrake_1_1systems_1_1_system.html#ae7fa91d2b2102457ced3361207724e52
+[p_GetMyMutableContextFromRoot]: https://drake.mit.edu/pydrake/pydrake.systems.framework.html#pydrake.systems.framework.System_.System_[float].GetMyMutableContextFromRoot
+[c_System]: https://drake.mit.edu/doxygen_cxx/classdrake_1_1systems_1_1_system.html
+[p_System]: https://drake.mit.edu/pydrake/pydrake.systems.framework.html#pydrake.systems.framework.System
