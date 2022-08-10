@@ -100,6 +100,17 @@ See the notes on [System Compatibility][https://drake.mit.edu/doxygen_cxx/group_
 
 # MultibodyPlant
 
+## Configuration
+
+### Setting state/poses doesn't change the simulator's initial condition
+
+tl;dr I've called some API for configuring the plant (setting state, posing
+bodies, etc.). But when I run the simulation, none of the configuration appears.
+
+Solution: You've allocated a novel Context and didn't acquire the context from
+the simulator. Acquire the plant's context from the simulator's owned diagram
+context.
+
 ## Exception messages
 
 ### Unconnected QueryObject port {#mbp-unconnected-query-object-port}
