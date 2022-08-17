@@ -792,8 +792,7 @@ TEST_F(DiagramTest, Path) {
 }
 
 // Tests the special cases in ValidateContext() that recognize if the context
-// or system is the root. See the tests in system_base_test.cc for more
-// test cases.
+// or system is the root.
 TEST_F(DiagramTest, ValidateContext) {
   // Root diagram given root context.
   DRAKE_EXPECT_NO_THROW(diagram_->ValidateContext(*context_));
@@ -807,8 +806,8 @@ TEST_F(DiagramTest, ValidateContext) {
   // Root diagram given context for internal system.
   const auto& adder_context = adder0()->GetMyContextFromRoot(*context_);
   DRAKE_EXPECT_THROWS_MESSAGE(diagram_->ValidateContext(adder_context),
-                              ".*root Diagram was passed the Context of some "
-                              "other[^]*troubleshooting.html.+");
+                              ".*root Diagram was passed a subcontext"
+                              "[^]*troubleshooting.html.+");
 
   // And for the sake of completeness, one leaf system's context passed to
   // another leaf system.
@@ -816,7 +815,7 @@ TEST_F(DiagramTest, ValidateContext) {
       integrator0()->GetMyContextFromRoot(*context_);
   DRAKE_EXPECT_THROWS_MESSAGE(
       integrator1()->ValidateContext(integrator0_context),
-      "A function call on .+ system called '.+' was passed the Context of a "
+      "A function call on .+ system named '.+' was passed the Context of a "
       "system named '.+'[^]*troubleshooting.html.+");
 }
 

@@ -288,12 +288,10 @@ TEST_F(SystemTest, ContextBelongsWithSystem) {
 
   // These just uses a couple of arbitrary methods to test that a Context not
   // created by a System throws the appropriate exception.
-  DRAKE_EXPECT_THROWS_MESSAGE(
-      system2.Publish(*context_),
-      ".*was passed the Context of some other system[^]*");
-  DRAKE_EXPECT_THROWS_MESSAGE(
-      system2.SetDefaultContext(context_.get()),
-      ".*was passed the Context of some other system[^]*");
+  DRAKE_EXPECT_THROWS_MESSAGE(system2.Publish(*context_),
+                              "[^]*#framework-context-system-mismatch.*");
+  DRAKE_EXPECT_THROWS_MESSAGE(system2.SetDefaultContext(context_.get()),
+                              "[^]*#framework-context-system-mismatch.*");
 }
 
 TEST_F(SystemTest, MapVelocityToConfigurationDerivatives) {
