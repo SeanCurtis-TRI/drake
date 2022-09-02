@@ -8,16 +8,15 @@
 
 #include "drake/examples/rod2d/rod2d.h"
 #include "drake/examples/rod2d/rod2d_geometry.h"
-#include "drake/geometry/drake_visualizer.h"
 #include "drake/systems/analysis/implicit_euler_integrator.h"
 #include "drake/systems/analysis/runge_kutta3_integrator.h"
 #include "drake/systems/analysis/simulator.h"
 #include "drake/systems/framework/diagram.h"
 #include "drake/systems/framework/diagram_builder.h"
+#include "drake/visualization/visualization_config_functions.h"
 
 using Rod2D = drake::examples::rod2d::Rod2D<double>;
 using drake::examples::rod2d::Rod2dGeometry;
-using drake::geometry::DrakeVisualizerd;
 using drake::geometry::SceneGraph;
 using drake::systems::Context;
 using drake::systems::DiagramBuilder;
@@ -56,9 +55,11 @@ int main(int argc, char* argv[]) {
   }
 
   auto& scene_graph = *builder.AddSystem<SceneGraph<double>>();
+  scene_graph.set_name("scene_graph");
   Rod2dGeometry::AddToBuilder(FLAGS_rod_radius, rod->get_rod_half_length() * 2,
                               &builder, rod->state_output(), &scene_graph);
-  DrakeVisualizerd::AddToBuilder(&builder, scene_graph);
+  drake::visualization::ApplyVisualizationConfig({.publish_contacts = false},
+                                                 &builder);
 
   // Set the names of the systems.
   rod->set_name("rod");

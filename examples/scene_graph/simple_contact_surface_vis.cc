@@ -13,7 +13,6 @@
 #include <gflags/gflags.h>
 
 #include "drake/common/value.h"
-#include "drake/geometry/drake_visualizer.h"
 #include "drake/geometry/geometry_frame.h"
 #include "drake/geometry/geometry_ids.h"
 #include "drake/geometry/geometry_instance.h"
@@ -33,6 +32,7 @@
 #include "drake/systems/framework/diagram_builder.h"
 #include "drake/systems/framework/leaf_system.h"
 #include "drake/systems/lcm/lcm_publisher_system.h"
+#include "drake/visualization/visualization_config_functions.h"
 
 namespace drake {
 namespace examples {
@@ -46,7 +46,6 @@ using geometry::AddCompliantHydroelasticProperties;
 using geometry::Box;
 using geometry::ContactSurface;
 using geometry::Cylinder;
-using geometry::DrakeVisualizerd;
 using geometry::FrameId;
 using geometry::FramePoseVector;
 using geometry::GeometryFrame;
@@ -365,6 +364,7 @@ int do_main() {
   DiagramBuilder<double> builder;
 
   auto& scene_graph = *builder.AddSystem<SceneGraph<double>>();
+  scene_graph.set_name("scene_graph");
 
   // Add the bouncing ball.
   auto& moving_ball = *builder.AddSystem<MovingBall>(&scene_graph);
@@ -426,7 +426,8 @@ int do_main() {
   DrakeLcm lcm;
 
   // Visualize geometry.
-  DrakeVisualizerd::AddToBuilder(&builder, scene_graph, &lcm);
+  visualization::ApplyVisualizationConfig({.publish_contacts = false}, &builder,
+                                          nullptr, nullptr, nullptr, &lcm);
 
   // Visualize contacts.
   auto& contact_to_lcm =

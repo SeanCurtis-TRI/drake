@@ -1,11 +1,10 @@
 #include <gflags/gflags.h>
 
 #include "drake/examples/scene_graph/solar_system.h"
-#include "drake/geometry/drake_visualizer.h"
 #include "drake/geometry/scene_graph.h"
-#include "drake/lcm/drake_lcm.h"
 #include "drake/systems/analysis/simulator.h"
 #include "drake/systems/framework/diagram_builder.h"
+#include "drake/visualization/visualization_config_functions.h"
 
 DEFINE_double(simulation_time, 13.0,
               "Desired duration of the simulation in seconds.");
@@ -17,7 +16,6 @@ namespace {
 
 using geometry::SceneGraph;
 using geometry::SourceId;
-using lcm::DrakeLcm;
 
 int do_main() {
   systems::DiagramBuilder<double> builder;
@@ -31,7 +29,7 @@ int do_main() {
   builder.Connect(solar_system->get_geometry_pose_output_port(),
                   scene_graph->get_source_pose_port(solar_system->source_id()));
 
-  geometry::DrakeVisualizerd::AddToBuilder(&builder, *scene_graph);
+  visualization::ApplyVisualizationConfig({.publish_contacts = false}, &builder);
 
   auto diagram = builder.Build();
 

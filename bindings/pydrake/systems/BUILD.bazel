@@ -387,6 +387,7 @@ drake_jupyter_py_binary(
         "//bindings/pydrake:geometry_py",
         "//bindings/pydrake/multibody:parsing_py",
         "//bindings/pydrake/multibody:plant_py",
+        "//bindings/pydrake/visualization",
     ],
 )
 

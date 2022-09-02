@@ -45,7 +45,6 @@ drake_cc_binary(
     test_rule_tags = vtk_test_tags(),
     deps = [
         "//common:filesystem",
-        "//geometry:drake_visualizer",
         "//geometry:scene_graph",
         "//geometry/render_gltf_client:factory",
         "//geometry/render_vtk",
@@ -58,6 +57,7 @@ drake_cc_binary(
         "//systems/sensors:image_to_lcm_image_array_t",
         "//systems/sensors:image_writer",
         "//systems/sensors:rgbd_sensor",
+        "//visualization:visualization_config_functions",
         "@gflags",
     ],
 )

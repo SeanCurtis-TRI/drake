@@ -107,7 +107,6 @@ drake_cc_binary(
         ":iiwa_lcm",
         ":kuka_torque_controller",
         "//common:add_text_logging_gflags",
-        "//geometry:drake_visualizer",
         "//lcm",
         "//multibody/parsing",
         "//multibody/plant",
@@ -117,6 +116,7 @@ drake_cc_binary(
         "//systems/primitives:constant_vector_source",
         "//systems/primitives:demultiplexer",
         "//systems/primitives:discrete_derivative",
+        "//visualization:visualization_config_functions",
     ],
 )
 

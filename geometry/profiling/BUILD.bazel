@@ -24,13 +24,13 @@ drake_cc_binary(
     ],
     deps = [
         "//common",
-        "//geometry:drake_visualizer",
         "//geometry:scene_graph",
         "//lcmtypes:contact_results_for_viz",
         "//systems/analysis:explicit_euler_integrator",
         "//systems/analysis:simulator",
         "//systems/framework:diagram",
         "//systems/lcm:lcm_pubsub_system",
+        "//visualization:visualization_config_functions",
         "@gflags",
     ],
 )

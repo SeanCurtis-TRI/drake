@@ -6,10 +6,10 @@
 #include "drake/examples/acrobot/acrobot_plant.h"
 #include "drake/examples/acrobot/gen/acrobot_state.h"
 #include "drake/examples/acrobot/spong_controller.h"
-#include "drake/geometry/drake_visualizer.h"
 #include "drake/math/wrap_to.h"
 #include "drake/systems/analysis/simulator.h"
 #include "drake/systems/framework/diagram_builder.h"
+#include "drake/visualization/visualization_config_functions.h"
 
 namespace drake {
 namespace examples {
@@ -33,7 +33,8 @@ int do_main() {
   auto scene_graph = builder.AddSystem<geometry::SceneGraph>();
   AcrobotGeometry::AddToBuilder(
       &builder, acrobot->get_output_port(0), scene_graph);
-  geometry::DrakeVisualizerd::AddToBuilder(&builder, *scene_graph);
+  visualization::ApplyVisualizationConfig({.publish_contacts = false}, &builder,
+                                          nullptr, nullptr, scene_graph);
 
   auto controller = builder.AddSystem<AcrobotSpongController>();
   builder.Connect(acrobot->get_output_port(0), controller->get_input_port(0));

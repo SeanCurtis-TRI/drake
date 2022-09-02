@@ -4,9 +4,9 @@
 
 #include "drake/examples/rimless_wheel/rimless_wheel.h"
 #include "drake/examples/rimless_wheel/rimless_wheel_geometry.h"
-#include "drake/geometry/drake_visualizer.h"
 #include "drake/systems/analysis/simulator.h"
 #include "drake/systems/framework/diagram_builder.h"
+#include "drake/visualization/visualization_config_functions.h"
 
 namespace drake {
 namespace examples {
@@ -32,10 +32,11 @@ int DoMain() {
   rimless_wheel->set_name("rimless_wheel");
 
   auto scene_graph = builder.AddSystem<geometry::SceneGraph>();
+  scene_graph->set_name("scene_graph");
   RimlessWheelGeometry::AddToBuilder(
       &builder, rimless_wheel->get_floating_base_state_output_port(),
       scene_graph);
-  geometry::DrakeVisualizerd::AddToBuilder(&builder, *scene_graph);
+  visualization::ApplyVisualizationConfig({.publish_contacts = false}, &builder);
   auto diagram = builder.Build();
 
   systems::Simulator<double> simulator(*diagram);

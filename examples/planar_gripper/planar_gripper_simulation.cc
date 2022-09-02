@@ -56,10 +56,8 @@
 #include "drake/common/trajectories/piecewise_polynomial.h"
 #include "drake/examples/planar_gripper/planar_gripper_common.h"
 #include "drake/examples/planar_gripper/planar_gripper_lcm.h"
-#include "drake/geometry/drake_visualizer.h"
 #include "drake/geometry/scene_graph.h"
 #include "drake/multibody/parsing/parser.h"
-#include "drake/multibody/plant/contact_results_to_lcm.h"
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/multibody/tree/prismatic_joint.h"
 #include "drake/multibody/tree/revolute_joint.h"
@@ -69,6 +67,7 @@
 #include "drake/systems/lcm/lcm_interface_system.h"
 #include "drake/systems/lcm/lcm_publisher_system.h"
 #include "drake/systems/lcm/lcm_subscriber_system.h"
+#include "drake/visualization/visualization_config_functions.h"
 
 namespace drake {
 namespace examples {
@@ -76,7 +75,6 @@ namespace planar_gripper {
 namespace {
 
 using geometry::SceneGraph;
-using multibody::ConnectContactResultsToDrakeVisualizer;
 using multibody::JointActuatorIndex;
 using multibody::ModelInstanceIndex;
 using multibody::MultibodyPlant;
@@ -337,12 +335,9 @@ int DoMain() {
                     plant.get_actuation_input_port());
   }
 
-  geometry::DrakeVisualizerd::AddToBuilder(&builder, scene_graph, lcm);
-
-  // Publish contact results for visualization.
-  if (FLAGS_visualize_contacts) {
-    ConnectContactResultsToDrakeVisualizer(&builder, plant, scene_graph, lcm);
-  }
+  visualization::ApplyVisualizationConfig(
+      {.publish_contacts = FLAGS_visualize_contacts}, &builder, nullptr,
+      nullptr, nullptr, lcm);
 
   // Publish planar gripper status via LCM.
   auto status_pub = builder.AddSystem(

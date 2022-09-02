@@ -5,18 +5,16 @@
 
 #include "drake/common/drake_assert.h"
 #include "drake/examples/multibody/rolling_sphere/populate_ball_plant.h"
-#include "drake/geometry/drake_visualizer.h"
 #include "drake/geometry/geometry_instance.h"
 #include "drake/geometry/proximity_properties.h"
 #include "drake/geometry/scene_graph.h"
-#include "drake/lcm/drake_lcm.h"
 #include "drake/math/random_rotation.h"
 #include "drake/multibody/math/spatial_algebra.h"
-#include "drake/multibody/plant/contact_results_to_lcm.h"
 #include "drake/systems/analysis/simulator.h"
 #include "drake/systems/analysis/simulator_gflags.h"
 #include "drake/systems/analysis/simulator_print_stats.h"
 #include "drake/systems/framework/diagram_builder.h"
+#include "drake/visualization/visualization_config_functions.h"
 
 // Integration parameters.
 DEFINE_double(simulation_time, 2.0,
@@ -96,7 +94,6 @@ using Eigen::Vector3d;
 using Eigen::Vector4d;
 using drake::geometry::SceneGraph;
 using drake::geometry::SourceId;
-using drake::lcm::DrakeLcm;
 using drake::math::RigidTransformd;
 using drake::multibody::AddMultibodyPlantSceneGraph;
 using drake::multibody::ContactModel;
@@ -172,14 +169,13 @@ int do_main() {
   DRAKE_DEMAND(plant.num_positions() == 7);
 
   if (FLAGS_visualize) {
-    geometry::DrakeVisualizerParams params;
-    if (FLAGS_vis_hydro) {
-      params.role = geometry::Role::kProximity;
-      params.show_hydroelastic = true;
-    }
-    geometry::DrakeVisualizerd::AddToBuilder(&builder, scene_graph, nullptr,
-                                             params);
-    ConnectContactResultsToDrakeVisualizer(&builder, plant, scene_graph);
+    // TODO(SeanCurtis-TRI): With guidance about using meldis, this need not be
+    // an either/or choice. However, this depends on meldis visualizing
+    // hydroelastic geometry.
+    const visualization::VisualizationConfig config{
+        .publish_illustration = !FLAGS_vis_hydro,
+        .publish_proximity = FLAGS_vis_hydro};
+    visualization::ApplyVisualizationConfig(config, &builder);
   }
   auto diagram = builder.Build();
 

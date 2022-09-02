@@ -61,10 +61,10 @@ drake_cc_binary(
     deps = [
         ":pendulum_geometry",
         ":pendulum_plant",
-        "//geometry:drake_visualizer",
         "//systems/analysis:simulator",
         "//systems/framework:diagram",
         "//systems/primitives:constant_vector_source",
+        "//visualization:visualization_config_functions",
         "@gflags",
     ],
 )
@@ -78,10 +78,10 @@ drake_cc_binary(
     deps = [
         ":pendulum_geometry",
         ":pendulum_plant",
-        "//geometry:drake_visualizer",
         "//systems/analysis:simulator",
         "//systems/framework:diagram",
         "//systems/framework:leaf_system",
+        "//visualization:visualization_config_functions",
         "@gflags",
     ],
 )
@@ -96,11 +96,11 @@ drake_cc_binary(
         ":pendulum_geometry",
         ":pendulum_plant",
         "//common:is_approx_equal_abstol",
-        "//geometry:drake_visualizer",
         "//systems/analysis:simulator",
         "//systems/controllers:linear_quadratic_regulator",
         "//systems/framework:diagram",
         "//systems/framework:leaf_system",
+        "//visualization:visualization_config_functions",
         "@gflags",
     ],
 )
@@ -117,13 +117,13 @@ drake_cc_binary(
         ":pendulum_geometry",
         ":pendulum_plant",
         "//common:is_approx_equal_abstol",
-        "//geometry:drake_visualizer",
         "//solvers:solve",
         "//systems/analysis:simulator",
         "//systems/controllers:pid_controlled_system",
         "//systems/framework:diagram",
         "//systems/primitives:trajectory_source",
         "//systems/trajectory_optimization:direct_collocation",
+        "//visualization:visualization_config_functions",
         "@gflags",
     ],
 )

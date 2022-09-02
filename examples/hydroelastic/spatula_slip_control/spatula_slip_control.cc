@@ -3,9 +3,7 @@
 #include "drake/common/drake_copyable.h"
 #include "drake/common/eigen_types.h"
 #include "drake/common/find_resource.h"
-#include "drake/geometry/drake_visualizer.h"
 #include "drake/multibody/parsing/parser.h"
-#include "drake/multibody/plant/contact_results_to_lcm.h"
 #include "drake/multibody/plant/multibody_plant_config_functions.h"
 #include "drake/multibody/tree/prismatic_joint.h"
 #include "drake/systems/analysis/simulator.h"
@@ -15,6 +13,7 @@
 #include "drake/systems/framework/leaf_system.h"
 #include "drake/systems/primitives/adder.h"
 #include "drake/systems/primitives/constant_vector_source.h"
+#include "drake/visualization/visualization_config_functions.h"
 
 // Parameters for squeezing the spatula.
 DEFINE_double(gripper_force, 1,
@@ -25,7 +24,7 @@ DEFINE_double(amplitude, 5,
 DEFINE_double(duty_cycle, 0.5, "Duty cycle of the control signal.");
 DEFINE_double(period, 3, "Period of the control signal. [s].");
 
-// DrakeVisualizer Settings.
+// Visualization settings.
 DEFINE_bool(visualize_collision, false,
             "Visualize collision instead of visual geometries.");
 
@@ -186,14 +185,10 @@ int DoMain() {
 
   // Create a visualizer for the system and ensure contact results are
   // visualized.
-  geometry::DrakeVisualizerParams params;
-  params.role = FLAGS_visualize_collision ? geometry::Role::kProximity
-                                          : geometry::Role::kIllustration;
-  geometry::DrakeVisualizerd::AddToBuilder(&builder, scene_graph,
-                                           /* lcm */ nullptr, params);
-  multibody::ConnectContactResultsToDrakeVisualizer(&builder, plant,
-                                                    scene_graph,
-                                                    /* lcm */ nullptr);
+  const visualization::VisualizationConfig config{
+      .publish_illustration = !FLAGS_visualize_collision,
+      .publish_proximity = FLAGS_visualize_collision};
+  visualization::ApplyVisualizationConfig(config, &builder);
 
   // Construct a simulator.
   std::unique_ptr<systems::Diagram<double>> diagram = builder.Build();

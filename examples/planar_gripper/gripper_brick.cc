@@ -2,10 +2,10 @@
 
 #include "drake/common/find_resource.h"
 #include "drake/examples/planar_gripper/planar_gripper_common.h"
-#include "drake/geometry/drake_visualizer.h"
 #include "drake/multibody/parsing/parser.h"
 #include "drake/systems/analysis/simulator.h"
 #include "drake/systems/framework/diagram_builder.h"
+#include "drake/visualization/visualization_config_functions.h"
 
 namespace drake {
 namespace examples {
@@ -25,19 +25,6 @@ std::string to_string(Finger finger) {
     default:
       throw std::runtime_error("Finger not valid.");
   }
-}
-
-template <typename T>
-void AddDrakeVisualizer(systems::DiagramBuilder<T>*,
-                        const geometry::SceneGraph<T>&) {
-  // Disabling visualization for non-double scalar type T.
-}
-
-template <>
-void AddDrakeVisualizer<double>(
-    systems::DiagramBuilder<double>* builder,
-    const geometry::SceneGraph<double>& scene_graph) {
-  geometry::DrakeVisualizerd::AddToBuilder(builder, scene_graph);
 }
 
 template <typename T>
@@ -70,7 +57,9 @@ std::unique_ptr<systems::Diagram<T>> ConstructDiagram(
 
   (*plant)->Finalize();
 
-  AddDrakeVisualizer<T>(&builder, **scene_graph);
+  if constexpr (std::is_same_v<T, double>) {
+    visualization::AddDefaultVisualization(&builder);
+  }
   return builder.Build();
 }
 

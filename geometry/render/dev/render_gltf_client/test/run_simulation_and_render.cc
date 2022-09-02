@@ -312,7 +312,8 @@ int do_main() {
       "mustard_bottle");
 
   DrakeLcm lcm;
-  DrakeVisualizerd::AddToBuilder(&builder, *scene_graph, &lcm);
+  visualization::ApplyVisualizationConfig({.publish_contacts = false}, &builder,
+                                          nullptr, nullptr, nullptr, &lcm);
   if (FLAGS_render_on) {
     // Create the camera and pose it to face the objects.
     const ColorRenderCamera color_camera{

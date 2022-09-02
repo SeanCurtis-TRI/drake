@@ -4,7 +4,6 @@
 #include <gflags/gflags.h>
 
 #include "drake/examples/scene_graph/bouncing_ball_plant.h"
-#include "drake/geometry/drake_visualizer.h"
 #include "drake/geometry/geometry_instance.h"
 #include "drake/geometry/render_vtk/factory.h"
 #include "drake/geometry/scene_graph.h"
@@ -19,6 +18,7 @@
 #include "drake/systems/sensors/image_to_lcm_image_array_t.h"
 #include "drake/systems/sensors/pixel_types.h"
 #include "drake/systems/sensors/rgbd_sensor.h"
+#include "drake/visualization/visualization_config_functions.h"
 
 DEFINE_double(simulation_time, 10.0,
               "Desired duration of the simulation in seconds.");
@@ -36,7 +36,6 @@ namespace {
 
 using Eigen::Vector3d;
 using Eigen::Vector4d;
-using geometry::DrakeVisualizerd;
 using geometry::GeometryInstance;
 using geometry::SceneGraph;
 using geometry::GeometryId;
@@ -103,7 +102,8 @@ int do_main() {
                   bouncing_ball2->get_geometry_query_input_port());
 
   DrakeLcm lcm;
-  DrakeVisualizerd::AddToBuilder(&builder, *scene_graph, &lcm);
+  visualization::ApplyVisualizationConfig({.publish_contacts = false}, &builder,
+                                          nullptr, nullptr, nullptr, &lcm);
 
   if (FLAGS_render_on) {
     PerceptionProperties properties;

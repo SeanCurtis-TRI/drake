@@ -94,10 +94,10 @@ drake_cc_binary(
         ":quadrotor_plant",
         "//common:find_resource",
         "//common:is_approx_equal_abstol",
-        "//geometry:drake_visualizer",
         "//lcm",
         "//systems/analysis:simulator",
         "//systems/framework:diagram",
+        "//visualization:visualization_config_functions",
         "@gflags",
     ],
 )

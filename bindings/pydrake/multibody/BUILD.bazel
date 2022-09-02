@@ -255,6 +255,7 @@ drake_jupyter_py_binary(
         "//bindings/pydrake/systems:analysis_py",
         "//bindings/pydrake/systems:framework_py",
         "//bindings/pydrake/systems:rendering_py",
+        "//bindings/pydrake/visualization",
     ],
 )
 

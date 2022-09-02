@@ -72,11 +72,11 @@ drake_cc_library(
     deps = [
         "//common:find_resource",
         "//examples/planar_gripper:planar_gripper_common",
-        "//geometry:drake_visualizer",
         "//multibody/parsing",
         "//multibody/plant",
         "//systems/analysis:simulator",
         "//systems/framework:diagram",
+        "//visualization:visualization_config_functions",
     ],
 )
 
@@ -117,13 +117,13 @@ drake_cc_binary(
         ":planar_gripper_common",
         ":planar_gripper_lcm",
         "//common:find_resource",
-        "//geometry:drake_visualizer",
         "//multibody/parsing",
         "//multibody/plant",
-        "//multibody/plant:contact_results_to_lcm",
         "//systems/analysis:simulator",
         "//systems/controllers:inverse_dynamics_controller",
         "//systems/framework:diagram",
+        "//systems/lcm:lcm_pubsub_system",
+        "//visualization:visualization_config_functions",
         "@gflags",
     ],
 )

@@ -8,7 +8,6 @@
 #include "drake/examples/acrobot/acrobot_geometry.h"
 #include "drake/examples/acrobot/acrobot_plant.h"
 #include "drake/examples/acrobot/gen/acrobot_state.h"
-#include "drake/geometry/drake_visualizer.h"
 #include "drake/systems/analysis/simulator.h"
 #include "drake/systems/estimators/kalman_filter.h"
 #include "drake/systems/framework/diagram.h"
@@ -16,6 +15,7 @@
 #include "drake/systems/primitives/linear_system.h"
 #include "drake/systems/primitives/vector_log_sink.h"
 #include "drake/systems/sensors/rotary_encoders.h"
+#include "drake/visualization/visualization_config_functions.h"
 
 namespace drake {
 namespace examples {
@@ -42,11 +42,12 @@ int do_main() {
   // Get a pointer to the actual plant subsystem (will be used below).
   auto acrobot = acrobot_w_encoder->acrobot_plant();
 
-  // Attach a DrakeVisualizer so we can animate the robot.
+  // Add visualization so we can animate the robot.
   auto scene_graph = builder.AddSystem<geometry::SceneGraph>();
   AcrobotGeometry::AddToBuilder(
       &builder, acrobot_w_encoder->get_output_port(1), scene_graph);
-  geometry::DrakeVisualizerd::AddToBuilder(&builder, *scene_graph);
+  visualization::ApplyVisualizationConfig({.publish_contacts = false}, &builder,
+                                          nullptr, nullptr, scene_graph);
 
   // Make a Kalman filter observer.
   auto observer_acrobot = std::make_unique<AcrobotWEncoder<double>>();

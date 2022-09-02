@@ -11,7 +11,6 @@
 #include "drake/common/is_approx_equal_abstol.h"
 #include "drake/examples/acrobot/acrobot_geometry.h"
 #include "drake/examples/acrobot/acrobot_plant.h"
-#include "drake/geometry/drake_visualizer.h"
 #include "drake/solvers/snopt_solver.h"
 #include "drake/systems/analysis/simulator.h"
 #include "drake/systems/controllers/finite_horizon_linear_quadratic_regulator.h"
@@ -19,6 +18,7 @@
 #include "drake/systems/framework/diagram_builder.h"
 #include "drake/systems/primitives/trajectory_source.h"
 #include "drake/systems/trajectory_optimization/direct_collocation.h"
+#include "drake/visualization/visualization_config_functions.h"
 
 using drake::solvers::SolutionResult;
 
@@ -105,7 +105,8 @@ int do_main() {
   auto scene_graph = builder.AddSystem<geometry::SceneGraph>();
   AcrobotGeometry::AddToBuilder(&builder, plant->get_output_port(0),
                                 scene_graph);
-  geometry::DrakeVisualizerd::AddToBuilder(&builder, *scene_graph);
+  visualization::ApplyVisualizationConfig({.publish_contacts = false}, &builder,
+                                          nullptr, nullptr, scene_graph);
 
   auto diagram = builder.Build();
 

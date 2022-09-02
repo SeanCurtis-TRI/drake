@@ -4,12 +4,12 @@
 #include "drake/common/is_approx_equal_abstol.h"
 #include "drake/examples/pendulum/pendulum_geometry.h"
 #include "drake/examples/pendulum/pendulum_plant.h"
-#include "drake/geometry/drake_visualizer.h"
 #include "drake/systems/analysis/simulator.h"
 #include "drake/systems/controllers/linear_quadratic_regulator.h"
 #include "drake/systems/framework/diagram.h"
 #include "drake/systems/framework/diagram_builder.h"
 #include "drake/systems/framework/leaf_system.h"
+#include "drake/visualization/visualization_config_functions.h"
 
 namespace drake {
 namespace examples {
@@ -51,9 +51,11 @@ int DoMain() {
   builder.Connect(controller->get_output_port(), pendulum->get_input_port());
 
   auto scene_graph = builder.AddSystem<geometry::SceneGraph>();
-  PendulumGeometry::AddToBuilder(
-      &builder, pendulum->get_state_output_port(), scene_graph);
-  geometry::DrakeVisualizerd::AddToBuilder(&builder, *scene_graph);
+  scene_graph->set_name("scene_graph");
+  PendulumGeometry::AddToBuilder(&builder, pendulum->get_state_output_port(),
+                                 scene_graph);
+  visualization::ApplyVisualizationConfig({.publish_contacts = false},
+                                          &builder);
   auto diagram = builder.Build();
 
   systems::Simulator<double> simulator(*diagram);

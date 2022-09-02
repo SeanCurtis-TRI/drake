@@ -17,7 +17,6 @@
 #include "drake/examples/acrobot/acrobot_geometry.h"
 #include "drake/examples/acrobot/acrobot_lcm.h"
 #include "drake/examples/acrobot/acrobot_plant.h"
-#include "drake/geometry/drake_visualizer.h"
 #include "drake/lcmt_acrobot_u.hpp"
 #include "drake/lcmt_acrobot_x.hpp"
 #include "drake/systems/analysis/simulator.h"
@@ -26,6 +25,7 @@
 #include "drake/systems/lcm/lcm_interface_system.h"
 #include "drake/systems/lcm/lcm_publisher_system.h"
 #include "drake/systems/lcm/lcm_subscriber_system.h"
+#include "drake/visualization/visualization_config_functions.h"
 
 DEFINE_double(simulation_sec, std::numeric_limits<double>::infinity(),
               "Number of seconds to simulate.");
@@ -53,7 +53,8 @@ int DoMain() {
   auto scene_graph = builder.AddSystem<geometry::SceneGraph>();
   AcrobotGeometry::AddToBuilder(
       &builder, acrobot->get_output_port(0), scene_graph);
-  geometry::DrakeVisualizerd::AddToBuilder(&builder, *scene_graph, lcm);
+  visualization::ApplyVisualizationConfig({.publish_contacts = false}, &builder,
+                                          nullptr, nullptr, scene_graph, lcm);
 
   // Creates command receiver and subscriber.
   auto command_sub = builder.AddSystem(

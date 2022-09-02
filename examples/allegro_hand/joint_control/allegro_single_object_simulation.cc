@@ -13,13 +13,10 @@
 #include "drake/common/find_resource.h"
 #include "drake/examples/allegro_hand/allegro_common.h"
 #include "drake/examples/allegro_hand/allegro_lcm.h"
-#include "drake/geometry/drake_visualizer.h"
 #include "drake/lcmt_allegro_command.hpp"
 #include "drake/lcmt_allegro_status.hpp"
 #include "drake/math/rotation_matrix.h"
 #include "drake/multibody/parsing/parser.h"
-#include "drake/multibody/plant/contact_results.h"
-#include "drake/multibody/plant/contact_results_to_lcm.h"
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/multibody/tree/uniform_gravity_field_element.h"
 #include "drake/multibody/tree/weld_joint.h"
@@ -32,6 +29,7 @@
 #include "drake/systems/lcm/lcm_publisher_system.h"
 #include "drake/systems/lcm/lcm_subscriber_system.h"
 #include "drake/systems/primitives/matrix_gain.h"
+#include "drake/visualization/visualization_config_functions.h"
 
 namespace drake {
 namespace examples {
@@ -182,10 +180,10 @@ void DoMain() {
   // Finished building the plant
   plant.Finalize();
 
-  // Visualization
-  geometry::DrakeVisualizerd::AddToBuilder(&builder, scene_graph);
-  multibody::ConnectContactResultsToDrakeVisualizer(
-      &builder, plant, scene_graph, lcm);
+  // Visualization - in order to provide a specific lcm interface (`lcm`) we
+  // can't use AddDefaultVisualization().
+  visualization::ApplyVisualizationConfig({}, &builder, nullptr, &plant,
+                                          &scene_graph, lcm);
 
   // Estimate rotational inertia for an average finger of mass 0.17/3 kg (0.17
   // is the mass of one finger) and length 5 cm. We estimate it using the

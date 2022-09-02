@@ -11,11 +11,11 @@
 #include "drake/common/is_approx_equal_abstol.h"
 #include "drake/examples/quadrotor/quadrotor_geometry.h"
 #include "drake/examples/quadrotor/quadrotor_plant.h"
-#include "drake/geometry/drake_visualizer.h"
 #include "drake/lcm/drake_lcm.h"
 #include "drake/systems/analysis/simulator.h"
 #include "drake/systems/framework/diagram.h"
 #include "drake/systems/framework/diagram_builder.h"
+#include "drake/visualization/visualization_config_functions.h"
 
 DEFINE_int32(simulation_trials, 10, "Number of trials to simulate.");
 DEFINE_double(simulation_real_time_rate, 1.0, "Real time rate");
@@ -51,9 +51,11 @@ int do_main() {
 
   // Set up visualization
   auto scene_graph = builder.AddSystem<geometry::SceneGraph>();
-  QuadrotorGeometry::AddToBuilder(
-      &builder, quadrotor->get_output_port(0), scene_graph);
-  geometry::DrakeVisualizerd::AddToBuilder(&builder, *scene_graph);
+  scene_graph->set_name("scene_graph");
+  QuadrotorGeometry::AddToBuilder(&builder, quadrotor->get_output_port(0),
+                                  scene_graph);
+  visualization::ApplyVisualizationConfig({.publish_contacts = false},
+                                          &builder);
 
   auto diagram = builder.Build();
   Simulator<double> simulator(*diagram);
