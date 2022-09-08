@@ -2,13 +2,17 @@
 
 load("@drake//tools/skylark:drake_py.bzl", "py_test_isolated")
 
-# From https://bazel.build/versions/master/docs/be/c-cpp.html#cc_library.srcs
+# From https://docs.bazel.build/versions/{version_number}/be/c-cpp.html#cc_library.srcs  # noqa
+# Where version_number is the current version (as defined in install_prereqs.sh
+# (e.g., 5.1.0). This comment is not guaranteed to be kept in sync with the
+# current bazel version.
 _SOURCE_EXTENSIONS = [source_ext for source_ext in """
 .c
 .cc
 .cpp
 .cxx
-.c++.C
+.c++
+.C
 .h
 .hh
 .hpp
@@ -16,6 +20,8 @@ _SOURCE_EXTENSIONS = [source_ext for source_ext in """
 .inc
 """.split("\n") if len(source_ext)]
 
+# If an extension appears in both _SOURCE_EXTENSIONS and _IGNORE_EXTENSIONS,
+# ignore wins.
 _IGNORE_EXTENSIONS = []
 
 # The cpplint.py command-line argument so it doesn't skip our files!
@@ -116,12 +122,12 @@ def cpplint(
     directory are used.  Additional configs can be passed in as data labels.
 
     Sources that are not discoverable through the "sources so far" heuristic
-    can be passed in as extra_srcs=[].
+    can be passed in as extra_srcs=[]. These sources are assumed to be valid
+    source files.
 
     The existing_rules may supply the native.existing_result().values(), in
     case it has already been computed.  When not supplied, the value will be
     internally (re-)computed.
-
     """
     if existing_rules == None:
         existing_rules = native.existing_rules().values()
