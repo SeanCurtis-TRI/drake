@@ -1,5 +1,8 @@
 #include "drake/geometry/render_vtk/internal_render_engine_vtk.h"
 
+#include <chrono>
+#include <thread>
+
 #include <cstring>
 #include <limits>
 #include <optional>
@@ -60,7 +63,7 @@ const double kClipFar = 100.0;
 const double kZNear = 0.5;
 const double kZFar = 5.;
 const double kFovY = M_PI_4;
-const bool kShowWindow = false;
+const bool kShowWindow = true;
 
 // The following tolerance is used due to a precision difference between Ubuntu
 // Linux and Mac OSX.
@@ -212,6 +215,9 @@ class RenderEngineVtkTest : public ::testing::Test {
     EXPECT_NO_THROW(renderer->RenderDepthImage(depth_camera, depth));
     EXPECT_NO_THROW(renderer->RenderLabelImage(color_camera, label));
     EXPECT_NO_THROW(renderer->RenderColorImage(color_camera, color));
+    if (kShowWindow) {
+      std::this_thread::sleep_for(std::chrono::seconds(5));
+    }
   }
 
   // Confirms that all pixels in the member color image have the same value.
