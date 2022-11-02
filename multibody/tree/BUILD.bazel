@@ -265,6 +265,14 @@ drake_cc_library(
 )
 
 drake_cc_googletest(
+    name = "body_node_test",
+    deps = [
+        ":multibody_tree_core",
+        "//common/test_utilities:expect_throws_message",
+    ],
+)
+
+drake_cc_googletest(
     name = "free_rotating_body_test",
     srcs = [
         "test/free_rotating_body_test.cc",
