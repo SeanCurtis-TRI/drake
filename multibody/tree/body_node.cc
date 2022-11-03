@@ -17,7 +17,7 @@ void BodyNode<T>::CalcArticulatedBodyHingeInertiaMatrixFactorization(
   //  - body_node_test.cc: test the precision of the throwing condition based on
   //    the given hinge matrix, D_B. I.e., is this "correct"?
   //  - multibody_plant_forward_dynamics_test.cc: test integration with the
-  //    larger multibody ecosystem (see the HingeInertiaMatrixText fixture) to
+  //    larger multibody ecosystem (see the HingeInertiaMatrixTest fixture) to
   //    see confirm that bad models/configurations get caught in this net. In
   //    other words, does this test serve its intended purpose?
 

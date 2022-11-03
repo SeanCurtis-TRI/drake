@@ -8,7 +8,9 @@
 #include "drake/common/test_utilities/limit_malloc.h"
 #include "drake/multibody/plant/multibody_plant.h"
 #include "drake/multibody/plant/test/kuka_iiwa_model_tests.h"
+#include "drake/multibody/tree/planar_joint.h"
 #include "drake/multibody/tree/prismatic_joint.h"
+#include "drake/multibody/tree/revolute_joint.h"
 #include "drake/systems/framework/context.h"
 #include "drake/systems/primitives/linear_system.h"
 
@@ -312,48 +314,69 @@ const RigidBody<double>& AddCubicalLink(
   return plant->AddRigidBody(body_name, M_BBo_B);
 }
 
-/* Adds a revolute joint between the `inboard` and `outboard` bodies in the
- given `plant`. */
-void AddRevolute(MultibodyPlant<double>* plant,
-                 const RigidBody<double>& inboard,
-                 const RigidBody<double>& outboard) {
-  plant->AddJoint<RevoluteJoint>(
-      fmt::format("revoluteZ_{}_{}", inboard.name(), outboard.name()), inboard,
-      std::nullopt, outboard, std::nullopt, Vector3<double>::UnitZ());
+/* Adds a joint between the `inboard` and `outboard` bodies in the given
+ `plant`. The joint type must be one of: "Revolute", "Prismatic", or "Planar".
+ */
+void AddJoint(const std::string& joint_type, const RigidBody<double>& inboard,
+              const RigidBody<double>& outboard,
+              MultibodyPlant<double>* plant) {
+  // TODO: We're doing forward *dynamics*; gravity points in the -Wz direction.
+  // If I introduce a revoluteZ joint; then gravity doesn't really play a role.
+  // For example, for a fixed mass and configuration, changing revolution from
+  // being around the Z axis to the X axis will lead to a change in behavior.
+  // Are we properly accounting for that -- my documentation isn't currently.
+  if (joint_type == "Revolute") {
+    plant->AddJoint<RevoluteJoint>(
+        fmt::format("revoluteZ_{}_{}", inboard.name(), outboard.name()),
+        inboard, std::nullopt, outboard, std::nullopt,
+        Vector3<double>::UnitZ());
+  } else if (joint_type == "Prismatic") {
+    plant->AddJoint<PrismaticJoint>(
+        fmt::format("prismaticX_{}_{}", inboard.name(), outboard.name()),
+        inboard, std::nullopt, outboard, std::nullopt,
+        Vector3<double>::UnitX());
+  } else if (joint_type == "Planar") {
+    plant->AddJoint<PlanarJoint>(
+        fmt::format("planar_{}_{}", inboard.name(), outboard.name()), inboard,
+        std::nullopt, outboard, std::nullopt, Vector3<double>::Zero());
+  } else {
+    DRAKE_UNREACHABLE();
+  }
 }
 
-/* Adds a revolute joint between the `inboard` and `outboard` bodies in the
- given `plant`. */
-void AddPrismatic(MultibodyPlant<double>* plant,
-                 const RigidBody<double>& inboard,
-                 const RigidBody<double>& outboard) {
-  plant->AddJoint<PrismaticJoint>(
-      fmt::format("prismaticX_{}_{}", inboard.name(), outboard.name()),
-      inboard, std::nullopt, outboard, std::nullopt, Vector3<double>::UnitX());
+/* Configuration of a single hinge matrix test instance on a *distal* body. */
+struct HingeMatrixConfig {
+  std::string description;  // Must be a valid test name: CamelCase.
+  std::vector<double> masses;
+  bool expect_throw{};
+  // Must be one of the strings supported by AddJoint() (see above).
+  std::string joint_type;
+};
+
+/* Defines the test name suffix for a particular test parameter. */
+std::ostream& operator<<(std::ostream& out, const HingeMatrixConfig& c) {
+  out << c.joint_type << c.description;
+  return out;
 }
 
-/* The TestHingInertiaMatrix tests test the logic in multibody/tree/body_node.cc
- (BodyNode::CalcArticulatedBodyHingeInertiaMatrixFactorization()). Because that
- logic is designed to give feedback during forward dynamics, we're testing that
- logic by exercising forward dynamics. Specifically, we need forward dynamics
- that uses the Articulated Body Algorithm.
+/* Concerns about this test:
+  1. We're joining bodies at their centers of mass. What affect does that have
+     on revolute joints.
+  2. How do we worry about joint dofs and gravity?
+ */
 
- We're going to probe the domain in which we expect an exception to be thrown.
- There can be variability in where the boundary lies based on platform so the
- values incorporated into the tests are meant to be conservative.
+/* Test fixture for confirming the efficacy of detecting bad mass properties.
+ Tests for this fixture serve two purposes:
 
- Some of the properties we're going to confirm:
-
-   - We get separate messages accounting for the rotational and translational
-     degrees of freedom of the inboard stream of an offending body.
-       - We'll always test that the correctly classified message is thrown.
-       - We'll confirm the *full* language of the error message is as expected
-         *once*.
-   - We'll probe various mass configurations to confirm that the exception
-     is thrown/not thrown as expected.
-     - See the various tests below for articulation on those expectations.
-*/
-class HingeInertiaMatrixTest : public ::testing::Test {
+   1. Confirm that there are bad models/configurations that do get caught by
+      the detection mechanism. Essentially, serve as an existence proof.
+      At the same time we'll try confirm that "slightly corrected" versions of
+      the same bad data doesn't throw.
+   2. Enumerate several surprising cases which produce false negatives (we
+      expected an error, but didn't get one). They can serve as a basis for
+      further analysis. */
+class HingeInertiaMatrixTest
+    : public ::testing::TestWithParam<HingeMatrixConfig> {
  public:
   /* We want the plant's forward dynamics to use the Articulated Body Algorithm;
    initializing it as a *continuous* plant (time_step = 0) guarantees that. */
@@ -363,71 +386,41 @@ class HingeInertiaMatrixTest : public ::testing::Test {
   MultibodyPlant<double> plant_;
 };
 
-/* Configuration of a single hinge matrix test instance on a *distal* body. */
-struct HingeMatrixConfig {
-  std::vector<double> masses;
-  bool expect_throw{};
-  bool translational{};
-  std::string description;  // Must be a valid test name: CamelCase.
-};
+/* Fixture for tests that consider bad mass for *distal* bodies. */
+class DistalHingeMatrixTest : public HingeInertiaMatrixTest {};
 
-/* Defines the test name suffix for a particular test parameter. */
-std::ostream& operator<<(std::ostream& out, const HingeMatrixConfig& c) {
-  out << ( c.translational ? "Translational" : "Rotational");
-  out << c.description;
-  return out;
-}
-
-// TODO: Flatten this into HingInertiaMatrixTest.
-
-/* This fixture provides the ability to parameterize tests on the hinge matrix
- of a kinematic chain. The configuration parameter can specify multiple masses,
- joint type, and whether we expect an evaluation of forward dynamics to throw
- the exception. The exact application of the test configuration is documented
- on each test. */
-class ParamHingeMatrixTest
-    : public HingeInertiaMatrixTest,
-      public testing::WithParamInterface<HingeMatrixConfig> {};
-
-class DistalHingeMatrixTest : public ParamHingeMatrixTest {};
-
-// TODO(mitiguy): Is the "no near-singular value" thing due to it being distal
-// or being 1-dof? We currently have no multi-dof translational joints (the
-// planar joint is translation + rotation).
 /* Tests problems with the mass on *distal* bodies. For a distal body with a
  1-dof joint, we have no "near singular" values. We test a number of masses
  (zero, close to zero, sufficiently non-zero) to confirm the expected behavior.
  The non-zero values are chosen empirically as producing reliable outcomes
  across all supported platforms but otherwise have no meaning. */
 std::vector<HingeMatrixConfig> MakeDistalTests() {
-  return std::vector<HingeMatrixConfig>{
-      // Translational tests.
-      {.masses = {0.0},
-       .expect_throw = true,
-       .translational = true,
-       .description = "ZeroMass"},
-      {.masses = {1e-140},
-       .expect_throw = false,         // Micro values still valid.
-       .translational = true,
-       .description = "MicroMass"},
-      {.masses = {1e-4},
-       .expect_throw = false,         // Evidence of non-zero non-throw.
-       .translational = true,
-       .description = "SmallMass"},
-      // Rotational tests.
-      {.masses = {0.0},
-       .expect_throw = true,
-       .translational = false,
-       .description = "ZeroMass"},
-      {.masses = {1e-140},
-       .expect_throw = false,         // Micro values still valid.
-       .translational = false,
-       .description = "MicroMass"},
-      {.masses = {1e-4},
-       .expect_throw = false,         // Evidence of non-zero non-throw.
-       .translational = false,
-       .description = "SmallMass"}
-  };
+  // TODO(mitiguy): Is the "no near-singular value" thing due to it being distal
+  // or being 1-dof?
+
+  std::vector<HingeMatrixConfig> tests;
+  // We get the same behavior across all joint types.
+  for (const char* joint_type : {"Prismatic", "Revolute", "Planar"}) {
+    tests.push_back({
+        .description = "ZeroMass",
+        .masses = {0.0},
+        .expect_throw = true,
+        .joint_type = joint_type,
+    });
+    tests.push_back({
+        .description = "MicroMass",
+        .masses = {1e-140},
+        .expect_throw = false,  // Micro values still valid.
+        .joint_type = joint_type,
+    });
+    tests.push_back({
+        .description = "SmallMass",
+        .masses = {1e-4},
+        .expect_throw = false,  // Evidence of non-zero non-throw.
+        .joint_type = joint_type,
+    });
+  }
+  return tests;
 }
 
 INSTANTIATE_TEST_SUITE_P(DistalBodies,
@@ -436,40 +429,28 @@ INSTANTIATE_TEST_SUITE_P(DistalBodies,
 
 /* Simply connects a body with configured mass and joint to the world. Attempts
  to evaluate forward dynamics and confirms whether an exception is thrown or
- not according to expectations.
- 
- This is the only test that looks for the full error message spelling. */
+ not according to expectations. */
 TEST_P(DistalHingeMatrixTest, DistalBody) {
   const HingeMatrixConfig& config = GetParam();
 
-  // Set up the plant with body A connected to the world with the indicated
-  // joint.
-  const RigidBody<double>& body_A =
-      AddCubicalLink(&plant_, "bodyA", config.masses[0], 3 /* length */);
-  auto AddJoint = config.translational ? &AddPrismatic : &AddRevolute;
-  AddJoint(&plant_, plant_.world_body(), body_A);
+  // Set up the plant with body A connected to the world with the requested
+  // joint type.
+  const RigidBody<double>& body_A = AddCubicalLink(
+      &plant_, "bodyA", config.masses[0], 3 /* arbitrary length */);
+  AddJoint(config.joint_type, plant_.world_body(), body_A, &plant_);
   plant_.Finalize();
   auto context = plant_.CreateDefaultContext();
 
   if (config.expect_throw) {
-    DRAKE_EXPECT_THROWS_MESSAGE(
-        plant_.EvalForwardDynamics(*context),
-        config.translational
-            ? "An internal mass matrix associated with the joint that connects "
-              "body world to body bodyA is not positive-definite. Since the "
-              "joint allows translation, ensure body bodyA \\(combined with "
-              "other outboard bodies\\) has a reasonable non-zero mass."
-            : "An internal mass matrix associated with the joint that connects "
-              "body world to body bodyA is not positive-definite. Since the "
-              "joint allows rotation, ensure body bodyA \\(combined with other "
-              "outboard bodies\\) has reasonable non-zero moments of inertia "
-              "about the joint rotation axes.");
+    DRAKE_EXPECT_THROWS_MESSAGE(plant_.EvalForwardDynamics(*context),
+                                "An internal mass matrix associated.+");
   } else {
     DRAKE_EXPECT_NO_THROW(plant_.EvalForwardDynamics(*context));
   }
 }
 
-class InboardHingeMatrixTest : public ParamHingeMatrixTest {};
+/* Fixture for tests that consider bad mass for a chain of bodies. */
+class InboardHingeMatrixTest : public HingeInertiaMatrixTest {};
 
 /* Tests problems with the mass on *distal* bodies. For a distal body with a
  1-dof joint, we have no "near singular" values. We test a number of masses
@@ -477,52 +458,56 @@ class InboardHingeMatrixTest : public ParamHingeMatrixTest {};
  The non-zero values are chosen empirically as producing reliable outcomes
  across all supported platforms but otherwise have no meaning. */
 std::vector<HingeMatrixConfig> MakeInboardTests() {
-  return std::vector<HingeMatrixConfig>{
-      // Translational tests.
-      {.masses = {0.0, 1.0},
-       .expect_throw = true,
-       .translational = true,
-       .description = "ZeroUnitB"},
-       // N.B. Masses larger than 1e99 (e.g., 1e100) will case to throw. The
-       // *math* says it should, but the numerics diverge at this point.
-      {.masses = {0, 1e99},
-       .expect_throw = true,
-       .translational = true,
-       .description = "ZeroAMassiveB"},
-      {.masses = {1e-7, 1e99},
-       .expect_throw = false,  // TODO(mitiguy): Huge ratio; why no throw?
-       .translational = true,
-       .description = "SmallAMassiveB"},
-      {.masses = {1e-7, 1e9},  // Why is this ratio interesting?
-       .expect_throw = true,   // TODO(mitiguy): Smaller ratio throws!
-       .translational = true,
-       .description = "SmallALargeB"},
-      // Rotational tests.
-      {.masses = {0.0, 1.0},
-       .expect_throw = true,
-       .translational = false,
-       .description = "ZeroUnitB"},
-       // N.B. Masses larger than 1e99 (e.g., 1e100) will case to throw. The
-       // *math* says it should, but the numerics diverge at this point.
-      {.masses = {0, 1e99},
-       .expect_throw = true,
-       .translational = false,
-       .description = "ZeroAMassiveB"},
-      {.masses = {1e-7, 1e99},
-       .expect_throw = false,  // TODO(mitiguy): Huge ratio; why no throw?
-       .translational = false,
-       .description = "SmallAMassiveB"},
-      {.masses = {1e-7, 1e9},  // WHy is this ratio interesting?
-       .expect_throw = false,
-       .translational = false,
-       .description = "SmallALargeB"}
-  };
+  std::vector<HingeMatrixConfig> tests;
+
+  // We get the same behavior across all joint types -- more or less. Exceptions
+  // are noted.
+  for (const std::string joint_type : {"Prismatic", "Revolute", "Planar"}) {
+    tests.push_back({
+        .description = "ZeroUnitB",
+        .masses = {0.0, 1.0},
+        .expect_throw = true,
+        .joint_type = joint_type,
+    });
+    // N.B. Masses larger than 1e99 (e.g., 1e100) will cease to throw. The
+    // *math* says it should, but the numerics diverge at this point.
+    tests.push_back({
+        .description = "ZeroAMassiveB",
+        .masses = {0, 1e99},
+        .expect_throw = true,
+        .joint_type = joint_type,
+    });
+    tests.push_back({
+        .description = "SmallAMassiveB",
+        .masses = {1e-7, 1e99},
+        .expect_throw = false,  // TODO(mitiguy): Huge ratio; why no throw?
+        .joint_type = joint_type,
+    });
+    if (joint_type != "Revolute") {
+      // Note: The revolute joint exhibits inconsistent behavior. Is it that the
+      // revolute joint is wrong, or that the translation is wrong?
+      tests.push_back({
+          .description = "SmallALargeB",
+          .masses = {1e-7, 1e9},  // Why is this ratio interesting?
+          .expect_throw = true,   // TODO(mitiguy): Smaller ratio throws!
+          .joint_type = joint_type,
+      });
+    }
+  }
+
+  // The weird, one-off exceptions to the pattern above.
+  tests.push_back({
+      .description = "SmallALargeB",
+      .masses = {1e-7, 1e9},  // Why is this ratio interesting?
+      .expect_throw = false,  // TODO(mitiguy: Why is this one odd?
+      .joint_type = "Revolute",
+  });
+  return tests;
 }
 
 INSTANTIATE_TEST_SUITE_P(InboardBodies,
                          InboardHingeMatrixTest,
                          testing::ValuesIn(MakeInboardTests()));
-
 
 TEST_P(InboardHingeMatrixTest, InboardBody) {
   const HingeMatrixConfig& config = GetParam();
@@ -533,20 +518,14 @@ TEST_P(InboardHingeMatrixTest, InboardBody) {
       AddCubicalLink(&plant_, "bodyA", config.masses[0], 1 /* length */);
   const RigidBody<double>& body_B =
       AddCubicalLink(&plant_, "bodyB", config.masses[1], 1 /* length */);
-  auto AddJoint = config.translational ? &AddPrismatic : &AddRevolute;
-  AddJoint(&plant_, plant_.world_body(), body_A);
-  AddJoint(&plant_, body_A, body_B);
+  AddJoint(config.joint_type, plant_.world_body(), body_A, &plant_);
+  AddJoint(config.joint_type, body_A, body_B, &plant_);
   plant_.Finalize();
   auto context = plant_.CreateDefaultContext();
 
   if (config.expect_throw) {
-    // We'll simply confirm that the translational error message is
-    // dispatched. We've already confirmed that it gets properly populated in
-    // the distal tests.
     DRAKE_EXPECT_THROWS_MESSAGE(plant_.EvalForwardDynamics(*context),
-                                config.translational
-                                    ? ".+ the joint allows translation.+"
-                                    : ".+ the joint allows rotation.+");
+                                "An internal mass matrix associated.+");
   } else {
     DRAKE_EXPECT_NO_THROW(plant_.EvalForwardDynamics(*context));
   }
@@ -581,68 +560,7 @@ TEST_P(InboardHingeMatrixTest, InboardBody) {
 // hinge inertia matrix (whereas tests 1, 2, 3, 4 only involve a 1 x 1 matrix).
 // ----------------------------------------------------------------------------
 
-
-/* This tests for a *translating* in-board body A (there exists an outboard body
- B with some non-trivial mass). In this case, we're confirming throwing behavior
- across a few conditions based on the ratio of mass B to A.
-
-   - If the mass ratio is infinity (mass of A is zero), we should *always* throw
-     regardless of the mass of B.
-   - If the mass ratio is finite but sufficiently small, we should throw.
-   - if the mass ratio is sufficiently "large" we don't throw.
-
- The non-zero values are chosen empirically as being reliable across all
- supported platforms but otherwise have no meaning. */
-TEST_F(HingeInertiaMatrixTest, TranslatingInboardBody) {
-  // Set up the plant with a bodies A and B connected to the world in a chain.
-  // The masses are irrelevant because we'll change them in the test loop.
-  const RigidBody<double>& body_A =
-      AddCubicalLink(&plant_, "bodyA", 0 /* mass */, 1 /* length */);
-  const RigidBody<double>& body_B =
-      AddCubicalLink(&plant_, "bodyB", 0 /* mass */, 1 /* length */);
-  plant_.AddJoint<multibody::PrismaticJoint>(
-      "WA_prismatic_jointX", plant_.world_body(), std::nullopt, body_A,
-      std::nullopt, Vector3<double>::UnitX());
-  plant_.AddJoint<multibody::PrismaticJoint>("AB_prismatic_jointX", body_A,
-                                             std::nullopt, body_B, std::nullopt,
-                                             Vector3<double>::UnitX());
-  plant_.Finalize();
-  auto context = plant_.CreateDefaultContext();
-
-  // Now run the tests.
-
-  struct TestConfig {
-    double mass_A{};
-    double mass_B{};
-    bool expect_throw{};
-  };
-
-  const std::vector<TestConfig> tests{
-      {.mass_A = 0, .mass_B = 1, .expect_throw = true},
-      {.mass_A = 0, .mass_B = 1e10, .expect_throw = true},
-      // N.B. Larger mass_B (e.g., 1e100), will cease to throw. The *math*
-      // doesn't care, but the numerics diverge from the math at this point.
-      {.mass_A = 0, .mass_B = 1e99, .expect_throw = true},
-      // TODO(mitiguy): This still doesn't throw. Why not?
-      {.mass_A = 1e-7, .mass_B = 1e99, .expect_throw = false},
-      {.mass_A = 1e-3, .mass_B = 1e9, .expect_throw = false},
-  };
-
-  for (const auto& [mass_A, mass_B, expect_throw] : tests) {
-    body_A.SetMass(context.get(), mass_A);
-    body_B.SetMass(context.get(), mass_B);
-    SCOPED_TRACE(fmt::format("mass A: {}, mass B: {}, expect_throw: {}", mass_A, mass_B, expect_throw));
-    if (expect_throw) {
-      // We'll simply confirm that the translational error message is
-      // dispatched. We've already confirmed that it gets properly populated in
-      // the distal tests.
-      DRAKE_EXPECT_THROWS_MESSAGE(plant_.EvalForwardDynamics(*context),
-                                  ".+ the joint allows translation.+");
-    } else {
-      DRAKE_EXPECT_NO_THROW(plant_.EvalForwardDynamics(*context));
-    }
-  }
-}
+#if 0
 
 // Perform a forward dynamic analysis for a planar triple pendulum consisting of
 // rigid bodies A, B, C, each which has an inboard revolute-pin axis that is
@@ -652,6 +570,10 @@ GTEST_TEST(TestHingeInertiaMatrix, ThrowErrorForZeroInertiaRotating3Bodies) {
   // Create a plant with constructor argument = 0 to signal use of a continuous
   // model (and hence the Articulated Body Algorithm for forward dynamics).
   MultibodyPlant<double> plant(0.0);
+
+  // TODO(SeanCurtis-TRI): Why play with gravity when we can use pins on
+  // different pin joints? At this point, it seems like you're playing with
+  // people's minds but without any real value for the test.
 
   // World X is vertically downward and world Y is horizontally-right.
   plant.mutable_gravity_field().set_gravity_vector(Vector3d(9.8, 0, 0));
@@ -691,6 +613,8 @@ GTEST_TEST(TestHingeInertiaMatrix, ThrowErrorForZeroInertiaRotating3Bodies) {
 
   // Create a default context and evaluate forward dynamics.
   auto context = plant.CreateDefaultContext();
+  // TODO: `ptr` is not style guide compliant; `raw` would be acceptable.
+  // Sor just call context.get() in all three cases.
   systems::Context<double>* context_ptr = context.get();
   WA_revolute_jointZ.set_angle(context_ptr, 0);
   AB_revolute_jointZ.set_angle(context_ptr, 0);
@@ -707,6 +631,9 @@ GTEST_TEST(TestHingeInertiaMatrix, ThrowErrorForZeroInertiaRotating3Bodies) {
   body_B.SetMass(context_ptr, 0);
   body_C.SetMass(context_ptr, 1);
   DRAKE_EXPECT_NO_THROW(plant.EvalForwardDynamics(*context))
+
+  // TODO: These two tests are really the most interesting; in this case the
+  // throw condition is dependent on the mass *and* configuration.
 
   // Verify proper assertion is thrown if mA = mB = 0, mC = 1 since articulated
   // body hinge inertia matrix ≈ [-1.90126e-17] which is not positive-definite.
@@ -753,7 +680,7 @@ GTEST_TEST(TestHingeInertiaMatrix, ThrowErrorForZeroMassInertiaFreeBody) {
   body_A.SetMass(context.get(), 1E-4);
   DRAKE_EXPECT_NO_THROW(plant.EvalForwardDynamics(*context))
 }
-
+#endif
 }  // namespace
 }  // namespace multibody
 }  // namespace drake
