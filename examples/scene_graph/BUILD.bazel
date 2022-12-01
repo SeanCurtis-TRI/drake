@@ -54,6 +54,22 @@ drake_cc_binary(
 )
 
 drake_cc_binary(
+    name = "camera_test",
+    srcs = ["camera_test.cc"],
+    add_test_rule = 1,
+    test_rule_tags = vtk_test_tags(),
+    deps = [
+        "//geometry/proximity:obj_to_surface_mesh",
+        "//geometry:scene_graph",
+        "//geometry/render_vtk",
+        "//systems/framework:diagram",
+        "//systems/sensors:rgbd_sensor",
+        "//systems/sensors:image_writer",
+        "@gflags",
+    ],
+)
+
+drake_cc_binary(
     name = "simple_contact_surface_vis",
     srcs = ["simple_contact_surface_vis.cc"],
     add_test_rule = 1,
