@@ -24,6 +24,10 @@ DEFINE_string(obj, "", "Path to the obj to render.");
 DEFINE_string(out_dir, "",
               "Path to the directory to write to; if empty, will write to the "
               "current directory. The final image is path/to/camera_test.png");
+DEFINE_double(dir_x, 0, "X-component of Cz_W");
+DEFINE_double(dir_y, 1, "Y-component of Cz_W");
+DEFINE_double(dir_z, 0, "Z-component of Cz_W");
+DEFINE_double(dolly, 0, "The amount to dolly *towards* the object.");
 
 namespace drake {
 namespace examples {
@@ -99,6 +103,7 @@ RigidTransformd MakeCameraPose(const TriangleSurfaceMesh<double>& mesh_W,
                                const ColorRenderCamera& camera) {
   // 0. Compute camera orientation.
   const Vector3d Cz_W = Cz_W_in.normalized();
+  DRAKE_THROW_UNLESS(std::abs(Cz_W.dot(Vector3d::UnitZ())) < 0.99);
   const Vector3d Cx_W = -Vector3d::UnitZ().cross(Cz_W).normalized();
   const Vector3d Cy_W = Cz_W.cross(Cx_W).normalized();
   const RotationMatrixd R_WC =
@@ -115,11 +120,12 @@ RigidTransformd MakeCameraPose(const TriangleSurfaceMesh<double>& mesh_W,
     p_WBmax_C = p_WBmax_C.cwiseMax(p_WV_C);
   }
   std::cout << "Mesh bounding box (in camera):\n"
-            << "  min " << p_WBmin_C.transpose() << ")\n"
-            << "  max " << p_WBmax_C.transpose() << ")\n";
+            << "  min " << p_WBmin_C.transpose() << "\n"
+            << "  max " << p_WBmax_C.transpose() << "\n";
 
   // The center of the box. This will be positioned at the image center.
   const Vector3d p_WBo_C = (p_WBmin_C + p_WBmax_C) / 2;
+  std::cout << "Mesh bounding box center (in camera): " << p_WBo_C.transpose() << "\n";
 
   // Note: in C, the coefficients of max_pt are not all >= than those in min_pt.
   // They are merely the measure of two corners.
@@ -133,8 +139,9 @@ RigidTransformd MakeCameraPose(const TriangleSurfaceMesh<double>& mesh_W,
   const double box_aspect_ratio = box_height / box_width;
   const double camera_aspect_ratio =
       static_cast<double>(camera.core().intrinsics().height()) /
-      camera.core().intrinsics().height();
+      camera.core().intrinsics().width();
 
+  std::cout << "Aspect ratios:\n" << "  box: " << box_aspect_ratio << "\n  camera: " << camera_aspect_ratio << "\n";
   // Assume we'll fit the width.
   double box_measure{box_width};
   double fov{camera.core().intrinsics().fov_x()};
@@ -143,14 +150,32 @@ RigidTransformd MakeCameraPose(const TriangleSurfaceMesh<double>& mesh_W,
     // factor.
     box_measure = box_height;
     fov = camera.core().intrinsics().fov_y();
+    std::cout << "Fitting vertical dimension\n";
+  } else {
+    std::cout << "Fitting horizontal dimension\n";
   }
-  const double focal_distance = 0.5 * box_measure / std::tan(fov / 2);
-  const double camera_distance = std::max(
-      focal_distance, box_size_C.z() / 2 + camera.core().clipping().near());
+  const double focal_distance =
+      0.5 * box_measure / std::tan(fov / 2) + box_measure / 2;
+  // How far does it have to be so that the *whole* bounding box lies in front
+  // of the near clipping plane.
+  const double min_distance =
+      box_size_C.z() / 2 + camera.core().clipping().near();
+  const double camera_distance =
+      std::max(focal_distance, min_distance) - FLAGS_dolly;
+  std::cout << "Distance:\n"
+            << "  focal_distance;  " << focal_distance << "\n"
+            << "  min_distance;    " << min_distance << "\n"
+            << "  dolly:           " << FLAGS_dolly << "\n"
+            << "  camera_distance; " << camera_distance << "\n";
 
   const Vector3d p_BoCo_C{0, 0, -camera_distance};
   const Vector3d p_WCo_C = p_WBo_C + p_BoCo_C;
   const Vector3d p_WCo_W = R_WC * p_WCo_C;
+
+  // Am I truly centered?
+  const Vector3d p_WBo_W = R_WC * p_WBo_C;
+  const Vector3d p_CoBo_W = p_WBo_W - p_WCo_W;
+  DRAKE_THROW_UNLESS(std::abs(p_CoBo_W.norm() - Cz_W.dot(p_CoBo_W)) < 1e-14);
 
   return RigidTransformd(R_WC, p_WCo_W);
 }
@@ -193,25 +218,11 @@ int do_main() {
 
   // Create the camera.
   const ColorRenderCamera color_camera{
-      {render_name, {640, 480, M_PI_4}, {0.1, 2.0}, {}}, false};
+      {render_name, {640, 480, M_PI_4}, {0.1, 10.0}, {}}, false};
   const DepthRenderCamera depth_camera{color_camera.core(), {0.1, 2.0}};
-  // We need to position and orient the camera. We have the camera body frame
-  // B (see rgbd_sensor.h) and the camera frame C (see camera_info.h).
-  // By default X_BC = I in the RgbdSensor. So, to aim the camera, Cz = Bz
-  // should point from the camera position to the origin. By points *down* the
-  // image, so we need to align it in the -Wz direction. So,  we compute the
-  // basis using camera Y-ish in the By ≈ -Wz direction to compute Bx, and
-  // then use Bx an and Bz to compute By.
-  const Vector3d p_WB(1.3, -1, 0.25);
-  // Set rotation looking at the origin.
-  const Vector3d Bz_W = -p_WB.normalized();
-  const Vector3d Bx_W = -Vector3d::UnitZ().cross(Bz_W).normalized();
-  const Vector3d By_W = Bz_W.cross(Bx_W).normalized();
-  const RotationMatrixd R_WB =
-      RotationMatrixd::MakeFromOrthonormalColumns(Bx_W, By_W, Bz_W);
-  const RigidTransformd X_WB(R_WB, p_WB * 0.2);
+
+  const Vector3d Bz_W = Vector3d(FLAGS_dir_x, FLAGS_dir_y, FLAGS_dir_z).normalized();
   const RigidTransformd X_WC = MakeCameraPose(obj_mesh, Bz_W, color_camera);
-  std::cerr << X_WB.GetAsMatrix34() << "\n";
   std::cerr << X_WC.GetAsMatrix34() << "\n";
 
   auto camera = builder.AddSystem<RgbdSensor>(scene_graph->world_frame_id(),
