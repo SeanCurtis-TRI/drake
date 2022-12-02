@@ -35,6 +35,8 @@ namespace {
 
 namespace fs = std::filesystem;
 
+using Eigen::AngleAxisd;
+using Eigen::Vector2d;
 using Eigen::Vector3d;
 using Eigen::Vector4d;
 using geometry::GeometryId;
@@ -69,12 +71,12 @@ std::string MakeImageName() {
       if (::access(dir_path.string().c_str(), W_OK) == 0) {
         dir_path_s = dir_path.string();
       } else {
-        std::cerr << "No access to the requested output directory: "
-                  << dir_path << ";";
+        std::cerr << "No access to the requested output directory: " << dir_path
+                  << ";";
       }
     } else {
-      std::cerr << "Requested output directory is not a directory: "
-                << dir_path << ";";
+      std::cerr << "Requested output directory is not a directory: " << dir_path
+                << ";";
     }
   } else {
     std::cerr << "The requested output directory does not exist: " << dir_path
@@ -90,6 +92,121 @@ std::string MakeImageName() {
   // this file; i.e., there's not currently a file there that I'm going to
   // overwrite.
   return (dir_path / "camera_test.png").string();
+}
+
+RigidTransformd MakeCameraPoseAlt(const TriangleSurfaceMesh<double>& mesh_W,
+                                  const Vector3d& Cz_W_in,
+                                  const ColorRenderCamera& camera) {
+  /*
+   The ideal framing will place the camera frustum as shown:
+
+              ○⋅⋅⋅⋅  \
+              ⋅░░░░⋅⋅⋅○\   / n̂₁
+              ⋅░░░░░░░░⋅ \/
+               ⋅░░░░░░░░⋅  \
+               ⋅░░░░░░░░⋅  θ \
+           ┄┄┄┄⋅░░░░░░░░░⋅┄ d̂←> O
+               ⋅░░░░░░░░░⋅   /
+                ⋅░░░░░░⋅⋅⋅○/
+                ⋅░░░⋅⋅⋅  /\
+                ○⋅⋅⋅   /   \ n̂₂
+                     /
+
+    We're given a mesh with vertices visualized as `○`. We're likewise given the
+    camera direction d̂ and half angle θ. We want to define the camera origin
+    relative to mesh such that we have a tight fit to the frustum.
+
+    Here's how we'll do it:
+
+      - To be a tight fit, there has to be at least *one* vertex that lies on
+        the upper frustum boundary (and another on the lower). We'll call them
+        v₁ and v₂.
+      - We can define the normals of the frustum boundaries as n̂₁ and n̂₂.
+      - It should be clear that v₁ and v₂ are the vertices most in the n̂₁ and n̂₂
+        directions, respectively.
+      - Given those points and we can define the two frustum boundary "lines".
+      - The origin O is where the lines intersect. It defines the distance
+        along d̂ *and* the offset perpendicular to d̂: (d, o)
+
+    For a 3D frustum, where we have two axes, we can compute two sets of (d, o)
+    tuples. One in the x direction (dx, ox) and another in the y direction
+    (dy, oy). O = [ox, oy, max(dx, dy)]. */
+
+  std::cerr << "Camera pose alt\n";
+  // 0. Compute camera orientation.
+  const Vector3d Cz_W = Cz_W_in.normalized();
+  DRAKE_THROW_UNLESS(std::abs(Cz_W.dot(Vector3d::UnitZ())) < 0.99);
+  const Vector3d Cx_W = -Vector3d::UnitZ().cross(Cz_W).normalized();
+  const Vector3d Cy_W = Cz_W.cross(Cx_W).normalized();
+  const RotationMatrixd R_WC =
+      RotationMatrixd::MakeFromOrthonormalColumns(Cx_W, Cy_W, Cz_W);
+  const RotationMatrixd R_CW = R_WC.inverse();
+  std::cerr << " R_WC\n" << R_WC.matrix() << "\n";
+
+  // Compute the normals n1 and n2; they are a rotation around Cx_W of fov/2.
+  // We've got pairs of normals in the x and y directions.
+  const double half_fov_x = camera.core().intrinsics().fov_x() / 2;
+  const double half_fov_y = camera.core().intrinsics().fov_y() / 2;
+  std::cerr << " Half fov:\n" << "  x: " << half_fov_x << "\n  y: " << half_fov_y << "\n";
+  const RotationMatrixd Rx(AngleAxisd(half_fov_x + M_PI / 2, Vector3d::UnitY()));
+  const RotationMatrixd Ry(AngleAxisd(half_fov_y + M_PI / 2, Vector3d::UnitX()));
+
+  // We'll do the computation in the C frame to facilitate calculatin (d, o).
+  const Vector3d Cz_C(0, 0, 1);
+  Vector3d n_C[] = {
+      Vector3d(Rx * Cz_C) /* n1x */,
+      Vector3d(Rx.inverse() * Cz_C) /* n2x */,
+      Vector3d(Ry * Cz_C) /* n1y */,
+      Vector3d(Ry.inverse() * Cz_C) /* n2y */,
+  };
+  std::cerr << " Normals:\n";
+  for (int i = 0; i < 4; ++i) {
+    std::cerr << "  " << n_C[i].transpose() << "\n";
+  }
+  constexpr double kInf = std::numeric_limits<double>::infinity();
+  double max_projection[] = {-kInf, -kInf, -kInf, -kInf};
+  Vector3d v_C[] = {Vector3d(), Vector3d(), Vector3d(), Vector3d()};
+  for (const auto& p_WV_W : mesh_W.vertices()) {
+    const Vector3d p_WV_C = R_CW * p_WV_W;
+    for (int i = 0; i < 4; ++i) {
+      double proj = n_C[i].dot(p_WV_C);
+      if (proj > max_projection[i]) {
+        max_projection[i] = proj;
+        v_C[i] = p_WV_C;
+      }
+    }
+  }
+  std::cerr << " Extremal points:\n";
+  std::cerr << "  positive x: " << v_C[0].transpose() << "\n";
+  std::cerr << "  negative x: " << v_C[1].transpose() << "\n";
+  std::cerr << "  positive y: " << v_C[2].transpose() << "\n";
+  std::cerr << "  negative y: " << v_C[3].transpose() << "\n";
+
+  // Now compute (dx, ox) and (dy, oy). For one direction, I only need to
+  // consider *that* component of v1, v2, n1, and n2 (with the z-component).
+  auto calc_d_o = [&max_projection, &n_C](int axis) {
+    const Vector2d d(max_projection[axis * 2], max_projection[axis * 2 + 1]);
+    const Vector2d n1(n_C[axis * 2](axis), n_C[axis * 2].z());
+    const Vector2d n2(n_C[axis * 2 + 1](axis), n_C[axis * 2 + 1].z());
+    const double det_N = n1.x() * n2.y() - n1.y() * n2.x();
+    // DRAKE_DEMAND(det_N > 1e-10);
+    Eigen::Matrix2d N_inv;
+    N_inv << n2.y(), -n1.y(), -n2.x(), n1.x();
+    return Vector2d(N_inv * d / det_N);
+  };
+
+  const Vector2d Ox = calc_d_o(0);
+  const Vector2d Oy = calc_d_o(1);
+  std::cerr << " dx: " << Ox.x() << ", ox: " << Ox.y() << "\n";
+  std::cerr << " dy: " << Oy.x() << ", oy: " << Oy.y() << "\n";
+  const double dx = Cz_C.dot(Vector3d(Ox.x(), 0, Ox.y()));
+  const double dy = Cz_C.dot(Vector3d(Oy.x(), 0, Oy.y()));
+  const double Oz = dy < dx ? Oy.y() : Ox.y();
+
+  const Vector3d p_WCo_C(Ox.x(), Oy.y(), Oz);
+  const Vector3d p_WCo_W = R_WC * p_WCo_C;
+
+  return RigidTransformd(R_WC, p_WCo_W);
 }
 
 /* Given a vector direction that the camera is looking (Cz_W) and a mesh, the
@@ -223,10 +340,12 @@ int do_main() {
 
   const Vector3d Bz_W = Vector3d(FLAGS_dir_x, FLAGS_dir_y, FLAGS_dir_z).normalized();
   const RigidTransformd X_WC = MakeCameraPose(obj_mesh, Bz_W, color_camera);
+  const RigidTransformd X_WC_alt = MakeCameraPoseAlt(obj_mesh, Bz_W, color_camera);
   std::cerr << X_WC.GetAsMatrix34() << "\n";
+  std::cerr << X_WC_alt.GetAsMatrix34() << "\n";
 
   auto camera = builder.AddSystem<RgbdSensor>(scene_graph->world_frame_id(),
-                                              X_WC, color_camera, depth_camera);
+                                              X_WC_alt, color_camera, depth_camera);
   builder.Connect(scene_graph->get_query_output_port(),
                   camera->query_object_input_port());
 
