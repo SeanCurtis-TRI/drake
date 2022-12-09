@@ -36,6 +36,7 @@ namespace {
 namespace fs = std::filesystem;
 
 using Eigen::AngleAxisd;
+using Eigen::Matrix2d;
 using Eigen::Vector2d;
 using Eigen::Vector3d;
 using Eigen::Vector4d;
@@ -94,6 +95,56 @@ std::string MakeImageName() {
   return (dir_path / "camera_test.png").string();
 }
 
+const Matrix2d MakeRotation(double theta) {
+  const double c = std::cos(theta);
+  const double s = std::sin(theta);
+  return (Matrix2d() << c, -s, s, c).finished();
+}
+
+Vector3d Find2DFit(const TriangleSurfaceMesh<double>& mesh_W,
+                   const RotationMatrixd& R_CW, int axis, double fov) {
+  // First define frustum normals
+  const double half_fov = fov / 2;
+  const Matrix2d R = MakeRotation(half_fov);
+  const Vector2d Cy(0, 1);
+  const Vector2d n_C[] = {R.transpose() * Cy, R * Cy};
+
+  // Now find extreme vertices: farthest in the n1, n2, and -Cy directions.
+  const double kInf = std::numeric_limits<double>::infinity();
+  double max_projection[] = {-kInf, -kInf};
+  Vector2d max_vertex[] = {Vector2d(), Vector2d()};
+  // Also get th
+  Vector2d most_forward_vertex;
+  double most_forward = kInf;
+  for (const auto& p_WV_W : mesh_W.vertices()) {
+    const Vector3d p_WV_C = R_CW * p_WV_W;
+    const Vector2d p_WVp_C(p_WV_C(axis), p_WV_C.z());
+    const double y = Cy.dot(p_WVp_C);
+    if (y < most_forward) {
+      most_forward = y;
+      most_forward_vertex = p_WVp_C;
+    }
+    for (int i = 0; i < 2; ++i) {
+      double proj = n_C[i].dot(p_WVp_C);
+      if (proj > max_projection[i]) {
+        max_projection[i] = proj;
+        max_vertex[i] = p_WVp_C;
+      }
+    }
+  }
+
+  // Now find the camera body origin p_WCo_C.
+  const double denom = n_C[1].x() * n_C[0].y() - n_C[1].y() * n_C[0].x();
+  // The lines should *not* be parallel except for infinite focal lengths.
+  DRAKE_DEMAND(std::abs(denom) > 1e-5);
+  const double num = n_C[1].dot(max_vertex[1] - max_vertex[0]);
+  const double t = num / denom;
+  const Vector2d p_WCp_C = max_vertex[0] + t * Vector2d(n_C[0].y(), -n_C[0].x());
+  Vector3d p_WCo_C(0, 0, p_WCp_C.y());
+  p_WCo_C(axis) = p_WCp_C.x();
+  return p_WCo_C;
+}
+
 RigidTransformd MakeCameraPoseAlt(const TriangleSurfaceMesh<double>& mesh_W,
                                   const Vector3d& Cz_W_in,
                                   const ColorRenderCamera& camera) {
@@ -143,6 +194,17 @@ RigidTransformd MakeCameraPoseAlt(const TriangleSurfaceMesh<double>& mesh_W,
   const RotationMatrixd R_CW = R_WC.inverse();
   std::cerr << " R_WC\n" << R_WC.matrix() << "\n";
 
+#if 1
+  const double half_fov_x = camera.core().intrinsics().fov_x() / 2;
+  const Vector3d Co_from_x_C = Find2DFit(mesh_W, R_CW, 0, half_fov_x);
+  const double half_fov_y = camera.core().intrinsics().fov_y() / 2;
+  const Vector3d Co_from_y_C = Find2DFit(mesh_W, R_CW, 1, half_fov_y);
+
+  const Vector3d p_WCo_C(Co_from_x_C.x(), Co_from_y_C.y(),
+                         std::min(Co_from_x_C.z(), Co_from_y_C.z()));
+  const Vector3d p_WCo_W = R_WC * p_WCo_C;
+  return RigidTransformd(R_WC, p_WCo_W);
+#else
   // Compute the normals n1 and n2; they are a rotation around Cx_W of fov/2.
   // We've got pairs of normals in the x and y directions.
   const double half_fov_x = camera.core().intrinsics().fov_x() / 2;
@@ -207,6 +269,7 @@ RigidTransformd MakeCameraPoseAlt(const TriangleSurfaceMesh<double>& mesh_W,
   const Vector3d p_WCo_W = R_WC * p_WCo_C;
 
   return RigidTransformd(R_WC, p_WCo_W);
+  #endif
 }
 
 /* Given a vector direction that the camera is looking (Cz_W) and a mesh, the
