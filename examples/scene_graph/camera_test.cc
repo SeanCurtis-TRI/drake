@@ -30,7 +30,6 @@ DEFINE_double(dir_z, 0, "Z-component of Cz_W");
 DEFINE_double(dolly, 0, "The amount to dolly *towards* the object.");
 DEFINE_int32(width, 640, "Width of output image");
 DEFINE_int32(height, 480, "Height of output image");
-DEFINE_bool(use_alt, false, "If true, uses the alt calculation");
 
 namespace drake {
 namespace examples {
@@ -106,15 +105,11 @@ const Matrix2d MakeRotation(double theta) {
 
 Vector3d Find2DFit(const TriangleSurfaceMesh<double>& mesh_W,
                    const RotationMatrixd& R_CW, int axis, double half_fov) {
-  std::cout << "Find2DFit(" << axis << ", " << half_fov << ")\n";
   // First define frustum normals
   const Matrix2d R = MakeRotation(half_fov + M_PI_2);
   const Vector2d Cy(0, 1);
   // "left" and "right" normals for the frustum.
   const Vector2d n_C[] = {R.transpose() * Cy, R * Cy};
-  std::cout << "  Frustum normals (expressed in C)\n"
-            << "     " << n_C[0].transpose() << "\n"
-            << "     " << n_C[1].transpose() << "\n";
 
   // Now find extreme vertices: farthest in the n1, n2, and -Cy directions.
   const double kInf = std::numeric_limits<double>::infinity();
@@ -125,55 +120,39 @@ Vector3d Find2DFit(const TriangleSurfaceMesh<double>& mesh_W,
   double most_forward = kInf;
   int v = 0;
   for (const auto& p_WV_W : mesh_W.vertices()) {
-    std::cout << "Vertex " << v << "\n";
     ++v;
-    std::cout << "    p_WV_W: " << p_WV_W.transpose() << "\n";
     const Vector3d p_WV_C = R_CW * p_WV_W;
-    std::cout << "      p_WV_C: " << p_WV_C.transpose() << "\n";
     const Vector2d p_WVp_C(p_WV_C(axis), p_WV_C.z());
-    std::cout << "      p_WVp_C: " << p_WVp_C.transpose() << "\n";
     const double y = Cy.dot(p_WVp_C);
-    std::cout << "      y: " << y << "\n";
     if (y < most_forward) {
-      std::cout << "        Most forward!\n";
       most_forward = y;
       most_forward_vertex = p_WVp_C;
     }
     for (int i = 0; i < 2; ++i) {
       double proj = n_C[i].dot(p_WVp_C);
-      std::cout << "    proj onto normal[" << i << "]: " << proj << "\n";
       if (proj > max_projection[i]) {
-        std::cout << "      max projection\n";
         max_projection[i] = proj;
         max_vertex[i] = p_WVp_C;
       }
     }
   }
 
-  std::cout << "Right max vertex (in C): " << max_vertex[0].transpose() << "\n";
-  std::cout << "Left max vertex (in C): " << max_vertex[1].transpose() << "\n";
-
   // Now find the camera body origin p_WCo_C.
   const Vector2d d0_C(n_C[0].y(), -n_C[0].x());
   const double denom = n_C[1].dot(d0_C);
-  std::cout << "  denom: " << denom << "\n";
   // The lines should *not* be parallel except for infinite focal lengths.
   DRAKE_DEMAND(std::abs(denom) > 1e-5);
   const double num = n_C[1].dot(max_vertex[1] - max_vertex[0]);
-  std::cout << "  num: " << num << "\n";
   const double t = num / denom;
-  std::cout << "  t " << t << "\n";
   const Vector2d p_WCp_C = max_vertex[0] + t * d0_C;
-  std::cout << "  p_WCp_C: " << p_WCp_C.transpose() << "\n";
   Vector3d p_WCo_C(0, 0, p_WCp_C.y());
   p_WCo_C(axis) = p_WCp_C.x();
-  std::cout << "  p_WCo_C: " << p_WCo_C.transpose() << "\n";
   return p_WCo_C;
 }
 
-RigidTransformd MakeCameraPoseAlt(const TriangleSurfaceMesh<double>& mesh_W,
-                                  const Vector3d& Cz_W_in,
-                                  const ColorRenderCamera& camera) {
+RigidTransformd MakeCameraPose(const TriangleSurfaceMesh<double>& mesh_W,
+                               const Vector3d& Cz_W_in,
+                               const ColorRenderCamera& camera) {
   /*
    The ideal framing will place the camera frustum as shown:
 
@@ -209,7 +188,6 @@ RigidTransformd MakeCameraPoseAlt(const TriangleSurfaceMesh<double>& mesh_W,
     tuples. One in the x direction (dx, ox) and another in the y direction
     (dy, oy). O = [ox, oy, max(dx, dy)]. */
 
-  std::cerr << "\nCamera pose alt\n";
   // 0. Compute camera orientation.
   const Vector3d Cz_W = Cz_W_in.normalized();
   DRAKE_THROW_UNLESS(std::abs(Cz_W.dot(Vector3d::UnitZ())) < 0.99);
@@ -218,9 +196,7 @@ RigidTransformd MakeCameraPoseAlt(const TriangleSurfaceMesh<double>& mesh_W,
   const RotationMatrixd R_WC =
       RotationMatrixd::MakeFromOrthonormalColumns(Cx_W, Cy_W, Cz_W);
   const RotationMatrixd R_CW = R_WC.inverse();
-  std::cerr << " R_WC\n" << R_WC.matrix() << "\n";
 
-#if 1
   const double half_fov_x = camera.core().intrinsics().fov_x() / 2;
   const Vector3d Co_from_x_C = Find2DFit(mesh_W, R_CW, 0, half_fov_x);
   const double half_fov_y = camera.core().intrinsics().fov_y() / 2;
@@ -229,162 +205,6 @@ RigidTransformd MakeCameraPoseAlt(const TriangleSurfaceMesh<double>& mesh_W,
   const Vector3d p_WCo_C(Co_from_x_C.x(), Co_from_y_C.y(),
                          std::min(Co_from_x_C.z(), Co_from_y_C.z()));
   const Vector3d p_WCo_W = R_WC * p_WCo_C;
-  return RigidTransformd(R_WC, p_WCo_W);
-#else
-  // Compute the normals n1 and n2; they are a rotation around Cx_W of fov/2.
-  // We've got pairs of normals in the x and y directions.
-  const double half_fov_x = camera.core().intrinsics().fov_x() / 2;
-  const double half_fov_y = camera.core().intrinsics().fov_y() / 2;
-  std::cerr << " Half fov:\n" << "  x: " << half_fov_x << "\n  y: " << half_fov_y << "\n";
-  const RotationMatrixd Rx(AngleAxisd(half_fov_x + M_PI / 2, Vector3d::UnitY()));
-  const RotationMatrixd Ry(AngleAxisd(half_fov_y + M_PI / 2, Vector3d::UnitX()));
-
-  // We'll do the computation in the C frame to facilitate calculatin (d, o).
-  const Vector3d Cz_C(0, 0, 1);
-  Vector3d n_C[] = {
-      Vector3d(Rx * Cz_C) /* n1x */,
-      Vector3d(Rx.inverse() * Cz_C) /* n2x */,
-      Vector3d(Ry * Cz_C) /* n1y */,
-      Vector3d(Ry.inverse() * Cz_C) /* n2y */,
-  };
-  std::cerr << " Normals:\n";
-  for (int i = 0; i < 4; ++i) {
-    std::cerr << "  " << n_C[i].transpose() << "\n";
-  }
-  constexpr double kInf = std::numeric_limits<double>::infinity();
-  double max_projection[] = {-kInf, -kInf, -kInf, -kInf};
-  Vector3d v_C[] = {Vector3d(), Vector3d(), Vector3d(), Vector3d()};
-  for (const auto& p_WV_W : mesh_W.vertices()) {
-    const Vector3d p_WV_C = R_CW * p_WV_W;
-    for (int i = 0; i < 4; ++i) {
-      double proj = n_C[i].dot(p_WV_C);
-      if (proj > max_projection[i]) {
-        max_projection[i] = proj;
-        v_C[i] = p_WV_C;
-      }
-    }
-  }
-  std::cerr << " Extremal points:\n";
-  std::cerr << "  positive x: " << v_C[0].transpose() << "\n";
-  std::cerr << "  negative x: " << v_C[1].transpose() << "\n";
-  std::cerr << "  positive y: " << v_C[2].transpose() << "\n";
-  std::cerr << "  negative y: " << v_C[3].transpose() << "\n";
-
-  // Now compute (dx, ox) and (dy, oy). For one direction, I only need to
-  // consider *that* component of v1, v2, n1, and n2 (with the z-component).
-  auto calc_d_o = [&max_projection, &n_C](int axis) {
-    const Vector2d d(max_projection[axis * 2], max_projection[axis * 2 + 1]);
-    const Vector2d n1(n_C[axis * 2](axis), n_C[axis * 2].z());
-    const Vector2d n2(n_C[axis * 2 + 1](axis), n_C[axis * 2 + 1].z());
-    const double det_N = n1.x() * n2.y() - n1.y() * n2.x();
-    // DRAKE_DEMAND(det_N > 1e-10);
-    Eigen::Matrix2d N_inv;
-    N_inv << n2.y(), -n1.y(), -n2.x(), n1.x();
-    return Vector2d(N_inv * d / det_N);
-  };
-
-  const Vector2d Ox = calc_d_o(0);
-  const Vector2d Oy = calc_d_o(1);
-  std::cerr << " dx: " << Ox.x() << ", ox: " << Ox.y() << "\n";
-  std::cerr << " dy: " << Oy.x() << ", oy: " << Oy.y() << "\n";
-  const double dx = Cz_C.dot(Vector3d(Ox.x(), 0, Ox.y()));
-  const double dy = Cz_C.dot(Vector3d(Oy.x(), 0, Oy.y()));
-  const double Oz = dy < dx ? Oy.y() : Ox.y();
-
-  const Vector3d p_WCo_C(Ox.x(), Oy.y(), Oz);
-  const Vector3d p_WCo_W = R_WC * p_WCo_C;
-
-  return RigidTransformd(R_WC, p_WCo_W);
-  #endif
-}
-
-/* Given a vector direction that the camera is looking (Cz_W) and a mesh, the
- camera is positioned and oriented so that it is looking in the given direction
- with the bounding box of the mesh maximally filled in frame.
-
- The calculations is subject to gimbal lock; Cz_W should not be too close to Wz
- and should have non-zero magnitude. */
-RigidTransformd MakeCameraPose(const TriangleSurfaceMesh<double>& mesh_W,
-                               const Vector3d& Cz_W_in,
-                               const ColorRenderCamera& camera) {
-  std::cout << "MakeCameraPose\n";
-  // 0. Compute camera orientation.
-  const Vector3d Cz_W = Cz_W_in.normalized();
-  DRAKE_THROW_UNLESS(std::abs(Cz_W.dot(Vector3d::UnitZ())) < 0.99);
-  const Vector3d Cx_W = -Vector3d::UnitZ().cross(Cz_W).normalized();
-  const Vector3d Cy_W = Cz_W.cross(Cx_W).normalized();
-  const RotationMatrixd R_WC =
-      RotationMatrixd::MakeFromOrthonormalColumns(Cx_W, Cy_W, Cz_W);
-  const RotationMatrixd R_CW = R_WC.inverse();
-  std::cerr << " R_WC\n" << R_WC.matrix() << "\n";
-
-  // 1. Compute mesh bounding box in the camera frame.
-  Vector3d p_WBmin_C =
-      Vector3d::Constant(std::numeric_limits<double>::infinity());
-  Vector3d p_WBmax_C = -p_WBmin_C;
-  for (const auto& p_WV_W : mesh_W.vertices()) {
-    const Vector3d p_WV_C = R_CW * p_WV_W;
-    p_WBmin_C = p_WBmin_C.cwiseMin(p_WV_C);
-    p_WBmax_C = p_WBmax_C.cwiseMax(p_WV_C);
-  }
-  std::cout << "Mesh bounding box (in camera):\n"
-            << "  min " << p_WBmin_C.transpose() << "\n"
-            << "  max " << p_WBmax_C.transpose() << "\n";
-
-  // The center of the box. This will be positioned at the image center.
-  const Vector3d p_WBo_C = (p_WBmin_C + p_WBmax_C) / 2;
-  std::cout << "Mesh bounding box center (in camera): " << p_WBo_C.transpose() << "\n";
-
-  // Note: in C, the coefficients of max_pt are not all >= than those in min_pt.
-  // They are merely the measure of two corners.
-  const Vector3d p_BoBmin_C = p_WBmin_C - p_WBo_C;
-  const Vector3d p_BoBmax_C = p_WBmax_C - p_WBo_C;
-  const Vector3d box_size_C = p_BoBmax_C - p_BoBmin_C;
-
-  // Now determine whether we're fitting to the height or width of the image.
-  const double box_width = box_size_C.x();
-  const double box_height = box_size_C.y();
-  const double box_aspect_ratio = box_height / box_width;
-  const double camera_aspect_ratio =
-      static_cast<double>(camera.core().intrinsics().height()) /
-      camera.core().intrinsics().width();
-
-  std::cout << "Aspect ratios:\n" << "  box: " << box_aspect_ratio << "\n  camera: " << camera_aspect_ratio << "\n";
-  // Assume we'll fit the width.
-  double box_measure{box_width};
-  double fov{camera.core().intrinsics().fov_x()};
-  if (box_aspect_ratio > camera_aspect_ratio) {
-    // Box is taller and skinnier than image; fit vertically as the limiting
-    // factor.
-    box_measure = box_height;
-    fov = camera.core().intrinsics().fov_y();
-    std::cout << "Fitting vertical dimension\n";
-  } else {
-    std::cout << "Fitting horizontal dimension\n";
-  }
-  const double focal_distance =
-      0.5 * box_measure / std::tan(fov / 2) + box_measure / 2;
-  // How far does it have to be so that the *whole* bounding box lies in front
-  // of the near clipping plane.
-  const double min_distance =
-      box_size_C.z() / 2 + camera.core().clipping().near();
-  const double camera_distance =
-      std::max(focal_distance, min_distance) - FLAGS_dolly;
-  std::cout << "Distance:\n"
-            << "  focal_distance;  " << focal_distance << "\n"
-            << "  min_distance;    " << min_distance << "\n"
-            << "  dolly:           " << FLAGS_dolly << "\n"
-            << "  camera_distance; " << camera_distance << "\n";
-
-  const Vector3d p_BoCo_C{0, 0, -camera_distance};
-  const Vector3d p_WCo_C = p_WBo_C + p_BoCo_C;
-  const Vector3d p_WCo_W = R_WC * p_WCo_C;
-
-  // Am I truly centered?
-  const Vector3d p_WBo_W = R_WC * p_WBo_C;
-  const Vector3d p_CoBo_W = p_WBo_W - p_WCo_W;
-  DRAKE_THROW_UNLESS(std::abs(p_CoBo_W.norm() - Cz_W.dot(p_CoBo_W)) < 1e-14);
-
   return RigidTransformd(R_WC, p_WCo_W);
 }
 
@@ -431,17 +251,9 @@ int do_main() {
 
   const Vector3d Bz_W = Vector3d(FLAGS_dir_x, FLAGS_dir_y, FLAGS_dir_z).normalized();
   const RigidTransformd X_WC = MakeCameraPose(obj_mesh, Bz_W, color_camera);
-  const RigidTransformd X_WC_alt = MakeCameraPoseAlt(obj_mesh, Bz_W, color_camera);
-  std::cout << "\n";
-  std::cerr << "X_WC:\n" << X_WC.GetAsMatrix34() << "\n";
-  std::cerr << "X_WC_alt:\n" << X_WC_alt.GetAsMatrix34() << "\n";
-
-  if (FLAGS_use_alt) {
-    std::cout << "Using alternate pose calculation\n";
-  }
 
   auto camera = builder.AddSystem<RgbdSensor>(scene_graph->world_frame_id(),
-                                              FLAGS_use_alt ? X_WC_alt : X_WC,
+                                              X_WC,
                                               color_camera, depth_camera);
   builder.Connect(scene_graph->get_query_output_port(),
                   camera->query_object_input_port());
