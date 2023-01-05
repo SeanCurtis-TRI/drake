@@ -28,6 +28,9 @@ DEFINE_double(dir_x, 0, "X-component of Cz_W");
 DEFINE_double(dir_y, 1, "Y-component of Cz_W");
 DEFINE_double(dir_z, 0, "Z-component of Cz_W");
 DEFINE_double(dolly, 0, "The amount to dolly *towards* the object.");
+DEFINE_int32(width, 640, "Width of output image");
+DEFINE_int32(height, 480, "Height of output image");
+DEFINE_bool(use_alt, false, "If true, uses the alt calculation");
 
 namespace drake {
 namespace examples {
@@ -102,46 +105,69 @@ const Matrix2d MakeRotation(double theta) {
 }
 
 Vector3d Find2DFit(const TriangleSurfaceMesh<double>& mesh_W,
-                   const RotationMatrixd& R_CW, int axis, double fov) {
+                   const RotationMatrixd& R_CW, int axis, double half_fov) {
+  std::cout << "Find2DFit(" << axis << ", " << half_fov << ")\n";
   // First define frustum normals
-  const double half_fov = fov / 2;
-  const Matrix2d R = MakeRotation(half_fov);
+  const Matrix2d R = MakeRotation(half_fov + M_PI_2);
   const Vector2d Cy(0, 1);
+  // "left" and "right" normals for the frustum.
   const Vector2d n_C[] = {R.transpose() * Cy, R * Cy};
+  std::cout << "  Frustum normals (expressed in C)\n"
+            << "     " << n_C[0].transpose() << "\n"
+            << "     " << n_C[1].transpose() << "\n";
 
   // Now find extreme vertices: farthest in the n1, n2, and -Cy directions.
   const double kInf = std::numeric_limits<double>::infinity();
   double max_projection[] = {-kInf, -kInf};
   Vector2d max_vertex[] = {Vector2d(), Vector2d()};
-  // Also get th
+  // Also get the vertex deepest into the camera.
   Vector2d most_forward_vertex;
   double most_forward = kInf;
+  int v = 0;
   for (const auto& p_WV_W : mesh_W.vertices()) {
+    std::cout << "Vertex " << v << "\n";
+    ++v;
+    std::cout << "    p_WV_W: " << p_WV_W.transpose() << "\n";
     const Vector3d p_WV_C = R_CW * p_WV_W;
+    std::cout << "      p_WV_C: " << p_WV_C.transpose() << "\n";
     const Vector2d p_WVp_C(p_WV_C(axis), p_WV_C.z());
+    std::cout << "      p_WVp_C: " << p_WVp_C.transpose() << "\n";
     const double y = Cy.dot(p_WVp_C);
+    std::cout << "      y: " << y << "\n";
     if (y < most_forward) {
+      std::cout << "        Most forward!\n";
       most_forward = y;
       most_forward_vertex = p_WVp_C;
     }
     for (int i = 0; i < 2; ++i) {
       double proj = n_C[i].dot(p_WVp_C);
+      std::cout << "    proj onto normal[" << i << "]: " << proj << "\n";
       if (proj > max_projection[i]) {
+        std::cout << "      max projection\n";
         max_projection[i] = proj;
         max_vertex[i] = p_WVp_C;
       }
     }
   }
 
+  std::cout << "Right max vertex (in C): " << max_vertex[0].transpose() << "\n";
+  std::cout << "Left max vertex (in C): " << max_vertex[1].transpose() << "\n";
+
   // Now find the camera body origin p_WCo_C.
-  const double denom = n_C[1].x() * n_C[0].y() - n_C[1].y() * n_C[0].x();
+  const Vector2d d0_C(n_C[0].y(), -n_C[0].x());
+  const double denom = n_C[1].dot(d0_C);
+  std::cout << "  denom: " << denom << "\n";
   // The lines should *not* be parallel except for infinite focal lengths.
   DRAKE_DEMAND(std::abs(denom) > 1e-5);
   const double num = n_C[1].dot(max_vertex[1] - max_vertex[0]);
+  std::cout << "  num: " << num << "\n";
   const double t = num / denom;
-  const Vector2d p_WCp_C = max_vertex[0] + t * Vector2d(n_C[0].y(), -n_C[0].x());
+  std::cout << "  t " << t << "\n";
+  const Vector2d p_WCp_C = max_vertex[0] + t * d0_C;
+  std::cout << "  p_WCp_C: " << p_WCp_C.transpose() << "\n";
   Vector3d p_WCo_C(0, 0, p_WCp_C.y());
   p_WCo_C(axis) = p_WCp_C.x();
+  std::cout << "  p_WCo_C: " << p_WCo_C.transpose() << "\n";
   return p_WCo_C;
 }
 
@@ -183,7 +209,7 @@ RigidTransformd MakeCameraPoseAlt(const TriangleSurfaceMesh<double>& mesh_W,
     tuples. One in the x direction (dx, ox) and another in the y direction
     (dy, oy). O = [ox, oy, max(dx, dy)]. */
 
-  std::cerr << "Camera pose alt\n";
+  std::cerr << "\nCamera pose alt\n";
   // 0. Compute camera orientation.
   const Vector3d Cz_W = Cz_W_in.normalized();
   DRAKE_THROW_UNLESS(std::abs(Cz_W.dot(Vector3d::UnitZ())) < 0.99);
@@ -281,6 +307,7 @@ RigidTransformd MakeCameraPoseAlt(const TriangleSurfaceMesh<double>& mesh_W,
 RigidTransformd MakeCameraPose(const TriangleSurfaceMesh<double>& mesh_W,
                                const Vector3d& Cz_W_in,
                                const ColorRenderCamera& camera) {
+  std::cout << "MakeCameraPose\n";
   // 0. Compute camera orientation.
   const Vector3d Cz_W = Cz_W_in.normalized();
   DRAKE_THROW_UNLESS(std::abs(Cz_W.dot(Vector3d::UnitZ())) < 0.99);
@@ -289,6 +316,7 @@ RigidTransformd MakeCameraPose(const TriangleSurfaceMesh<double>& mesh_W,
   const RotationMatrixd R_WC =
       RotationMatrixd::MakeFromOrthonormalColumns(Cx_W, Cy_W, Cz_W);
   const RotationMatrixd R_CW = R_WC.inverse();
+  std::cerr << " R_WC\n" << R_WC.matrix() << "\n";
 
   // 1. Compute mesh bounding box in the camera frame.
   Vector3d p_WBmin_C =
@@ -398,17 +426,23 @@ int do_main() {
 
   // Create the camera.
   const ColorRenderCamera color_camera{
-      {render_name, {640, 480, M_PI_4}, {0.1, 10.0}, {}}, false};
+      {render_name, {FLAGS_width, FLAGS_height, M_PI_4}, {0.001, 10.0}, {}}, false};
   const DepthRenderCamera depth_camera{color_camera.core(), {0.1, 2.0}};
 
   const Vector3d Bz_W = Vector3d(FLAGS_dir_x, FLAGS_dir_y, FLAGS_dir_z).normalized();
   const RigidTransformd X_WC = MakeCameraPose(obj_mesh, Bz_W, color_camera);
   const RigidTransformd X_WC_alt = MakeCameraPoseAlt(obj_mesh, Bz_W, color_camera);
-  std::cerr << X_WC.GetAsMatrix34() << "\n";
-  std::cerr << X_WC_alt.GetAsMatrix34() << "\n";
+  std::cout << "\n";
+  std::cerr << "X_WC:\n" << X_WC.GetAsMatrix34() << "\n";
+  std::cerr << "X_WC_alt:\n" << X_WC_alt.GetAsMatrix34() << "\n";
+
+  if (FLAGS_use_alt) {
+    std::cout << "Using alternate pose calculation\n";
+  }
 
   auto camera = builder.AddSystem<RgbdSensor>(scene_graph->world_frame_id(),
-                                              X_WC_alt, color_camera, depth_camera);
+                                              FLAGS_use_alt ? X_WC_alt : X_WC,
+                                              color_camera, depth_camera);
   builder.Connect(scene_graph->get_query_output_port(),
                   camera->query_object_input_port());
 
