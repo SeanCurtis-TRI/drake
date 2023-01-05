@@ -103,6 +103,12 @@ const Matrix2d MakeRotation(double theta) {
   return (Matrix2d() << c, -s, s, c).finished();
 }
 
+// TODO(SeanCurtis-TRI): I've got to document this voodoo better.
+
+// TODO(SeanCurtis-TRI): For a sufficiently small object (or wide fov), the
+// camera may attempt to get so close that features get clipped. This should
+// provide minimum clipping range as well so that the camera can be adjusted
+// to include everything.
 Vector3d Find2DFit(const TriangleSurfaceMesh<double>& mesh_W,
                    const RotationMatrixd& R_CW, int axis, double half_fov) {
   // First define frustum normals
