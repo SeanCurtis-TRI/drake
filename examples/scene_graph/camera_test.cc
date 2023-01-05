@@ -246,15 +246,16 @@ int do_main() {
 
   // Create the camera.
   const ColorRenderCamera color_camera{
-      {render_name, {FLAGS_width, FLAGS_height, M_PI_4}, {0.001, 10.0}, {}}, false};
+      {render_name, {FLAGS_width, FLAGS_height, M_PI_4}, {0.001, 10.0}, {}},
+      false};
   const DepthRenderCamera depth_camera{color_camera.core(), {0.1, 2.0}};
 
-  const Vector3d Bz_W = Vector3d(FLAGS_dir_x, FLAGS_dir_y, FLAGS_dir_z).normalized();
+  const Vector3d Bz_W =
+      Vector3d(FLAGS_dir_x, FLAGS_dir_y, FLAGS_dir_z).normalized();
   const RigidTransformd X_WC = MakeCameraPose(obj_mesh, Bz_W, color_camera);
 
   auto camera = builder.AddSystem<RgbdSensor>(scene_graph->world_frame_id(),
-                                              X_WC,
-                                              color_camera, depth_camera);
+                                              X_WC, color_camera, depth_camera);
   builder.Connect(scene_graph->get_query_output_port(),
                   camera->query_object_input_port());
 
