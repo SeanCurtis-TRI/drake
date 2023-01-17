@@ -151,6 +151,15 @@ drake_cc_library(
 )
 
 drake_cc_library(
+    name = "geometric_transform_compare",
+    testonly = 1,
+    hdrs = ["test/rotation_matrix_compare.h"],
+    deps = [
+        "@gtest//:without_main",
+    ],
+)
+
+drake_cc_library(
     name = "linear_solve",
     srcs = ["linear_solve.cc"],
     hdrs = ["linear_solve.h"],
@@ -512,6 +521,7 @@ drake_cc_googletest(
     name = "rotation_matrix_test",
     deps = [
         ":geometric_transform",
+        ":geometric_transform_compare",
         "//common/test_utilities",
     ],
 )

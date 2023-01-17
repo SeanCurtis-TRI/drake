@@ -7,6 +7,7 @@
 #include "drake/common/test_utilities/expect_no_throw.h"
 #include "drake/common/test_utilities/expect_throws_message.h"
 #include "drake/math/quaternion.h"
+#include "drake/math/test/rotation_matrix_compare.h"
 
 namespace drake {
 namespace math {
@@ -91,6 +92,30 @@ GTEST_TEST(RotationMatrix, IsIdentity) {
   EXPECT_FALSE(R.IsExactlyIdentity());
   EXPECT_FALSE(R.IsNearlyIdentity());
   EXPECT_TRUE(R.IsNearlyIdentity(512 * kEpsilon));
+}
+
+// TODO: This isn't a real test; it's merely exercising the matchers in a
+// failing scenario.
+GTEST_TEST(RotationMatrix, Matchers) {
+  const double cos_theta = std::cos(0.5);
+  const double sin_theta = std::sin(0.5);
+
+  // Construct a matrix whose rows are right-handed orthogonal unit vectors.
+  const Vector3d Ax(1, 0, 0);
+  const Vector3d Ay(0, cos_theta, -sin_theta);
+  const Vector3d Az(0, sin_theta,  cos_theta);
+  Matrix3d m_row;
+  m_row.row(0) = Ay;  // Intentionally perturb ordering so we don't match.
+  m_row.row(1) = Ax;
+  m_row.row(2) = Az;
+
+  const RotationMatrix<double> R_ref(m_row);
+  const RotationMatrix<double> R =
+      RotationMatrix<double>::MakeFromOrthonormalRows(Ax, Ay, Az);
+  EXPECT_TRUE(CompareMatrices(R.matrix(), R_ref.matrix()));
+  EXPECT_THAT(R, RotationEq(R_ref));
+  // TODO: This should fail; it isn't failing.  :-P
+  EXPECT_THAT(R, RotationNear(R_ref, 1e10));
 }
 
 // Test making a RotationMatrix from three right-handed orthogonal unit vectors.
