@@ -20,6 +20,13 @@ GTEST_TEST(ShapeToStringTest, Capsule) {
   EXPECT_EQ(reifier.string(), "Capsule(r: 1.25, l: 2.5)");
 }
 
+GTEST_TEST(ShapeToStringTest, Cone) {
+  ShapeToString reifier;
+  Cone m(1.5, 2.5);
+  m.Reify(&reifier);
+  EXPECT_EQ(reifier.string(), "Cone(height: 1.5, radius: 2.5)");
+}
+
 GTEST_TEST(ShapeToStringTest, Convex) {
   ShapeToString reifier;
   Convex m("/path/to/file", 1.5);

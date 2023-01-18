@@ -15,6 +15,11 @@ void ShapeToString::ImplementGeometry(const Capsule& capsule, void*) {
                         capsule.length());
 }
 
+void ShapeToString::ImplementGeometry(const Cone& cone, void*) {
+  string_ =
+      fmt::format("Cone(height: {}, radius: {})", cone.height(), cone.radius());
+}
+
 void ShapeToString::ImplementGeometry(const Convex& convex, void*) {
   string_ =
       fmt::format("Convex(s: {}, path: {})", convex.scale(), convex.filename());

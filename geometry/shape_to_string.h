@@ -29,6 +29,7 @@ class ShapeToString final : public ShapeReifier {
   using ShapeReifier::ImplementGeometry;
   void ImplementGeometry(const Box& box, void* user_data) final;
   void ImplementGeometry(const Capsule& capsule, void* user_data) final;
+  void ImplementGeometry(const Cone& cone, void* user_data) final;
   void ImplementGeometry(const Convex& convex, void* user_data) final;
   void ImplementGeometry(const Cylinder& cylinder, void* user_data) final;
   void ImplementGeometry(const Ellipsoid& ellipsoid, void* user_data) final;
