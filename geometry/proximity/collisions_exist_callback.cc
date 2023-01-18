@@ -28,11 +28,12 @@ bool Callback(fcl::CollisionObjectd* object_A_ptr,
 
   const EncodedData encoding_a(*object_A_ptr);
   const EncodedData encoding_b(*object_B_ptr);
-
+  std::cerr << "has_collisions::Callback\n";
   const bool can_collide = data.collision_filter.CanCollideWith(
       encoding_a.id(), encoding_b.id());
   if (!can_collide) return false;
 
+  std::cerr << "  can collide!\n";
   // Unpack the callback data.
   const fcl::CollisionRequestd& request = data.request;
 

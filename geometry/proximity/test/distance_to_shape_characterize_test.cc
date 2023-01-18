@@ -90,6 +90,7 @@ INSTANTIATE_TEST_SUITE_P(
     testing::Values(
         QueryInstance(kBox, kBox, 4e-15),
         QueryInstance(kBox, kCapsule, 3e-6),
+        QueryInstance(kBox, kCone, 4e-15),
         QueryInstance(kBox, kConvex, 3e-15),
         QueryInstance(kBox, kCylinder, 6e-6),
         QueryInstance(kBox, kEllipsoid, 9e-6),

@@ -115,6 +115,7 @@ class Geometries final : public ShapeReifier {
     const ProximityProperties& properties;
   };
 
+  using ShapeReifier::ImplementGeometry;
   void ImplementGeometry(const Box& box, void* user_data) override;
   void ImplementGeometry(const Capsule& capsule, void* user_data) override;
   void ImplementGeometry(const Convex& convex, void* user_data) override;

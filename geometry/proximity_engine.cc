@@ -41,6 +41,7 @@ using fcl::CollisionObjectd;
 using drake::geometry::internal::HydroelasticType;
 using math::RigidTransform;
 using math::RigidTransformd;
+using math::RotationMatrixd;
 using std::make_shared;
 using std::make_unique;
 using std::move;
@@ -79,6 +80,10 @@ shared_ptr<fcl::ShapeBased> CopyShapeOrThrow(
       const auto& capsule = dynamic_cast<const fcl::Capsuled&>(geometry);
       return make_shared<fcl::Capsuled>(capsule.radius, capsule.lz);
     }
+    case fcl::GEOM_CONE: {
+      const auto& cone = dynamic_cast<const fcl::Coned&>(geometry);
+      return make_shared<fcl::Coned>(cone.radius, cone.lz);
+    }
     case fcl::GEOM_CONVEX: {
       const auto& convex = dynamic_cast<const fcl::Convexd&>(geometry);
       // TODO(DamrongGuoy): Change to the copy constructor Convex(other) when
@@ -105,7 +110,6 @@ shared_ptr<fcl::ShapeBased> CopyShapeOrThrow(
       const auto& sphere = dynamic_cast<const fcl::Sphered&>(geometry);
       return make_shared<fcl::Sphered>(sphere.radius);
     }
-    case fcl::GEOM_CONE:
     case fcl::GEOM_PLANE:
     case fcl::GEOM_TRIANGLE:
       throw std::logic_error(
@@ -365,6 +369,8 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
   void RemoveGeometry(GeometryId id, bool is_dynamic) {
     if (is_dynamic) {
       RemoveGeometry(id, &dynamic_tree_, &dynamic_objects_);
+      // Blindly attempt to delete the X_FG for this shape (if it exists).
+      X_GF_.erase(id);
     } else {
       RemoveGeometry(id, &anchored_tree_, &anchored_objects_);
     }
@@ -415,6 +421,13 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
       dynamic_objects_[id]->computeAABB();
       geometries_for_deformable_contact_.UpdateRigidWorldPose(id, X_WG_d);
     }
+    // For most shapes the drake canonical frame G is aligned with the FCL
+    // canonical frame F. We've noted the specific cases where X_GF ≠ I, and
+    // need to update the stored poses to account for the differences.
+    for (const auto& [id, X_GF] : X_GF_) {
+      CollisionObjectd& object = *dynamic_objects_[id];
+      object.setTransform(object.getTransform() * X_GF.GetAsIsometry3());
+    }
     dynamic_tree_.update();
   }
 
@@ -462,6 +475,20 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
     TakeShapeOwnership(fcl_capsule, user_data);
     ProcessHydroelastic(capsule, user_data);
     ProcessGeometriesForDeformableContact(capsule, user_data);
+  }
+
+  void ImplementGeometry(const Cone& cone, void* user_data) override {
+    // Note: Using `shared_ptr` because of FCL API requirements.
+    auto fcl_cone = make_shared<fcl::Coned>(cone.height(), cone.radius());
+    // FCL's cone is oriented with its height along Gz like the Drake cone, but
+    // it is centered on the origin with the point up (instead of point down,
+    // point at the origin.) Capture that disparity in X_GF.
+    ReifyData* data = reinterpret_cast<ReifyData*>(user_data);
+    X_GF_[data->id] = RigidTransform(RotationMatrixd::MakeXRotation(M_PI),
+                                     Vector3d(0, 0, cone.height() / 2));
+    TakeShapeOwnership(fcl_cone, user_data);
+    ProcessHydroelastic(cone, user_data);
+    ProcessGeometriesForDeformableContact(cone, user_data);
   }
 
   void ImplementGeometry(const Convex& convex, void* user_data) override {
@@ -871,8 +898,13 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
       unordered_map<GeometryId, unique_ptr<CollisionObjectd>>* objects) {
     ReifyData data{nullptr, id, props, X_WG};
     shape.Reify(this, &data);
+    if (X_GF_.count(id) > 0) {
+      data.fcl_object->setTransform(
+          (data.X_WG * X_GF_.at(id)).GetAsIsometry3());
+    } else {
+      data.fcl_object->setTransform(data.X_WG.GetAsIsometry3());
+    }
 
-    data.fcl_object->setTransform(X_WG.GetAsIsometry3());
     data.fcl_object->computeAABB();
     EncodedData encoding(id, is_dynamic);
     encoding.write_to(data.fcl_object.get());
@@ -927,6 +959,12 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
 
   // All of the *anchored* collision elements (spanning *all* sources).
   MapGeometryIdToFclCollisionObject anchored_objects_;
+
+  // TODO: Anchored and dynamic? Only dynamic?
+  // For any shape where there is disagreement between Drake's and FCL's
+  // canonical poses, we store the offset here. This offset must be applied to
+  // the Drake-specified pose X_WG before assigning it to the FCL shape.
+  unordered_map<GeometryId, RigidTransformd> X_GF_;
 
   // The mechanism for dictating collision filtering.
   CollisionFilter collision_filter_;

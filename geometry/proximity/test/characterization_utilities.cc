@@ -157,6 +157,48 @@ void ShapeConfigurations<T>::ImplementGeometry(const Capsule& capsule, void*) {
 }
 
 template <typename T>
+void ShapeConfigurations<T>::ImplementGeometry(const Cone& cone, void*) {
+  // TODO: Error conditions!
+
+  // Note: a cone is like a cylinder with one face's radius going to zero. As
+  // such, we'll pick configurations akin to that of the cylinder.
+
+  // When picking a point on the cone, we want it as *near* the edge as we can
+  // get; this will magnify precision loss. However, if we're
+  // Default distance for non-colliding configurations.
+  double distance_to_edge = cylinder.radius() * 0.1;
+  if (distance_ < 0) {
+    const double depth = -distance_;
+    if (depth > cone.radius() || depth > cone.height() / 2) {
+      throw std::runtime_error(
+          fmt::format("The cone (with radius = {} and height = {}) isn't "
+                      "large enough for penetration depth of {}",
+                      cone.radius(), cone.height(), depth));
+    }
+    // If colliding, we need to move far enough from the edge to accommodate
+    // the requested distance.
+    //
+    //
+    //            A
+    //           ╱│╲
+    //          ╱ │ ╲
+    //         ╱  │  ╲
+    //        ╱   │   ╲
+    //       ╱   D│    ╲
+    //      ╱     │     ╲
+    //   C ╱______│______╲ B
+    //
+    distance_to_edge = 1.01 * depth;
+  }
+
+  // Point on +z base with +z normal (place it *near* the edge).
+  const Vector3<T> dir = Vector3<T>{1.3, -0.25, 0}.normalized();
+  const T dist = cylinder.radius() - distance_to_edge;
+  const Vector3<T> Cz{0, 0, 1};
+  const Vector3<T> p_CB
+}
+
+template <typename T>
 void ShapeConfigurations<T>::ImplementGeometry(const Convex&, void*) {
   const Box box = CharacterizeResultTest<double>::box();
   ImplementGeometry(box, nullptr);
@@ -674,6 +716,15 @@ Capsule CharacterizeResultTest<T>::capsule(bool alt) {
     return Capsule{kDistance * 19, kDistance * 100};
   } else {
     return Capsule{kDistance * 100, kDistance * 51};
+  }
+}
+
+template <typename T>
+Capsule CharacterizeResultTest<T>::cone(bool alt) {
+  if (alt) {
+    return Cone{kDistance * 100, kDistance * 19};
+  } else {
+    return Cone{kDistance * 51, kDistance * 100};
   }
 }
 

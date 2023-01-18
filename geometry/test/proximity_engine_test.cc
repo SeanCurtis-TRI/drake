@@ -656,6 +656,61 @@ GTEST_TEST(ProximityEngineTests, RemoveGeometry) {
   }
 }
 
+// Confirm ProximityEngine handles shapes whose canonical frames in Drake are
+// different from FCL (e.g., Cone).
+GTEST_TEST(ProximityEngineTests, DrakeFclOffset) {
+  /*
+            Gz                       Fz
+         _______
+         ╲  ┆  ╱                     ┆
+          ╲ ┆ ╱                      ┆
+           ╲┆╱                      ╱┆╲
+      ┄┄┄┄┄┄┼┄┄┄┄┄┄┄ Gx        ┄┄┄┄╱┄┼┄╲┄┄┄┄┄ Fx
+            ┆                     ╱__┆__╲
+            ┆                        ┆
+            ┆                        ┆
+
+     Drake cone in G           FCL cone in F
+
+   We'll use the Cone to confirm that ProximityEngine handles X_FG; we'll reason
+   about the cone in G, probing it accordingly and confirm we see the Drake
+   cone and not the FCL cone. */
+  ProximityEngine<double> engine;
+
+  // Place a zero-radius sphere at Wo. We'll move the cone to be in and out of
+  // collision with the origin.
+  const Sphere sphere(0.01);
+  engine.AddAnchoredGeometry(sphere, {}, GeometryId::get_new_id());
+
+  // With height = radius, we can turn the cone 45 degrees and place the side
+  // of the cone parallel with the xy plane.
+  const double height = 1.5;
+  const double radius = 1.5;
+  const Cone cone(height, radius);
+  const GeometryId cone_id = GeometryId::get_new_id();
+
+  struct ConeConfig {
+    RigidTransform<double> X_WC;
+    bool colliding{};
+    std::string description;
+  };
+  vector<ConeConfig> configs{
+      {RigidTransformd{Vector3d{0, 0, 0.01}}, false, "Point just above"},
+      {RigidTransformd{Vector3d{0, 0, -0.01}}, true, "Point colliding"}};
+
+  unordered_map<GeometryId, RigidTransformd> X_WGs;
+  for (const auto& config : configs) {
+    X_WGs[cone_id] = config.X_WC;
+    engine.UpdateWorldPoses(X_WGs);
+    EXPECT_EQ(engine.HasCollisions(), config.colliding) << config.description;
+  }
+
+  /* What to test
+    1) Evidence that it is oriented correctly when anchored.
+    1) Evidence that it is oriented correctly for update.
+  */
+}
+
 // Tests for reading .obj files.------------------------------------------------
 
 // Tests exception when we fail to read an .obj file into a Convex.
