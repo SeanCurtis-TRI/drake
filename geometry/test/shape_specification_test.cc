@@ -31,6 +31,10 @@ class ReifierTest : public ShapeReifier, public ::testing::Test {
     received_user_data_ = data;
     capsule_made_ = true;
   }
+  void ImplementGeometry(const Cone&, void* data) override {
+    received_user_data_ = data;
+    cone_made_ = true;
+  }
   void ImplementGeometry(const Convex&, void* data) override {
     received_user_data_ = data;
     convex_made_ = true;
@@ -62,6 +66,7 @@ class ReifierTest : public ShapeReifier, public ::testing::Test {
   void Reset() {
     box_made_ = false;
     capsule_made_ = false;
+    cone_made_ = false;
     convex_made_ = false;
     cylinder_made_ = false;
     ellipsoid_made_ = false;
@@ -75,6 +80,7 @@ class ReifierTest : public ShapeReifier, public ::testing::Test {
  protected:
   bool box_made_{false};
   bool capsule_made_{false};
+  bool cone_made_{false};
   bool convex_made_{false};
   bool cylinder_made_{false};
   bool ellipsoid_made_{false};
@@ -100,6 +106,7 @@ TEST_F(ReifierTest, ReificationDifferentiation) {
   box.Reify(this);
   EXPECT_TRUE(box_made_);
   EXPECT_FALSE(capsule_made_);
+  EXPECT_FALSE(cone_made_);
   EXPECT_FALSE(convex_made_);
   EXPECT_FALSE(cylinder_made_);
   EXPECT_FALSE(ellipsoid_made_);
@@ -114,6 +121,22 @@ TEST_F(ReifierTest, ReificationDifferentiation) {
   capsule.Reify(this);
   EXPECT_FALSE(box_made_);
   EXPECT_TRUE(capsule_made_);
+  EXPECT_FALSE(cone_made_);
+  EXPECT_FALSE(convex_made_);
+  EXPECT_FALSE(cylinder_made_);
+  EXPECT_FALSE(ellipsoid_made_);
+  EXPECT_FALSE(half_space_made_);
+  EXPECT_FALSE(mesh_made_);
+  EXPECT_FALSE(meshcat_cone_made_);
+  EXPECT_FALSE(sphere_made_);
+
+  Reset();
+
+  const Cone cone{1.5, 2.5};
+  cone.Reify(this);
+  EXPECT_FALSE(box_made_);
+  EXPECT_FALSE(capsule_made_);
+  EXPECT_TRUE(cone_made_);
   EXPECT_FALSE(convex_made_);
   EXPECT_FALSE(cylinder_made_);
   EXPECT_FALSE(ellipsoid_made_);
@@ -128,6 +151,7 @@ TEST_F(ReifierTest, ReificationDifferentiation) {
   convex.Reify(this);
   EXPECT_FALSE(box_made_);
   EXPECT_FALSE(capsule_made_);
+  EXPECT_FALSE(cone_made_);
   EXPECT_TRUE(convex_made_);
   EXPECT_FALSE(cylinder_made_);
   EXPECT_FALSE(ellipsoid_made_);
@@ -142,6 +166,7 @@ TEST_F(ReifierTest, ReificationDifferentiation) {
   cylinder.Reify(this);
   EXPECT_FALSE(box_made_);
   EXPECT_FALSE(capsule_made_);
+  EXPECT_FALSE(cone_made_);
   EXPECT_FALSE(convex_made_);
   EXPECT_TRUE(cylinder_made_);
   EXPECT_FALSE(ellipsoid_made_);
@@ -156,6 +181,7 @@ TEST_F(ReifierTest, ReificationDifferentiation) {
   ellipsoid.Reify(this);
   EXPECT_FALSE(box_made_);
   EXPECT_FALSE(capsule_made_);
+  EXPECT_FALSE(cone_made_);
   EXPECT_FALSE(convex_made_);
   EXPECT_FALSE(cylinder_made_);
   EXPECT_TRUE(ellipsoid_made_);
@@ -170,6 +196,7 @@ TEST_F(ReifierTest, ReificationDifferentiation) {
   hs.Reify(this);
   EXPECT_FALSE(box_made_);
   EXPECT_FALSE(capsule_made_);
+  EXPECT_FALSE(cone_made_);
   EXPECT_FALSE(convex_made_);
   EXPECT_FALSE(cylinder_made_);
   EXPECT_FALSE(ellipsoid_made_);
@@ -184,6 +211,7 @@ TEST_F(ReifierTest, ReificationDifferentiation) {
   mesh.Reify(this);
   EXPECT_FALSE(box_made_);
   EXPECT_FALSE(capsule_made_);
+  EXPECT_FALSE(cone_made_);
   EXPECT_FALSE(convex_made_);
   EXPECT_FALSE(cylinder_made_);
   EXPECT_FALSE(ellipsoid_made_);
@@ -194,10 +222,11 @@ TEST_F(ReifierTest, ReificationDifferentiation) {
 
   Reset();
 
-  const MeshcatCone cone{1.2, 3.4, 5.6};
-  cone.Reify(this);
+  const MeshcatCone meshcat_cone{1.2, 3.4, 5.6};
+  meshcat_cone.Reify(this);
   EXPECT_FALSE(box_made_);
   EXPECT_FALSE(capsule_made_);
+  EXPECT_FALSE(cone_made_);
   EXPECT_FALSE(convex_made_);
   EXPECT_FALSE(cylinder_made_);
   EXPECT_FALSE(ellipsoid_made_);
@@ -212,6 +241,7 @@ TEST_F(ReifierTest, ReificationDifferentiation) {
   s.Reify(this);
   EXPECT_FALSE(box_made_);
   EXPECT_FALSE(capsule_made_);
+  EXPECT_FALSE(cone_made_);
   EXPECT_FALSE(convex_made_);
   EXPECT_FALSE(cylinder_made_);
   EXPECT_FALSE(ellipsoid_made_);
@@ -489,6 +519,13 @@ GTEST_TEST(ShapeTest, NumericalValidation) {
                               "Capsule radius and length should both be > 0.+");
   DRAKE_EXPECT_THROWS_MESSAGE(Capsule(Vector2<double>{0.5, -1}),
                               "Capsule radius and length should both be > 0.+");
+
+  DRAKE_EXPECT_THROWS_MESSAGE(Cone(0, 1),
+                              "Cone height and radius should both be > 0.+");
+  DRAKE_EXPECT_THROWS_MESSAGE(Cone(0.5, -1),
+                              "Cone.*");
+  DRAKE_EXPECT_THROWS_MESSAGE(Cone(Vector2<double>{0.5, -1}),
+                              "Cone.*");
 
   DRAKE_EXPECT_THROWS_MESSAGE(Convex("bar", 0),
                               "Convex .scale. cannot be < 1e-8.");

@@ -168,6 +168,40 @@ class Capsule final : public Shape {
   double length_{};
 };
 
+/** Definition of a cone. Its point is at the origin; its height extends in the
+ direction of the frame's +z axis. Or, more formally: a finite section of a
+ Lorentz cone (aka "second-order cone"), defined by
+
+      sqrt(x²/r² + y²/r²) ≤ z;  z ∈ [0, height],
+
+ where `r` is the radius of the circular cross section at `z=height()`.
+
+ @note This shape is distinct from MeshcatCone in two ways:
+ 
+   1. This shape is fully supported across SceneGraph queries (all roles).
+      MeshcatCone can only be visualized by Meshcat (and related technologies).
+   2. This cone has a circular cross section whereas MeshcatCone supports an
+      elliptical cross section. */
+class Cone final : public Shape {
+ public:
+  DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(Cone)
+
+  /** Constructs the parameterized cone.
+   @throws std::exception if `height` or `radius` are not strictly positive. */
+  explicit Cone(double height, double radius);
+
+  /** Constructs a cone with a vector of measures: height and radius.
+   @throws std::exception if the measures are not strictly positive. */
+  explicit Cone(const Vector2<double>& measures);
+
+  double height() const { return height_; }
+  double radius() const { return radius_; }
+
+ private:
+  double height_{};
+  double radius_{};
+};
+
 /** Definition of a *convex* surface mesh.
 
  The mesh is defined in a canonical frame C, implicit in the file parsed. Upon
@@ -340,7 +374,8 @@ class Mesh final : public Shape {
  section at `z=height()`.
 
  This shape is currently only supported by Meshcat. It will not appear in any
- renderings, proximity queries, or other visualizers.
+ renderings, proximity queries, or other visualizers. There is a Cone with a
+ *circular* base that SceneGraph supports across all queries.
 */
 class MeshcatCone final : public Shape {
  public:
@@ -438,6 +473,7 @@ class ShapeReifier {
 
   virtual void ImplementGeometry(const Box& box, void* user_data);
   virtual void ImplementGeometry(const Capsule& capsule, void* user_data);
+  virtual void ImplementGeometry(const Cone& cone, void* user_data);
   virtual void ImplementGeometry(const Convex& convex, void* user_data);
   virtual void ImplementGeometry(const Cylinder& cylinder, void* user_data);
   virtual void ImplementGeometry(const Ellipsoid& ellipsoid, void* user_data);
@@ -477,6 +513,7 @@ class ShapeName final : public ShapeReifier {
 
   void ImplementGeometry(const Box&, void*) final;
   void ImplementGeometry(const Capsule&, void*) final;
+  void ImplementGeometry(const Cone&, void*) final;
   void ImplementGeometry(const Convex&, void*) final;
   void ImplementGeometry(const Cylinder&, void*) final;
   void ImplementGeometry(const Ellipsoid&, void*) final;

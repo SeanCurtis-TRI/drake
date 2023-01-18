@@ -72,6 +72,19 @@ Capsule::Capsule(double radius, double length)
 Capsule::Capsule(const Vector2<double>& measures)
     : Capsule(measures(0), measures(1)) {}
 
+Cone::Cone(double height, double radius)
+    : Shape(ShapeTag<Cone>()), height_(height), radius_(radius) {
+  if (height <= 0 || radius <= 0) {
+    throw std::logic_error(fmt::format(
+        "Cone height and radius should both be > 0 (they were "
+        "{} and {}, respectively).",
+        height, radius));
+  }
+}
+
+Cone::Cone(const Vector2<double>& measures)
+    : Cone(measures(0), measures(1)) {}
+
 Convex::Convex(const std::string& filename, double scale)
     : Shape(ShapeTag<Convex>()),
       filename_(std::filesystem::absolute(filename)),
@@ -182,6 +195,10 @@ void ShapeReifier::ImplementGeometry(const Capsule&, void*) {
   ThrowUnsupportedGeometry("Capsule");
 }
 
+void ShapeReifier::ImplementGeometry(const Cone&, void*) {
+  ThrowUnsupportedGeometry("Cone");
+}
+
 void ShapeReifier::ImplementGeometry(const Convex&, void*) {
   ThrowUnsupportedGeometry("Convex");
 }
@@ -227,6 +244,10 @@ void ShapeName::ImplementGeometry(const Box&, void*) {
 
 void ShapeName::ImplementGeometry(const Capsule&, void*) {
   string_ = "Capsule";
+}
+
+void ShapeName::ImplementGeometry(const Cone&, void*) {
+  string_ = "Cone";
 }
 
 void ShapeName::ImplementGeometry(const Convex&, void*) {
