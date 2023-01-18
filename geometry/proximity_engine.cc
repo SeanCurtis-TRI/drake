@@ -71,21 +71,6 @@ shared_ptr<fcl::ShapeBased> CopyShapeOrThrow(
   // NOTE: Returns a shared pointer because of the FCL API in assigning
   // collision geometry to collision objects.
   switch (geometry.getNodeType()) {
-    case fcl::GEOM_SPHERE: {
-      const auto& sphere = dynamic_cast<const fcl::Sphered&>(geometry);
-      return make_shared<fcl::Sphered>(sphere.radius);
-    }
-    case fcl::GEOM_CYLINDER: {
-      const auto& cylinder = dynamic_cast<const fcl::Cylinderd&>(geometry);
-      return make_shared<fcl::Cylinderd>(cylinder.radius, cylinder.lz);
-    }
-    case fcl::GEOM_ELLIPSOID: {
-      const auto& ellipsoid = dynamic_cast<const fcl::Ellipsoidd&>(geometry);
-      return make_shared<fcl::Ellipsoidd>(ellipsoid.radii);
-    }
-    case fcl::GEOM_HALFSPACE:
-      // All half spaces are defined exactly the same.
-      return make_shared<fcl::Halfspaced>(0, 0, 1, 0);
     case fcl::GEOM_BOX: {
       const auto& box = dynamic_cast<const fcl::Boxd&>(geometry);
       return make_shared<fcl::Boxd>(box.side);
@@ -104,6 +89,21 @@ shared_ptr<fcl::ShapeBased> CopyShapeOrThrow(
           make_shared<const std::vector<Vector3d>>(convex.getVertices()),
           convex.getFaceCount(),
           make_shared<const std::vector<int>>(convex.getFaces()));
+    }
+    case fcl::GEOM_CYLINDER: {
+      const auto& cylinder = dynamic_cast<const fcl::Cylinderd&>(geometry);
+      return make_shared<fcl::Cylinderd>(cylinder.radius, cylinder.lz);
+    }
+    case fcl::GEOM_ELLIPSOID: {
+      const auto& ellipsoid = dynamic_cast<const fcl::Ellipsoidd&>(geometry);
+      return make_shared<fcl::Ellipsoidd>(ellipsoid.radii);
+    }
+    case fcl::GEOM_HALFSPACE:
+      // All half spaces are defined exactly the same.
+      return make_shared<fcl::Halfspaced>(0, 0, 1, 0);
+    case fcl::GEOM_SPHERE: {
+      const auto& sphere = dynamic_cast<const fcl::Sphered&>(geometry);
+      return make_shared<fcl::Sphered>(sphere.radius);
     }
     case fcl::GEOM_CONE:
     case fcl::GEOM_PLANE:

@@ -98,127 +98,127 @@ TEST_F(ReifierTest, UserData) {
 TEST_F(ReifierTest, ReificationDifferentiation) {
   const Box box{1, 2, 3};
   box.Reify(this);
-  EXPECT_FALSE(sphere_made_);
-  EXPECT_FALSE(half_space_made_);
-  EXPECT_FALSE(cylinder_made_);
   EXPECT_TRUE(box_made_);
   EXPECT_FALSE(capsule_made_);
   EXPECT_FALSE(convex_made_);
+  EXPECT_FALSE(cylinder_made_);
   EXPECT_FALSE(ellipsoid_made_);
+  EXPECT_FALSE(half_space_made_);
   EXPECT_FALSE(mesh_made_);
   EXPECT_FALSE(meshcat_cone_made_);
+  EXPECT_FALSE(sphere_made_);
 
   Reset();
 
   const Capsule capsule{2, 1};
   capsule.Reify(this);
-  EXPECT_FALSE(sphere_made_);
-  EXPECT_FALSE(half_space_made_);
-  EXPECT_FALSE(cylinder_made_);
   EXPECT_FALSE(box_made_);
   EXPECT_TRUE(capsule_made_);
   EXPECT_FALSE(convex_made_);
+  EXPECT_FALSE(cylinder_made_);
   EXPECT_FALSE(ellipsoid_made_);
+  EXPECT_FALSE(half_space_made_);
   EXPECT_FALSE(mesh_made_);
   EXPECT_FALSE(meshcat_cone_made_);
+  EXPECT_FALSE(sphere_made_);
 
   Reset();
 
   const Convex convex{"fictitious_name.obj", 1.0};
   convex.Reify(this);
-  EXPECT_FALSE(sphere_made_);
-  EXPECT_FALSE(half_space_made_);
-  EXPECT_FALSE(cylinder_made_);
   EXPECT_FALSE(box_made_);
   EXPECT_FALSE(capsule_made_);
   EXPECT_TRUE(convex_made_);
+  EXPECT_FALSE(cylinder_made_);
   EXPECT_FALSE(ellipsoid_made_);
+  EXPECT_FALSE(half_space_made_);
   EXPECT_FALSE(mesh_made_);
   EXPECT_FALSE(meshcat_cone_made_);
+  EXPECT_FALSE(sphere_made_);
 
   Reset();
 
   const Cylinder cylinder{1, 2};
   cylinder.Reify(this);
-  EXPECT_FALSE(sphere_made_);
-  EXPECT_FALSE(half_space_made_);
-  EXPECT_TRUE(cylinder_made_);
   EXPECT_FALSE(box_made_);
   EXPECT_FALSE(capsule_made_);
   EXPECT_FALSE(convex_made_);
+  EXPECT_TRUE(cylinder_made_);
   EXPECT_FALSE(ellipsoid_made_);
+  EXPECT_FALSE(half_space_made_);
   EXPECT_FALSE(mesh_made_);
   EXPECT_FALSE(meshcat_cone_made_);
+  EXPECT_FALSE(sphere_made_);
 
   Reset();
 
   const Ellipsoid ellipsoid{1, 2, 3};
   ellipsoid.Reify(this);
-  EXPECT_FALSE(sphere_made_);
-  EXPECT_FALSE(half_space_made_);
-  EXPECT_FALSE(cylinder_made_);
   EXPECT_FALSE(box_made_);
   EXPECT_FALSE(capsule_made_);
   EXPECT_FALSE(convex_made_);
+  EXPECT_FALSE(cylinder_made_);
   EXPECT_TRUE(ellipsoid_made_);
+  EXPECT_FALSE(half_space_made_);
   EXPECT_FALSE(mesh_made_);
   EXPECT_FALSE(meshcat_cone_made_);
+  EXPECT_FALSE(sphere_made_);
 
   Reset();
 
   const HalfSpace hs{};
   hs.Reify(this);
-  EXPECT_FALSE(sphere_made_);
-  EXPECT_TRUE(half_space_made_);
-  EXPECT_FALSE(cylinder_made_);
   EXPECT_FALSE(box_made_);
   EXPECT_FALSE(capsule_made_);
   EXPECT_FALSE(convex_made_);
+  EXPECT_FALSE(cylinder_made_);
   EXPECT_FALSE(ellipsoid_made_);
+  EXPECT_TRUE(half_space_made_);
   EXPECT_FALSE(mesh_made_);
   EXPECT_FALSE(meshcat_cone_made_);
+  EXPECT_FALSE(sphere_made_);
 
   Reset();
 
   const Mesh mesh{"fictitious_mesh_name.obj", 1.4};
   mesh.Reify(this);
-  EXPECT_FALSE(sphere_made_);
-  EXPECT_FALSE(half_space_made_);
-  EXPECT_FALSE(cylinder_made_);
   EXPECT_FALSE(box_made_);
   EXPECT_FALSE(capsule_made_);
   EXPECT_FALSE(convex_made_);
+  EXPECT_FALSE(cylinder_made_);
   EXPECT_FALSE(ellipsoid_made_);
+  EXPECT_FALSE(half_space_made_);
   EXPECT_TRUE(mesh_made_);
   EXPECT_FALSE(meshcat_cone_made_);
+  EXPECT_FALSE(sphere_made_);
 
   Reset();
 
   const MeshcatCone cone{1.2, 3.4, 5.6};
   cone.Reify(this);
-  EXPECT_FALSE(sphere_made_);
-  EXPECT_FALSE(half_space_made_);
-  EXPECT_FALSE(cylinder_made_);
   EXPECT_FALSE(box_made_);
   EXPECT_FALSE(capsule_made_);
   EXPECT_FALSE(convex_made_);
+  EXPECT_FALSE(cylinder_made_);
   EXPECT_FALSE(ellipsoid_made_);
+  EXPECT_FALSE(half_space_made_);
   EXPECT_FALSE(mesh_made_);
   EXPECT_TRUE(meshcat_cone_made_);
+  EXPECT_FALSE(sphere_made_);
 
   Reset();
 
   const Sphere s(1.0);
   s.Reify(this);
-  EXPECT_TRUE(sphere_made_);
-  EXPECT_FALSE(half_space_made_);
-  EXPECT_FALSE(cylinder_made_);
   EXPECT_FALSE(box_made_);
   EXPECT_FALSE(capsule_made_);
   EXPECT_FALSE(convex_made_);
+  EXPECT_FALSE(cylinder_made_);
   EXPECT_FALSE(ellipsoid_made_);
+  EXPECT_FALSE(half_space_made_);
   EXPECT_FALSE(mesh_made_);
   EXPECT_FALSE(meshcat_cone_made_);
+  EXPECT_TRUE(sphere_made_);
 }
 
 // Confirms that the ReifiableShape properly clones the right types.
