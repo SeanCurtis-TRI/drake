@@ -129,7 +129,7 @@ def _main():
     if not os.path.isfile(filename):
         args_parser.error(f"File does not exist: {filename}")
 
-    visualizer.AddModels(filename)
+    visualizer.parser().AddModels(file_name=filename)
     if not args.loop_once and args.enable_reload:
         # TODO(trowell-tri) Consider enabling reload by default in the future.
         visualizer.RunWithReload(position=args.position)

@@ -57,6 +57,39 @@ class ModelVisualizer:
     """
     # Note: this class uses C++ method names to ease future porting.
 
+    class MyParser(Parser):
+        def __init__(self, plant):
+            Parser.__init__(self, plant)
+            self._models = list()
+
+        def AddModels(self, file_name=None, url=None):
+            print(f"AddModels({file_name})")
+            if file_name is None and url is None:
+                raise ValueError("File name or url must be defined")
+            if file_name is not None:
+                result = Parser.AddModels(self, file_name)
+                self._models.append((file_name, self.AddModels))
+            else:
+                result = Parser.AddModelsFromUrl(url)
+                self._models.append((url, self.AddModelsFromUrl))
+            return result
+
+        def AddModelsFromUrl(self, url):
+            result = Parser.AddModelsFromUrl(url)
+            self._models.append((url, self.AddModelsFromUrl))
+            return result
+
+        def AddModelFromFile(self, file_contents, file_type):
+            result = Parser.AddModelFromFile(file_contents, file_type)
+            self._models.append(
+                (file_contents, file_type, self.AddModelFromFile))
+            return result
+
+        def AddModelFromFile(self, file_name, model_name):
+            result = Parser.AddModelFromFile(file_name, model_name)
+            self._models.append((file_name, model_name, self.AddModelFromFile))
+            return result
+
     def __init__(self, *,
                  visualize_frames=False,
                  triad_length=0.5,
@@ -110,7 +143,7 @@ class ModelVisualizer:
         self._builder = DiagramBuilder()
         self._plant, self._scene_graph = AddMultibodyPlantSceneGraph(
             self._builder, time_step=0.0)
-        self._parser = Parser(self._plant)
+        self._parser = self.MyParser(self._plant)
         self._parser_accessed = False
 
     @staticmethod
@@ -163,17 +196,17 @@ class ModelVisualizer:
             self._meshcat = StartMeshcat()
         return self._meshcat
 
-    def AddModels(self, filename):
-        """
-        Adds all models found in an input file.
+    # def AddModels(self, filename):
+    #     """
+    #     Adds all models found in an input file.
 
-        This can be called multiple times, until the object is finalized.
+    #     This can be called multiple times, until the object is finalized.
 
-        Args:
-          filename: the name of a file containing one or more models.
-        """
-        self._parser.AddModels(filename)
-        self._model_filenames.append(filename)
+    #     Args:
+    #       filename: the name of a file containing one or more models.
+    #     """
+    #     self._parser.AddModels(filename)
+    #     self._model_filenames.append(filename)
 
     def Finalize(self, position=None):
         """
@@ -413,7 +446,7 @@ class ModelVisualizer:
             url = self.meshcat().web_url()
             webbrowser.open(url=url, new=self._browser_new)
 
-        model_suffix = "s" if len(self._model_filenames) != 1 else ""
+        model_suffix = "s" if len(self._parser._models) != 1 else ""
         reload_button_name = "Reload Model File%s" % model_suffix
 
         while True:
