@@ -30,6 +30,25 @@ drake_cc_library(
     ],
 )
 
+
+filegroup(
+    name = "signed_distance_models",
+    srcs = glob([
+        "meshes/*.obj",
+    ]),
+)
+
+drake_cc_binary(
+    name = "run_signed_distance",
+    srcs = ["run_signed_distance.cc"],
+    data = [":signed_distance_models"],
+    deps = [
+        "//geometry:scene_graph",
+        "@fmt",
+        "@gflags",
+    ],
+)
+
 drake_cc_binary(
     name = "bouncing_ball_run_dynamics",
     srcs = ["bouncing_ball_run_dynamics.cc"],
