@@ -188,8 +188,9 @@ void MeshcatVisualizer<T>::SetObjects(
       // TODO(russt): Use the geometry names if/when they are cleaned up.
       const std::string path =
           fmt::format("{}/{}", frame_path, geom_id.get_value());
-      const Rgba rgba = inspector.GetProperties(geom_id, params_.role)
-          ->GetPropertyOrDefault("phong", "diffuse", params_.default_color);
+      const auto& properties = *inspector.GetProperties(geom_id, params_.role);
+      const Rgba& rgba = properties.GetPropertyOrDefault("phong", "diffuse",
+                                                         params_.default_color);
       bool used_hydroelastic = false;
       if constexpr (std::is_same_v<T, double>) {
         if (params_.show_hydroelastic) {
@@ -211,7 +212,7 @@ void MeshcatVisualizer<T>::SetObjects(
         }
       }
       if (!used_hydroelastic) {
-        meshcat_->SetObject(path, inspector.GetShape(geom_id), rgba);
+        meshcat_->SetObject(path, inspector.GetShape(geom_id), properties);
       }
       meshcat_->SetTransform(path, inspector.GetPoseInFrame(geom_id));
       geometries_[geom_id] = path;

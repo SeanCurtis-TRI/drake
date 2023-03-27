@@ -33,11 +33,17 @@ using math::RotationMatrixd;
 int do_main() {
   auto meshcat = std::make_shared<Meshcat>();
 
+  IllustrationProperties textured_props;
+  const std::string diffuse_map =
+      FindResourceOrThrow("drake/geometry/render/test/diag_gradient.png");
+  textured_props.AddProperty("phong", "diffuse_map", diffuse_map);
   Vector3d sphere_home{-4, 0, 0};
-  meshcat->SetObject("sphere", Sphere(.25), Rgba(1.0, 0, 0, 1));
+  meshcat->SetObject("sphere", Sphere(.25), textured_props);
   meshcat->SetTransform("sphere", RigidTransformd(sphere_home));
 
-  meshcat->SetObject("cylinder", Cylinder(.25, .5), Rgba(0.0, 1.0, 0, 1));
+  IllustrationProperties color_props;
+  color_props.AddProperty("phong", "diffuse", Rgba(0.0, 1.0, 0, 1));
+  meshcat->SetObject("cylinder", Cylinder(.25, .5), color_props);
   meshcat->SetTransform("cylinder", RigidTransformd(Vector3d{-3, 0, 0}));
 
   meshcat->SetObject("ellipsoid", Ellipsoid(.25, .25, .5), Rgba(1., 0, 1, .5));
@@ -54,7 +60,8 @@ int do_main() {
   meshcat->SetObject("cone", MeshcatCone(.5, .25, .5), Rgba(1, 0, 0, 1));
   meshcat->SetTransform("cone", RigidTransformd(Vector3d{1, 0, 0}));
 
-  // The green color of this cube comes from the texture map.
+  // The green color of this cube comes from the texture map referenced in the
+  // mtl file.
   meshcat->SetObject(
       "obj", Mesh(FindResourceOrThrow(
                       "drake/geometry/render/test/meshes/box.obj"),
@@ -167,7 +174,7 @@ Open up your browser to the URL above.
 
 - The background should be grey.
 - From left to right along the x axis, you should see:
-  - a red sphere
+  - a sphere with a red-green gradient
   - a green cylinder (with the long axis in z)
   - a pink semi-transparent ellipsoid (long axis in z)
   - a blue box (long axis in z)

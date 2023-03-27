@@ -188,6 +188,15 @@ Note that the concurrency level passed to `make` (e.g., `make -j 2`) does not
 propagate through to affect the concurrency of most of Drake's build steps; you
 need to configure the dotfile in order to control the build concurrency.
 
+# Visualization
+
+## Meshcat, meshes, and texture maps
+
+TODO: Meshcat uses ?? parser.
+TODO: Parser supports ?? textures.
+TODO: PBR models and blender
+    - bump scale
+    - specular exponent and color
 
 <!-- Links to the various Drake doxygen pages.
      Order determined by directory structure first and names second.

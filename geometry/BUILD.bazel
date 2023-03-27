@@ -455,6 +455,7 @@ drake_cc_library(
     data = [":meshcat_resources"],
     install_hdrs_exclude = ["meshcat_types.h"],
     interface_deps = [
+        ":geometry_roles",
         ":meshcat_animation",
         ":rgba",
         ":shape_specification",
@@ -474,6 +475,7 @@ drake_cc_library(
         "@msgpack_internal//:msgpack",
         "@stduuid_internal//:stduuid",
         "@uwebsockets",
+        "@vtk//:vtkIOImage",
     ],
 )
 

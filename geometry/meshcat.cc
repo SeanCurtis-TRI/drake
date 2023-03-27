@@ -23,6 +23,11 @@
 #include <drake_vendor/msgpack.hpp>
 #include <drake_vendor/uuid.h>
 #include <fmt/format.h>
+#include <vtkImageCast.h>
+#include <vtkImageData.h>
+#include <vtkImageExport.h>
+#include <vtkNew.h>
+#include <vtkPNGReader.h>
 
 #include "drake/common/drake_export.h"
 #include "drake/common/drake_throw.h"
@@ -251,23 +256,76 @@ class SceneTreeElement {
   std::map<std::string, std::unique_ptr<SceneTreeElement>> children_{};
 };
 
+int ToMeshcatColor(const Rgba& rgba) {
+  // Note: The returned color discards the alpha value, which is handled
+  // separately (e.g. by the opacity field in the material properties).
+  return (static_cast<int>(255 * rgba.r()) << 16) +
+         (static_cast<int>(255 * rgba.g()) << 8) +
+         static_cast<int>(255 * rgba.b());
+}
+
 class MeshcatShapeReifier : public ShapeReifier {
  public:
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(MeshcatShapeReifier);
 
-  explicit MeshcatShapeReifier(uuids::uuid_random_generator* uuid_generator)
-      : uuid_generator_(uuid_generator) {
-    DRAKE_DEMAND(uuid_generator != nullptr);
+  MeshcatShapeReifier(const Shape& shape,
+                      const GeometryProperties& properties,
+                      uuids::uuid_random_generator uuid_generator)
+      : uuid_generator_(std::move(uuid_generator)), properties_(properties) {
+    shape.Reify(this);
   }
 
   ~MeshcatShapeReifier() = default;
 
+  internal::LumpedObjectData release_lumped_data() {
+    return std::move(lumped_data_);
+  }
+
   using ShapeReifier::ImplementGeometry;
 
+  void WarnForMeshWithDrakeMaterials(const std::string& filename) {
+    const bool drake_color = properties_.HasProperty("phong", "diffuse");
+    const bool drake_texture = properties_.HasProperty("phong", "diffuse_map");
+    if (drake_color || drake_texture) {
+      // TODO(SeanCurtis-TRI): Support Rgba in fmt::format and then add the
+      // value.
+      const std::string diffuse_msg = drake_color ? "diffuse_color" : "";
+      const std::string map_msg =
+          drake_texture ? fmt::format("diffuse map ({})",
+                                      properties_.GetProperty<std::string>(
+                                          "phong", "diffuse_map"))
+                        : std::string();
+      const std::string conjunction =
+          drake_color && drake_texture ? " and " : "";
+      drake::log()->warn(
+          "Do not apply Drake materials to mesh types that define their own "
+          "materials. The mesh {} has {}{}{} applied.",
+          filename, diffuse_msg, conjunction, map_msg);
+    }
+  }
+
+  static std::string ReadFileContents(const std::string& filename) {
+    std::ifstream input(filename, std::ios::binary | std::ios::ate);
+    if (!input.is_open()) {
+      drake::log()->warn("Meshcat: Could not open filename: {}", filename);
+      return "";
+    }
+
+    const int obj_size = input.tellg();
+    input.seekg(0, std::ios::beg);
+    std::string file_data;
+    file_data.reserve(obj_size);
+    file_data.assign(std::istreambuf_iterator<char>(input),
+                     std::istreambuf_iterator<char>());
+    if (file_data.empty()) {
+      drake::log()->warn("Meshcat: File was empty: {}", filename);
+    }
+    return file_data;
+  }
+
   template <typename T>
-  void ImplementMesh(const T& mesh, void* data) {
-    DRAKE_DEMAND(data != nullptr);
-    auto& lumped = *static_cast<internal::LumpedObjectData*>(data);
+  void ImplementMesh(const T& mesh) {
+    auto& lumped = lumped_data_;
 
     // TODO(russt): Use file contents to generate the uuid, and avoid resending
     // meshes unless necessary.  Using the filename is tempting, but that leads
@@ -276,60 +334,56 @@ class MeshcatShapeReifier : public ShapeReifier {
     const std::filesystem::path filename(mesh.filename());
     std::string format = filename.extension();
     format.erase(0, 1);  // remove the . from the extension
-    std::ifstream input(mesh.filename(), std::ios::binary | std::ios::ate);
-    if (!input.is_open()) {
-      drake::log()->warn("Meshcat: Could not open mesh filename {}",
-                         mesh.filename());
+
+    std::string mesh_data = ReadFileContents(mesh.filename());
+    if (mesh_data.empty()) {
+      // Explanations for emptiness already logged.
       return;
     }
-
-    // We simply dump the binary contents of the file into the data field of the
-    // message.  The javascript meshcat takes care of the rest.
-    const int obj_size = input.tellg();
-    input.seekg(0, std::ios::beg);
-    std::string mesh_data;
-    mesh_data.reserve(obj_size);
-    mesh_data.assign(std::istreambuf_iterator<char>(input),
-                     std::istreambuf_iterator<char>());
 
     // TODO(russt): MeshCat.jl/src/mesh_files.jl loads dae with textures, also.
 
     // TODO(russt): Make this mtllib parsing more robust (right now commented
     // mtllib lines will match, too, etc).
-    size_t mtllib_pos;
-    if (format == "obj" &&
-        (mtllib_pos = mesh_data.find("mtllib ")) != std::string::npos) {
-      mtllib_pos += 7;  // Advance to after the actual "mtllib " string.
-      std::string mtllib_string =
-          mesh_data.substr(mtllib_pos, mesh_data.find('\n', mtllib_pos));
-      std::smatch matches;
-      std::regex_search(mtllib_string, matches, std::regex("\\s*([^\\s]+)"));
-      // Note: We do a minimal parsing manually here.  tinyobj does too much
-      // work (actually loading all of the content) and also does not give
-      // access to the intermediate data that we need to pass to meshcat, like
-      // the resource names in the mtl file.  This is also the approach taken
-      // in MeshCat.jl/src/mesh_files.jl.
 
-      auto& meshfile_object =
-          lumped.object.emplace<internal::MeshFileObjectData>();
-      meshfile_object.uuid = uuids::to_string((*uuid_generator_)());
-      meshfile_object.format = std::move(format);
-      meshfile_object.data = std::move(mesh_data);
-
-      std::string mtllib = matches.str(1);
+    bool mesh_data_handled = false;
+    if (format == "obj") {
+      WarnForMeshWithDrakeMaterials(mesh.filename());
 
       // Use filename path as the base directory for textures.
       const std::filesystem::path basedir = filename.parent_path();
 
-      // Read .mtl file into geometry.mtl_library.
-      std::ifstream mtl_stream(basedir / mtllib, std::ios::ate);
-      if (mtl_stream.is_open()) {
-        int mtl_size = mtl_stream.tellg();
-        mtl_stream.seekg(0, std::ios::beg);
-        meshfile_object.mtl_library.reserve(mtl_size);
-        meshfile_object.mtl_library.assign(
-            std::istreambuf_iterator<char>(mtl_stream),
-            std::istreambuf_iterator<char>());
+      std::string mtl_name;
+      std::string mtl_contents;
+      size_t mtllib_pos = mesh_data.find("mtllib ");
+      if (mtllib_pos != std::string::npos) {
+        mtllib_pos += 7;  // Advance to after the actual "mtllib " string.
+        std::string mtllib_string =
+            mesh_data.substr(mtllib_pos, mesh_data.find('\n', mtllib_pos));
+        std::smatch matches;
+        std::regex_search(mtllib_string, matches, std::regex("\\s*([^\\s]+)"));
+
+        mtl_name = matches.str(1);
+        if (!mtl_name.empty()) {
+          mtl_contents = ReadFileContents((basedir / mtl_name).string());
+        }
+
+        // This meshcat specification is only valid for an obj with an .mtl
+        // file.
+        // Note: We do a minimal parsing manually here.  tinyobj does too much
+        // work (actually loading all of the content) and also does not give
+        // access to the intermediate data that we need to pass to meshcat, like
+        // the resource names in the mtl file.  This is also the approach taken
+        // in MeshCat.jl/src/mesh_files.jl.
+
+        auto& meshfile_object =
+            lumped.object.emplace<internal::MeshFileObjectData>();
+        meshfile_object.uuid = uuids::to_string((uuid_generator_)());
+        meshfile_object.format = std::move(format);
+        meshfile_object.data = std::move(mesh_data);
+
+        // Put the .mtl contents into geometry.mtl_library.
+        meshfile_object.mtl_library = std::move(mtl_contents);
 
         // Scan .mtl file for map_ lines.  For each, load the file and add
         // the contents to geometry.resources.
@@ -342,13 +396,33 @@ class MeshcatShapeReifier : public ShapeReifier {
         //  - "[^\s]+" matches the filename, and
         //  - "[$\r\n]" matches the end of string or end of line.
         // TODO(russt): This parsing could still be more robust.
-        std::regex map_regex(R"""(map_.+\s([^\s]+)[$\r\n])""");
+        // TODO(SeanCurtis-TRI): textures bump, disp, decal, and refl aren't
+        // covered by this.
+        std::regex map_regex(R"""((map_[^\s]+)\s.*?([^\s]+)[$\r\n])""");
         for (std::sregex_iterator iter(meshfile_object.mtl_library.begin(),
                                        meshfile_object.mtl_library.end(),
                                        map_regex);
              iter != std::sregex_iterator(); ++iter) {
-          std::string map = iter->str(1);
-          std::ifstream map_stream(basedir / map,
+          // TODO: If we encounter a map that we recognize as being unsupported,
+          // dispatch a warning that it isn't supported and and forward to the
+          // troubleshooting guide.
+          std::string map_name = iter->str(1);
+          const std::string map_path = iter->str(2);
+          std::transform(map_name.begin(), map_name.end(), map_name.begin(),
+                         [](unsigned char c) {
+                           return std::tolower(c);
+                         });
+          if (!IsSupportedObjMap(map_name)) {
+            drake::log()->warn(
+                "Meshcat: An OBJ material library (MTL) specified an map type "
+                "('{}') that Meshcat doesn't support, the texture image will "
+                "not be loaded: {}. See <URL> for more details.",
+                map_name, map_path);
+
+            continue;
+          }
+
+          std::ifstream map_stream(basedir / map_path,
                                    std::ios::binary | std::ios::ate);
           if (map_stream.is_open()) {
             int map_size = map_stream.tellg();
@@ -358,29 +432,27 @@ class MeshcatShapeReifier : public ShapeReifier {
             map_data.assign(std::istreambuf_iterator<char>(map_stream),
                             std::istreambuf_iterator<char>());
             meshfile_object.resources.try_emplace(
-                map, std::string("data:image/png;base64,") +
-                          common_robotics_utilities::base64_helpers::Encode(
-                              map_data));
+                map_path, std::string("data:image/png;base64,") +
+                              common_robotics_utilities::base64_helpers::Encode(
+                                  map_data));
           } else {
             drake::log()->warn(
                 "Meshcat: Failed to load texture. \"{}\" references {}, but "
                 "Meshcat could not open filename \"{}\"",
-                (basedir / mtllib).string(), map, (basedir / map).string());
+                (basedir / mtl_name).string(), map_path,
+                (basedir / map_path).string());
           }
         }
-      } else {
-        drake::log()->warn(
-            "Meshcat: Failed to load texture. {} references {}, but Meshcat "
-            "could not open filename \"{}\"",
-            mesh.filename(), mtllib, (basedir / mtllib).string());
+        Eigen::Map<Eigen::Matrix4d> matrix(meshfile_object.matrix);
+        matrix(0, 0) = mesh.scale();
+        matrix(1, 1) = mesh.scale();
+        matrix(2, 2) = mesh.scale();
+        mesh_data_handled = true;
       }
-      Eigen::Map<Eigen::Matrix4d> matrix(meshfile_object.matrix);
-      matrix(0, 0) = mesh.scale();
-      matrix(1, 1) = mesh.scale();
-      matrix(2, 2) = mesh.scale();
-    } else {  // not obj or no mtllib.
+    }
+    if (!mesh_data_handled) {
       auto geometry = std::make_unique<internal::MeshFileGeometryData>();
-      geometry->uuid = uuids::to_string((*uuid_generator_)());
+      geometry->uuid = uuids::to_string((uuid_generator_)());
       geometry->format = std::move(format);
       geometry->data = std::move(mesh_data);
       lumped.geometry = std::move(geometry);
@@ -391,29 +463,175 @@ class MeshcatShapeReifier : public ShapeReifier {
       matrix(1, 1) = mesh.scale();
       matrix(2, 2) = mesh.scale();
     }
+  }
+
+  struct MeshcatImage {
+    int width;
+    int height;
+    int channel_count;
+    std::vector<uint8_t> data;
+  };
+
+  std::optional<MeshcatImage> ReadImage(
+      const std::filesystem::path& image_path) const {
+    vtkNew<vtkPNGReader> png_reader;
+    png_reader->SetFileName(image_path.c_str());
+    png_reader->Update();
+    if (png_reader->GetOutput()->GetScalarType() != VTK_UNSIGNED_CHAR) {
+      log()->warn(
+          "Texture map '{}' has an unsupported bit depth, casting it to uchar "
+          "channels.",
+          image_path);
     }
 
-  void ImplementGeometry(const Box& box, void* data) override {
-    DRAKE_DEMAND(data != nullptr);
-    auto& lumped = *static_cast<internal::LumpedObjectData*>(data);
+    vtkNew<vtkImageCast> caster;
+    caster->SetOutputScalarType(VTK_UNSIGNED_CHAR);
+    caster->SetInputConnection(png_reader->GetOutputPort());
+    caster->Update();
+
+    vtkNew<vtkImageExport> exporter;
+    exporter->SetInputConnection(caster->GetOutputPort());
+    exporter->ImageLowerLeftOff();
+    exporter->Update();
+    vtkImageData* vtk_image = exporter->GetInput();
+
+    if (vtk_image == nullptr) {
+      return std::nullopt;
+    }
+
+    MeshcatImage image;
+    const int* dim = vtk_image->GetDimensions();
+    image.width = dim[0];
+    image.height = dim[1];
+    // We should have either rgb or rgba data.
+    const int channel_count = vtk_image->GetNumberOfScalarComponents();
+
+    uint8_t* pixel = static_cast<uint8_t*>(vtk_image->GetScalarPointer());
+    const int value_count = image.width * image.height * 4;
+    if (channel_count == 4) {
+      image.data = std::vector<uint8_t>(pixel, pixel + value_count);
+    } else if (channel_count == 3) {
+      image.data.reserve(value_count);
+      // Three.js requires rgba, so we need to pad.
+      for (int t = 0, s = 0; t < value_count; t += 4, s += 3) {
+        image.data.push_back(pixel[s]);
+        image.data.push_back(pixel[s + 1]);
+        image.data.push_back(pixel[s + 2]);
+        image.data.push_back(255);
+      }
+    } else {
+      return std::nullopt;
+    }
+
+    return image;
+  }
+
+  // Returns the uuid of the diffuse texture; empty string if no map was
+  // added.
+  std::string MaybeAddDiffuseMapToMaterial(const std::string& map_path) {
+    std::optional<MeshcatImage> maybe_image = ReadImage(map_path);
+
+    // ReadImage should have given warnings if there was a problem reading the
+    // image.
+    if (!maybe_image.has_value()) {
+      return "";
+    }
+
+    // Note: for now, we only support materials with a single texture using a
+    // single image. So, for now, images.size() == textures.size(). However, in
+    // the future that won't be true and when we allow multiple textures, some
+    // textures could share images. So, we'll start by not assuming they're
+    // locked.
+    if (!lumped_data_.images.has_value()) {
+      lumped_data_.images = std::vector<internal::ImageData>();
+    }
+    if (!lumped_data_.textures.has_value()) {
+      lumped_data_.textures = std::vector<internal::DataTextureData>();
+    }
+
+    auto& images = *lumped_data_.images;
+    auto& textures = *lumped_data_.textures;
+
+    MeshcatImage& image = *maybe_image;
+    images.push_back({.uuid = uuids::to_string(uuid_generator_()),
+                      .url = {.data = std::move(image.data),
+                              .width = image.width,
+                              .height = image.height}});
+    // Handle format: RGB vs RGBA.
+    textures.push_back({.uuid = uuids::to_string(uuid_generator_()),
+                        .image = images.back().uuid});
+    return textures.back().uuid;
+  }
+
+  // TODO: Currently this only works for MeshData (primitives); it also needs
+  // to work for meshfile object data...
+  void AddMaterial() {
+    auto& meshfile_object = std::get<internal::MeshData>(lumped_data_.object);
+    if (lumped_data_.geometry == nullptr) {
+      // Reification failed; don't bother with material.
+    }
+
+    // Why does this happen *here*?!?!?
+    meshfile_object.geometry = lumped_data_.geometry->uuid;
+
+    auto material = std::make_unique<internal::MaterialData>();
+    material->uuid = uuids::to_string(uuid_generator_());
+    material->type = "MeshPhongMaterial";
+    const bool has_diffuse_map =
+        properties_.HasProperty("phong", "diffuse_map");
+    const Rgba default_rgba =
+        has_diffuse_map ? Rgba(1, 1, 1, 1) : Rgba(.9, .9, .9, 1.);
+    // This should provide an Rgba values as a documented prerequisite.
+    const Rgba& rgba =
+        properties_.GetPropertyOrDefault("phong", "diffuse", default_rgba);
+    material->color = ToMeshcatColor(rgba);
+    if (has_diffuse_map) {
+      const std::string maybe_uuid = MaybeAddDiffuseMapToMaterial(
+          properties_.GetProperty<std::string>("phong", "diffuse_map"));
+      if (!maybe_uuid.empty()) {
+        material->map = maybe_uuid;
+      }
+    }
+    // TODO(russt): Most values are taken verbatim from meshcat-python.
+    material->reflectivity = 0.5;
+    material->side = Meshcat::SideOfFaceToRender::kDoubleSide;
+    // From meshcat-python: Three.js allows a material to have an opacity
+    // which is != 1, but to still be non - transparent, in which case the
+    // opacity only serves to desaturate the material's color. That's a
+    // pretty odd combination of things to want, so by default we just use
+    // the opacity value to decide whether to set transparent to True or
+    // False.
+    material->transparent = (rgba.a() != 1.0);
+    material->opacity = rgba.a();
+    material->linewidth = 1.0;
+    material->wireframe = false;
+    material->wireframeLineWidth = 1.0;
+
+    meshfile_object.uuid = uuids::to_string(uuid_generator_());
+    meshfile_object.material = material->uuid;
+    lumped_data_.material = std::move(material);
+  }
+
+  void ImplementGeometry(const Box& box, void*) override {
+    auto& lumped = lumped_data_;
     lumped.object = internal::MeshData();
 
     auto geometry = std::make_unique<internal::BoxGeometryData>();
-    geometry->uuid = uuids::to_string((*uuid_generator_)());
+    geometry->uuid = uuids::to_string((uuid_generator_)());
     geometry->width = box.width();
     // Three.js uses height for the y axis; Drake uses depth.
     geometry->height = box.depth();
     geometry->depth = box.height();
     lumped.geometry = std::move(geometry);
+    AddMaterial();
   }
 
-  void ImplementGeometry(const Capsule& capsule, void* data) override {
-    DRAKE_DEMAND(data != nullptr);
-    auto& lumped = *static_cast<internal::LumpedObjectData*>(data);
+  void ImplementGeometry(const Capsule& capsule, void*) override {
+    auto& lumped = lumped_data_;
     auto& mesh = lumped.object.emplace<internal::MeshData>();
 
     auto geometry = std::make_unique<internal::CapsuleGeometryData>();
-    geometry->uuid = uuids::to_string((*uuid_generator_)());
+    geometry->uuid = uuids::to_string((uuid_generator_)());
     geometry->radius = capsule.radius();
     geometry->length = capsule.length();
     lumped.geometry = std::move(geometry);
@@ -422,19 +640,19 @@ class MeshcatShapeReifier : public ShapeReifier {
     Eigen::Map<Eigen::Matrix4d>(mesh.matrix) =
         RigidTransformd(RotationMatrixd::MakeXRotation(M_PI / 2.0))
             .GetAsMatrix4();
+    AddMaterial();
   }
 
-  void ImplementGeometry(const Convex& mesh, void* data) override {
-    ImplementMesh(mesh, data);
+  void ImplementGeometry(const Convex& mesh, void*) override {
+    ImplementMesh(mesh);
   }
 
-  void ImplementGeometry(const Cylinder& cylinder, void* data) override {
-    DRAKE_DEMAND(data != nullptr);
-    auto& lumped = *static_cast<internal::LumpedObjectData*>(data);
+  void ImplementGeometry(const Cylinder& cylinder, void*) override {
+    auto& lumped = lumped_data_;
     auto& mesh = lumped.object.emplace<internal::MeshData>();
 
     auto geometry = std::make_unique<internal::CylinderGeometryData>();
-    geometry->uuid = uuids::to_string((*uuid_generator_)());
+    geometry->uuid = uuids::to_string((uuid_generator_)());
     geometry->radiusBottom = cylinder.radius();
     geometry->radiusTop = cylinder.radius();
     geometry->height = cylinder.length();
@@ -444,16 +662,16 @@ class MeshcatShapeReifier : public ShapeReifier {
     Eigen::Map<Eigen::Matrix4d>(mesh.matrix) =
         RigidTransformd(RotationMatrixd::MakeXRotation(M_PI / 2.0))
             .GetAsMatrix4();
+    AddMaterial();
   }
 
-  void ImplementGeometry(const Ellipsoid& ellipsoid, void* data) override {
+  void ImplementGeometry(const Ellipsoid& ellipsoid, void*) override {
     // Implemented as a Sphere stretched by a diagonal transform.
-    DRAKE_DEMAND(data != nullptr);
-    auto& lumped = *static_cast<internal::LumpedObjectData*>(data);
+    auto& lumped = lumped_data_;
     auto& mesh = lumped.object.emplace<internal::MeshData>();
 
     auto geometry = std::make_unique<internal::SphereGeometryData>();
-    geometry->uuid = uuids::to_string((*uuid_generator_)());
+    geometry->uuid = uuids::to_string((uuid_generator_)());
     geometry->radius = 1;
     lumped.geometry = std::move(geometry);
 
@@ -461,6 +679,7 @@ class MeshcatShapeReifier : public ShapeReifier {
     matrix(0, 0) = ellipsoid.a();
     matrix(1, 1) = ellipsoid.b();
     matrix(2, 2) = ellipsoid.c();
+    AddMaterial();
   }
 
   void ImplementGeometry(const HalfSpace&, void*) override {
@@ -469,17 +688,16 @@ class MeshcatShapeReifier : public ShapeReifier {
     drake::log()->warn("Meshcat does not display HalfSpace geometry (yet).");
   }
 
-  void ImplementGeometry(const Mesh& mesh, void* data) override {
-    ImplementMesh(mesh, data);
+  void ImplementGeometry(const Mesh& mesh, void*) override {
+    ImplementMesh(mesh);
   }
 
-  void ImplementGeometry(const MeshcatCone& cone, void* data) override {
-    DRAKE_DEMAND(data != nullptr);
-    auto& lumped = *static_cast<internal::LumpedObjectData*>(data);
+  void ImplementGeometry(const MeshcatCone& cone, void*) override {
+    auto& lumped = lumped_data_;
     auto& mesh = lumped.object.emplace<internal::MeshData>();
 
     auto geometry = std::make_unique<internal::CylinderGeometryData>();
-    geometry->uuid = uuids::to_string((*uuid_generator_)());
+    geometry->uuid = uuids::to_string((uuid_generator_)());
     geometry->radiusBottom = 0;
     geometry->radiusTop = 1.0;
     geometry->height = cone.height();
@@ -493,30 +711,42 @@ class MeshcatShapeReifier : public ShapeReifier {
         RigidTransformd(RotationMatrixd::MakeXRotation(M_PI / 2.0),
                         Eigen::Vector3d{0, 0, cone.height() / 2.0})
             .GetAsMatrix4();
+    AddMaterial();
   }
 
-  void ImplementGeometry(const Sphere& sphere, void* data) override {
-    DRAKE_DEMAND(data != nullptr);
-    auto& lumped = *static_cast<internal::LumpedObjectData*>(data);
+  void ImplementGeometry(const Sphere& sphere, void*) override {
+    auto& lumped = lumped_data_;
     lumped.object = internal::MeshData();
 
     auto geometry = std::make_unique<internal::SphereGeometryData>();
-    geometry->uuid = uuids::to_string((*uuid_generator_)());
+    geometry->uuid = uuids::to_string((uuid_generator_)());
     geometry->radius = sphere.radius();
     lumped.geometry = std::move(geometry);
+    AddMaterial();
   }
 
  private:
-  uuids::uuid_random_generator* const uuid_generator_{};
-};
+  // We are dependent on Three.js MTLLoader to parse the mtl file.
+  // https://github.com/mrdoob/three.js/blob/master/examples/jsm/loaders/MTLLoader.js#L379-L493
+  //
+  // However, it doesn't necessarily support a full set of valid map types.
+  // https://en.wikipedia.org/wiki/Wavefront_.obj_file#Texture_maps
+  //
+  // This itemizes the maps we know (to the best of our ability) that are
+  // supported.
+  // @pre map_label is all lowercase.
+  bool IsSupportedObjMap(std::string_view map_label) {
+    // Maps suspected to be missing: map_ka, map_ns
+    static const never_destroyed<std::set<std::string_view>> supported{
+        std::initializer_list<std::string_view>{
+            "map_kd", "map_ks", "map_ke", "norm", "map_bump", "bump", "map_d"}};
+    return supported.access().count(map_label) > 0;
+  }
 
-int ToMeshcatColor(const Rgba& rgba) {
-  // Note: The returned color discards the alpha value, which is handled
-  // separately (e.g. by the opacity field in the material properties).
-  return (static_cast<int>(255 * rgba.r()) << 16) +
-         (static_cast<int>(255 * rgba.g()) << 8) +
-         static_cast<int>(255 * rgba.b());
-}
+  uuids::uuid_random_generator uuid_generator_;
+  const GeometryProperties& properties_;
+  internal::LumpedObjectData lumped_data_;
+};
 
 }  // namespace
 
@@ -718,54 +948,37 @@ class Meshcat::Impl {
   }
 
   // This function is public via the PIMPL.
-  void SetObject(std::string_view path, const Shape& shape, const Rgba& rgba) {
-    DRAKE_DEMAND(IsThread(main_thread_id_));
+  void SetObject(std::string_view path, const Shape& shape,
+                 const std::optional<Rgba>& rgba) {
+    IllustrationProperties props;
+    if (rgba.has_value()) {
+      props.AddProperty("phong", "diffuse", *rgba);
+    }
+    SetObject(path, shape, props);
+  }
 
-    uuids::uuid_random_generator uuid_generator{generator_};
+  // This function is public via the PIMPL.
+  void SetObject(std::string_view path, const Shape& shape,
+                 const GeometryProperties& properties) {
+    DRAKE_DEMAND(IsThread(main_thread_id_));
     internal::SetObjectData data;
-    data.path = FullPath(path);
 
     // TODO(russt): This current meshcat set_object interface couples geometry,
     // material, and object for convenience, but we might consider decoupling
     // them again for efficiency. We don't want to send meshes over the network
     // (which could be from the cloud to a local browser) more than necessary.
 
-    MeshcatShapeReifier reifier(&uuid_generator);
-    shape.Reify(&reifier, &data.object);
+    MeshcatShapeReifier reifier(shape, properties,
+                                uuids::uuid_random_generator(generator_));
+    data.object = reifier.release_lumped_data();
 
     if (std::holds_alternative<std::monostate>(data.object.object)) {
       // Then this shape is not supported, and I should not send the message,
-      // nor add the object to the tree.
+      // nor add the object to the tree. The reifier is responsible for
+      // dispatching an appropriate warning.
       return;
     }
-    if (std::holds_alternative<internal::MeshData>(data.object.object)) {
-      auto& meshfile_object = std::get<internal::MeshData>(data.object.object);
-      DRAKE_DEMAND(data.object.geometry != nullptr);
-      meshfile_object.geometry = data.object.geometry->uuid;
-
-      auto material = std::make_unique<internal::MaterialData>();
-      material->uuid = uuids::to_string(uuid_generator());
-      material->type = "MeshPhongMaterial";
-      material->color = ToMeshcatColor(rgba);
-      // TODO(russt): Most values are taken verbatim from meshcat-python.
-      material->reflectivity = 0.5;
-      material->side = SideOfFaceToRender::kDoubleSide;
-      // From meshcat-python: Three.js allows a material to have an opacity
-      // which is != 1, but to still be non - transparent, in which case the
-      // opacity only serves to desaturate the material's color. That's a
-      // pretty odd combination of things to want, so by default we just use
-      // the opacity value to decide whether to set transparent to True or
-      // False.
-      material->transparent = (rgba.a() != 1.0);
-      material->opacity = rgba.a();
-      material->linewidth = 1.0;
-      material->wireframe = false;
-      material->wireframeLineWidth = 1.0;
-
-      meshfile_object.uuid = uuids::to_string(uuid_generator());
-      meshfile_object.material = material->uuid;
-      data.object.material = std::move(material);
-    }
+    data.path = FullPath(path);
 
     Defer([this, data = std::move(data)]() {
       DRAKE_DEMAND(IsThread(websocket_thread_id_));
@@ -2080,8 +2293,13 @@ void Meshcat::Flush() const {
 }
 
 void Meshcat::SetObject(std::string_view path, const Shape& shape,
-                        const Rgba& rgba) {
+                        const std::optional<Rgba>& rgba) {
   impl().SetObject(path, shape, rgba);
+}
+
+void Meshcat::SetObject(std::string_view path, const Shape& shape,
+                        const GeometryProperties& properties) {
+  impl().SetObject(path, shape, properties);
 }
 
 void Meshcat::SetObject(std::string_view path,

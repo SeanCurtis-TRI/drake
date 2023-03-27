@@ -9,6 +9,7 @@
 
 #include "drake/common/drake_copyable.h"
 #include "drake/common/name_value.h"
+#include "drake/geometry/geometry_roles.h"
 #include "drake/geometry/meshcat_animation.h"
 #include "drake/geometry/proximity/triangle_surface_mesh.h"
 #include "drake/geometry/rgba.h"
@@ -183,7 +184,39 @@ class Meshcat {
   @pydrake_mkdoc_identifier{shape}
   */
   void SetObject(std::string_view path, const Shape& shape,
-                 const Rgba& rgba = Rgba(.9, .9, .9, 1.));
+                 const std::optional<Rgba>& rgba = std::nullopt);
+
+  /** Sets the 3D object at a given `path` in the scene tree.  Note that
+  `path`="/foo" will always set an object in the tree at "/foo/<object>".  See
+  @ref meshcat_path.  Any objects previously set at this `path` will be
+  replaced.
+
+  If the shape is a primitive, its appearance will be determined by the the
+  given set of properties.
+
+    - if only ("phong", "diffuse") = Rgba is present, the shape will have that
+      color.
+    - if only ("phong", "diffuse_map") = string (path to .png image), the
+      shape will have that texture wrapped on it.
+    - If both "diffuse" and "diffuse_map" are given, the surface will be the
+      texture, tinted by the diffuse color.
+    - If neither is given, a default color will be applied (light grey).
+
+  These properties are ignored for Mesh and Convex shapes.
+
+  @warning Meshcat creates its own primitive shapes with its own algorithms for
+  determining how to map the image to the surface. It won't necessarily look
+  the same as the primitive will appear in an image produced by a RenderCamera.
+
+  @param path a "/"-delimited string indicating the path in the scene tree.
+              See @ref meshcat_path "Meshcat paths" for the semantics.
+  @param shape a Shape that specifies the geometry of the object.
+  @param properties the geometry properties that will determine the color of
+  a _primitive_ shape.
+  @pydrake_mkdoc_identifier{shape_n_properties}
+  */
+  void SetObject(std::string_view path, const Shape& shape,
+                 const GeometryProperties& properties);
 
   // TODO(russt): SetObject with texture map.
 

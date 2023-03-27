@@ -38,6 +38,31 @@ namespace internal {
 // compatible with msgpack, which wants to be able to unpack into the same
 // structure.
 
+// Defines an image where the *uncompressed* image data is stored
+struct ImageBufferData {
+  std::vector<uint8_t> data;
+  int width;
+  int height;
+  std::string type{"Uint8Array"};
+  MSGPACK_DEFINE_MAP(data, width, height, type);
+};
+
+struct ImageData {
+  std::string uuid;
+  // TODO: This could also be a string.
+  ImageBufferData url;
+  MSGPACK_DEFINE_MAP(uuid, url);
+};
+
+struct DataTextureData {
+  // This relies on default values of:
+  //  - format = RGBAFormat
+  //  - type = UnsignedByteType.
+  std::string uuid;
+  std::string image;
+  MSGPACK_DEFINE_MAP(uuid, image);
+};
+
 // TODO(russt): We should expose these options to the user.
 // The documentation of the fields is adapted from
 // https://threejs.org/docs/#api/en/materials/Material and its derived classes.
@@ -96,6 +121,9 @@ struct MaterialData {
   // is 1.
   std::optional<double> wireframeLineWidth;
 
+  // The uuid of the texture to use as the diffuse color map.
+  std::optional<std::string> map;
+
   template <typename Packer>
   // NOLINTNEXTLINE(runtime/references) cpplint disapproves of msgpack choices.
   void msgpack_pack(Packer& o) const {
@@ -108,6 +136,7 @@ struct MaterialData {
     if (transparent) ++n;
     if (wireframe) ++n;
     if (wireframeLineWidth) ++n;
+    if (map) ++n;
     o.pack_map(n);
     PACK_MAP_VAR(o, uuid);
     PACK_MAP_VAR(o, type);
@@ -144,6 +173,10 @@ struct MaterialData {
     if (wireframeLineWidth) {
       o.pack("wireframeLineWidth");
       o.pack(*wireframeLineWidth);
+    }
+    if (map) {
+      o.pack("map");
+      o.pack(*map);
     }
   }
 
@@ -326,6 +359,8 @@ struct LumpedObjectData {
   std::unique_ptr<GeometryData> geometry;
   std::unique_ptr<MaterialData> material;
   std::variant<std::monostate, MeshData, MeshFileObjectData> object;
+  std::optional<std::vector<ImageData>> images;
+  std::optional<std::vector<DataTextureData>> textures;
 
   template <typename Packer>
   // NOLINTNEXTLINE(runtime/references) cpplint disapproves of msgpack choices.
@@ -333,6 +368,8 @@ struct LumpedObjectData {
     int size = 2;
     if (geometry) ++size;
     if (material) ++size;
+    if (images) ++size;
+    if (textures) ++size;
     o.pack_map(size);
     PACK_MAP_VAR(o, metadata);
     if (geometry) {
@@ -344,6 +381,14 @@ struct LumpedObjectData {
       o.pack("materials");
       o.pack_array(1);
       o.pack(*material);
+    }
+    if (images) {
+      o.pack("images");
+      o.pack(*images);
+    }
+    if (textures) {
+      o.pack("textures");
+      o.pack(*textures);
     }
     o.pack("object");
     if (std::holds_alternative<MeshData>(object)) {
