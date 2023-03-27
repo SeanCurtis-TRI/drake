@@ -455,6 +455,7 @@ drake_cc_library(
     data = [":meshcat_resources"],
     install_hdrs_exclude = ["meshcat_types.h"],
     interface_deps = [
+        ":geometry_roles",
         ":meshcat_animation",
         ":rgba",
         ":shape_specification",

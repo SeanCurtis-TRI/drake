@@ -44,7 +44,9 @@ int do_main() {
   meshcat->SetTransform("ellipsoid", RigidTransformd(Vector3d{-2, 0, 0}));
 
   Vector3d box_home{-1, 0, 0};
-  meshcat->SetObject("box", Box(.25, .25, .5), Rgba(0, 0, 1, 1));
+  IllustrationProperties box_props;
+  box_props.AddProperty("phong", "diffuse", Rgba(0, 0, 1, 1));
+  meshcat->SetObject("box", Box(.25, .25, .5), box_props);
   meshcat->SetTransform("box", RigidTransformd(box_home));
 
   meshcat->SetObject("capsule", Capsule(.25, .5), Rgba(0, 1, 1, 1));
@@ -54,12 +56,36 @@ int do_main() {
   meshcat->SetObject("cone", MeshcatCone(.5, .25, .5), Rgba(1, 0, 0, 1));
   meshcat->SetTransform("cone", RigidTransformd(Vector3d{1, 0, 0}));
 
-  // The green color of this cube comes from the texture map.
+  // The green color of this cube comes from the texture map referenced in the
+  // mtl file.
   meshcat->SetObject(
-      "obj", Mesh(FindResourceOrThrow(
+      "obj_mtl", Mesh(FindResourceOrThrow(
                       "drake/geometry/render/test/meshes/box.obj"),
                   .25));
-  meshcat->SetTransform("obj", RigidTransformd(Vector3d{2, 0, 0}));
+  meshcat->SetTransform("obj_mtl", RigidTransformd(Vector3d{2, 0, 0}));
+
+  // Color gradient comes from the specified diffuse_map: diag_gradient.png; it
+  // *replaces* the map_Kd value in the box.obj file.
+  IllustrationProperties props;
+  const std::string diffuse_map =
+      FindResourceOrThrow("drake/geometry/render/test/diag_gradient.png");
+  props.AddProperty("phong", "diffuse_map", diffuse_map);
+  meshcat->SetObject(
+      "obj_diffuse_map_override",
+      Mesh(FindResourceOrThrow("drake/geometry/render/test/meshes/box.obj"),
+           .25),
+      props);
+  meshcat->SetTransform("obj_diffuse_map_override",
+                        RigidTransformd(Vector3d{2, 0, 1}));
+
+  meshcat->SetObject(
+      "obj_diffuse_map_only",
+      Mesh(FindResourceOrThrow(
+               "drake/geometry/render/test/meshes/box_no_mtl.obj"),
+           .25),
+      props);
+  meshcat->SetTransform("obj_diffuse_map_only",
+                        RigidTransformd(Vector3d{2, 0, 2}));
 
   auto mustard_obj =
       FindRunfile("models_internal/ycb/meshes/006_mustard_bottle_textured.obj")

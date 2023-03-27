@@ -9,6 +9,7 @@
 
 #include "drake/common/drake_copyable.h"
 #include "drake/common/name_value.h"
+#include "drake/geometry/geometry_roles.h"
 #include "drake/geometry/meshcat_animation.h"
 #include "drake/geometry/proximity/triangle_surface_mesh.h"
 #include "drake/geometry/rgba.h"
@@ -184,6 +185,13 @@ class Meshcat {
   */
   void SetObject(std::string_view path, const Shape& shape,
                  const Rgba& rgba = Rgba(.9, .9, .9, 1.));
+
+  /**
+   TODO: Document the semantics.
+   @pre The ("phong", "diffuse") -> Rgba property exists in `properties`.
+  */
+  void SetObject(std::string_view path, const Shape& shape,
+                 const IllustrationProperties& properties);
 
   // TODO(russt): SetObject with texture map.
 
