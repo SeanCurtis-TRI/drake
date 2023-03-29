@@ -66,26 +66,45 @@ int do_main() {
 
   // Color gradient comes from the specified diffuse_map: diag_gradient.png; it
   // *replaces* the map_Kd value in the box.obj file.
-  IllustrationProperties props;
+  IllustrationProperties props_map;
   const std::string diffuse_map =
       FindResourceOrThrow("drake/geometry/render/test/diag_gradient.png");
-  props.AddProperty("phong", "diffuse_map", diffuse_map);
+  props_map.AddProperty("phong", "diffuse_map", diffuse_map);
+  IllustrationProperties props_diffuse;
+  props_diffuse.AddProperty("phong", "diffuse", Rgba(0.2, 0.5, 0.2, 1.0));
+
   meshcat->SetObject(
       "obj_diffuse_map_override",
       Mesh(FindResourceOrThrow("drake/geometry/render/test/meshes/box.obj"),
            .25),
-      props);
+      props_map);
   meshcat->SetTransform("obj_diffuse_map_override",
                         RigidTransformd(Vector3d{2, 0, 1}));
+
+  meshcat->SetObject(
+      "obj_diffuse_override",
+      Mesh(FindResourceOrThrow("drake/geometry/render/test/meshes/box.obj"),
+           .25),
+      props_diffuse);
+  meshcat->SetTransform("obj_diffuse_override",
+                        RigidTransformd(Vector3d{2, 0, 2}));
 
   meshcat->SetObject(
       "obj_diffuse_map_only",
       Mesh(FindResourceOrThrow(
                "drake/geometry/render/test/meshes/box_no_mtl.obj"),
            .25),
-      props);
+      props_map);
   meshcat->SetTransform("obj_diffuse_map_only",
-                        RigidTransformd(Vector3d{2, 0, 2}));
+                        RigidTransformd(Vector3d{2, 1, 1}));
+
+  meshcat->SetObject(
+      "obj_diffuse_only",
+      Mesh(FindResourceOrThrow(
+               "drake/geometry/render/test/meshes/box_no_mtl.obj"),
+           .25),
+      props_diffuse);
+  meshcat->SetTransform("obj_diffuse_only", RigidTransformd(Vector3d{2, 1, 2}));
 
   auto mustard_obj =
       FindRunfile("models_internal/ycb/meshes/006_mustard_bottle_textured.obj")

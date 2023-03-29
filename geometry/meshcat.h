@@ -184,7 +184,7 @@ class Meshcat {
   @pydrake_mkdoc_identifier{shape}
   */
   void SetObject(std::string_view path, const Shape& shape,
-                 const Rgba& rgba = Rgba(.9, .9, .9, 1.));
+                 const std::optional<Rgba>& rgba = std::nullopt);
 
   /**
    TODO: Document the semantics.

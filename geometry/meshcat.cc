@@ -305,71 +305,70 @@ class MeshcatShapeReifier : public ShapeReifier {
     mesh_data.assign(std::istreambuf_iterator<char>(input),
                      std::istreambuf_iterator<char>());
 
-    // TODO: I need to get the data.
-    // If there is no mtllib, I need to create a material and send this map.
-    // If there *is* a mtllib, I need to hijack all of the map_Kd with *this*
-    // data.
-    // We'll start with the former.
-    std::optional<std::string> diffuse_map = std::nullopt;
-    if (properties_.HasProperty("phong", "diffuse_map")) {
-      const std::string& diffuse_path =
-          properties_.GetProperty<std::string>("phong", "diffuse_map");
-      std::ifstream map_stream(diffuse_path, std::ios::binary | std::ios::ate);
-      if (map_stream.is_open()) {
-        int map_size = map_stream.tellg();
-        map_stream.seekg(0, std::ios::beg);
-        std::vector<uint8_t> map_data;
-        map_data.reserve(map_size);
-        map_data.assign(std::istreambuf_iterator<char>(map_stream),
-                        std::istreambuf_iterator<char>());
-        diffuse_map =
-            std::string("data:image/png;base64,") +
-            common_robotics_utilities::base64_helpers::Encode(map_data);
-      } else {
-        drake::log()->warn(
-            "Meshcat: Failed to load texture. The ('drake', 'diffuse_map') "
-            "property specified {}, but it couldn't be opened.", diffuse_path);
-      }
-    }
-
     // TODO(russt): MeshCat.jl/src/mesh_files.jl loads dae with textures, also.
 
     // TODO(russt): Make this mtllib parsing more robust (right now commented
     // mtllib lines will match, too, etc).
-    size_t mtllib_pos;
-    if (format == "obj" &&
-        (mtllib_pos = mesh_data.find("mtllib ")) != std::string::npos) {
-      mtllib_pos += 7;  // Advance to after the actual "mtllib " string.
-      std::string mtllib_string =
-          mesh_data.substr(mtllib_pos, mesh_data.find('\n', mtllib_pos));
-      std::smatch matches;
-      std::regex_search(mtllib_string, matches, std::regex("\\s*([^\\s]+)"));
-      // Note: We do a minimal parsing manually here.  tinyobj does too much
-      // work (actually loading all of the content) and also does not give
-      // access to the intermediate data that we need to pass to meshcat, like
-      // the resource names in the mtl file.  This is also the approach taken
-      // in MeshCat.jl/src/mesh_files.jl.
-
-      auto& meshfile_object =
-          lumped.object.emplace<internal::MeshFileObjectData>();
-      meshfile_object.uuid = uuids::to_string((uuid_generator_)());
-      meshfile_object.format = std::move(format);
-      meshfile_object.data = std::move(mesh_data);
-
-      std::string mtllib = matches.str(1);
-
+    
+    bool mesh_data_handled = false;
+    if (format == "obj") {
       // Use filename path as the base directory for textures.
       const std::filesystem::path basedir = filename.parent_path();
 
-      // Read .mtl file into geometry.mtl_library.
-      std::ifstream mtl_stream(basedir / mtllib, std::ios::ate);
-      if (mtl_stream.is_open()) {
-        int mtl_size = mtl_stream.tellg();
-        mtl_stream.seekg(0, std::ios::beg);
-        meshfile_object.mtl_library.reserve(mtl_size);
-        meshfile_object.mtl_library.assign(
-            std::istreambuf_iterator<char>(mtl_stream),
-            std::istreambuf_iterator<char>());
+      DrakeObj obj_data;
+      if (properties_.HasProperty("phong", "diffuse") ||
+          properties_.HasProperty("phong", "diffuse_map")) {
+        obj_data =
+            ApplyDrakePhongMaterialToObj(filename, mesh_data, properties_);
+      } else {
+        std::string mtl_name;
+        std::string mtl_contents;
+        size_t mtllib_pos = mesh_data.find("mtllib ");
+        if (mtllib_pos != std::string::npos) {
+          mtllib_pos += 7;  // Advance to after the actual "mtllib " string.
+          std::string mtllib_string =
+              mesh_data.substr(mtllib_pos, mesh_data.find('\n', mtllib_pos));
+          std::smatch matches;
+          std::regex_search(mtllib_string, matches,
+                            std::regex("\\s*([^\\s]+)"));
+
+          mtl_name = matches.str(1);
+          if (!mtl_name.empty()) {
+            // Read .mtl file contents
+            std::ifstream mtl_stream(basedir / mtl_name, std::ios::ate);
+            if (mtl_stream.is_open()) {
+              int mtl_size = mtl_stream.tellg();
+              mtl_stream.seekg(0, std::ios::beg);
+              mtl_contents.reserve(mtl_size);
+              mtl_contents.assign(std::istreambuf_iterator<char>(mtl_stream),
+                                  std::istreambuf_iterator<char>());
+            }
+          }
+        }
+        // The material data *may* be empty if the obj didn't reference a
+        // mtllib or the mtllib file couldn't ge opened.
+        obj_data = DrakeObj{.obj_contents = std::move(mesh_data),
+                            .mtl_name = std::move(mtl_name),
+                            .mtl_contents = std::move(mtl_contents)};
+      }
+
+      if (!obj_data.mtl_name.empty()) {
+        // This meshcat specification is only valid for an obj with an .mtl
+        // file.
+        // Note: We do a minimal parsing manually here.  tinyobj does too much
+        // work (actually loading all of the content) and also does not give
+        // access to the intermediate data that we need to pass to meshcat, like
+        // the resource names in the mtl file.  This is also the approach taken
+        // in MeshCat.jl/src/mesh_files.jl.
+
+        auto& meshfile_object =
+            lumped.object.emplace<internal::MeshFileObjectData>();
+        meshfile_object.uuid = uuids::to_string((uuid_generator_)());
+        meshfile_object.format = std::move(format);
+        meshfile_object.data = std::move(obj_data.obj_contents);
+
+        // Put the .mtl contents into geometry.mtl_library.
+        meshfile_object.mtl_library = std::move(obj_data.mtl_contents);
 
         // Scan .mtl file for map_ lines.  For each, load the file and add
         // the contents to geometry.resources.
@@ -384,7 +383,7 @@ class MeshcatShapeReifier : public ShapeReifier {
         // TODO(russt): This parsing could still be more robust.
         // TODO(SeanCurtis-TRI): textures bump, disp, decal, and refl aren't
         // covered by this.
-        std::regex map_regex(R"""((map_[^\s]+).+\s([^\s]+)[$\r\n])""");
+        std::regex map_regex(R"""((map_[^\s]+)\s.*?([^\s]+)[$\r\n])""");
         for (std::sregex_iterator iter(meshfile_object.mtl_library.begin(),
                                        meshfile_object.mtl_library.end(),
                                        map_regex);
@@ -392,23 +391,19 @@ class MeshcatShapeReifier : public ShapeReifier {
           // TODO: If we encounter a map that we recognize as being unsupported,
           // dispatch a warning that it isn't supported and and forward to the
           // troubleshooting guide.
-          std::cerr << iter->str(1) << "\n";
-          std::cerr << iter->str(2) << "\n";
           std::string map_name = iter->str(1);
           const std::string map_path = iter->str(2);
+          std::transform(map_name.begin(), map_name.end(), map_name.begin(),
+                         [](unsigned char c) {
+                           return std::tolower(c);
+                         });
+          if (!IsSupportedObjMap(map_name)) {
+            drake::log()->warn(
+                "Meshcat: A material library specified an unsupported map type "
+                "('{}'), the texture image will not be loaded: {}",
+                map_name, map_path);
 
-          if (diffuse_map.has_value()) {
-            std::transform(map_name.begin(), map_name.end(), map_name.begin(),
-                           [](unsigned char c) {
-                             return std::tolower(c);
-                           });
-            if (map_name == "map_kd") {
-              // This is a *lie* about the requested texture. Rather than
-              // trying to *edit* the mtl file to reference a different map,
-              // we'll simply replace the data mapped by the stated name.
-              meshfile_object.resources.try_emplace(map_path, *diffuse_map);
-              continue;
-            }
+            continue;
           }
 
           std::ifstream map_stream(basedir / map_path,
@@ -428,21 +423,18 @@ class MeshcatShapeReifier : public ShapeReifier {
             drake::log()->warn(
                 "Meshcat: Failed to load texture. \"{}\" references {}, but "
                 "Meshcat could not open filename \"{}\"",
-                (basedir / mtllib).string(), map_path,
+                (basedir / obj_data.mtl_name).string(), map_path,
                 (basedir / map_path).string());
           }
         }
-      } else {
-        drake::log()->warn(
-            "Meshcat: Failed to load texture. {} references {}, but Meshcat "
-            "could not open filename \"{}\"",
-            mesh.filename(), mtllib, (basedir / mtllib).string());
+        Eigen::Map<Eigen::Matrix4d> matrix(meshfile_object.matrix);
+        matrix(0, 0) = mesh.scale();
+        matrix(1, 1) = mesh.scale();
+        matrix(2, 2) = mesh.scale();
+        mesh_data_handled = true;
       }
-      Eigen::Map<Eigen::Matrix4d> matrix(meshfile_object.matrix);
-      matrix(0, 0) = mesh.scale();
-      matrix(1, 1) = mesh.scale();
-      matrix(2, 2) = mesh.scale();
-    } else {  // not obj or no mtllib.
+    }
+    if (!mesh_data_handled) {  // not obj or no mtllib.
       auto geometry = std::make_unique<internal::MeshFileGeometryData>();
       geometry->uuid = uuids::to_string((uuid_generator_)());
       geometry->format = std::move(format);
@@ -455,7 +447,7 @@ class MeshcatShapeReifier : public ShapeReifier {
       matrix(1, 1) = mesh.scale();
       matrix(2, 2) = mesh.scale();
     }
-    }
+  }
 
   // TODO: Currently this only works for MeshData (primitives); it also needs
   // to work for meshfile object data...
@@ -472,7 +464,8 @@ class MeshcatShapeReifier : public ShapeReifier {
     material->uuid = uuids::to_string(uuid_generator_());
     material->type = "MeshPhongMaterial";
     // This should provide an Rgba values as a documented prerequisite.
-    const Rgba& rgba = properties_.GetProperty<Rgba>("phong", "diffuse");
+    const Rgba& rgba = properties_.GetPropertyOrDefault("phong", "diffuse",
+                                                        Rgba(.9, .9, .9, 1.));
     material->color = ToMeshcatColor(rgba);
     // TODO(russt): Most values are taken verbatim from meshcat-python.
     material->reflectivity = 0.5;
@@ -608,6 +601,79 @@ class MeshcatShapeReifier : public ShapeReifier {
   }
 
  private:
+  // We are dependent on Three.js MTLLoader to parse the mtl file.
+  // https://github.com/mrdoob/three.js/blob/master/examples/jsm/loaders/MTLLoader.js#L379-L493
+  //
+  // However, it doesn't necessarily support a full set of valid map types.
+  // https://en.wikipedia.org/wiki/Wavefront_.obj_file#Texture_maps
+  //
+  // This itemizes the maps we know (to the best of our ability) that are
+  // supported.
+  // @pre map_label is all lowercase.
+  bool IsSupportedObjMap(std::string_view map_label) {
+    // Maps suspected to be missing: map_ka, map_ns
+    static const never_destroyed<std::set<std::string_view>> supported{
+        std::initializer_list<std::string_view>{
+            "map_kd", "map_ks", "map_ke", "norm", "map_bump", "bump", "map_d"}};
+    return supported.access().count(map_label) > 0;
+  }
+
+  // Given the contents of an obj file, strips all material references.
+  std::string StripObjMaterials(const std::string& obj_contents) {
+    // This will strip out comments with mtllib in them.
+    const std::regex materials(".*(usemtl|mtllib).*[\r\n]");
+    return std::regex_replace(obj_contents, materials, "");
+  }
+
+  struct DrakeObj {
+    std::string obj_contents;
+    std::string mtl_name;
+    std::string mtl_contents;
+  };
+
+  // Given the contents of an obj file, replaces any material references with
+  // a single Drake phong material.
+  DrakeObj ApplyDrakePhongMaterialToObj(
+      const std::filesystem::path& obj_path,
+      const std::string& obj_contents,
+      const IllustrationProperties& properties) {
+    std::string stripped_obj = StripObjMaterials(obj_contents);
+
+    const std::string id = uuids::to_string((uuid_generator_)());
+    std::string mtllib_name = id + ".mtl";
+    const Rgba& diffuse =
+        properties.GetPropertyOrDefault("phong", "diffuse", Rgba(1, 1, 1, 1));
+    const std::string& diffuse_map =
+        properties.GetPropertyOrDefault("phong", "diffuse_map", std::string());
+    // N.B. We're using the path to the obj *file* and the image *file*. This is
+    // because either one might be a symlink or not. relative() resolves
+    // symlinks such that the relative path may not be meaningful. However,
+    // asking the relative path from "foo/bar/a.txt" to "foo/b.txt" produces
+    // ""../../b.txt"; we get one ".." just for the a.txt. So, we strip it off.
+    std::string weird_path = std::filesystem::relative(diffuse_map, obj_path);
+    std::string relative_path =
+        weird_path.substr(std::min(weird_path.size(), std::size_t(3)));
+    const std::string map_Kd = diffuse_map.empty()
+                                   ? std::string()
+                                   : fmt::format("map_Kd {}", relative_path);
+    return DrakeObj{
+        .obj_contents = fmt::format("mtllib {}\nusemtl {}\n{}", mtllib_name, id,
+                                    stripped_obj),
+        .mtl_name = std::move(mtllib_name),
+        .mtl_contents = {fmt::format(R"""(
+        newmtl {}
+        Ka 0.1 0.1 0.1
+        Kd {} {} {}
+        Ks 1 1 1
+        d {}
+        illum 2
+        Ns 0
+        {}
+      )""",
+                                     id, diffuse.r(), diffuse.g(), diffuse.b(),
+                                     diffuse.a(), map_Kd)}};
+  }
+
   uuids::uuid_random_generator uuid_generator_;
   const IllustrationProperties& properties_;
   internal::LumpedObjectData lumped_data_;
@@ -813,9 +879,12 @@ class Meshcat::Impl {
   }
 
   // This function is public via the PIMPL.
-  void SetObject(std::string_view path, const Shape& shape, const Rgba& rgba) {
+  void SetObject(std::string_view path, const Shape& shape,
+                 const std::optional<Rgba>& rgba) {
     IllustrationProperties props;
-    props.AddProperty("phong", "diffuse", rgba);
+    if (rgba.has_value()) {
+      props.AddProperty("phong", "diffuse", *rgba);
+    }
     SetObject(path, shape, props);
   }
 
@@ -2160,7 +2229,7 @@ void Meshcat::Flush() const {
 }
 
 void Meshcat::SetObject(std::string_view path, const Shape& shape,
-                        const Rgba& rgba) {
+                        const std::optional<Rgba>& rgba) {
   impl().SetObject(path, shape, rgba);
 }
 
