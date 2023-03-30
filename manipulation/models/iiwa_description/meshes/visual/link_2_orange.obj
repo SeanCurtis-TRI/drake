@@ -1,4 +1,6 @@
 # This file uses centimeters as units for non-parametric coordinates.
+mtllib iiwa.mtl
+usemtl iiwa_orange
 
 v -0.073970 -0.001431 0.066801
 v -0.075107 0.003896 0.064060
