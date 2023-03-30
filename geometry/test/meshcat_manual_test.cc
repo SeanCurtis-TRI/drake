@@ -33,14 +33,23 @@ using math::RotationMatrixd;
 int do_main() {
   auto meshcat = std::make_shared<Meshcat>();
 
+  IllustrationProperties textured_props;
+  const std::string diffuse_map =
+      FindResourceOrThrow("drake/geometry/render/test/diag_gradient.png");
+  textured_props.AddProperty("phong", "diffuse_map", diffuse_map);
+  textured_props.AddProperty("phong", "diffuse", Rgba(1, 0, 0, 1));
   Vector3d sphere_home{-4, 0, 0};
-  meshcat->SetObject("sphere", Sphere(.25), Rgba(1.0, 0, 0, 1));
+  meshcat->SetObject("sphere", Sphere(.25), textured_props);
   meshcat->SetTransform("sphere", RigidTransformd(sphere_home));
 
-  meshcat->SetObject("cylinder", Cylinder(.25, .5), Rgba(0.0, 1.0, 0, 1));
+  // meshcat->SetObject("cylinder", Cylinder(.25, .5), Rgba(0.0, 1.0, 0, 1));
+  textured_props.UpdateProperty("phong", "diffuse", Rgba(0.0, 1.0, 0, 1));
+  meshcat->SetObject("cylinder", Cylinder(.25, .5), textured_props);
   meshcat->SetTransform("cylinder", RigidTransformd(Vector3d{-3, 0, 0}));
 
-  meshcat->SetObject("ellipsoid", Ellipsoid(.25, .25, .5), Rgba(1., 0, 1, .5));
+  // meshcat->SetObject("ellipsoid", Ellipsoid(.25, .25, .5), Rgba(1., 0, 1, .5));
+  textured_props.UpdateProperty("phong", "diffuse", Rgba(1., 0, 1, .5));
+  meshcat->SetObject("ellipsoid", Ellipsoid(.25, .25, .5), textured_props);
   meshcat->SetTransform("ellipsoid", RigidTransformd(Vector3d{-2, 0, 0}));
 
   Vector3d box_home{-1, 0, 0};
@@ -49,7 +58,9 @@ int do_main() {
   meshcat->SetObject("box", Box(.25, .25, .5), box_props);
   meshcat->SetTransform("box", RigidTransformd(box_home));
 
-  meshcat->SetObject("capsule", Capsule(.25, .5), Rgba(0, 1, 1, 1));
+  // meshcat->SetObject("capsule", Capsule(.25, .5), Rgba(0, 1, 1, 1));
+  textured_props.RemoveProperty("phong", "diffuse");
+  meshcat->SetObject("capsule", Capsule(.25, .5), textured_props);
   meshcat->SetTransform("capsule", RigidTransformd(Vector3d{0, 0, 0}));
 
   // Note that height (in z) is the first argument.
@@ -67,8 +78,6 @@ int do_main() {
   // Color gradient comes from the specified diffuse_map: diag_gradient.png; it
   // *replaces* the map_Kd value in the box.obj file.
   IllustrationProperties props_map;
-  const std::string diffuse_map =
-      FindResourceOrThrow("drake/geometry/render/test/diag_gradient.png");
   props_map.AddProperty("phong", "diffuse_map", diffuse_map);
   IllustrationProperties props_diffuse;
   props_diffuse.AddProperty("phong", "diffuse", Rgba(0.2, 0.5, 0.2, 1.0));

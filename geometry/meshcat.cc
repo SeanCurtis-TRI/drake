@@ -23,6 +23,11 @@
 #include <drake_vendor/msgpack.hpp>
 #include <drake_vendor/uuid.h>
 #include <fmt/format.h>
+#include <vtkImageCast.h>
+#include <vtkImageData.h>
+#include <vtkImageExport.h>
+#include <vtkNew.h>
+#include <vtkPNGReader.h>
 
 #include "drake/common/drake_export.h"
 #include "drake/common/drake_throw.h"
@@ -448,10 +453,109 @@ class MeshcatShapeReifier : public ShapeReifier {
       matrix(2, 2) = mesh.scale();
     }
   }
+  
+  struct MeshcatImage {
+    int width;
+    int height;
+    int channel_count;
+    std::vector<uint8_t> data;
+  };
+
+  std::optional<MeshcatImage> ReadImage(
+      const std::filesystem::path& image_path) const {
+    vtkNew<vtkPNGReader> png_reader;
+    png_reader->SetFileName(image_path.c_str());
+    png_reader->Update();
+    if (png_reader->GetOutput()->GetScalarType() != VTK_UNSIGNED_CHAR) {
+      log()->warn(
+          "Texture map '{}' has an unsupported bit depth, casting it to uchar "
+          "channels.",
+          image_path);
+    }
+
+    vtkNew<vtkImageCast> caster;
+    caster->SetOutputScalarType(VTK_UNSIGNED_CHAR);
+    caster->SetInputConnection(png_reader->GetOutputPort());
+    caster->Update();
+
+    vtkNew<vtkImageExport> exporter;
+    exporter->SetInputConnection(caster->GetOutputPort());
+    exporter->ImageLowerLeftOff();
+    exporter->Update();
+    vtkImageData* vtk_image = exporter->GetInput();
+
+    if (vtk_image == nullptr) {
+      return std::nullopt;
+    }
+
+    MeshcatImage image;
+    const int* dim = vtk_image->GetDimensions();
+    image.width = dim[0];
+    image.height = dim[1];
+    // We should have either rgb or rgba data.
+    const int channel_count = vtk_image->GetNumberOfScalarComponents();
+
+    uint8_t* pixel = static_cast<uint8_t*>(vtk_image->GetScalarPointer());
+    const int value_count = image.width * image.height * 4;
+    if (channel_count == 4) {
+      image.data = std::vector<uint8_t>(pixel, pixel + value_count);
+    } else if (channel_count == 3) {
+      image.data.reserve(value_count);
+      // Three.js requires rgba, so we need to pad.
+      for (int t = 0, s = 0; t < value_count; t += 4, s += 3) {
+        image.data.push_back(pixel[s]);
+        image.data.push_back(pixel[s + 1]);
+        image.data.push_back(pixel[s + 2]);
+        image.data.push_back(255);
+      }
+    } else {
+      return std::nullopt;
+    }
+
+    return image;
+  }
+
+  // Returns the uuid of the diffuse texture; empty string if no map was
+  // added.
+  std::string MaybeAddDiffuseMapToMaterial(const std::string& map_path) {
+    std::optional<MeshcatImage> maybe_image = ReadImage(map_path);
+
+    // ReadImage should have given warnings if there was a problem reading the
+    // image.
+    if (!maybe_image.has_value()) {
+      return "";
+    }
+
+    // Note: for now, we only support materials with a single texture using a
+    // single image. So, for now, images.size() == textures.size(). However, in
+    // the future that won't be true and when we allow multiple textures, some
+    // textures could share images. So, we'll start by not assuming they're
+    // locked.
+    if (!lumped_data_.images.has_value()) {
+      lumped_data_.images = std::vector<internal::ImageData>();
+    }
+    if (!lumped_data_.textures.has_value()) {
+      lumped_data_.textures = std::vector<internal::DataTextureData>();
+    }
+
+    auto& images = *lumped_data_.images;
+    auto& textures = *lumped_data_.textures;
+
+    MeshcatImage& image = *maybe_image;
+    images.push_back({.uuid = uuids::to_string(uuid_generator_()),
+                      .url = {.data = std::move(image.data),
+                              .width = image.width,
+                              .height = image.height}});
+    // Handle format: RGB vs RGBA.
+    textures.push_back({.uuid = uuids::to_string(uuid_generator_()),
+                        .image = images.back().uuid});
+    return textures.back().uuid;
+  }
 
   // TODO: Currently this only works for MeshData (primitives); it also needs
   // to work for meshfile object data...
-  void AddMaterial() {
+  void
+  AddMaterial() {
     auto& meshfile_object = std::get<internal::MeshData>(lumped_data_.object);
     if (lumped_data_.geometry == nullptr) {
       // Reification failed; don't bother with material.
@@ -463,10 +567,21 @@ class MeshcatShapeReifier : public ShapeReifier {
     auto material = std::make_unique<internal::MaterialData>();
     material->uuid = uuids::to_string(uuid_generator_());
     material->type = "MeshPhongMaterial";
+    const bool has_diffuse_map =
+        properties_.HasProperty("phong", "diffuse_map");
+    const Rgba default_rgba =
+        has_diffuse_map ? Rgba(1, 1, 1, 1) : Rgba(.9, .9, .9, 1.);
     // This should provide an Rgba values as a documented prerequisite.
-    const Rgba& rgba = properties_.GetPropertyOrDefault("phong", "diffuse",
-                                                        Rgba(.9, .9, .9, 1.));
+    const Rgba& rgba =
+        properties_.GetPropertyOrDefault("phong", "diffuse", default_rgba);
     material->color = ToMeshcatColor(rgba);
+    if (has_diffuse_map) {
+      const std::string maybe_uuid = MaybeAddDiffuseMapToMaterial(
+          properties_.GetProperty<std::string>("phong", "diffuse_map"));
+      if (!maybe_uuid.empty()) {
+        material->map = maybe_uuid;
+      }
+    }
     // TODO(russt): Most values are taken verbatim from meshcat-python.
     material->reflectivity = 0.5;
     material->side = Meshcat::SideOfFaceToRender::kDoubleSide;

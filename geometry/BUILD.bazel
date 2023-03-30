@@ -475,6 +475,7 @@ drake_cc_library(
         "@msgpack_internal//:msgpack",
         "@stduuid_internal//:stduuid",
         "@uwebsockets",
+        "@vtk//:vtkIOImage",
     ],
 )
 
