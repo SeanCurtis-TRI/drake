@@ -30,6 +30,14 @@ using Eigen::Vector3d;
 using math::RigidTransformd;
 using math::RotationMatrixd;
 
+double x() {
+  // As we add more objects, move the initial value more and more negative to
+  // keep things centered.
+  static double x_curr = -8.5;
+  x_curr += 1.0;
+  return x_curr;
+}
+
 int do_main() {
   auto meshcat = std::make_shared<Meshcat>();
 
@@ -37,42 +45,49 @@ int do_main() {
   const std::string diffuse_map =
       FindResourceOrThrow("drake/geometry/render/test/diag_gradient.png");
   textured_props.AddProperty("phong", "diffuse_map", diffuse_map);
-  Vector3d sphere_home{-4, 0, 0};
+  Vector3d sphere_home{x(), 0, 0};
   meshcat->SetObject("sphere", Sphere(.25), textured_props);
   meshcat->SetTransform("sphere", RigidTransformd(sphere_home));
 
   IllustrationProperties color_props;
   color_props.AddProperty("phong", "diffuse", Rgba(0.0, 1.0, 0, 1));
   meshcat->SetObject("cylinder", Cylinder(.25, .5), color_props);
-  meshcat->SetTransform("cylinder", RigidTransformd(Vector3d{-3, 0, 0}));
+  meshcat->SetTransform("cylinder", RigidTransformd(Vector3d{x(), 0, 0}));
 
   meshcat->SetObject("ellipsoid", Ellipsoid(.25, .25, .5), Rgba(1., 0, 1, .5));
-  meshcat->SetTransform("ellipsoid", RigidTransformd(Vector3d{-2, 0, 0}));
+  meshcat->SetTransform("ellipsoid", RigidTransformd(Vector3d{x(), 0, 0}));
 
-  Vector3d box_home{-1, 0, 0};
+  Vector3d box_home{x(), 0, 0};
   meshcat->SetObject("box", Box(.25, .25, .5), Rgba(0, 0, 1, 1));
   meshcat->SetTransform("box", RigidTransformd(box_home));
 
   meshcat->SetObject("capsule", Capsule(.25, .5), Rgba(0, 1, 1, 1));
-  meshcat->SetTransform("capsule", RigidTransformd(Vector3d{0, 0, 0}));
+  meshcat->SetTransform("capsule", RigidTransformd(Vector3d{x(), 0, 0}));
 
   // Note that height (in z) is the first argument.
   meshcat->SetObject("cone", MeshcatCone(.5, .25, .5), Rgba(1, 0, 0, 1));
-  meshcat->SetTransform("cone", RigidTransformd(Vector3d{1, 0, 0}));
+  meshcat->SetTransform("cone", RigidTransformd(Vector3d{x(), 0, 0}));
 
   // The green color of this cube comes from the texture map referenced in the
   // mtl file.
   meshcat->SetObject(
-      "obj", Mesh(FindResourceOrThrow(
-                      "drake/geometry/render/test/meshes/box.obj"),
-                  .25));
-  meshcat->SetTransform("obj", RigidTransformd(Vector3d{2, 0, 0}));
+      "obj",
+      Mesh(FindResourceOrThrow("drake/geometry/render/test/meshes/box.obj"),
+           .25));
+  meshcat->SetTransform("obj", RigidTransformd(Vector3d{x(), 0, 0}));
+
+  meshcat->SetObject(
+      "obj_no_mtl",
+      Mesh(FindResourceOrThrow(
+               "drake/geometry/render/test/meshes/box_no_mtl.obj"),
+           .25));
+  meshcat->SetTransform("obj_no_mtl", RigidTransformd(Vector3d{x(), 0, 0}));
 
   auto mustard_obj =
       FindRunfile("models_internal/ycb/meshes/006_mustard_bottle_textured.obj")
           .abspath;
   meshcat->SetObject("mustard", Mesh(mustard_obj, 3.0));
-  meshcat->SetTransform("mustard", RigidTransformd(Vector3d{3, 0, 0}));
+  meshcat->SetTransform("mustard", RigidTransformd(Vector3d{x(), 0, 0}));
 
   {
     const int kPoints = 100000;
@@ -82,7 +97,7 @@ int do_main() {
     cloud.mutable_xyzs() = Eigen::DiagonalMatrix<float, 3>{.25, .25, .5} * m;
     cloud.mutable_rgbs() = (255.0 * (m.array() + 1.0) / 2.0).cast<uint8_t>();
     meshcat->SetObject("point_cloud", cloud, 0.01);
-    meshcat->SetTransform("point_cloud", RigidTransformd(Vector3d{4, 0, 0}));
+    meshcat->SetTransform("point_cloud", RigidTransformd(Vector3d{x(), 0, 0}));
   }
 
   {
@@ -90,7 +105,7 @@ int do_main() {
     Eigen::RowVectorXd t = Eigen::RowVectorXd::LinSpaced(200, 0, 10 * M_PI);
     vertices << .25 * t.array().sin(), .25 * t.array().cos(), t / (10 * M_PI);
     meshcat->SetLine("line", vertices, 3.0, Rgba(0, 0, 1, 1));
-    meshcat->SetTransform("line", RigidTransformd(Vector3d{5, 0, -.5}));
+    meshcat->SetTransform("line", RigidTransformd(Vector3d{x(), 0, -.5}));
   }
 
   {
@@ -105,7 +120,7 @@ int do_main() {
     meshcat->SetLineSegments("line_segments", start, end, 5.0,
                              Rgba(0, 1, 0, 1));
     meshcat->SetTransform("line_segments",
-                          RigidTransformd(Vector3d{6, 0, -.5}));
+                          RigidTransformd(Vector3d{x(), 0, -.5}));
   }
 
   // The TriangleSurfaceMesh variant of SetObject calls SetTriangleMesh(), so
@@ -122,12 +137,12 @@ int do_main() {
         std::move(faces), std::move(vertices));
     meshcat->SetObject("triangle_mesh", surface_mesh, Rgba(.9, 0, .9, 1.0));
     meshcat->SetTransform("triangle_mesh",
-                          RigidTransformd(Vector3d{6.75, -.25, 0}));
+                          RigidTransformd(Vector3d{x(), -.25, 0}));
 
     meshcat->SetObject("triangle_mesh_wireframe", surface_mesh,
                        Rgba(.9, 0, .9, 1.0), true, 5.0);
     meshcat->SetTransform("triangle_mesh_wireframe",
-                          RigidTransformd(Vector3d{7.75, -.25, 0}));
+                          RigidTransformd(Vector3d{x(), -.25, 0}));
   }
 
   // SetTriangleColorMesh.
@@ -152,7 +167,7 @@ int do_main() {
     meshcat->SetTriangleColorMesh("triangle_color_mesh", vertices, faces,
                                   colors);
     meshcat->SetTransform("triangle_color_mesh",
-                          RigidTransformd(Vector3d{8.75, -.25, 0}));
+                          RigidTransformd(Vector3d{x(), -.25, 0}));
   }
 
   // PlotSurface.
@@ -166,7 +181,7 @@ int do_main() {
 
     meshcat->PlotSurface("plot_surface", X, Y, Z, Rgba(0, 0, .9, 1.0), true);
     meshcat->SetTransform("plot_surface",
-                          RigidTransformd(Vector3d{9.75, -.25, 0}));
+                          RigidTransformd(Vector3d{x(), -.25, 0}));
   }
 
   std::cout << R"""(
@@ -181,6 +196,7 @@ Open up your browser to the URL above.
   - a teal capsule (long axis in z)
   - a red cone (expanding in +z, twice as wide in y than in x)
   - a bright green cube (the green comes from a texture map)
+  - a grey cube (an obj without a mtl file)
   - a yellow mustard bottle w/ label
   - a dense rainbow point cloud in a box (long axis in z)
   - a blue line coiling up (in z).
