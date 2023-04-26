@@ -119,7 +119,7 @@ genrule(
 
 filegroup(
     name = "test_models",
-    testonly = 1,
+    # testonly = 1,
     srcs = [":box_no_mtl"] + glob([
         "test/meshes/*",
         "test/box.sdf",

@@ -77,6 +77,8 @@ filegroup(
         "**/*.sdf",
         "**/*.urdf",
         "**/*.xml",
+        "**/*.mtl",
+        "**/*.png",
     ]),
     visibility = ["//visibility:public"],
 )
@@ -106,6 +108,22 @@ drake_cc_binary(
     deps = [
         ":solar_system",
         "//geometry:drake_visualizer",
+        "//geometry:scene_graph",
+        "//systems/analysis:simulator",
+        "//systems/framework:diagram",
+        "//systems/primitives:constant_vector_source",
+        "@gflags",
+    ],
+)
+
+drake_cc_binary(
+    name = "texture_test",
+    srcs = ["texture_test.cc"],
+    data = [":models", "//geometry/render:test_models",],
+    deps = [
+        ":solar_system",
+        "//geometry:drake_visualizer",
+        "//geometry:meshcat_visualizer",
         "//geometry:scene_graph",
         "//systems/analysis:simulator",
         "//systems/framework:diagram",
