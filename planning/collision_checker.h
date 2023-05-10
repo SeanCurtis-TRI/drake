@@ -664,6 +664,31 @@ class CollisionChecker {
    @throws std::exception if `body_index` refers to an environment body. */
   void SetCollisionFilteredWithAllBodies(multibody::BodyIndex body_index);
 
+  /* (Internal use only.) Generates the "nominal" collision filter matrix for
+   the provided collision `checker` based on the collision state reported by
+   `inspector`.
+
+   The nominal filtered collision matrix has the following properties:
+
+      - All diagonal entries are set to -1 (a body colliding with itself
+        is meaningless).
+      - All environment-environment pairs are set to -1. CollisionChecker
+        ignores them; so it might as well be explicit about it in the matrix.
+      - For bodies I and J,
+        - if all geometries of I have "filtered collisions" (in the SceneGraph
+          sense), with all the geometries of J, the matrix is set to 1.
+        - If *no* geometries of I and J are filtered, the matrix is set to 0.
+        - If some geometry pairs are filtered, and some are not, an error is
+          thrown.
+      - If a welded path exists between two bodies (in the MultibodyPlant),
+        the matrix is set to 1.
+
+    @pre the `inspector` is a view into the SceneGraph instance contained in
+    the `checker`'s robot diagram or in one of its contexts. */
+  static Eigen::MatrixXi GenerateFilteredCollisionMatrix(
+      const CollisionChecker& checker,
+      const geometry::SceneGraphInspector<double>& inspector);
+
   //@}
 
   /** @name Configuration collision checking */
@@ -1130,8 +1155,9 @@ class CollisionChecker {
       const std::vector<AddedShape>& shapes) = 0;
 
   /** Derived collision checkers can do further work in this function in
-   response to changes in collision filters. This is called after any changes
-   are made to the collision filter matrix. */
+   response to changes in collision filters. Every public API that can change
+   the collision filter matrix will update the matrix and then invoke this
+   function. */
   virtual void DoUpdateCollisionFilters() = 0;
 
   /** Derived collision checkers are responsible for defining the reported
@@ -1182,25 +1208,6 @@ class CollisionChecker {
       - All entries are either 0, 1, or -1. */
   void ValidateFilteredCollisionMatrix(const Eigen::MatrixXi& filtered,
                                        const char* func) const;
-
-  /* The "nominal" collision matrix. This is intended to be called only upon
-   construction.
-
-   The nominal filtered collision matrix has the following properties:
-
-      - All diagonal entries are set to -1 (a body colliding with itself
-        is meaningless).
-      - All environment-environment pairs are set to -1. CollisionChecker
-        ignores them; so it might as well be explicit about it in the matrix.
-      - For bodies I and J,
-        - if all geometries of I have "filtered collisions" (in the SceneGraph
-          sense), with all the geometries of J, the matrix is set to 1.
-        - If *no* geometries of I and J are filtered, the matrix is set to 0.
-        - If some geometry pairs are filtered, and some are not, an error is
-          thrown.
-      - If a welded path exists between two bodies (in the MultibodyPlant),
-        the matrix is set to 1. */
-  Eigen::MatrixXi GenerateFilteredCollisionMatrix() const;
 
   /* Updates the stored value representing the largest value found in the
    padding matrix -- this excludes the meaningless zeros on the diagonal. */
@@ -1409,12 +1416,6 @@ class CollisionChecker {
   /* The names of all groups with added geometries. */
   std::map<std::string, std::vector<AddedShape>> geometry_groups_;
 };
-
-/* (Internal use only.) Generates the collision filter matrix for the provided
-  collision checker and inspector. */
-Eigen::MatrixXi GenerateFilteredCollisionMatrix(
-    const CollisionChecker& checker,
-    const geometry::SceneGraphInspector<double>& inspector);
 
 }  // namespace planning
 }  // namespace drake

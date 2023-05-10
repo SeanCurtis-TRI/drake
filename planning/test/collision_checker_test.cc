@@ -144,7 +144,10 @@ class CollisionCheckerTester : public UnimplementedCollisionChecker {
   }
 
   void DoUpdateCollisionFilters() override {
-    // Don't need to do work; just don't throw.
+    // CollisionChecker promises that the collision filter matrix has been
+    // updated before invocation. We'll capture a copy of it so we can confirm
+    // its value.
+    filter_matrix_copy_ = GetFilteredCollisionMatrix();
   }
 
   RobotClearance DoCalcContextRobotClearance(
@@ -219,6 +222,13 @@ class CollisionCheckerTester : public UnimplementedCollisionChecker {
   // Returns the positions available in this checker from the most recent
   // Check*ConfigCollisionFree() call.
   const VectorXd& positions_for_check() const { return positions_for_check_; }
+
+  // Returns the collision filter matrix upon invocation of
+  // DoUpdateCollisionFilters(). This quantity should be tested once for each
+  // API that can change the collision filter matrix.
+  const Eigen::MatrixXi& filter_matrix_on_update() const {
+    return filter_matrix_copy_;
+  }
   //@}
 
  private:
@@ -230,6 +240,8 @@ class CollisionCheckerTester : public UnimplementedCollisionChecker {
   mutable VectorXd positions_for_classify_;
   // Updated with every call to DoCheckContextConfigCollisionFree().
   mutable VectorXd positions_for_check_;
+  // Updated with every call to DoUpdateCollisionFilters().
+  mutable Eigen::MatrixXi filter_matrix_copy_;
 };
 
 // Makes a test checker for the given model and enumerated set of robot
@@ -932,6 +944,10 @@ TEST_F(TrivialCollisionCheckerTest, SetCollisionFilterMatrix) {
   EXPECT_FALSE(CompareMatrices(dut_->GetFilteredCollisionMatrix(), no_filters));
   ASSERT_NO_THROW(dut_->SetCollisionFilterMatrix(no_filters));
   EXPECT_TRUE(CompareMatrices(dut_->GetFilteredCollisionMatrix(), no_filters));
+  // Confirm that the collision filter matrix was updated before calling
+  // DoUpdateCollisionFilters().
+  EXPECT_TRUE(CompareMatrices(dut_->filter_matrix_on_update(),
+                              dut_->GetFilteredCollisionMatrix()));
 
   // Now test the various ways we can throw.
 
@@ -1190,6 +1206,10 @@ TEST_F(TrivialCollisionCheckerTest, SetCollisionFilteredBetween) {
     EXPECT_FALSE(dut_->IsCollisionFilteredBetween(b[1], b[4]));
     EXPECT_NO_THROW(
         dut_->SetCollisionFilterMatrix(dut_->GetFilteredCollisionMatrix()));
+    // Confirm that the collision filter matrix was updated before calling
+    // DoUpdateCollisionFilters().
+    EXPECT_TRUE(CompareMatrices(dut_->filter_matrix_on_update(),
+                                dut_->GetFilteredCollisionMatrix()));
   }
 
   {
@@ -1237,6 +1257,10 @@ TEST_F(TrivialCollisionCheckerTest, SetCollisionFilteredWithAllBodies) {
     // Setting a robot body doesn't throw, produces a consistent matrix and
     // reports filters as expected.
     EXPECT_NO_THROW(dut_->SetCollisionFilteredWithAllBodies(b[3]));
+    // Confirm that the collision filter matrix was updated before calling
+    // DoUpdateCollisionFilters().
+    EXPECT_TRUE(CompareMatrices(dut_->filter_matrix_on_update(),
+                                dut_->GetFilteredCollisionMatrix()));
     EXPECT_NO_THROW(
         dut_->SetCollisionFilterMatrix(dut_->GetFilteredCollisionMatrix()));
     for (BodyIndex i(0); i < num_bodies; ++i) {

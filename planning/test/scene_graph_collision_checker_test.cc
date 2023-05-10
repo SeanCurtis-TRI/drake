@@ -10,15 +10,6 @@
 
 namespace drake {
 namespace planning {
-
-// Implement friend function used for filter consistency checking.
-void EnforceCollisionFilterConsistency(
-    const SceneGraphCollisionChecker& checker) {
-  if (!checker.CheckCollisionFilterConsistency()) {
-    throw std::runtime_error("Collision filters are inconsistent");
-  }
-}
-
 namespace test {
 namespace {
 
@@ -287,6 +278,43 @@ directives:
   EXPECT_GT(static_cast<double>(num_non_zero) / clearance.size(), 0.95);
 }
 
+// This throws unless the collision filter matrix in `checker` is consistent
+// with the collision filters in `checker`'s SceneGraph contexts.
+// Specifically, we compare the nominal collision filter matrix constructed
+// from the SceneGraph context with the checker's current matrix.
+void EnforceCollisionFilterConsistency(
+    const SceneGraphCollisionChecker& checker) {
+  const Eigen::MatrixXi& current_collision_filter_matrix =
+      checker.GetFilteredCollisionMatrix();
+
+  bool inconsistent = false;
+
+  using Operation = const std::function<void(const RobotDiagram<double>&,
+                                             CollisionCheckerContext*)>;
+  const Operation operation = [&](const RobotDiagram<double>& model,
+                                  CollisionCheckerContext* model_context) {
+    if (inconsistent) {
+      // If we've already been shown to be inconsistent, stop doing work.
+      return;
+    }
+    const auto& inspector = model_context->GetQueryObject().inspector();
+    const Eigen::MatrixXi context_collision_filter_matrix =
+        CollisionChecker::GenerateFilteredCollisionMatrix(checker, inspector);
+    if (!CompareMatrices(current_collision_filter_matrix,
+                         context_collision_filter_matrix)) {
+      inconsistent = false;
+    }
+  };
+
+  // We know that the operation does not mutate the contexts.
+  const_cast<SceneGraphCollisionChecker&>(checker)
+      .PerformOperationAgainstAllModelContexts(operation);
+
+  if (inconsistent) {
+    throw std::runtime_error("Collision filters are inconsistent");
+  }
+}
+
 // Checks that collision filters are properly updated.
 GTEST_TEST(SceneGraphCollisionCheckerTest, CollisionFilterUpdate) {
   // Build a dut with a ground plane + floating chassis with welded arm.
@@ -322,22 +350,41 @@ directives:
   params.edge_step_size = 0.05;
   SceneGraphCollisionChecker dut(std::move(params));
 
-  EXPECT_NO_THROW(EnforceCollisionFilterConsistency(dut));
+  // Collision filters and matrix are consistent by construction.
+  ASSERT_NO_THROW(EnforceCollisionFilterConsistency(dut));
 
-  dut.SetCollisionFilteredBetween(
-      dut.plant().GetBodyByName("iiwa_link_0").index(),
-      dut.plant().GetBodyByName("iiwa_link_6").index(), true);
-  EXPECT_NO_THROW(EnforceCollisionFilterConsistency(dut));
+  // Exercise all of the collision filter matrix-modifying APIs. For each API
+  // we make a demonstrable change to the collision filter matrix and then show
+  // that the collision filters in the scene graph contexts' have updated
+  // accordingly.
 
-  dut.SetCollisionFilterMatrix(dut.GetNominalFilteredCollisionMatrix());
-  EXPECT_NO_THROW(EnforceCollisionFilterConsistency(dut));
+  // For pair of bodies -- calling with *bodies* also tests calling with
+  // body indices.
+  {
+    const Eigen::MatrixXi old_matrix = dut.GetFilteredCollisionMatrix();
+    dut.SetCollisionFilteredBetween(plant.GetBodyByName("iiwa_link_0"),
+                                    plant.GetBodyByName("iiwa_link_6"), true);
+    ASSERT_FALSE(CompareMatrices(old_matrix, dut.GetFilteredCollisionMatrix()));
+    EXPECT_NO_THROW(EnforceCollisionFilterConsistency(dut));
+  }
 
-  dut.SetCollisionFilteredWithAllBodies(
-      dut.plant().GetBodyByName("iiwa_link_0").index());
-  EXPECT_NO_THROW(EnforceCollisionFilterConsistency(dut));
+  // Set the full matrix directly. N.B. Don't put this test first, it relies
+  // on the "old matrix" *not* being the nominal matrix to register a change.
+  {
+    const Eigen::MatrixXi old_matrix = dut.GetFilteredCollisionMatrix();
+    dut.SetCollisionFilterMatrix(dut.GetNominalFilteredCollisionMatrix());
+    ASSERT_FALSE(CompareMatrices(old_matrix, dut.GetFilteredCollisionMatrix()));
+    EXPECT_NO_THROW(EnforceCollisionFilterConsistency(dut));
+  }
 
-  dut.SetCollisionFilterMatrix(dut.GetNominalFilteredCollisionMatrix());
-  EXPECT_NO_THROW(EnforceCollisionFilterConsistency(dut));
+  // Filter between one robot body and all other bodies.
+  {
+    const Eigen::MatrixXi old_matrix = dut.GetFilteredCollisionMatrix();
+    dut.SetCollisionFilteredWithAllBodies(
+        dut.plant().GetBodyByName("iiwa_link_0").index());
+    ASSERT_FALSE(CompareMatrices(old_matrix, dut.GetFilteredCollisionMatrix()));
+    EXPECT_NO_THROW(EnforceCollisionFilterConsistency(dut));
+  }
 }
 
 }  // namespace test
