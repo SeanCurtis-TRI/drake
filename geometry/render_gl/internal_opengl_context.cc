@@ -2,9 +2,11 @@
 
 #include <algorithm>
 #include <cstring>
+#include <iostream>
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <utility>
 
 // Note: This is intentionally included here since it's only needed at the
@@ -192,10 +194,27 @@ class OpenGlContext::Impl {
   }
 
   void MakeCurrent() const {
+#if 0
+    std::cerr << "Make current on thread " << std::this_thread::get_id()
+              << " with context " << context_ << "\n";
+    if (glXGetCurrentContext() != context_) {
+      std::cerr << "   Changing context on thread "
+                << std::this_thread::get_id() << " with context " << context_
+                << "\n";
+      if (!glXMakeCurrent(display(), window_, context_)) {
+        throw std::runtime_error("Error making an OpenGL context current");
+      }
+    } else {
+      std::cerr << "   Context already current on thread "
+                << std::this_thread::get_id() << " with context " << context_
+                << "\n";
+    }
+#else
     if (glXGetCurrentContext() != context_ &&
         !glXMakeCurrent(display(), window_, context_)) {
       throw std::runtime_error("Error making an OpenGL context current");
     }
+#endif
   }
 
   void DisplayWindow(const int width, const int height) {
@@ -276,7 +295,7 @@ class OpenGlContext::Impl {
     // (https://linux.die.net/man/3/xclosedisplay)
     // TODO(duy): If problems crop up in the future, this can/should be
     // investigated.
-    static Display* g_display = XOpenDisplay(0);
+    static Display* g_display = (XInitThreads(), XOpenDisplay(0));
     DRAKE_THROW_UNLESS(g_display != nullptr);
     return g_display;
   }
