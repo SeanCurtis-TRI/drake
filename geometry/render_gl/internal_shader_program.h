@@ -162,6 +162,8 @@ class ShaderProgram {
    identifier used in OpenGl APIs.  */
   ShaderId shader_id() const { return id_; }
 
+  GLuint gl_id() const { return gl_id_; }
+
  protected:
   /* The copy and move semantics are only made available for sub-classes so
    they can easily implement DoClone.  */
@@ -188,7 +190,6 @@ class ShaderProgram {
    @param scale    The per-axis scale of the geometry.  */
   virtual void DoModelViewMatrix(const Eigen::Matrix4f& /* X_CglM */,
                                  const Eigen::Vector3d& /* scale */) const {}
-
  private:
   friend class ShaderProgramTest;
 

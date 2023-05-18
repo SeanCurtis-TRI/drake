@@ -107,6 +107,10 @@ class RenderEngineGl final : public render::RenderEngine {
       const render::ColorRenderCamera& camera,
       systems::sensors::ImageLabel16I* label_image_out) const final;
 
+  // TODO: This can't be defaulted. The texture library has a pointer to a
+  // context. When copying this, the texture library keeps a pointer to the
+  // *old* context. That's a problem. It needs a pointer to the new context.
+  // Alternatively, its operations should take a context as argument.  
   // Copy constructor used for cloning.
   RenderEngineGl(const RenderEngineGl& other) = default;
 
@@ -196,6 +200,7 @@ class RenderEngineGl final : public render::RenderEngine {
   // The cached value transformation between camera and world frames.
   math::RigidTransformd X_CW_;
 
+  // TODO: This comment is now stale.
   // All clones of this context share the same underlying OpenGlContext. They
   // also share the C++ abstractions of objects that *live* in the context:
   //
@@ -208,6 +213,7 @@ class RenderEngineGl final : public render::RenderEngine {
   // or are stashed in a shared pointer.
   copyable_unique_ptr<OpenGlContext> opengl_context_;
 
+  // Don't share; copy.
   std::shared_ptr<TextureLibrary> texture_library_;
 
   // The engine's configuration parameters.

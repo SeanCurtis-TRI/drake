@@ -179,6 +179,7 @@ class OpenGlContext::Impl {
     if (debug) {
       drake::log()->info("Vendor: {}", GetGlVendor());
       glEnable(GL_DEBUG_OUTPUT);
+      glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
       glDebugMessageCallback(GlDebugCallback, 0);
     }
     is_complete = true;

@@ -461,7 +461,7 @@ void main() {
 
 RenderEngineGl::RenderEngineGl(RenderEngineGlParams params)
     : RenderEngine(params.default_label),
-      opengl_context_(make_unique<OpenGlContext>()),
+      opengl_context_(make_unique<OpenGlContext>(true)),
       texture_library_(make_shared<TextureLibrary>(opengl_context_.get())),
       parameters_(std::move(params)) {
   // Configuration of basic OpenGl state.
@@ -650,6 +650,9 @@ void RenderEngineGl::RenderAt(const ShaderProgram& shader_program,
   for (const GeometryId& g_id :
        shader_families_.at(render_type).at(shader_program.shader_id())) {
     const OpenGlInstance& instance = visuals_.at(g_id);
+    DRAKE_ASSERT(glIsVertexArray(instance.geometry.vertex_array));
+    DRAKE_ASSERT(glIsBuffer(instance.geometry.vertex_buffer));
+    DRAKE_ASSERT(glIsBuffer(instance.geometry.index_buffer));
     glBindVertexArray(instance.geometry.vertex_array);
 
     shader_program.SetInstanceParameters(instance.shader_data[render_type]);
@@ -671,7 +674,7 @@ void RenderEngineGl::RenderAt(const ShaderProgram& shader_program,
 void RenderEngineGl::DoRenderColorImage(const ColorRenderCamera& camera,
                                         ImageRgba8U* color_image_out) const {
   opengl_context_->MakeCurrent();
-
+  DRAKE_ASSERT(opengl_context_->IsCurrent());
   // TODO(SeanCurtis-TRI): For transparency to work properly, I need to
   //  segregate objects with transparency from those without. The transparent
   //  geometries then need to be sorted from farthest to nearest the camera and
@@ -701,6 +704,7 @@ void RenderEngineGl::DoRenderColorImage(const ColorRenderCamera& camera,
   for (const auto& [shader_id, shader_ptr] :
        shader_programs_[RenderType::kColor]) {
     unused(shader_id);
+    DRAKE_ASSERT(glIsProgram(shader_ptr->gl_id()));
     const ShaderProgram& shader_program = *shader_ptr;
     shader_program.Use();
 
@@ -1003,6 +1007,7 @@ RenderTarget RenderEngineGl::GetRenderTarget(const RenderCameraCore& camera,
   } else {
     target = iter->second;
   }
+  DRAKE_ASSERT(glIsFramebuffer(target.frame_buffer));
   glBindFramebuffer(GL_FRAMEBUFFER, target.frame_buffer);
   glViewport(0, 0, intrinsics.width(), intrinsics.height());
   return target;
