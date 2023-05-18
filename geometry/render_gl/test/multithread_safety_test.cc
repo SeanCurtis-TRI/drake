@@ -1,4 +1,3 @@
-#include <iostream>
 #include <thread>
 #include <vector>
 
@@ -7,9 +6,9 @@
 #include "drake/common/text_logging.h"
 #include "drake/geometry/geometry_ids.h"
 #include "drake/geometry/geometry_roles.h"
+#include "drake/geometry/render/render_label.h"
 #include "drake/geometry/render_gl/factory.h"
 #include "drake/geometry/render_gl/internal_opengl_context.h"
-#include "drake/geometry/render/render_label.h"
 #include "drake/math/rigid_transform.h"
 #include "drake/systems/sensors/image.h"
 

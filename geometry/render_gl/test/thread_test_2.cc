@@ -10,8 +10,8 @@
 #include "drake/common/drake_assert.h"
 #include "drake/common/find_resource.h"
 #include "drake/geometry/geometry_instance.h"
-#include "drake/geometry/shape_specification.h"
 #include "drake/geometry/render_gl/factory.h"
+#include "drake/geometry/shape_specification.h"
 #include "drake/systems/sensors/image_writer.h"
 
 namespace {
