@@ -8,6 +8,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "drake/common/copyable_unique_ptr.h"
 #include "drake/common/eigen_types.h"
 #include "drake/geometry/geometry_roles.h"
 #include "drake/geometry/render/render_engine.h"
@@ -205,7 +206,7 @@ class RenderEngineGl final : public render::RenderEngine {
   //
   // So, all of these quantities are simple copy-safe POD (e.g., OpenGlGeometry)
   // or are stashed in a shared pointer.
-  std::shared_ptr<OpenGlContext> opengl_context_;
+  copyable_unique_ptr<OpenGlContext> opengl_context_;
 
   std::shared_ptr<TextureLibrary> texture_library_;
 

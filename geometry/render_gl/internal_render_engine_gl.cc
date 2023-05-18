@@ -461,7 +461,7 @@ void main() {
 
 RenderEngineGl::RenderEngineGl(RenderEngineGlParams params)
     : RenderEngine(params.default_label),
-      opengl_context_(make_shared<OpenGlContext>()),
+      opengl_context_(make_unique<OpenGlContext>()),
       texture_library_(make_shared<TextureLibrary>(opengl_context_.get())),
       parameters_(std::move(params)) {
   // Configuration of basic OpenGl state.

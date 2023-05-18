@@ -1,3 +1,4 @@
+#include <string>
 #include <thread>
 #include <vector>
 
@@ -9,6 +10,7 @@
 #include "drake/geometry/render/render_label.h"
 #include "drake/geometry/render_gl/factory.h"
 #include "drake/geometry/render_gl/internal_opengl_context.h"
+#include "drake/geometry/render_gl/internal_opengl_includes.h"
 #include "drake/math/rigid_transform.h"
 #include "drake/systems/sensors/image.h"
 
@@ -28,29 +30,56 @@ using render_gl::internal::OpenGlContext;
 using systems::sensors::CameraInfo;
 using systems::sensors::ImageRgba8U;
 
-#if 0
-// This doesn't currently work because the opengl context can't be copied!
-// The solution is to *clone* OpenGlContexts via public API and use that in the
-// render engine.
-GTEST_TEST(OpenGlContextTest, ThreadSafe) {
-  const OpenGlContext source;
+// Tests two properties regarding OpenGlContexts and threads:
+//
+//    1. A context bound in one thread cannot be bound in another (see
+//       `source` below).
+//    2. Cloned contexts created in one thread can be bound in other threads,
+//       even if the original context is bound in different thread.
+GTEST_TEST(OpenGlContextTest, ThreadSafety) {
   std::vector<OpenGlContext> contexts;
-  contexts.push_back(source);
-  contexts.push_back(source);
+  contexts.reserve(3);
+  contexts.emplace_back(false);
+  const OpenGlContext& source = contexts.back();
+  // This is calling the *copy constructor* of OpenGlContext to emplace back.
+  contexts.emplace_back(source);
+  contexts.emplace_back(source);
+
+  // We can bind this in the main thread, no problem.
+  ASSERT_NO_THROW(source.MakeCurrent());
+  ASSERT_TRUE(source.IsCurrent());
 
   std::atomic<int> num_errors{0};
   auto work = [&num_errors, &contexts](int i) {
     try {
-      contexts.at(i).MakeCurrent();
+      const OpenGlContext& context = contexts.at(i);
+      context.MakeCurrent();
+      if (i == 0) {
+        // Successfully binding contexts[0] (aka source) *should've" been an
+        // error.
+        throw std::runtime_error("Worker 0 should not be able to bind the "
+                                 "source context in a different thread.");
+      }
+      if (!context.IsCurrent()) {
+        // MakeCurrent() didn't really work; also an error.
+        throw std::runtime_error("OpenGlContext is not the current thread.");
+      }
     } catch (std::exception& e) {
-      log()->error("Worker {} exception: {}", i, e.what());
-      ++num_errors;
+      // The single exception we expect (0 can't make context current) is 
+      // ignored. Everything else is an error.
+      using std::string_view;
+      if (i != 0 ||
+          e.what() != string_view("Error making an OpenGL context current")) {
+        log()->error("Worker {} exception: {}", i, e.what());
+        ++num_errors;
+      }
     }
   };
 
   std::vector<std::thread> threads;
-  threads.push_back(std::thread(work, 0));
+  threads.push_back(std::thread(work, 0)); // Erroneously rebind `source`.
   threads.push_back(std::thread(work, 1));
+  threads.push_back(std::thread(work, 2));
 
   for (auto& thread : threads) {
     thread.join();
@@ -58,8 +87,47 @@ GTEST_TEST(OpenGlContextTest, ThreadSafe) {
 
   ASSERT_EQ(num_errors, 0);
 }
-#endif
 
+// A test on the semantics of OpenGL objects:
+// - Independently created contexts don't share objects.
+// - A cloned context shares objects with the source.
+// - Destruction of a context which shares OpenGL objects does not destroy the
+//   objects.
+GTEST_TEST(OpenGlContextTest, OpenGlObjectSharing) {
+  const OpenGlContext source;
+  source.MakeCurrent();
+
+  // Create a buffer in source's context.
+  GLuint buffer;
+  glCreateFramebuffers(1, &buffer);
+  ASSERT_TRUE(glIsFramebuffer(buffer));
+  // Reject the null hypothesis -- bad handle is not a buffer.
+  ASSERT_FALSE(glIsFramebuffer(buffer + 1));
+
+  {
+    const OpenGlContext clone(source);
+    clone.MakeCurrent();
+    ASSERT_TRUE(clone.IsCurrent());
+    // It's still a frame buffer with the clone the current context.
+    ASSERT_TRUE(glIsFramebuffer(buffer));
+    // We'll destroy this context as we leave. Making sure the context isn't
+    // bound when the destructor is called will lead to its immediate
+    // destruction.
+    OpenGlContext::ClearCurrent();
+  }
+
+  // Even after the destruction of the sharing context, the buffer still exists
+  // in the original.
+  source.MakeCurrent();
+  ASSERT_TRUE(glIsFramebuffer(buffer));
+
+  // However, a newly created OpenGlContext does *not* have the frame buffer.
+  const OpenGlContext independent;
+  independent.MakeCurrent();
+  ASSERT_FALSE(glIsFramebuffer(buffer));
+}
+
+#if 0
 // This confirms that when a RenderEngine gets cloned, the clones have OpenGl
 // contexts that are sufficiently independent to allow rendering in independent
 // threads, but still share the same OpenGl artifacts on the GPU.
@@ -151,7 +219,7 @@ GTEST_TEST(RenderEngineGlTest, ClonesAreThreadsafe) {
 
   ASSERT_EQ(num_errors, 0);
 }
-
+#endif
 }  // namespace
 }  // namespace geometry
 }  // namespace drake

@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <cstring>
-#include <iostream>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -80,7 +79,7 @@ class OpenGlContext::Impl {
  public:
   // Open an X display and initialize an OpenGL context. The display will be
   // open and ready for offscreen rendering, but no window is visible.
-  explicit Impl(bool debug) {
+  explicit Impl(bool debug, GLXContext source_context = NULL) {
     // See Offscreen Rendering section here:
     // https://sidvind.com/index.php?title=Opengl/windowless
 
@@ -159,8 +158,8 @@ class OpenGlContext::Impl {
     // NOTE: The consts True and False come from gl/glx.h (indirectly), but
     // ultimately from X11/Xlib.h.
     // This requires a call to glXDestroyContext in the destructor.
-    context_ = glXCreateContextAttribsARB(display(), fb_configs[0], 0, True,
-                                          kContextAttribs);
+    context_ = glXCreateContextAttribsARB(
+        display(), fb_configs[0], source_context, True, kContextAttribs);
     if (context_ == nullptr) {
       throw std::runtime_error(
           "Error initializing OpenGL Context for RenderEngineGL; failed to "
@@ -185,6 +184,10 @@ class OpenGlContext::Impl {
     is_complete = true;
   }
 
+  // Constructs a copy which shares the OpenGl objects stored on the GPU from
+  // the given implementation `other`.
+  Impl(const Impl& other) : Impl(other.debug_, other.context_) {}
+
   ~Impl() {
     glXDestroyContext(display(), context_);
     XWindowAttributes window_attribs;
@@ -194,27 +197,18 @@ class OpenGlContext::Impl {
   }
 
   void MakeCurrent() const {
-#if 0
-    std::cerr << "Make current on thread " << std::this_thread::get_id()
-              << " with context " << context_ << "\n";
-    if (glXGetCurrentContext() != context_) {
-      std::cerr << "   Changing context on thread "
-                << std::this_thread::get_id() << " with context " << context_
-                << "\n";
-      if (!glXMakeCurrent(display(), window_, context_)) {
-        throw std::runtime_error("Error making an OpenGL context current");
-      }
-    } else {
-      std::cerr << "   Context already current on thread "
-                << std::this_thread::get_id() << " with context " << context_
-                << "\n";
-    }
-#else
     if (glXGetCurrentContext() != context_ &&
         !glXMakeCurrent(display(), window_, context_)) {
       throw std::runtime_error("Error making an OpenGL context current");
     }
-#endif
+  }
+
+  static void ClearCurrent() {
+    glXMakeCurrent(display(), None, NULL);
+  }
+
+  bool IsCurrent() const {
+    return glXGetCurrentContext() == context_;
   }
 
   void DisplayWindow(const int width, const int height) {
@@ -311,14 +305,23 @@ class OpenGlContext::Impl {
   // not yet understood.
   int window_width_{640};
   int window_height_{480};
+
+  bool debug_{};
 };
 
 OpenGlContext::OpenGlContext(bool debug)
     : impl_(new OpenGlContext::Impl(debug)) {}
 
+OpenGlContext::OpenGlContext(const OpenGlContext& other)
+    : impl_(std::make_unique<OpenGlContext::Impl>(*other.impl_)) {}
+
 OpenGlContext::~OpenGlContext() = default;
 
 void OpenGlContext::MakeCurrent() const { impl_->MakeCurrent(); }
+
+void OpenGlContext::ClearCurrent() { OpenGlContext::Impl::ClearCurrent(); }
+
+bool OpenGlContext::IsCurrent() const { return impl_->IsCurrent(); }
 
 void OpenGlContext::DisplayWindow(const int width, const int height) {
   impl_->DisplayWindow(width, height);
