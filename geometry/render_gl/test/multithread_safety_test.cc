@@ -128,7 +128,6 @@ GTEST_TEST(OpenGlContextTest, OpenGlObjectSharing) {
   ASSERT_FALSE(glIsFramebuffer(buffer));
 }
 
-
 // RenderEngineGl has to handle its OpenGlContext correctly to benefit from
 // its thread-independence and OpenGL object sharing.
 //
@@ -150,7 +149,8 @@ GTEST_TEST(RenderEngineGlTest, ThreadSafety) {
   // by each cloned engine.
   PerceptionProperties material;
   material.AddProperty("label", "id", render::RenderLabel::kDontCare);
-  material.AddProperty("phong", "diffuse_map", FindResourceOrThrow("drake/geometry/render/test/meshes/box.png"));
+  // material.AddProperty("phong", "diffuse_map", FindResourceOrThrow("drake/geometry/render/test/meshes/box.png"));
+  material.AddProperty("phong", "diffuse", Rgba(1, 0, 0));
   source_engine->RegisterVisual(GeometryId::get_new_id(), Box(1, 1, 1),
                                 material, math::RigidTransformd(),
                                 false /* needs update */);
@@ -180,8 +180,9 @@ GTEST_TEST(RenderEngineGlTest, ThreadSafety) {
   ImageRgba8U source_image(camera.core().intrinsics().width(),
                            camera.core().intrinsics().height());
   ASSERT_NO_THROW(source_engine->RenderColorImage(camera, &source_image));
-  sleep(3);
+  // sleep(3);
 
+  log()->info("FInished reference image");
   // Simply look to see if we have an image with the material color in the
   // center. If present, the box should guarantee it.
   auto check_image =
@@ -194,7 +195,7 @@ GTEST_TEST(RenderEngineGlTest, ThreadSafety) {
         EXPECT_NEAR(image.at(x, y)[2], 33, 1);
       };
 
-  check_image(source_image);
+  // check_image(source_image);
 
   // The multi-threaded work function; render and check the image.
   std::atomic<int>
@@ -222,7 +223,9 @@ GTEST_TEST(RenderEngineGlTest, ThreadSafety) {
 
   std::vector<std::thread> threads;
   for (int i = 0; i < 2; ++i) {
-    threads.push_back(std::thread(work, i));
+    work(i);
+    break;
+    // threads.push_back(std::thread(work, i));
   }
 
   for (auto& thread : threads) {

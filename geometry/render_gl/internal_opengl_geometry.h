@@ -47,15 +47,18 @@ struct OpenGlGeometry {
    @param index_buffer_in       The handle to the OpenGl index buffer defining a
                                 set of triangles.
    @param index_buffer_size_in  The number of indices in the index buffer.
+   @param v_count_in            The number of vertices in this mesh.
    @pre `index_buffer_size_in >= 0`.  */
-  OpenGlGeometry(GLuint vertex_array_in, GLuint vertex_buffer_in,
-                 GLuint index_buffer_in, int index_buffer_size_in,
-                 bool has_tex_coord_in)
+  OpenGlGeometry(GLuint vertex_array_in,
+                 GLuint vertex_buffer_in, GLuint index_buffer_in,
+                 int index_buffer_size_in, bool has_tex_coord_in,
+                 int v_count_in)
       : vertex_array{vertex_array_in},
         vertex_buffer{vertex_buffer_in},
         index_buffer{index_buffer_in},
         index_buffer_size{index_buffer_size_in},
-        has_tex_coord{has_tex_coord_in} {
+        has_tex_coord{has_tex_coord_in},
+        v_count(v_count_in) {
     if (index_buffer_size < 0) {
       throw std::logic_error("Index buffer size must be non-negative");
     }
@@ -77,6 +80,9 @@ struct OpenGlGeometry {
     if (!is_defined()) throw std::logic_error(message);
   }
 
+  // TODO(SeanCurtis-TRI): This can't really be a struct anymore; there needs to
+  // be an invariant between v_count and the size of vertex_buffer and the
+  // values in index_buffer.
   GLuint vertex_array{kInvalid};
   GLuint vertex_buffer{kInvalid};
   GLuint index_buffer{kInvalid};
@@ -84,6 +90,9 @@ struct OpenGlGeometry {
   /* True indicates that this has texture coordinates to support texture
    maps. See MeshData::has_tex_coord for detail.  */
   bool has_tex_coord{};
+
+  // The number of vertices encoded in `vertex_buffer`.
+  int v_count{};
 
   /* The value of an object (array, buffer) that should be considered invalid.
    */

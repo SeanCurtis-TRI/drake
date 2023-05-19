@@ -112,6 +112,10 @@ class RenderEngineGl final : public render::RenderEngine {
   // *old* context. That's a problem. It needs a pointer to the new context.
   // Alternatively, its operations should take a context as argument.  
   // Copy constructor used for cloning.
+
+  // Do *not* call this copy constructor directly. The resulting RenderEngineGl
+  // is not complete -- it will render nothing except the background color.
+  // Only call Clone() to get a copy. (See TODO in DoClone()).
   RenderEngineGl(const RenderEngineGl& other) = default;
 
   // Renders all geometries which use the given shader program for the given
@@ -166,6 +170,14 @@ class RenderEngineGl final : public render::RenderEngine {
   // Creates an OpenGlGeometry from the mesh defined by the given `mesh_data`.
   static OpenGlGeometry CreateGlGeometry(
       const geometry::internal::RenderMesh& mesh_data);
+
+  // Given a geometry that has its buffers (and vertex counts assigned), ties
+  // all of the buffer data into the vertex array attributes.
+  static void CreateVertexArray(OpenGlGeometry* geometry);
+
+  // Updates the vertex arrays in all of the OpenGlGeometry instances owned by
+  // this render engine.
+  void UpdateVertexArrays();
 
   // Sets the display window visibility and populates it with the _last_ image
   // rendered, if visible.

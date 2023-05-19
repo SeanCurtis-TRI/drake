@@ -7,6 +7,7 @@
 
 #include <fmt/format.h>
 
+#include "drake/common/scope_exit.h"
 #include "drake/common/text_logging.h"
 #include "drake/common/unused.h"
 
@@ -635,7 +636,14 @@ bool RenderEngineGl::DoRemoveGeometry(GeometryId id) {
 }
 
 unique_ptr<RenderEngine> RenderEngineGl::DoClone() const {
-  return unique_ptr<RenderEngineGl>(new RenderEngineGl(*this));
+  auto clone = unique_ptr<RenderEngineGl>(new RenderEngineGl(*this));
+
+  // TODO(SeanCurtis-TRI): Reorganize the opengl_context and these meshes so
+  // that the default constructor of RenderEngineGl is sufficient to
+  // achieve this same end.
+
+  clone->UpdateVertexArrays();
+  return clone;
 }
 
 void RenderEngineGl::RenderAt(const ShaderProgram& shader_program,
@@ -1015,8 +1023,6 @@ RenderTarget RenderEngineGl::GetRenderTarget(const RenderCameraCore& camera,
 
 OpenGlGeometry RenderEngineGl::CreateGlGeometry(const RenderMesh& mesh_data) {
   OpenGlGeometry geometry;
-  // Create the vertex array object (VAO).
-  glCreateVertexArrays(1, &geometry.vertex_array);
 
   // Create the vertex buffer object (VBO).
   glCreateBuffers(1, &geometry.vertex_buffer);
@@ -1046,37 +1052,6 @@ OpenGlGeometry RenderEngineGl::CreateGlGeometry(const RenderMesh& mesh_data) {
                        vertex_data.size() * sizeof(GLfloat),
                        vertex_data.data(), 0);
 
-  std::size_t vbo_offset = 0;
-
-  const int position_attrib = 0;
-  glVertexArrayVertexBuffer(geometry.vertex_array, position_attrib,
-                            geometry.vertex_buffer, vbo_offset,
-                            kFloatsPerPosition * sizeof(GLfloat));
-  glVertexArrayAttribFormat(geometry.vertex_array, position_attrib,
-                            kFloatsPerPosition, GL_FLOAT, GL_FALSE, 0);
-  glEnableVertexArrayAttrib(geometry.vertex_array, position_attrib);
-  vbo_offset += v_count * kFloatsPerPosition * sizeof(GLfloat);
-
-  const int normal_attrib = 1;
-  glVertexArrayVertexBuffer(
-      geometry.vertex_array, normal_attrib, geometry.vertex_buffer,
-      vbo_offset, kFloatsPerNormal * sizeof(GLfloat));
-  glVertexArrayAttribFormat(geometry.vertex_array, normal_attrib,
-                            kFloatsPerNormal, GL_FLOAT, GL_FALSE, 0);
-  glEnableVertexArrayAttrib(geometry.vertex_array, normal_attrib);
-  vbo_offset += v_count * kFloatsPerNormal * sizeof(GLfloat);
-
-  const int uv_attrib = 2;
-  glVertexArrayVertexBuffer(
-      geometry.vertex_array, uv_attrib, geometry.vertex_buffer,
-      vbo_offset, kFloatsPerUv * sizeof(GLfloat));
-  glVertexArrayAttribFormat(geometry.vertex_array, uv_attrib,
-                            kFloatsPerUv, GL_FLOAT,
-                            GL_FALSE, 0);
-  glEnableVertexArrayAttrib(geometry.vertex_array, uv_attrib);
-  vbo_offset += v_count * kFloatsPerUv * sizeof(GLfloat);
-  DRAKE_DEMAND(vbo_offset == vertex_data.size() * sizeof(GLfloat));
-
   // Create the index buffer object (IBO).
   using indices_uint_t = decltype(mesh_data.indices)::Scalar;
   static_assert(sizeof(GLuint) == sizeof(indices_uint_t),
@@ -1085,12 +1060,13 @@ OpenGlGeometry RenderEngineGl::CreateGlGeometry(const RenderMesh& mesh_data) {
   glNamedBufferStorage(geometry.index_buffer,
                        mesh_data.indices.size() * sizeof(GLuint),
                        mesh_data.indices.data(), 0);
-  // Bind IBO with the VAO.
-  glVertexArrayElementBuffer(geometry.vertex_array, geometry.index_buffer);
 
   geometry.index_buffer_size = mesh_data.indices.size();
 
   geometry.has_tex_coord = mesh_data.has_tex_coord;
+
+  geometry.v_count = v_count;
+  CreateVertexArray(&geometry);
 
   // Note: We won't need to call the corresponding glDeleteVertexArrays or
   // glDeleteBuffers. The meshes we store are "canonical" meshes. Even if a
@@ -1098,6 +1074,87 @@ OpenGlGeometry RenderEngineGl::CreateGlGeometry(const RenderMesh& mesh_data) {
   // canonical mesh. We keep all canonical meshes alive for the lifetime of the
   // OpenGL context for convenient reuse.
   return geometry;
+}
+
+void RenderEngineGl::CreateVertexArray(OpenGlGeometry* geometry) {
+  glCreateVertexArrays(1, &geometry->vertex_array);
+  DRAKE_ASSERT(glIsBuffer(geometry->vertex_buffer));
+  DRAKE_ASSERT(glIsBuffer(geometry->index_buffer));
+
+  // 3 floats each for position and normal, 2 for texture coordinates.
+  const int kFloatsPerPosition = 3;
+  const int kFloatsPerNormal = 3;
+  const int kFloatsPerUv = 2;
+
+  std::size_t vbo_offset = 0;
+
+  const int position_attrib = 0;
+  glVertexArrayVertexBuffer(geometry->vertex_array, position_attrib,
+                            geometry->vertex_buffer, vbo_offset,
+                            kFloatsPerPosition * sizeof(GLfloat));
+  glVertexArrayAttribFormat(geometry->vertex_array, position_attrib,
+                            kFloatsPerPosition, GL_FLOAT, GL_FALSE, 0);
+  glEnableVertexArrayAttrib(geometry->vertex_array, position_attrib);
+  vbo_offset += geometry->v_count * kFloatsPerPosition * sizeof(GLfloat);
+
+  const int normal_attrib = 1;
+  glVertexArrayVertexBuffer(
+      geometry->vertex_array, normal_attrib, geometry->vertex_buffer,
+      vbo_offset, kFloatsPerNormal * sizeof(GLfloat));
+  glVertexArrayAttribFormat(geometry->vertex_array, normal_attrib,
+                            kFloatsPerNormal, GL_FLOAT, GL_FALSE, 0);
+  glEnableVertexArrayAttrib(geometry->vertex_array, normal_attrib);
+  vbo_offset += geometry->v_count * kFloatsPerNormal * sizeof(GLfloat);
+
+  const int uv_attrib = 2;
+  glVertexArrayVertexBuffer(
+      geometry->vertex_array, uv_attrib, geometry->vertex_buffer,
+      vbo_offset, kFloatsPerUv * sizeof(GLfloat));
+  glVertexArrayAttribFormat(geometry->vertex_array, uv_attrib,
+                            kFloatsPerUv, GL_FLOAT,
+                            GL_FALSE, 0);
+  glEnableVertexArrayAttrib(geometry->vertex_array, uv_attrib);
+  vbo_offset += geometry->v_count * kFloatsPerUv * sizeof(GLfloat);
+
+  const float float_count =
+      geometry->v_count *
+      (kFloatsPerPosition + kFloatsPerNormal + kFloatsPerUv);
+  DRAKE_DEMAND(vbo_offset == float_count * sizeof(GLfloat));
+
+  // Bind IBO with the VAO.
+  glVertexArrayElementBuffer(geometry->vertex_array, geometry->index_buffer);
+}
+
+void RenderEngineGl::UpdateVertexArrays() {
+  // Creating the vertex arrays requires the context to be bound.
+  opengl_context_->MakeCurrent();
+  ScopeExit unbind_context([]() {
+    // We do *not* want to leave the context bound.
+    OpenGlContext::ClearCurrent();
+  });
+
+  auto update_array = [](OpenGlGeometry* geometry) {
+    if (!geometry->is_defined()) {
+      // The geometry data hasn't been defined for this geometry yet.
+      // E.g.., we're cloning a RenderEngineGl that hasn't instantiated
+      // sphere_ yet.
+      return;
+    }
+    CreateVertexArray(geometry);
+  };
+
+  // All stored OpenGlGeometry instances need to rebuild their vertex arrays.
+  // Vertex arrays are *not* shared between contexts.
+  update_array(&sphere_);
+  update_array(&cylinder_);
+  update_array(&half_space_);
+  update_array(&box_);
+  for (auto& capsule : capsules_) {
+    update_array(&capsule);
+  }
+  for (auto& [_, mesh] : meshes_) {
+    update_array(&mesh);
+  }
 }
 
 void RenderEngineGl::SetWindowVisibility(const RenderCameraCore& camera,
