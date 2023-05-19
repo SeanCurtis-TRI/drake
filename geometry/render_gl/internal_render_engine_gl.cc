@@ -69,6 +69,15 @@ class DefaultRgbaColorShader final : public ShaderProgram {
   void SetInstanceParameters(const ShaderProgramData& data) const final {
     glUniform4fv(diffuse_color_loc_, 1,
                  data.value().get_value<Vector4<float>>().data());
+    GLfloat read[4];
+    glGetUniformfv(gl_id(), diffuse_color_loc_, read);
+    const Vector4<float> value = data.value().get_value<Vector4<float>>();
+    log()->info(
+        "Setting rgba color\n\t"
+        "  In:  {}, {}, {}, {}\n\t"
+        "  Set: {}, {}, {}, {}",
+        value[0], value[1], value[2], value[3], read[0], read[1], read[2],
+        read[3]);
   }
 
   void SetLightDirection(const Vector3<float>& light_dir_C) const final {
@@ -458,6 +467,41 @@ void main() {
 })""";
 };
 
+void Dump(const OpenGlGeometry& g) {
+  log()->info(
+      "OpenGlGeometry\n\t"
+      "vertex array:      {}\n\t"
+      "vertex buffer:     {}\n\t"
+      "index buffer:      {}\n\t"
+      "index_buffer_size: {}\n\t"
+      "has uvs:           {}\n\t"
+      "vertex count:      {}",
+      g.vertex_array, g.vertex_buffer, g.index_buffer, g.index_buffer_size,
+      g.has_tex_coord, g.v_count);
+  const int count = g.v_count * (3 + 3 + 2);
+  vector<GLfloat> data(count, -1);
+  glGetNamedBufferSubData(g.vertex_buffer, 0, count * sizeof(GLfloat),
+                          data.data());
+  vector<GLuint> index(g.index_buffer_size);
+  glGetNamedBufferSubData(g.index_buffer, 0,
+                          g.index_buffer_size * sizeof(GLuint), index.data());
+  int p = 0;
+  int n = g.v_count * 3;
+  int uv = g.v_count * (3 + 3);
+  for (int v = 0; v < g.v_count; ++v) {
+    log()->info("V{} - P ({}, {}, {}), N ({}, {}, {}), UV ({}, {})", v, data[p],
+                data[p + 1], data[p + 2], data[n], data[n + 1], data[n + 2],
+                data[uv], data[uv + 1]);
+    p += 3;
+    n += 3;
+    uv += 2;
+  }
+  for (int i = 0; i < g.index_buffer_size; i += 3) {
+    log()->info("Tri{} - {}, {}, {}", i / 3, index[i], index[i + 1],
+                index[i + 2]);
+  }
+}
+
 }  // namespace
 
 RenderEngineGl::RenderEngineGl(RenderEngineGlParams params)
@@ -672,6 +716,8 @@ void RenderEngineGl::RenderAt(const ShaderProgram& shader_program,
     shader_program.SetModelViewMatrix(
         X_CW * instance.X_WG.GetAsMatrix4().cast<float>(), instance.scale);
 
+    log()->info("RenderAt()");
+    Dump(instance.geometry);
     glDrawElements(GL_TRIANGLES, instance.geometry.index_buffer_size,
                    GL_UNSIGNED_INT, 0);
   }
@@ -1081,10 +1127,14 @@ OpenGlGeometry RenderEngineGl::CreateGlGeometry(
 
 void RenderEngineGl::CreateVertexArray(OpenGlGeometry* geometry) const {
   glCreateVertexArrays(1, &geometry->vertex_array);
+
   DRAKE_ASSERT(opengl_context_->IsCurrent());
   DRAKE_ASSERT(glIsBuffer(geometry->vertex_buffer));
   DRAKE_ASSERT(glIsBuffer(geometry->index_buffer));
   DRAKE_ASSERT(geometry->v_count > 0);
+
+  log()->info("CreateVertexArray()");
+  Dump(*geometry);
 
   // 3 floats each for position and normal, 2 for texture coordinates.
   const int kFloatsPerPosition = 3;
