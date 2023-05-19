@@ -149,8 +149,8 @@ GTEST_TEST(RenderEngineGlTest, ThreadSafety) {
   // by each cloned engine.
   PerceptionProperties material;
   material.AddProperty("label", "id", render::RenderLabel::kDontCare);
-  // material.AddProperty("phong", "diffuse_map", FindResourceOrThrow("drake/geometry/render/test/meshes/box.png"));
-  material.AddProperty("phong", "diffuse", Rgba(1, 0, 0));
+  material.AddProperty("phong", "diffuse_map", FindResourceOrThrow("drake/geometry/render/test/meshes/box.png"));
+  // material.AddProperty("phong", "diffuse", Rgba(1, 0, 0));
   source_engine->RegisterVisual(GeometryId::get_new_id(), Box(1, 1, 1),
                                 material, math::RigidTransformd(),
                                 false /* needs update */);
@@ -223,9 +223,7 @@ GTEST_TEST(RenderEngineGlTest, ThreadSafety) {
 
   std::vector<std::thread> threads;
   for (int i = 0; i < 2; ++i) {
-    work(i);
-    break;
-    // threads.push_back(std::thread(work, i));
+    threads.push_back(std::thread(work, i));
   }
 
   for (auto& thread : threads) {

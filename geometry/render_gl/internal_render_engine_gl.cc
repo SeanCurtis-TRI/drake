@@ -686,6 +686,22 @@ unique_ptr<RenderEngine> RenderEngineGl::DoClone() const {
   // that the default constructor of RenderEngineGl is sufficient to
   // achieve this same end.
 
+  clone->opengl_context_->MakeCurrent();
+  glEnable(GL_CULL_FACE);
+  glCullFace(GL_BACK);
+  glClipControl(GL_UPPER_LEFT, GL_NEGATIVE_ONE_TO_ONE);
+  glClearDepth(1.0);
+  glEnable(GL_DEPTH_TEST);
+  // Generally, there should be no blending for depth and label images. We'll
+  // selectively enable blending for color images.
+  glDisable(GL_BLEND);
+  // We blend the rgb values (the first two parameters), but simply accumulate
+  // transparency (the last two parameters).
+  glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE);
+  ScopeExit unbind([]() {
+    OpenGlContext::ClearCurrent();
+  });
+
   clone->UpdateVertexArrays();
   return clone;
 }
