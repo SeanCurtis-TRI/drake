@@ -506,22 +506,15 @@ void Dump(const OpenGlGeometry& g) {
 
 RenderEngineGl::RenderEngineGl(RenderEngineGlParams params)
     : RenderEngine(params.default_label),
-      opengl_context_(make_unique<OpenGlContext>(true)),
       texture_library_(make_shared<TextureLibrary>(opengl_context_.get())),
       parameters_(std::move(params)) {
+  // TODO(SeanCurtis-TRI): Put the shaders into its own ShaderLibrary class that
+  // gets initialized as part of the initialization of all members. Then we
+  // can rely on the ContextCloningWrapper and ContextUnbinder() to manage the
+  // OpenGlContext bindings during contruction and copying.
+
   // Configuration of basic OpenGl state.
   opengl_context_->MakeCurrent();
-  glEnable(GL_CULL_FACE);
-  glCullFace(GL_BACK);
-  glClipControl(GL_UPPER_LEFT, GL_NEGATIVE_ONE_TO_ONE);
-  glClearDepth(1.0);
-  glEnable(GL_DEPTH_TEST);
-  // Generally, there should be no blending for depth and label images. We'll
-  // selectively enable blending for color images.
-  glDisable(GL_BLEND);
-  // We blend the rgb values (the first two parameters), but simply accumulate
-  // transparency (the last two parameters).
-  glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE);
 
   // Color shaders. See documentation on GetShaderProgram. We want color from
   // texture to be "more preferred" than color from rgba, so we add the
@@ -544,6 +537,8 @@ RenderEngineGl::RenderEngineGl(RenderEngineGlParams params)
     return Vector4<float>(color.r, color.g, color.b, 1.f);
   };
   AddShader(make_unique<DefaultLabelShader>(label_encoder), RenderType::kLabel);
+
+  OpenGlContext::ClearCurrent();
 }
 
 RenderEngineGl::~RenderEngineGl() = default;
@@ -687,17 +682,6 @@ unique_ptr<RenderEngine> RenderEngineGl::DoClone() const {
   // achieve this same end.
 
   clone->opengl_context_->MakeCurrent();
-  glEnable(GL_CULL_FACE);
-  glCullFace(GL_BACK);
-  glClipControl(GL_UPPER_LEFT, GL_NEGATIVE_ONE_TO_ONE);
-  glClearDepth(1.0);
-  glEnable(GL_DEPTH_TEST);
-  // Generally, there should be no blending for depth and label images. We'll
-  // selectively enable blending for color images.
-  glDisable(GL_BLEND);
-  // We blend the rgb values (the first two parameters), but simply accumulate
-  // transparency (the last two parameters).
-  glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE);
   ScopeExit unbind([]() {
     OpenGlContext::ClearCurrent();
   });
@@ -1238,16 +1222,17 @@ void RenderEngineGl::SetWindowVisibility(const RenderCameraCore& camera,
     // image from source to destination. The semantics of glBlitNamedFrameBuffer
     // are inclusive of the "minimum" pixel (0, 0) and exclusive of the
     // "maximum" pixel (width, height).
-    opengl_context_->DisplayWindow(intrinsics.width(), intrinsics.height());
+    opengl_context_.mutatable()->DisplayWindow(intrinsics.width(),
+                                               intrinsics.height());
     glBlitNamedFramebuffer(target.frame_buffer, 0,
                            // Src bounds.
                            0, 0, intrinsics.width(), intrinsics.height(),
                            // Dest bounds.
                            0, 0, intrinsics.width(), intrinsics.height(),
                            GL_COLOR_BUFFER_BIT, GL_NEAREST);
-    opengl_context_->UpdateWindow();
+    opengl_context_.mutatable()->UpdateWindow();
   } else {
-    opengl_context_->HideWindow();
+    opengl_context_.mutatable()->HideWindow();
   }
 }
 
@@ -1277,6 +1262,29 @@ ShaderProgramData RenderEngineGl::GetShaderProgram(
   // geometry.
   DRAKE_DEMAND(data.has_value());
   return *data;
+}
+
+RenderEngineGl::ContextGlInitializer::ContextGlInitializer() {
+  InitGl();
+}
+
+RenderEngineGl::ContextGlInitializer::ContextGlInitializer(
+    const RenderEngineGl::ContextGlInitializer&) {
+  InitGl();
+}
+
+void RenderEngineGl::ContextGlInitializer::InitGl() const {
+  glEnable(GL_CULL_FACE);
+  glCullFace(GL_BACK);
+  glClipControl(GL_UPPER_LEFT, GL_NEGATIVE_ONE_TO_ONE);
+  glClearDepth(1.0);
+  glEnable(GL_DEPTH_TEST);
+  // Generally, there should be no blending for depth and label images. We'll
+  // selectively enable blending for color images.
+  glDisable(GL_BLEND);
+  // We blend the rgb values (the first two parameters), but simply accumulate
+  // transparency (the last two parameters).
+  glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE);
 }
 
 }  // namespace internal

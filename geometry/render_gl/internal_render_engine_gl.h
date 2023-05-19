@@ -212,18 +212,69 @@ class RenderEngineGl final : public render::RenderEngine {
   // The cached value transformation between camera and world frames.
   math::RigidTransformd X_CW_;
 
-  // TODO: This comment is now stale.
-  // All clones of this context share the same underlying OpenGlContext. They
-  // also share the C++ abstractions of objects that *live* in the context:
+  // A simple wrapper of an `OpenGlContext` that behaves like a unique pointer
+  // (in that operator*, operator-> and get() are implemented) and it confers
+  // unique ownership on the underlying OpenGlContext.
   //
-  //   OpenGlGeometry - the geometry buffers (copy safe)
-  //   RenderTarget - frame buffer objects (copy safe)
-  //   TextureLibrary - the textures (shared)
-  //   ShaderProgram - the compiled shader programs (copy safe)
+  // When constructed or copy constructed it automatically binds the context.
+  // In constructing or cloning a RenderEngineGl instance, there is further work
+  // that needs to be done beyond simply copying the C++ constructs. The
+  // new RenderEngineGl instance has to properly configure the OpenGL context.
+  // Automatically binding it, guarantees an available OpenGl context to all
+  // subsequent operations
   //
-  // So, all of these quantities are simple copy-safe POD (e.g., OpenGlGeometry)
-  // or are stashed in a shared pointer.
-  copyable_unique_ptr<OpenGlContext> opengl_context_;
+  // This works in conjunction with the ContextUnbinder class (see below) to
+  // unbind the context at the conclusion of the copy constructor, leaving the
+  // cloned RenderEngine with its context unbound.
+  class OpenGlContextWrapper {
+   public:
+    OpenGlContextWrapper() : context_(std::make_unique<OpenGlContext>()) {
+      context_->MakeCurrent();
+    }
+    OpenGlContextWrapper(const OpenGlContextWrapper& other)
+        : context_(std::make_unique<OpenGlContext>(*other.context_)) {
+      context_->MakeCurrent();
+    }
+    OpenGlContextWrapper& operator=(const OpenGlContextWrapper&) = delete;
+    OpenGlContextWrapper(OpenGlContextWrapper&&) = delete;
+    OpenGlContextWrapper& operator=(OpenGlContextWrapper&&) = delete;
+
+    const OpenGlContext& operator*() const { return *context_; }
+    OpenGlContext& operator*() { return *context_; }
+    const OpenGlContext* operator->() const { return context_.get(); }
+    OpenGlContext* operator->() { return context_.get(); }
+    const OpenGlContext* get() const { return context_.get(); }
+    OpenGlContext* get() { return context_.get(); }
+    // SetWindowVisibility needs to mutate the context based on camera settings.
+    OpenGlContext* mutatable() const { return context_.get(); }
+
+   private:
+    std::unique_ptr<OpenGlContext> context_;
+  };
+
+  // This must always be the first member -- when cloning, the context gets
+  // cloned first and the context is *bound*.
+  OpenGlContextWrapper opengl_context_;
+
+  // When OpenGlContext is cloned, it shares OpenGl *objects* stored on the GPU
+  // with the original context. But it does not share the context *state*.
+  // This class initializes the state for an OpenGL context in a consistent
+  // manner and it automatically configures it during initial construction
+  // and cloning.
+  class ContextGlInitializer {
+   public:
+    ContextGlInitializer();
+    ContextGlInitializer(const ContextGlInitializer&);
+    ContextGlInitializer& operator=(const ContextGlInitializer&) = delete;
+    ContextGlInitializer(ContextGlInitializer&&) = delete;
+    ContextGlInitializer& operator=(ContextGlInitializer&&) = delete;
+   private:
+    void InitGl() const;
+  };
+
+  ContextGlInitializer initializer_;
+
+  // All remaining data types can be simply copied by value.
 
   // Don't share; copy.
   std::shared_ptr<TextureLibrary> texture_library_;
@@ -288,6 +339,24 @@ class RenderEngineGl final : public render::RenderEngine {
 
   // The direction *to* the light expressed in the camera frame.
   Vector3<float> light_dir_C_{0.0f, 0.0f, 1.0f};
+
+  // TODO(SeanCurtis-TRI): Move the shaders into a ShaderLibrary such that they
+  // get initialized automatically and then this can unbind for both copy
+  // constructor *and* normal constructor.
+
+  // When a RenderEngineGl is cloned (via calling its copy constructor), this
+  // class has special copy semantics -- it disables a bound OpenGL context.
+  class ContextUnbinder {
+    public:
+     ContextUnbinder() = default;
+     ContextUnbinder(const ContextUnbinder&) { OpenGlContext::ClearCurrent(); }
+     ContextUnbinder& operator=(const ContextUnbinder&) = delete;
+     ContextUnbinder(ContextUnbinder&&) = delete;
+     ContextUnbinder& operator=(ContextUnbinder&&) = delete;
+  };
+
+  // This member must *always* be last. Nothing comes after it.
+  ContextUnbinder unbinder_;
 };
 
 }  // namespace internal
