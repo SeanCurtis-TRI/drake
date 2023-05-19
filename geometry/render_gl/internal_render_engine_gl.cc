@@ -1021,7 +1021,10 @@ RenderTarget RenderEngineGl::GetRenderTarget(const RenderCameraCore& camera,
   return target;
 }
 
-OpenGlGeometry RenderEngineGl::CreateGlGeometry(const RenderMesh& mesh_data) {
+OpenGlGeometry RenderEngineGl::CreateGlGeometry(
+    const RenderMesh& mesh_data) const {
+  DRAKE_ASSERT(opengl_context_->IsCurrent());
+
   OpenGlGeometry geometry;
 
   // Create the vertex buffer object (VBO).
@@ -1076,10 +1079,12 @@ OpenGlGeometry RenderEngineGl::CreateGlGeometry(const RenderMesh& mesh_data) {
   return geometry;
 }
 
-void RenderEngineGl::CreateVertexArray(OpenGlGeometry* geometry) {
+void RenderEngineGl::CreateVertexArray(OpenGlGeometry* geometry) const {
   glCreateVertexArrays(1, &geometry->vertex_array);
+  DRAKE_ASSERT(opengl_context_->IsCurrent());
   DRAKE_ASSERT(glIsBuffer(geometry->vertex_buffer));
   DRAKE_ASSERT(glIsBuffer(geometry->index_buffer));
+  DRAKE_ASSERT(geometry->v_count > 0);
 
   // 3 floats each for position and normal, 2 for texture coordinates.
   const int kFloatsPerPosition = 3;
@@ -1133,14 +1138,14 @@ void RenderEngineGl::UpdateVertexArrays() {
     OpenGlContext::ClearCurrent();
   });
 
-  auto update_array = [](OpenGlGeometry* geometry) {
+  auto update_array = [this](OpenGlGeometry* geometry) {
     if (!geometry->is_defined()) {
       // The geometry data hasn't been defined for this geometry yet.
       // E.g.., we're cloning a RenderEngineGl that hasn't instantiated
       // sphere_ yet.
       return;
     }
-    CreateVertexArray(geometry);
+    this->CreateVertexArray(geometry);
   };
 
   // All stored OpenGlGeometry instances need to rebuild their vertex arrays.

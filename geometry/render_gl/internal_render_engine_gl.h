@@ -168,12 +168,12 @@ class RenderEngineGl final : public render::RenderEngine {
                                RenderType render_type) const;
 
   // Creates an OpenGlGeometry from the mesh defined by the given `mesh_data`.
-  static OpenGlGeometry CreateGlGeometry(
-      const geometry::internal::RenderMesh& mesh_data);
+  OpenGlGeometry CreateGlGeometry(
+      const geometry::internal::RenderMesh& mesh_data) const;
 
   // Given a geometry that has its buffers (and vertex counts assigned), ties
   // all of the buffer data into the vertex array attributes.
-  static void CreateVertexArray(OpenGlGeometry* geometry);
+  void CreateVertexArray(OpenGlGeometry* geometry) const;
 
   // Updates the vertex arrays in all of the OpenGlGeometry instances owned by
   // this render engine.
