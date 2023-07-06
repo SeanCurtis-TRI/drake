@@ -62,9 +62,14 @@ def _main():
              "It must be an image type normally used by your browser (e.g., "
              ".jpg, .png, etc.). HDR images are not supported yet."
     )
+    parser.add_argument(
+        "--load-every-time", action='store_true', default=False,
+        help="When true, every load message will cause the meshcat session to "
+        "reload.")
     args = parser.parse_args()
     meldis = _Meldis(meshcat_host=args.host, meshcat_port=args.port,
-                     environment_map=args.environment_map)
+                     environment_map=args.environment_map,
+                     always_load=args.load_every_time)
     if args.browser_new is not None:
         url = meldis.meshcat.web_url()
         webbrowser.open(url=url, new=args.browser_new)

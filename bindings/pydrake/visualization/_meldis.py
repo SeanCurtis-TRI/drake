@@ -160,7 +160,8 @@ class _ViewerApplet:
     """Displays lcmt_viewer_load_robot and lcmt_viewer_draw into MeshCat."""
 
     def __init__(self, *, meshcat, path, alpha_slider_name,
-                 should_accept_link=None, start_visible=True):
+                 should_accept_link=None, start_visible=True,
+                 always_load=False):
         """Constructs an applet.
 
         If should_accept_link is given, only links where
@@ -180,6 +181,7 @@ class _ViewerApplet:
         self._start_visible = start_visible
         self._geom_paths = []
         self._geom_colors = []
+        self._ignore_duplicate_load = not always_load
 
         # Initialize ourself with an empty load message.
         self.on_viewer_load(message=lcmt_viewer_load_robot())
@@ -194,7 +196,8 @@ class _ViewerApplet:
         hasher.on_viewer_load_robot(message)
         mesh_checksum = hasher.value()
         if self._load_message is not None:
-            if (message.num_links == self._load_message.num_links
+            if (self._ignore_duplicate_load
+                    and message.num_links == self._load_message.num_links
                     and message.encode() == self._load_message.encode()
                     and mesh_checksum == self._load_message_mesh_checksum):
                 _logger.info("Ignoring duplicate load message")
@@ -629,7 +632,8 @@ class Meldis:
     """
 
     def __init__(self, *, meshcat_host=None, meshcat_port=None,
-                 environment_map: Path = None):
+                 environment_map: Path = None,
+                 always_load: bool = False):
         # Bookkeeping for update throttling.
         self._last_update_time = time.time()
 
@@ -660,7 +664,8 @@ class Meldis:
         default_viewer = _ViewerApplet(meshcat=self.meshcat,
                                        path="/DRAKE_VIEWER",
                                        alpha_slider_name="Viewer α",
-                                       should_accept_link=is_not_inertia_link)
+                                       should_accept_link=is_not_inertia_link,
+                                       always_load=always_load)
         self._subscribe(channel="DRAKE_VIEWER_LOAD_ROBOT",
                         message_type=lcmt_viewer_load_robot,
                         handler=default_viewer.on_viewer_load)
@@ -676,7 +681,8 @@ class Meldis:
                                        path="/Inertia Visualizer",
                                        alpha_slider_name="Inertia α",
                                        should_accept_link=is_inertia_link,
-                                       start_visible=False)
+                                       start_visible=False,
+                                       always_load=always_load)
         inertia_viewer._alpha_slider._value = 0.5
         self._subscribe(channel="DRAKE_VIEWER_LOAD_ROBOT",
                         message_type=lcmt_viewer_load_robot,
@@ -688,7 +694,8 @@ class Meldis:
 
         illustration_viewer = _ViewerApplet(meshcat=self.meshcat,
                                             path="/Visual Geometry",
-                                            alpha_slider_name="Visual α")
+                                            alpha_slider_name="Visual α",
+                                            always_load=always_load)
         self._subscribe(channel="DRAKE_VIEWER_LOAD_ROBOT_ILLUSTRATION",
                         message_type=lcmt_viewer_load_robot,
                         handler=illustration_viewer.on_viewer_load)
@@ -700,7 +707,8 @@ class Meldis:
         proximity_viewer = _ViewerApplet(meshcat=self.meshcat,
                                          path="/Collision Geometry",
                                          alpha_slider_name="Collision α",
-                                         start_visible=False)
+                                         start_visible=False,
+                                         always_load=always_load)
         self._subscribe(channel="DRAKE_VIEWER_LOAD_ROBOT_PROXIMITY",
                         message_type=lcmt_viewer_load_robot,
                         handler=proximity_viewer.on_viewer_load)
