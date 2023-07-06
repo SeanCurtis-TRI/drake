@@ -680,6 +680,8 @@ void DrakeVisualizer<T>::SendLoadNonDeformableMessage(
       // SendDeformableGeometriesMessage().
       if (!inspector.IsDeformableGeometry(g_id)) {
         message.link[0].geom[++geom_index] = make_geometry(g_id);
+        message.link[0].geom[geom_index].name =
+            fmt::format("({}) {}", g_id.get_value(), inspector.GetName(g_id));
       }
     }
     link_index = 1;
@@ -695,6 +697,8 @@ void DrakeVisualizer<T>::SendLoadNonDeformableMessage(
     for (const GeometryId& g_id :
          inspector.GetGeometries(frame_id, params.role)) {
       message.link[link_index].geom[++geom_index] = make_geometry(g_id);
+        message.link[link_index].geom[geom_index].name =
+            fmt::format("({}) {}", g_id.get_value(), inspector.GetName(g_id));
     }
     ++link_index;
   }

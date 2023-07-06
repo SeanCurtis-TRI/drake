@@ -227,8 +227,11 @@ class _ViewerApplet:
             robot_num = link.robot_num
             link_name = link.name.replace("::", "/")
             link_path = f"{self._path}/{robot_num}/{link_name}"
-            for j, geom in enumerate(link.geom):
-                geom_path = f"{link_path}/{j}"
+            for geom in link.geom:
+                name = geom.name
+                if len(name) > 30:
+                    name = name[:30] + "..."
+                geom_path = f"{link_path}/{name}"
                 shape, rgba, pose = self._convert_geom(geom)
                 if shape is None:
                     continue
