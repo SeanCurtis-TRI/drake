@@ -114,4 +114,28 @@ drake_cc_binary(
     ],
 )
 
+drake_cc_binary(
+    name = "illustration_test",
+    srcs = ["illustration_test.cc"],
+    data = [
+        "faces.txt",
+        "vertex_normals.txt",
+        "vertex_positions.txt",
+        "vertex_uvs.txt",
+        "purple.png",
+    ],
+    deps = [
+        "//common:find_resource",
+        "//common:temp_directory",
+        "//geometry:drake_visualizer",
+        "//geometry:meshcat_visualizer",
+        "//geometry:scene_graph",
+        "//math:geometric_transform",
+        "//systems/analysis:simulator",
+        "//systems/framework:diagram",
+        "@gflags",
+    ],
+
+)
+
 add_lint_tests(enable_clang_format_lint = False)
