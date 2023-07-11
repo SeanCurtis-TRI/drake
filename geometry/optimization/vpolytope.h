@@ -90,12 +90,11 @@ class VPolytope final : public ConvexSet {
 
   /* Constructs the polytope from a Shape specification and its pose in the
   world (X_WS) and a reference frame posed in the world (X_WE).
-  
+
   This constructor exists for testing purposes. This allows us to test that
   VPolytope is taking responsibility for yelling about unsupported Shape
   specifications, even if SceneGraph stops defending it. */
-  VPolytope(const Shape& shape,
-            const math::RigidTransformd& X_WS,
+  VPolytope(const Shape& shape, const math::RigidTransformd& X_WS,
             const math::RigidTransformd& X_WE);
 
   std::unique_ptr<ConvexSet> DoClone() const final;
