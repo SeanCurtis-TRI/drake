@@ -83,10 +83,10 @@ MatrixXd GetConvexHullFromObjFile(const std::string& filename,
                                   const std::string& extension, double scale,
                                   std::string_view prefix) {
   if (extension != ".obj") {
-    throw std::runtime_error(
-        fmt::format("{} can only use mesh shapes (i.e.., Convex, Mesh) with a "
-                    ".obj file type; given '{}'.",
-                    std::string(prefix), filename));
+    throw std::runtime_error(fmt::format(
+        "{} can only use mesh shapes (i.e.., Convex, Mesh) with a .obj file "
+        "type; given '{}'.",
+        prefix, filename));
   }
   const auto [tinyobj_vertices, faces, num_faces] =
       internal::ReadObjFile(filename, scale, /* triangulate = */ false);
