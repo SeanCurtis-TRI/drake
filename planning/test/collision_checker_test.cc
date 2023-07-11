@@ -624,63 +624,40 @@ TEST_F(TrivialCollisionCheckerTest, NonZeroDefaultConfiguration) {
   auto [robot, robot_index] =
       MakeModel({.weld_robot = false, .on_env_base = true});
 
-  // Get a copy of the non-zero default configuration.
-  auto context = robot->plant().CreateDefaultContext();
-  const VectorXd default_config =
+  // Retrieve the default configuration, and cross-check that it's non-zero.
+  const VectorXd default_q =
       robot->plant().GetPositions(*robot->plant().CreateDefaultContext());
-  // Confirm the default configuration has non-zero values so it can't be
-  // accidentally represented by the zero vector.
-  ASSERT_TRUE((default_config.array() != 0).any());
-
-  // Make some arbitrary non-default config so we confirm that the distance
-  // and interpolation function candidates can distinguish between default and
-  // non-default configurations.
-  const VectorXd non_default_config = -default_config;
+  ASSERT_TRUE((default_q.array() != 0).any());
 
   std::unique_ptr<CollisionChecker> dut =
       MakeUnallocatedChecker(std::move(robot), {robot_index});
 
+  // Create distance function that rejects all configs except the default. This
+  // will prove that the dut only probes the default config when validating the
+  // distance function during SetConfigurationDistanceFunction.
   bool distance_called = false;
-  // Create distance function that hates all zeros -- and confirm that.
-  auto angry_distance = [&distance_called, &default_config](
-                            const VectorXd& q0, const VectorXd& q1) -> double {
+  auto distance = [&distance_called, &default_q](const VectorXd& q0,
+                                                 const VectorXd& q1) {
     distance_called = true;
-    if (((q0 - default_config).array() != 0).any() ||
-        ((q1 - default_config).array() != 0).any()) {
-      throw std::runtime_error("All zeros is bad!");
-    }
-    return (q1 - q0).norm();
+    DRAKE_THROW_UNLESS(q0 == default_q);
+    DRAKE_THROW_UNLESS(q1 == default_q);
+    return 0.0;
   };
-  // Confirm properties on the distance function.
-  ASSERT_THROW(angry_distance(non_default_config, non_default_config),
-               std::exception);
-  ASSERT_TRUE(distance_called);
-  ASSERT_NO_THROW(angry_distance(default_config, default_config));
-  // Now confirm it gets exercised with the default config.
-  distance_called = false;
-  EXPECT_NO_THROW(dut->SetConfigurationDistanceFunction(angry_distance));
+  EXPECT_NO_THROW(dut->SetConfigurationDistanceFunction(distance));
   EXPECT_TRUE(distance_called);
 
-  // Create interpolation function that hates all zeros -- and confirm that.
+  // Create distance function that rejects all configs except the default. This
+  // will prove that the dut only probes the default config when validating the
+  // interpolation function during SetConfigurationInterpolationFunction.
   bool interp_called = false;
-  auto angry_interp = [&interp_called, &default_config](const VectorXd& q0,
-                                                        const VectorXd& q1,
-                                                        double r) -> VectorXd {
+  auto interp = [&interp_called, &default_q](const VectorXd& q0,
+                                             const VectorXd& q1, double r) {
     interp_called = true;
-    if (((q0 - default_config).array() != 0).any() ||
-        ((q1 - default_config).array() != 0).any()) {
-      throw std::runtime_error("All zeros is bad!");
-    }
-    return (1 - r) * q0 + r * q1;
+    DRAKE_THROW_UNLESS(q0 == default_q);
+    DRAKE_THROW_UNLESS(q1 == default_q);
+    return default_q;
   };
-  // Confirm properties on the interpolation function.
-  ASSERT_THROW(angry_interp(non_default_config, non_default_config, 0),
-               std::exception);
-  ASSERT_TRUE(interp_called);
-  ASSERT_NO_THROW(angry_interp(default_config, default_config, 0));
-  // Now confirm it gets exercised with the default config.
-  interp_called = false;
-  EXPECT_NO_THROW(dut->SetConfigurationInterpolationFunction(angry_interp));
+  EXPECT_NO_THROW(dut->SetConfigurationInterpolationFunction(interp));
   EXPECT_TRUE(interp_called);
 }
 
