@@ -33,15 +33,6 @@ using solvers::Binding;
 using solvers::Constraint;
 using solvers::MathematicalProgram;
 
-class VPolytopeTester {
- public:
-  static VPolytope MakeFromShape(const Shape& shape,
-                                 const RigidTransformd& X_WS,
-                                 const RigidTransformd& X_WE) {
-    return VPolytope(shape, X_WS, X_WE);
-  }
-};
-
 GTEST_TEST(VPolytopeTest, TriangleTest) {
   Eigen::Matrix<double, 2, 3> triangle;
   // clang-format off
@@ -286,18 +277,25 @@ GTEST_TEST(VPolytopeTest, NonconvexMesh) {
 // Confirm that VPolytope will complain about non-obj mesh/convex shapes even
 // if SceneGraph stops complaining. Likewise confirm that GetVertices complains.
 GTEST_TEST(VPolytopeTest, UnsupportedMeshTypes) {
-  // We use friend access to call the private Shape-based constructor (called by
-  // the QueryObject-based constructor). We pass identities for the geometry and
-  // reference frame poses, because correct handling of non-trivial poses are
-  // handled via the QueryObject-based constructor.
+  const Convex convex("bad_extension.stl");
+  const Mesh mesh("bad_extension.stl");
+
+  for (const auto* shape : std::vector<const Shape*>{&convex, &mesh}) {
+    const RigidTransformd X_WG;
+    // We can't add proximity properties; ProximityEngine would reject it.
+    const bool add_proximity_properties = false;
+    auto [scene_graph, geom_id] =
+        MakeSceneGraphWithShape(*shape, X_WG, add_proximity_properties);
+    auto context = scene_graph->CreateDefaultContext();
+    auto query = scene_graph->get_query_output_port().Eval<QueryObject<double>>(
+        *context);
+    DRAKE_EXPECT_THROWS_MESSAGE(
+        VPolytope(query, geom_id),
+        "VPolytope can only use mesh shapes .* '.*bad_extension.stl'.");
+  }
+
   DRAKE_EXPECT_THROWS_MESSAGE(
-      VPolytopeTester::MakeFromShape(Mesh("bad_extension.stl"), {}, {}),
-      "VPolytope can only use mesh shapes .* '.*bad_extension.stl'.");
-  DRAKE_EXPECT_THROWS_MESSAGE(
-      VPolytopeTester::MakeFromShape(Convex("bad_extension.stl"), {}, {}),
-      "VPolytope can only use mesh shapes .* '.*bad_extension.stl'.");
-  DRAKE_EXPECT_THROWS_MESSAGE(
-      GetVertices(Convex("bad_extension.stl")),
+      GetVertices(convex),
       "GetVertices\\(\\) can only use mesh shapes .* '.*bad_extension.stl'.");
 }
 

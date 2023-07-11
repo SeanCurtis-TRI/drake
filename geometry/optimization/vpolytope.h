@@ -86,8 +86,6 @@ class VPolytope final : public ConvexSet {
   void WriteObj(const std::filesystem::path& filename) const;
 
  private:
-  friend class VPolytopeTester;
-
   /* Constructs the polytope from a Shape specification and its pose in the
   world (X_WS) and a reference frame posed in the world (X_WE).
 
