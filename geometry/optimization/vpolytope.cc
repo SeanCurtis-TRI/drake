@@ -126,10 +126,17 @@ VPolytope::VPolytope(const Eigen::Ref<const MatrixXd>& vertices)
 VPolytope::VPolytope(const QueryObject<double>& query_object,
                      GeometryId geometry_id,
                      std::optional<FrameId> reference_frame)
-    : VPolytope(query_object.inspector().GetShape(geometry_id),
-                query_object.GetPoseInWorld(geometry_id),
-                reference_frame ? query_object.GetPoseInWorld(*reference_frame)
-                                : RigidTransformd::Identity()) {}
+    : ConvexSet(3) {
+  Matrix3Xd vertices;
+  query_object.inspector().GetShape(geometry_id).Reify(this, &vertices);
+
+  const RigidTransformd X_WE =
+      reference_frame ? query_object.GetPoseInWorld(*reference_frame)
+                      : RigidTransformd::Identity();
+  const RigidTransformd& X_WG = query_object.GetPoseInWorld(geometry_id);
+  const RigidTransformd X_EG = X_WE.InvertAndCompose(X_WG);
+  vertices_ = X_EG * vertices;
+}
 
 VPolytope::VPolytope(const HPolyhedron& hpoly)
     : ConvexSet(hpoly.ambient_dimension()) {
@@ -323,15 +330,6 @@ void VPolytope::WriteObj(const std::filesystem::path& filename) const {
     fmt::print(file, "f {}\n", fmt::join(face_indices, " "));
   }
   file.close();
-}
-
-VPolytope::VPolytope(const Shape& shape, const RigidTransformd& X_WS,
-                     const RigidTransformd& X_WE)
-    : ConvexSet(3) {
-  Matrix3Xd vertices;
-  shape.Reify(this, &vertices);
-  const RigidTransformd X_ES = X_WE.InvertAndCompose(X_WS);
-  vertices_ = X_ES * vertices;
 }
 
 std::unique_ptr<ConvexSet> VPolytope::DoClone() const {
