@@ -325,14 +325,11 @@ void VPolytope::WriteObj(const std::filesystem::path& filename) const {
   file.close();
 }
 
-VPolytope::VPolytope(const Shape& shape,
-                     const RigidTransformd& shape_pose_in_world,
-                     const RigidTransformd& reference_frame_pose_in_world)
+VPolytope::VPolytope(const Shape& shape, const RigidTransformd& X_WS,
+                     const RigidTransformd& X_WE)
     : ConvexSet(3) {
   Matrix3Xd vertices;
   shape.Reify(this, &vertices);
-  const RigidTransformd& X_WS = shape_pose_in_world;
-  const RigidTransformd& X_WE = reference_frame_pose_in_world;
   const RigidTransformd X_ES = X_WE.InvertAndCompose(X_WS);
   vertices_ = X_ES * vertices;
 }
