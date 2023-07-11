@@ -710,6 +710,21 @@ GTEST_TEST(ShapeTest, MeshExtensions) {
   EXPECT_EQ(Convex("a/b.extension").extension(), ".extension");
 }
 
+GTEST_TEST(ShapeTest, MoveConstructor) {
+  // Create an original mesh.
+  Mesh orig("foo.obj");
+  const std::string orig_filename = orig.filename();
+  EXPECT_EQ(orig.extension(), ".obj");
+
+  // Move it into a different mesh.
+  Mesh next(std::move(orig));
+  EXPECT_EQ(next.filename(), orig_filename);
+  EXPECT_EQ(next.extension(), ".obj");
+
+  // The moved-from mesh is in a valid by indeterminate state.
+  EXPECT_EQ(orig.filename().empty(), orig.extension().empty());
+}
+
 }  // namespace
 }  // namespace geometry
 }  // namespace drake
