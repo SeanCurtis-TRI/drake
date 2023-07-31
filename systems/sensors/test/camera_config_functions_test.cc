@@ -342,14 +342,46 @@ TEST_F(CameraConfigFunctionsTest, RendererNameReuse) {
   }
 }
 
-// TODO(SeanCurtis-TRI): We'd like to verify that the .background value is used
-// when RenderEngineVtk or RenderEngineGl are specified by class name. However,
-// we don't have any straightforward way to introspect a SceneGraph model
-// RenderEngine. We can get one from a QueryObject, but that's quite cumbersome.
-// Solving this problem also empowers solving the problem where we detect that
-// a set of engine parameters matches the parameters of a previously
-// instantiated engine, allowing us to relax our "parameters must come only on
-// the first shared renderer name" rule.
+// Confirms the logic for when a renderer name is used several times. In
+// addition to considering the error case where the two sets of parameters don't
+// match, it also considers the documented valid case where declaring via the
+// class name is equivalent to using the default parameters.
+//
+// We'll only test this for RenderEngineVtk, assuming the other RenderEngine
+// type run through the same code path. */
+TEST_F(CameraConfigFunctionsTest, RendererNameCollisions) {
+  /* Case: having different types throws. */
+  {
+    const CameraConfig vtk{.renderer_name = "common",
+                           .renderer_class = "RenderEngineVtk"};
+    const CameraConfig gltf_name{.renderer_name = "common",
+                                 .renderer_class = "RenderEngineGltfClient"};
+    const CameraConfig gltf_params{
+        .renderer_name = "common",
+        .renderer_class = RenderEngineGltfClientParams{}};
+    EXPECT_NO_THROW(ApplyCameraConfig(vtk, &builder_));
+    DRAKE_EXPECT_THROWS_MESSAGE(
+        ApplyCameraConfig(gltf_name, &builder_),
+        ".*renderer_class = 'RenderEngineGltfClient'.*Vtk.");
+    DRAKE_EXPECT_THROWS_MESSAGE(
+        ApplyCameraConfig(gltf_params, &builder_),
+        ".*parameters for 'RenderEngineGltfClient'.*Vtk.");
+  }
+
+  /* Case: Parameters of initial instance don't match the requested. */
+  {
+    const CameraConfig config{.renderer_name = "tweaked_background",
+                              .renderer_class = "RenderEngineVtk",
+                              .background = Rgba(1.0, 0.5, 0.75, 0.25)};
+    const CameraConfig config_params{.renderer_name = config.renderer_name,
+                                     .renderer_class = RenderEngineVtkParams{}};
+    EXPECT_NO_THROW(ApplyCameraConfig(config, &builder_));
+    DRAKE_EXPECT_THROWS_MESSAGE(
+        ApplyCameraConfig(gltf_name, &builder_),
+        ".*renderer_class = 'RenderEngineVtk'.*Vtk.");
+  }
+}
+
 
 // Confirms that all of the parameters in CameraConfig are present in the final
 // configuration. This excludes the following parameters:

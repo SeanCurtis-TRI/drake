@@ -138,13 +138,21 @@ void ValidateEngineAndMaybeAdd(const CameraConfig& config,
   if (already_exists) {
     std::visit(
         overloaded{
-            [&type_name, &config](const std::string& class_name) -> void {
+            [&type_name, &config, scene_graph](const std::string& class_name) -> void {
               if (LookupEngineType(class_name) != type_name) {
                 throw std::logic_error(fmt::format(
                     "Invalid camera configuration; requested renderer_name "
                     "= '{}' and renderer_class = '{}'. The name is already "
                     "used with a different type: {}.",
                     config.renderer_name, class_name, type_name));
+              }
+              if (class_name == "RenderEngineVtk") {
+                const RenderEngineVtkParams default_params;
+                const auto* engine =
+                    scene_graph->GetRenderEngineByName<RenderEngineVtk>(
+                        config.renderer_name);
+                const RenderEngineVtkParams& test_params = engine->parameters();
+                if (default_params)
               }
             },
             [&config](auto&&) -> void {

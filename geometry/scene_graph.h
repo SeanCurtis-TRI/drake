@@ -701,6 +701,18 @@ class SceneGraph final : public systems::LeafSystem<T> {
   /** Reports the names of all registered renderers.  */
   std::vector<std::string> RegisteredRendererNames() const;
 
+  /** Returns the named render engine of the requested type, if it exists.
+   The return null pointer may indicate either that no render engine exists
+   with that name, or that it is not of the requested type. The non-null render
+   engine is the *model* RenderEngine and attempting to render from it will
+   produce unpredictable results. To gain access to a RenderEngine instance that
+   can be used to render, use QueryObject::GetRenderEngineByName(). */
+  template <typename EngineType>
+  const EngineType* GetRenderEngineByName(const std::string& name) const {
+    const RenderEngine* engine = state_.GetRenderEngineByName(name);
+    return dynamic_cast<const EngineType*>(engine);
+  }
+
   //@}
 
   /** @name     Managing geometry roles

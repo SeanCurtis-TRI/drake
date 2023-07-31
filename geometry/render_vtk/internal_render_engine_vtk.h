@@ -129,6 +129,8 @@ class DRAKE_NO_EXPORT RenderEngineVtk : public render::RenderEngine,
    using. These values must be set at construction.  */
   //@{
 
+  const RenderEngineVtkParams& parameters() const { return parameters_; }
+
   Eigen::Vector4d default_diffuse() const { return default_diffuse_.rgba(); }
 
   using render::RenderEngine::default_render_label;
@@ -257,6 +259,7 @@ class DRAKE_NO_EXPORT RenderEngineVtk : public render::RenderEngine,
   // Three pipelines: rgb, depth, and label.
   static constexpr int kNumPipelines = 3;
 
+  // TODO: Can this be `const`?
   // The engine's configuration parameters.
   const RenderEngineVtkParams parameters_;
 
