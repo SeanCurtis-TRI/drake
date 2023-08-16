@@ -1,0 +1,9 @@
+# Blender MTL File: 'None'
+# Material Count: 1
+
+newmtl Rainbow_Stripes
+Kd 0.800000 0.800000 0.800000
+Ni 1.500000
+d 1.000000
+illum 2
+map_Kd rainbow_stripes.png
