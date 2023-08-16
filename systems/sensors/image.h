@@ -158,6 +158,8 @@ class Image {
     return data_.data() + (x + y * width_) * kNumChannels;
   }
 
+  const std::vector<T>& data() const { return data_; }
+
   /// Compares whether two images are exactly the same.
   bool operator==(const Image& other) const {
     return width_ == other.width_ && height_ == other.height_ &&

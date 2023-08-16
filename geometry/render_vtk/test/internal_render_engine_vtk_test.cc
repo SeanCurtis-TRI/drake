@@ -1,6 +1,7 @@
 #include "drake/geometry/render_vtk/internal_render_engine_vtk.h"
 
 #include <cstring>
+#include <filesystem>
 #include <limits>
 #include <optional>
 #include <string>
@@ -968,6 +969,101 @@ TEST_F(RenderEngineVtkTest, UnsupportedMesh) {
   EXPECT_FALSE(renderer_->RegisterVisual(id, mesh, material,
                                          RigidTransformd::Identity(),
                                          false /* needs update */));
+}
+
+bool IsImageNear(const ImageRgba8U& i1, const ImageRgba8U& i2) {
+  if (i1.width() != i2.width() || i1.height() != i2.height()) {
+    return false;
+  } else {
+    for (int r = 0; r < i1.height(); ++r) {
+      for (int c = 0; c < i1.width(); ++c) {
+        const TestColor c1(i1.at(c, r));
+        const TestColor c2(i2.at(c, r));
+        if (!IsColorNear(c1, c2)) {
+          return false;
+        }
+      }
+    }
+  }
+  return true;
+}
+
+// Exposes a bug in RenderEngineVtk. Clones of engines seem to interfere with
+// each other -- specifically for *textured* objects. The symptoms are:
+//
+//   1. If we render an image from each engine (without changing anything else),
+//      the images don't match. The first image seems to be illuminated less.
+//      - This is related to the fact that the .mtl file defines
+//        Kd as (0.8, 0.8, 0.8). If it were all ones, the images would match.
+//        However, the images should match, regardless.
+//   2. If we render an image from A, then B, and then A again (without changing
+//      anything else), the images from A will not match (the second image will
+//      have entirely erroneous materials.
+//      - All subsequent images from B match. All subsequent images from A have
+//        the same material problem.
+//
+// I don't know if this is a bug in VTK or a bug in how RenderEngineVtk uses
+// VTK. Most likely, what needs ot happen is change how we clone the engine.
+// Naive solution is to attempt to eliminate the shallow copy for a much
+// deeper copy. It *may* be enough to duplicate the textures.
+TEST_F(RenderEngineVtkTest, BadSharedTexture) {
+  // Initialize the scene with a camera that will see three sides of the cube.
+  // Also add a ground plane.
+  const RotationMatrixd R_WR(math::RollPitchYawd(3.0 / 4 * M_PI, 0, 0.7));
+  const RigidTransformd X_WR(R_WR, R_WR* Vector3d{0, 0, -6});
+  Init(X_WR, false);
+
+  const std::string filename =
+      FindResourceOrThrow("drake/geometry/render/test/meshes/rainbow_box.obj");
+
+  Mesh mesh(filename);
+  expected_label_ = RenderLabel(3);
+  // Note: Passing diffuse color or texture to a glTF spawns a warning.
+  PerceptionProperties material;
+  material.AddProperty("label", "id", expected_label_);
+  const GeometryId id = GeometryId::get_new_id();
+  renderer_->RegisterVisual(id, mesh, material, RigidTransformd::Identity(),
+                            true /* needs update */);
+
+  // Create a clone of the render engine.
+  std::unique_ptr<RenderEngine> renderer_clone = renderer_->Clone();
+
+  const auto& core = depth_camera_.core();
+  const ColorRenderCamera color_camera(core, FLAGS_show_window);
+  const int w = core.intrinsics().width();
+  const int h = core.intrinsics().height();
+  // Can't use the member images in case the camera has been configured to a
+  // different size than the default camera_ configuration.
+  ImageRgba8U original(w, h);
+  ImageRgba8U original2(w, h);
+  ImageRgba8U original3(w, h);
+  ImageRgba8U clone(w, h);
+  ImageRgba8U clone2(w, h);
+
+  renderer_->RenderColorImage(color_camera, &original);
+  renderer_->RenderColorImage(color_camera, &original2);
+  renderer_clone->RenderColorImage(color_camera, &clone);
+  renderer_->RenderColorImage(color_camera, &original3);
+  renderer_clone->RenderColorImage(color_camera, &clone2);
+
+  // Save the first image for offline inspection. See
+  // bazel-testlogs/geometry/render_vtk/internal_render_engine_vtk_test/test.outputs/output.zip.
+  SaveTestOutputImage(original, "image_A1.png");
+  SaveTestOutputImage(original2, "image_A2.png");
+  SaveTestOutputImage(original3, "image_A3.png");
+  SaveTestOutputImage(clone, "image_B1.png");
+  SaveTestOutputImage(clone2, "image_B2.png");
+
+  // The first two renderings from renderer_ should simply match.
+  EXPECT_EQ(original.data(), original2.data());
+  // The first images from the engines don't match. THIS IS BAD!
+  EXPECT_FALSE(IsImageNear(original, clone));
+  // The cloned engine (the second one rendered from) produces the same image
+  // even interleaved with the original.
+  EXPECT_EQ(clone.data(), clone2.data());
+  // However, rendering from the clone has messed up the original. It no
+  // longer produces the same image. THIS IS BAD!
+  EXPECT_FALSE(IsImageNear(original, original3));
 }
 
 // Performs the test to cast textures to uchar channels. It depends on the image
