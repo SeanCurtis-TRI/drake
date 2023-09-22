@@ -80,6 +80,7 @@ drake_cc_library_linux_only(
         "//geometry/render:render_engine",
         "//geometry/render:render_mesh",
         "//systems/sensors:image",
+        "@tinygltf_internal//:tinygltf",
     ],
 )
 

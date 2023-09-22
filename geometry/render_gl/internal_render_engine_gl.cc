@@ -7,6 +7,7 @@
 #include <utility>
 
 #include <fmt/format.h>
+#include <tiny_gltf.h>
 
 #include "drake/common/diagnostic_policy.h"
 #include "drake/common/pointer_cast.h"
