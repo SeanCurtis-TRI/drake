@@ -15,13 +15,13 @@ cc_library(
     hdrs = ["tiny_gltf.h"],
     defines = [
         # TODO: I'm not sure what happens if we disable images.
-        "TINYGLTF_NO_STB_IMAGE",
         "TINYGLTF_NO_STB_IMAGE_WRITE"
     ],
     includes = ["."],
     linkstatic = 1,
     deps = [
         "@nlohmann_internal//:nlohmann",
+        "@stb_internal//:stb",
     ]
 )
 

@@ -206,42 +206,9 @@ bool IsColorNear(const RgbaColor& expected, const RgbaColor& tested,
          << "\n  Found: " << tested << "\n  with tolerance: " << tolerance;
 }
 
-// TODO(SeanCurtis-TRI): When I add in stb_image support, I won't need this
-// bespoke callback; it'll automatically load all sorts of images for us.
-/* The image loader callback function is not particularly documented in
- tinygltf. They must really want us to simply make sure we use stb_image. But
- here's my attempt to document what's there.
-
- @param image        The image to which the decoded image data is applied. Note:
-                     the image has already been partially initialized. E.g., the
-                     image name (if non-empty) is the name of the image as given
-                     in the glTF file.
- @param image_index  The index of the image in the glTF context.
- @param err          If non null, the pointer to the string into which error
-                     messages should be accumulated.
- @param warn         If non null, the pointer to the string into which warning
-                     messages should be accumulated.
- @param req_width    The "requested" width of the image. If the actual image
-                     does not match this width, that is an error.
- @param req_height   The "requested" height of the image. If the actual image
-                     does not match this height, that is an error.
- @param bytes        The bytes of the file (stored in memory).
- @param size         The number of bytes in the in-memory file data.
- @param user_data    If non-null, should be interpreted as an instance of
-                     tinygltf::LoadImageDataOption. */
-bool LocalLoadImage(tinygltf::Image* image, const int image_index,
-                    std::string* err, std::string* warn, int req_width,
-                    int req_height, const unsigned char* bytes, int size,
-                    void* user_data) {
-  unused(image, image_index, err, warn, req_width, req_height, bytes, size,
-         user_data);
-  return true;
-}
-
 GTEST_TEST(TinyGltf, SmokeTest) {
   tinygltf::Model model;
   tinygltf::TinyGLTF loader;
-  loader.SetImageLoader(LocalLoadImage, nullptr);
 
   const std::string path =
       FindResourceOrThrow("drake/geometry/render/test/meshes/cube.gltf");

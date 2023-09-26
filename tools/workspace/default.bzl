@@ -84,6 +84,7 @@ load("//tools/workspace/snopt:repository.bzl", "snopt_repository")
 load("//tools/workspace/spdlog:repository.bzl", "spdlog_repository")
 load("//tools/workspace/stable_baselines3_internal:repository.bzl", "stable_baselines3_internal_repository")  # noqa
 load("//tools/workspace/statsjs:repository.bzl", "statsjs_repository")
+load("//tools/workspace/stb_internal:repository.bzl", "stb_internal_repository")  # noqa
 load("//tools/workspace/stduuid_internal:repository.bzl", "stduuid_internal_repository")  # noqa
 load("//tools/workspace/styleguide:repository.bzl", "styleguide_repository")
 load("//tools/workspace/suitesparse_internal:repository.bzl", "suitesparse_internal_repository")  # noqa
@@ -283,6 +284,8 @@ def add_default_repositories(excludes = [], mirrors = DEFAULT_MIRRORS):
         stable_baselines3_internal_repository(name = "stable_baselines3_internal", mirrors = mirrors)  # noqa
     if "statsjs" not in excludes:
         statsjs_repository(name = "statsjs", mirrors = mirrors)
+    if "stb_internal" not in excludes:
+        stb_internal_repository(name = "stb_internal", mirrors = mirrors)  # noqa
     if "stduuid_internal" not in excludes:
         stduuid_internal_repository(name = "stduuid_internal", mirrors = mirrors)  # noqa
     if "styleguide" not in excludes:
