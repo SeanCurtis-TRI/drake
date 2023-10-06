@@ -11,9 +11,13 @@ import numpy as np
 from pydrake.geometry import (
     Box,
     Cylinder,
+    EnvironmentMap,
+    EquirectangularMap,
     GeometryInstance,
+    LightParameter,
     MakePhongIllustrationProperties,
     MeshcatCone,
+    RenderEngineVtkParams,
     Role,
     Rgba,
     StartMeshcat,
@@ -329,6 +333,12 @@ class ModelVisualizer:
             camera_config.fps = 1.0  # Ignored -- we're not simulating.
             is_unit_test = "TEST_SRCDIR" in os.environ
             camera_config.show_rgb = not is_unit_test  # Pop up a local window.
+            camera_config.renderer_class = RenderEngineVtkParams(
+                environment_map=EnvironmentMap(
+                    skybox=True, 
+                    texture=EquirectangularMap(path="/home/seancurtis/code/drake/geometry/test/env_256_cornell_box.hdr")),
+                # lights = [LightParameter(intensity=1)],
+                    )
             ApplyCameraConfig(
                 config=camera_config,
                 builder=self._builder.builder())
