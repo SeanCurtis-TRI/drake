@@ -1899,6 +1899,16 @@ TEST_F(RenderEngineVtkTest, MultiLights) {
       << "  expected color: " << expected_color;
 }
 
+// Confirms that the environment maps get parsed and instantiated correctly.
+// The texture map is the cornell room (in various representation)
+TEST_F(RenderEngineVtkTest, EnvironmentMap) {
+
+}
+
+TEST_F(RenderEngineVtkTest, PbrMaterialPromotion) {
+
+}
+
 namespace {
 
 // Defines the relationship between two adjacent pixels in a rendering of a box.
