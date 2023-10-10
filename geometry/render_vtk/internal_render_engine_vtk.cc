@@ -101,14 +101,49 @@ struct EnvMap {
   vtkSmartPointer<vtkTexture> texture;
   bool is_hdr{};
   bool gamma_correct{};
+  bool is_cube{};
 };
 
+// Reads a single face of a cube environment map and connects it into the
+// texture.
 // Taken from: https://examples.vtk.org/site/Cxx/Rendering/PBR_HDR_Environment/
-EnvMap ReadEquirectangularFile(std::string const& fileName) {
+void ReadCubeMapFace(const std::string& file_name, vtkTexture* texture, int i) {
+  // Read the images
+  fmt::print("Cube map face {} : {}\n", i, file_name);
+  vtkNew<vtkImageReader2Factory> readerFactory;
+  vtkSmartPointer<vtkImageReader2> imgReader;
+  imgReader.TakeReference(readerFactory->CreateImageReader2(file_name.c_str()));
+  imgReader->SetFileName(file_name.c_str());
+
+  // Each image must be flipped in Y due to canvas versus vtk ordering.
+  vtkNew<vtkImageFlip> flip;
+  flip->SetInputConnection(imgReader->GetOutputPort());
+  flip->SetFilteredAxis(1);  // flip y axis
+  texture->SetInputConnection(i, flip->GetOutputPort(0));
+}
+
+EnvMap ReadCubeMap(const CubeMap& map) {
+    vtkNew<vtkTexture> cube_map;
+    cube_map->CubeMapOn();
+
+    // The ordering of the faces must match the ordering in the struct.
+    ReadCubeMapFace(map.right, cube_map.Get(), 0);
+    ReadCubeMapFace(map.left, cube_map.Get(), 1);
+    ReadCubeMapFace(map.top, cube_map.Get(), 2);
+    ReadCubeMapFace(map.bottom, cube_map.Get(), 3);
+    ReadCubeMapFace(map.front, cube_map.Get(), 4);
+    ReadCubeMapFace(map.back, cube_map.Get(), 5);
+
+    // TODO: Why can't the faces comprise hdr images?
+    return {cube_map, false, false, true};
+}
+
+// Taken from: https://examples.vtk.org/site/Cxx/Rendering/PBR_HDR_Environment/
+EnvMap ReadEquirectangularMap(const EquirectangularMap& env_map) {
   vtkNew<vtkTexture> texture;
 
   std::string extension =
-      std::filesystem::path(fileName).extension().generic_string();
+      std::filesystem::path(env_map.path).extension().generic_string();
   std::transform(extension.begin(), extension.end(), extension.begin(),
                  [](char c) {
                    return std::tolower(c);
@@ -120,16 +155,16 @@ EnvMap ReadEquirectangularFile(std::string const& fileName) {
     vtkNew<vtkImageReader2Factory> readerFactory;
     vtkSmartPointer<vtkImageReader2> imgReader;
     imgReader.TakeReference(
-        readerFactory->CreateImageReader2(fileName.c_str()));
-    imgReader->SetFileName(fileName.c_str());
+        readerFactory->CreateImageReader2(env_map.path.c_str()));
+    imgReader->SetFileName(env_map.path.c_str());
 
     texture->SetInputConnection(imgReader->GetOutputPort());
   } else {
     vtkNew<vtkHDRReader> reader;
     auto extensions = reader->GetFileExtensions();
     if (std::string(extensions).find(extension, 0) != std::string::npos) {
-      if (reader->CanReadFile(fileName.c_str())) {
-        reader->SetFileName(fileName.c_str());
+      if (reader->CanReadFile(env_map.path.c_str())) {
+        reader->SetFileName(env_map.path.c_str());
 
         texture->SetInputConnection(reader->GetOutputPort());
         texture->SetColorModeToDirectScalars();
@@ -138,16 +173,24 @@ EnvMap ReadEquirectangularFile(std::string const& fileName) {
       } else {
         throw std::runtime_error(fmt::format(
             "Unable to instantiate environment map for RenderEngineVtk: '{}'.",
-            fileName));
+            env_map.path));
       }
     }
   }
 
-  texture->MipmapOn();
-  texture->InterpolateOn();
-
-  return {texture, is_hdr, gamma_correct};
+  return {texture, is_hdr, gamma_correct, false};
 }
+
+EnvMap ReadEnvironmentMap(const EnvironmentMap& env_map) {
+  EnvMap result = std::holds_alternative<CubeMap>(env_map.texture)
+                      ? ReadCubeMap(std::get<CubeMap>(env_map.texture))
+                      : ReadEquirectangularMap(
+                            std::get<EquirectangularMap>(env_map.texture));
+  result.texture->MipmapOn();
+  result.texture->InterpolateOn();
+  return result;
+}
+
 }  // namespace
 
 ShaderCallback::ShaderCallback()
@@ -169,7 +212,7 @@ RenderEngineVtk::RenderEngineVtk(const RenderEngineVtkParams& parameters)
                   make_unique<RenderingPipeline>()}} {
   // Only populate the fallback lights if we haven't specified an environment
   // map.
-  if (parameters.environment_map.texture.path.empty()) {
+  if (!parameters.environment_map.has_value()) {
     fallback_lights_.push_back({});
   }
   if (parameters.default_label.has_value()) {
@@ -699,23 +742,26 @@ void RenderEngineVtk::InitializePipelines() {
   for (const auto& light_param : active_lights()) {
     renderer->AddLight(MakeVtkLight(light_param));
   }
-  if (!parameters_.environment_map.texture.path.empty()) {
-    EnvMap env_map =
-        ReadEquirectangularFile(parameters_.environment_map.texture.path);
+  if (parameters_.environment_map.has_value()) {
+    EnvMap env_map = ReadEnvironmentMap(*parameters_.environment_map);
     renderer->UseImageBasedLightingOn();
     renderer->SetUseSphericalHarmonics(env_map.is_hdr);
     renderer->SetEnvironmentTexture(env_map.texture,
                                     /* isSRGB = */ !env_map.is_hdr);
-    renderer->SetEnvironmentUp(0, 0, 1);
-    if (parameters_.environment_map.skybox) {
+    if (!env_map.is_cube) {
+      renderer->SetEnvironmentUp(0, 0, 1);
+    }
+    if (parameters_.environment_map->skybox) {
       vtkNew<vtkSkybox> skybox;
       skybox->SetTexture(env_map.texture);
-      skybox->SetFloorPlane(0, 0, 1, 0);
-      // Note: it is *not* clear why setting the floor's right direction to -y
-      // is necessary. However, without it, the skybox is not aligned with the
-      // environment map.
-      skybox->SetFloorRight(0, -1, 0);
-      skybox->SetProjection(vtkSkybox::Sphere);
+      if (!env_map.is_cube) {
+        skybox->SetProjection(vtkSkybox::Sphere);
+        // Note: it is *not* clear why setting the floor's right direction to -y
+        // is necessary. However, without it, the skybox is not aligned with the
+        // environment map.
+        skybox->SetFloorRight(0, -1, 0);
+        skybox->SetFloorPlane(0, 0, 1, 0);
+      }
       skybox->SetGammaCorrect(!env_map.gamma_correct);
       renderer->AddActor(skybox);
     }

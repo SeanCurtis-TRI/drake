@@ -2,6 +2,7 @@
 
 #include <optional>
 #include <string>
+#include <variant>
 #include <vector>
 
 #include "drake/common/eigen_types.h"
@@ -12,6 +13,43 @@
 namespace drake {
 namespace geometry {
 
+// TODO: How are 
+// The ordering is inferred from the VTK code at
+// https://examples.vtk.org/site/Cxx/Shaders/CubeMap/. They should be connected
+// to the texture's inputs in this order (0 - 5, inclusive).
+
+/** Defines the environment map as a cube map, with the images associated with
+ the six faces of the cube explicitly enumerated. The relationship between the
+ images is described in multiple online sources, (e.g., @ref Wikipedia
+ https://en.wikipedia.org/wiki/Cube_mapping ).
+ 
+ Note: definitions of e.g., "right" or "left" are only significant in that they
+ communicate a relationship between the images. It is problematic to define
+ an absolute orientation for these values. For example, "front" could be
+ in the +Wy direction in one application or in the +Wx depending in another. */
+struct CubeMap {
+  /** Passes this object to an Archive.
+   Refer to @ref yaml_serialization "YAML Serialization" for background. */
+  template <typename Archive>
+  void Serialize(Archive* a) {
+    a->Visit(DRAKE_NVP(right));
+    a->Visit(DRAKE_NVP(left));
+    a->Visit(DRAKE_NVP(top));
+    a->Visit(DRAKE_NVP(bottom));
+    a->Visit(DRAKE_NVP(front));
+    a->Visit(DRAKE_NVP(back));
+  }
+
+  std::string right;
+  std::string left;
+  std::string top;
+  std::string bottom;
+  std::string front;
+  std::string back;
+};
+
+/** Defines the environment map with a single image. The environment map is
+ rendered using equirectangluar coordinates. */
 struct EquirectangularMap {
   /** Passes this object to an Archive.
    Refer to @ref yaml_serialization "YAML Serialization" for background. */
@@ -26,6 +64,7 @@ struct EquirectangularMap {
   std::string path;
 };
 
+/** The definition of an environment map. */
 struct EnvironmentMap {
   /** Passes this object to an Archive.
    Refer to @ref yaml_serialization "YAML Serialization" for background. */
@@ -36,15 +75,12 @@ struct EnvironmentMap {
   }
 
   /** If true, the environment map will be rendered in a sky box. If false, it
-   wont' be visible in the background, but it will illuminate objects. */
+   won't be visible in the background, but it will still illuminate objects. */
   bool skybox{true};
 
-  // TODO(SeanCurtis-TRI): We'd like to set this up so we can specify either
-  // equirectangour (single file) or cube map (six files). Can we set this up
-  // today so that it's nicely compatible with cube maps in the future? A
-  // variant where the default is monostate would do it.
-  /* The equirectangular texture image to use.*/
-  EquirectangularMap texture;
+  /* The encoding of the environment texture -- it can be as either a single
+   equirectangular image, or a set of six cube face images. */
+  std::variant<EquirectangularMap, CubeMap> texture;
 };
 
 /** Construction parameters for the RenderEngineVtk.  */
@@ -87,7 +123,7 @@ struct RenderEngineVtkParams {
    the default lighting (the map provides illumination). That means the usual
    camera head lamp will not be present. Lights can be explicitly added to
    combine with the environment map. */
-  EnvironmentMap environment_map;
+  std::optional<EnvironmentMap> environment_map;
 };
 
 }  // namespace geometry

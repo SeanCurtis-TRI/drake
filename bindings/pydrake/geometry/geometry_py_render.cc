@@ -338,6 +338,17 @@ void DoScalarIndependentDefinitions(py::module m) {
   }
 
   {
+    using Class = geometry::CubeMap;
+    constexpr auto& cls_doc = doc_geometry.CubeMap;
+    py::class_<Class> cls(m, "CubeMap", cls_doc.doc);
+    cls  // BR
+        .def(ParamInit<Class>());
+    DefAttributesUsingSerialize(&cls);
+    DefReprUsingSerialize(&cls);
+    DefCopyAndDeepCopy(&cls);
+  }
+
+  {
     using Class = geometry::EquirectangularMap;
     constexpr auto& cls_doc = doc_geometry.EquirectangularMap;
     py::class_<Class> cls(m, "EquirectangularMap", cls_doc.doc);

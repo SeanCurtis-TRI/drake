@@ -11,6 +11,7 @@ import numpy as np
 from pydrake.geometry import (
     Box,
     Cylinder,
+    CubeMap,
     EnvironmentMap,
     EquirectangularMap,
     GeometryInstance,
@@ -335,8 +336,14 @@ class ModelVisualizer:
             camera_config.show_rgb = not is_unit_test  # Pop up a local window.
             camera_config.renderer_class = RenderEngineVtkParams(
                 environment_map=EnvironmentMap(
-                    skybox=True, 
-                    texture=EquirectangularMap(path="/home/seancurtis/code/drake/geometry/test/env_256_cornell_box.hdr")),
+                    skybox=True,
+                    # texture=EquirectangularMap(path="/home/seancurtis/code/drake/geometry/test/env_2k_cornell_box.hdr")),
+                    texture=CubeMap(right="/home/seancurtis/code/drake/geometry/test/env_128_cornell_right.png",
+                                    left="/home/seancurtis/code/drake/geometry/test/env_128_cornell_left.png",
+                                    top="/home/seancurtis/code/drake/geometry/test/env_128_cornell_top.png",
+                                    bottom="/home/seancurtis/code/drake/geometry/test/env_128_cornell_bottom.png",
+                                    front="/home/seancurtis/code/drake/geometry/test/env_128_cornell_front.png",
+                                    back="/home/seancurtis/code/drake/geometry/test/env_128_cornell_back.png")),
                 # lights = [LightParameter(intensity=1)],
                     )
             ApplyCameraConfig(
