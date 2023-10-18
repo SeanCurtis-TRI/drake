@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstring>
+#include <filesystem>
 #include <optional>
 #include <unordered_map>
 
@@ -1140,6 +1141,57 @@ TEST_F(RenderEngineGlTest, MeshTest) {
       PerformCenterShapeTest(gl_engine);
     }
   }
+}
+
+// A simple regression test to cover support for glTFs textures. We have a
+// special glTF file that uses *all* glTF-supported textures. We'll we'll render
+// the file and test the resulting image against a reference image.
+//
+// Changes to the camera pose, the glTF file being tested, render camera
+// intrinsics, or RenderEngineGl texture support will require the reference
+// image to be re-rendered. Simply save the image that is rendered by this test
+// as the new reference (subject to visual inspection).
+TEST_F(RenderEngineGlTest, GltfTextureSupport) {
+  const RotationMatrixd R_WC(math::RollPitchYawd(-M_PI / 2.5, 0, M_PI / 4));
+  const RigidTransformd X_WC(R_WC,
+                             R_WC * Vector3d(0, 0, -6) + Vector3d(0, 0, -0.15));
+  Init(X_WC);
+
+  PerceptionProperties material;
+  material.AddProperty("label", "id", RenderLabel(1));
+  const GeometryId id = GeometryId::get_new_id();
+  const std::string filename = FindResourceOrThrow(
+      "drake/geometry/render/test/meshes/fully_textured_pyramid.gltf");
+  renderer_->RegisterVisual(id, Mesh(filename), material,
+                            RigidTransformd::Identity(),
+                            false /* needs update */);
+  ImageRgba8U image(64, 64);
+  const ColorRenderCamera camera(
+      {"unused", {64, 64, kFovY / 2}, {0.01, 10}, {}}, FLAGS_show_window);
+  renderer_->RenderColorImage(camera, &image);
+
+  if (const char* dir = std::getenv("TEST_UNDECLARED_OUTPUTS_DIR")) {
+    const std::filesystem::path out_dir(dir);
+    ImageIo{}.Save(compare_image,
+                   out_dir / "gl_fully_textured_pyramid_rendered_test.png");
+  }
+
+  ImageRgba8U expected_image;
+  const std::string ref_filename = FindResourceOrThrow(
+      "drake/geometry/render_gl/test/gl_fully_textured_pyramid_rendered.png");
+  systems::sensors::LoadImage(ref_filename, &expected_image);
+  // We're testing to see if the images are *coarsely* equal. This accounts for
+  // the differences in CI's rendering technology from a local GPU. The images
+  // are deemed equivalent if 80% of the channel values are within 20 of the
+  // reference color.
+  ASSERT_EQ(expected_image.size(), image.size());
+  Eigen::Map<VectorX<uint8_t>> data_expected(expected_image.at(0, 0),
+                                             expected_image.size());
+  Eigen::Map<VectorX<uint8_t>> data2(image.at(0, 0), image.size());
+  const auto differences =
+      (data_expected.cast<float>() - data2.cast<float>()).array().abs();
+  const int num_acceptable = (differences <= 20).count();
+  EXPECT_GE(num_acceptable / static_cast<float>(expected_image.size()), 0.8);
 }
 
 // A variant of MeshTest. Confirms the support for mesh files which contain

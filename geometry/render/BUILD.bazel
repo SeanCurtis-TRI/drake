@@ -104,7 +104,10 @@ drake_cc_library(
         "//geometry/proximity:triangle_surface_mesh",
     ],
     deps = [
+        "//geometry:shape_specification",
+        "//math:geometric_transform",
         "@tinyobjloader_internal//:tinyobjloader",
+        "@tinygltf_internal//:tinygltf",
     ],
 )
 

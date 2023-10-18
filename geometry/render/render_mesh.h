@@ -1,7 +1,10 @@
 #pragma once
 
 #include <filesystem>
+#include <map>
 #include <optional>
+#include <string>
+#include <utility>
 #include <vector>
 
 #include <Eigen/Dense>
@@ -45,6 +48,30 @@ struct RenderMesh {
    using a utility like MakeDiffuseMaterial(). */
   std::optional<RenderMaterial> material;
 };
+
+// TODO: Does this actually have any value? Will RenderEngineGl want to blindly
+// call this? Or does it makes more sense to split it out?
+
+/* Reads a supported mesh file and returns the corresponding render data. The
+ render data consists of one or more RenderMesh instances and a possibly empty
+ cache of in-memory RenderImages.
+
+ Some mesh formats handle texture maps by providing file paths to images. Some
+ can embed the images directly in the mesh file. When a texture has been used,
+ the RenderMaterial map parameter will contain a non-empty string. That string
+ may be a file path to an image, or it may be a key into the returned
+ RenderTexture cache. There are no tokens in the string to identify which it is.
+ Instead, the string should be tested against the image cache; if it is accepted
+ as a key, use the in-memory image. Otherwise, it should be used as a file path
+ to a supported image file.
+
+ @pre `mesh_path` has a supported extension.
+ @returns A collection of meshes and the image cache. */
+std::pair<std::vector<RenderMesh>, std::map<std::string, RenderTexture>>
+LoadRenderMeshesFromFile(const std::filesystem::path& mesh_path,
+                         const GeometryProperties& properties,
+                         const Rgba& default_diffuse,
+                         const drake::internal::DiagnosticPolicy& policy = {});
 
 // TODO(SeanCurtis-TRI): All of this explanation, and general guidance for what
 // meshes (and which features) are supported, needs to go into the trouble-
@@ -107,6 +134,31 @@ std::vector<RenderMesh> LoadRenderMeshesFromObj(
     const std::filesystem::path& obj_path, const GeometryProperties& properties,
     const std::optional<Rgba>& default_diffuse,
     const drake::internal::DiagnosticPolicy& policy = {});
+
+/* Returns a set of RenderMesh instances based on the objects and materials
+ defined in the indicated glTF file.
+
+ Several notes on how the in-memory representation will be different from the
+ in-file representation of the data:
+
+   - Only the nodes in the default scene are used (or the zeroth scene if the
+     "scene" element isn't defined).
+   - PBR materials are projected into the materials supported by RenderMaterial.
+   - We treat the glTF as a rigid object, as such, we flatten the hierarchy
+     such that all vertex data is expressed in the frame of the file.
+   - If two glTF "primitives" reference the same material, they get merged into
+     a single RenderMesh. Generally, each RenderMesh will have a unique
+     material. (Unique in the sense that it had a different index in the glTF
+     file; we don't test for duplicate materials in the glTF file).
+
+ Finally, the image_map includes all of the images used by the returned meshes.
+ As documented above, the URIs contained in the RenderMaterial map members serve
+ as keys into the map. */
+std::pair<std::vector<RenderMesh>, std::map<std::string, RenderTexture>>
+LoadRenderMeshesFromGltf(const std::filesystem::path& gltf_path,
+                         const GeometryProperties& properties,
+                         const Rgba& default_diffuse,
+                         const drake::internal::DiagnosticPolicy& policy = {});
 
 /* Constructs a render mesh (without material) from a triangle surface mesh.
 

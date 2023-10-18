@@ -986,6 +986,8 @@ void RenderEngineVtk::ImplementPolyData(vtkPolyDataAlgorithm* source,
     color_actor->GetProperty()->SetInterpolationToPBR();
   }
   if (!material.diffuse_map.empty()) {
+    // RenderEngineVtk should never get RenderMaterials that reference cached
+    // images; they should only be file system paths.
     vtkNew<vtkPNGReader> texture_reader;
     texture_reader->SetFileName(material.diffuse_map.c_str());
     texture_reader->Update();
@@ -993,7 +995,7 @@ void RenderEngineVtk::ImplementPolyData(vtkPolyDataAlgorithm* source,
       log()->warn(
           "Texture map '{}' has an unsupported bit depth, casting it to uchar "
           "channels.",
-          material.diffuse_map.string());
+          material.diffuse_map);
     }
 
     vtkNew<vtkImageCast> caster;

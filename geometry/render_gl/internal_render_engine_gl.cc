@@ -24,7 +24,7 @@ namespace internal {
 
 using Eigen::Vector2d;
 using Eigen::Vector3d;
-using geometry::internal::LoadRenderMeshesFromObj;
+using geometry::internal::LoadRenderMeshesFromFile;
 using geometry::internal::MakeDiffuseMaterial;
 using geometry::internal::MaybeMakeMeshFallbackMaterial;
 using geometry::internal::RenderMaterial;
@@ -859,8 +859,7 @@ void RenderEngineGl::ImplementMeshesForFile(void* user_data,
           data.properties, filename, parameters_.default_diffuse,
           drake::internal::DiagnosticPolicy(), gl_mesh.uv_state);
     }
-    temp_props.UpdateProperty("phong", "diffuse_map",
-                              material.diffuse_map.string());
+    temp_props.UpdateProperty("phong", "diffuse_map", material.diffuse_map);
     temp_props.UpdateProperty("phong", "diffuse", material.diffuse);
     RegistrationData temp_data{data.id, data.X_WG, temp_props};
     AddGeometryInstance(gl_mesh.mesh_index, &temp_data, scale);
@@ -892,7 +891,7 @@ bool RenderEngineGl::DoRegisterDeformableVisual(
             : MakeDiffuseMaterial(parameters_.default_diffuse);
     PerceptionProperties mesh_properties(properties);
     mesh_properties.UpdateProperty("phong", "diffuse_map",
-                                   material.diffuse_map.string());
+                                   material.diffuse_map);
     mesh_properties.UpdateProperty("phong", "diffuse", material.diffuse);
     RegistrationData data{id, RigidTransformd::Identity(), mesh_properties};
     AddGeometryInstance(mesh_index, &data, kUnitScale);
@@ -1277,11 +1276,12 @@ void RenderEngineGl::CacheConvexHullMesh(const Convex& convex,
 
 void RenderEngineGl::CacheFileMeshesMaybe(const std::string& filename,
                                           RegistrationData* data) {
-  if (Mesh(filename).extension() != ".obj") {
+  const std::string extension = Mesh(filename).extension();
+  if (extension != ".obj" || extension != ".gltf") {
     static const logging::Warn one_time(
-        "RenderEngineGl only supports Mesh/Convex specifications which use "
-        ".obj files. Mesh specifications using other mesh types (e.g., "
-        ".gltf, .stl, .dae, etc.) will be ignored.");
+        "RenderEngineGl only supports Mesh specifications which use "
+        ".obj or .gltf files. Mesh specifications using other mesh types "
+        "(e.g., .stl, .dae, etc.) will be ignored.");
     data->accepted = false;
     return;
   }
@@ -1296,7 +1296,7 @@ void RenderEngineGl::CacheFileMeshesMaybe(const std::string& filename,
     // its own material. Either way, we don't require whatever properties were
     // available when we triggered this cache update. That's why we simply pass
     // a set of empty properties -- to emphasize its independence.
-    const vector<RenderMesh> meshes = LoadRenderMeshesFromObj(
+    const vector<RenderMesh> meshes = LoadRenderMeshesFromFile(
         filename, PerceptionProperties(), parameters_.default_diffuse,
         drake::internal::DiagnosticPolicy());
     vector<RenderGlMesh> file_meshes;

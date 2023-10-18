@@ -15,6 +15,15 @@ namespace internal {
  should only be applied to meshes with *fully* assigned UVs. */
 enum class UvState { kNone, kFull, kPartial };
 
+struct RenderTexture {
+  int width{};
+  int height{};
+  int channels{};
+  int bits{};
+  int pixel_type{};
+  std::vector<unsigned char> pixel_data;
+};
+
 /* Specifies a mesh material as currently supported by Drake. We expect this
  definition to grow with time. */
 struct RenderMaterial {
@@ -23,7 +32,12 @@ struct RenderMaterial {
    applied as a texture according to the geometry's texture coordinates. If
    `diffuse_map` is empty, it acts as the multiplicative identity. */
   Rgba diffuse;
-  std::filesystem::path diffuse_map;
+
+  /* The optional texture to use as diffuse map. It can be a file path or
+   in-memory texture data. If the latter, it should be interpreted as a key
+   to the image cache returned by one of the LoadRenderMeshesFrom*() functions.
+   */
+  std::string diffuse_map;
 
   /* Whether the material definition comes from the mesh itself, e.g., an .mtl
    file, as opposed to the user specification or an implied texture. */

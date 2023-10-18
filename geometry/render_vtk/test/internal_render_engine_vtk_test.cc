@@ -795,11 +795,11 @@ TEST_F(RenderEngineVtkTest, MultiMaterialObjects) {
         {"purple", Rgba(0.436, 0, 0.8)}}},
       {".gltf",
        {{"green", Rgba(0.078, 0.553, 0.110)},
-        {"orange", Rgba(0.529, 0.259, 0.125)},
+        {"orange", Rgba(0.529, 0.286, 0.075)},
         {"red", Rgba(0.553, 0.078, 0.078)},
         {"blue", Rgba(0.098, 0.078, 0.553)},
         {"yellow", Rgba(0.529, 0.529, 0.075)},
-        {"purple", Rgba(0.310, 0.075, 0.529)}}}};
+        {"purple", Rgba(0.286, 0.075 , 0.529)}}}};
 
   const std::vector<Face> faces{
       {.name = "green", .rotation = RotationMatrixd()},
