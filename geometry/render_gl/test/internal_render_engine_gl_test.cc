@@ -23,6 +23,7 @@
 #include "drake/geometry/geometry_ids.h"
 #include "drake/geometry/geometry_roles.h"
 #include "drake/geometry/render/render_label.h"
+#include "drake/geometry/render/render_mesh_functions.h"
 #include "drake/math/rigid_transform.h"
 #include "drake/math/rotation_matrix.h"
 #include "drake/systems/sensors/image.h"

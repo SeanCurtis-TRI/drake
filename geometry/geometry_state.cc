@@ -20,6 +20,7 @@
 #include "drake/geometry/proximity_engine.h"
 #include "drake/geometry/proximity_properties.h"
 #include "drake/geometry/render/render_engine.h"
+#include "drake/geometry/render/render_mesh_functions.h"
 #include "drake/geometry/utilities.h"
 #include "drake/math/autodiff_gradient.h"
 

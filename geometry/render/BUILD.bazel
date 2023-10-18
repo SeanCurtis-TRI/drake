@@ -23,6 +23,42 @@ drake_cc_package_library(
 )
 
 drake_cc_library(
+    name = "internal_gltf_parser",
+    srcs = ["internal_gltf_parser.cc"],
+    hdrs = ["internal_gltf_parser.h"],
+    interface_deps = [
+        ":render_material",
+        ":render_mesh",
+        "//common:diagnostic_policy",
+        "//common:essential",
+        "//geometry:geometry_properties",
+        "//geometry:rgba",
+    ],
+    deps = [
+        "//math:geometric_transform",
+        "@tinygltf_internal//:tinygltf",
+    ],
+)
+
+drake_cc_library(
+    name = "internal_obj_render_parser",
+    srcs = ["internal_obj_render_parser.cc"],
+    hdrs = ["internal_obj_render_parser.h"],
+    interface_deps = [
+        ":render_material",
+        ":render_mesh",
+        "//common:diagnostic_policy",
+        "//common:essential",
+        "//geometry:geometry_properties",
+        "//geometry:rgba",
+        "//geometry:shape_specification",
+    ],
+    deps = [
+        "@tinyobjloader_internal//:tinyobjloader",
+    ],
+)
+
+drake_cc_library(
     name = "light_parameter",
     srcs = ["light_parameter.cc"],
     hdrs = ["light_parameter.h"],
@@ -95,8 +131,19 @@ drake_cc_library(
     name = "render_mesh",
     srcs = ["render_mesh.cc"],
     hdrs = ["render_mesh.h"],
+    deps = [
+        ":render_material",
+        "//common:essential",
+    ],
+)
+
+drake_cc_library(
+    name = "render_mesh_functions",
+    srcs = ["render_mesh_functions.cc"],
+    hdrs = ["render_mesh_functions.h"],
     interface_deps = [
         ":render_material",
+        ":render_mesh",
         "//common:diagnostic_policy",
         "//common:essential",
         "//geometry:geometry_properties",
@@ -104,10 +151,10 @@ drake_cc_library(
         "//geometry/proximity:triangle_surface_mesh",
     ],
     deps = [
+        ":internal_obj_render_parser",
         "//geometry:shape_specification",
         "//math:geometric_transform",
-        "@tinyobjloader_internal//:tinyobjloader",
-        "@tinygltf_internal//:tinygltf",
+        # "@tinygltf_internal//:tinygltf",
     ],
 )
 
@@ -140,6 +187,30 @@ filegroup(
         "test/box.sdf",
         "test/*.png",
     ]),
+)
+
+drake_cc_googletest(
+    name = "internal_gltf_parser_test",
+    data = [":test_models"],
+    deps = [
+        ":internal_gltf_parser",
+        "//common:find_resource",
+        "//geometry:geometry_roles",
+    ],
+)
+
+drake_cc_googletest(
+    name = "internal_obj_render_parser_test",
+    data = [":test_models"],
+    deps = [
+        ":internal_obj_render_parser",
+        "//common:find_resource",
+        "//common:temp_directory",
+        "//common/test_utilities:diagnostic_policy_test_base",
+        "//common/test_utilities:eigen_matrix_compare",
+        "//common/test_utilities:expect_throws_message",
+        "//geometry:geometry_roles",
+    ],
 )
 
 drake_cc_googletest(
@@ -189,10 +260,10 @@ drake_cc_googletest(
 )
 
 drake_cc_googletest(
-    name = "render_mesh_test",
+    name = "render_mesh_functions_test",
     data = [":test_models"],
     deps = [
-        ":render_mesh",
+        ":render_mesh_functions",
         "//common:find_resource",
         "//common:temp_directory",
         "//common/test_utilities:diagnostic_policy_test_base",

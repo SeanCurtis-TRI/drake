@@ -45,6 +45,7 @@
 #include "drake/common/never_destroyed.h"
 #include "drake/common/text_logging.h"
 #include "drake/geometry/proximity/polygon_to_triangle_mesh.h"
+#include "drake/geometry/render/render_mesh_functions.h"
 #include "drake/geometry/render/shaders/depth_shaders.h"
 #include "drake/geometry/render_vtk/internal_render_engine_vtk_base.h"
 #include "drake/geometry/render_vtk/internal_vtk_util.h"
