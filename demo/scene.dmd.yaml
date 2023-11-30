@@ -1,0 +1,69 @@
+directives:
+- add_model:
+    name: amazon_table
+    file: package://drake/examples/manipulation_station/models/amazon_table_simplified.sdf
+- add_weld:
+    parent: world
+    child: amazon_table::amazon_table
+- add_model:
+    name: iiwa
+    file: package://demo/iiwa14_primitive_collision.urdf
+    default_joint_positions:
+      iiwa_joint_1: [-0.2]
+      iiwa_joint_2: [0.79]
+      iiwa_joint_3: [0.32]
+      iiwa_joint_4: [-1.76]
+      iiwa_joint_5: [-0.36]
+      iiwa_joint_6: [0.64]
+      iiwa_joint_7: [-0.73]
+- add_frame:
+    name: iiwa_on_world
+    X_PF:
+      base_frame: world
+      translation: [0, -0.7, 0.1]
+      rotation: !Rpy { deg: [0, 0, 90] }
+- add_weld:
+    parent: iiwa_on_world
+    child: iiwa::base
+- add_model:
+    name: wsg
+    file: package://drake/manipulation/models/wsg_50_description/sdf/schunk_wsg_50_with_tip.sdf
+    default_joint_positions:
+      left_finger_sliding_joint: [-0.02]
+      right_finger_sliding_joint: [0.02]
+- add_frame:
+    name: wsg_on_iiwa
+    X_PF:
+      base_frame: iiwa_link_7
+      translation: [0, 0, 0.114]
+      rotation: !Rpy { deg: [90, 0, 90] }
+- add_weld:
+    parent: wsg_on_iiwa
+    child: wsg::body
+- add_model:
+    name: kettle
+    file: package://demo/kettle.sdf
+    default_free_body_pose: { kettle: {translation: [-0.25, 0.025, 0.0]}}
+- add_model:
+    name: sink
+    file: package://demo/kitchen_sink.sdf
+- add_weld:
+    parent: world
+    child: sink::sink
+    X_PC:
+      translation: [0.0, 0.62, 0.0]
+      rotation: !Rpy { deg: [0.0, 0.0, -90.0]}
+- add_model:
+    name: bread
+    file: package://demo/bread.sdf
+    default_free_body_pose:
+      bread:
+        translation: [0.1, -0.025, 0.0]
+        rotation: !Rpy { deg: [0.0, 0.0, 35.0]}
+- add_model:
+    name: cleaver
+    file: package://demo/cleaver.sdf
+    default_free_body_pose:
+      cleaver:
+        translation: [0.15, 0.1, 0.0]
+        rotation: !Rpy { deg: [0.0, 180.0, 35.0]}

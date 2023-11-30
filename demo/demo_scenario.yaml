@@ -1,0 +1,19 @@
+Demo:
+  directives:
+  - add_directives:
+      file: file:///home/seancurtis/code/drake/demo/scene.dmd.yaml
+  lcm_buses:
+    driver_traffic:
+      # Use a non-default LCM url to communicate with the robot.
+      lcm_url: udpm://239.241.129.92:20185?ttl=0
+  visualization:
+    publish_contacts: False
+  cameras:
+    demo_cam: "package://demo/vtk_camera.yaml"
+  model_drivers:
+    iiwa: !IiwaDriver
+      hand_model_name: wsg
+      lcm_bus: driver_traffic
+    wsg: !SchunkWsgDriver
+      lcm_bus: driver_traffic
+  meshcat_config: "package://demo/meshcat_config.yaml"

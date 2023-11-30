@@ -22,10 +22,12 @@ import argparse
 import dataclasses as dc
 import math
 import os
+import re
 import typing
 
 from pydrake.common import RandomGenerator
 from pydrake.common.yaml import yaml_load_typed
+from pydrake.geometry import Meshcat
 from pydrake.lcm import DrakeLcmParams
 from pydrake.manipulation import (
     ApplyDriverConfigs,
@@ -58,6 +60,30 @@ from pydrake.visualization import (
     ApplyVisualizationConfig,
     VisualizationConfig,
 )
+
+@dc.dataclass
+class MeshcatLight:
+    """Defines configuration for a meshcat light"""
+    path: str = None
+    castShadow: bool = None
+    distance: float = None
+    intensity: float = None
+    position: list[float] = None
+    radius: float = None
+    angle: float = None
+    visible: bool = None
+
+
+@dc.dataclass
+class MeshcatConfig:
+    """Defines lighting configuration for meshcat."""
+
+    env_map: str = None
+    visible_axis: bool = True
+    visible_grid: bool = True
+    lights: typing.List[MeshcatLight] = dc.field(default_factory=list)
+    cam_position: list[float] = None
+    cam_target: list[float] = None
 
 
 @dc.dataclass
@@ -104,9 +130,15 @@ class Scenario:
     # camera is a helpful mnemonic, but does not serve a technical role. The
     # CameraConfig::name field is still the name that will appear in the
     # Diagram artifacts.
-    cameras: typing.Mapping[str, CameraConfig] = dc.field(default_factory=dict)
+    cameras: typing.Mapping[str, typing.Union[
+        str,
+        CameraConfig
+    ]] = dc.field(default_factory=dict)
 
     visualization: VisualizationConfig = VisualizationConfig()
+
+    # The path to a .yaml file containing a MeshcatLighting object.
+    meshcat_config: str = None
 
 
 def _load_scenario(*, filename, scenario_name, scenario_text):
@@ -124,6 +156,69 @@ def _load_scenario(*, filename, scenario_name, scenario_text):
         defaults=result)
     return result
 
+def _get_file(path, package_map):
+    if path.startswith('package://'):
+        package_name, path_in_package = re.match(
+            'package://(.*?)/(.*)', path).groups()
+        return os.path.join(package_map.GetPath(package_name),
+                            path_in_package)
+    else:
+        return path
+
+def _configure_meshcat_light(meshcat, light):
+    obj_path = f"{light.path}/<object>"
+    if light.castShadow is not None:
+        meshcat.SetProperty(obj_path, "castShadow", light.castShadow)
+    if light.distance is not None:
+        meshcat.SetProperty(obj_path, "distance", light.distance)
+    if light.intensity is not None:
+        meshcat.SetProperty(obj_path, "intensity", light.intensity)
+    if light.position is not None:
+        meshcat.SetProperty(obj_path, "position",
+                            light.position)
+    if light.radius is not None:
+        meshcat.SetProperty(obj_path, "radius", light.radius)
+    if light.visible is not None:
+        meshcat.SetProperty(light.path, "visible", light.visible)
+    if light.angle is not None:
+        meshcat.SetProperty(obj_path, "angle", light.angle / 180 * math.pi)
+
+def _configure_meshcat(meshcat, config_path, package_map):
+    if config_path is None:
+        return
+
+    file_path = _get_file(config_path, package_map)
+    config = yaml_load_typed(
+        schema = MeshcatConfig,
+        filename=file_path,
+        defaults=MeshcatConfig())
+    env_map = _get_file(config.env_map, package_map)
+    if env_map:
+        meshcat.SetEnvironmentMap(env_map)
+    meshcat.SetProperty("/Axes", "visible", config.visible_axis)
+    meshcat.SetProperty("/Grid", "visible", config.visible_grid)
+
+    if config.cam_position is not None:
+        if config.cam_target is not None:
+            meshcat.SetCameraPose(config.cam_position, config.cam_target)
+        else:
+            config.SetCameraTarget(config.cam_target)
+
+    for light in config.lights:
+        _configure_meshcat_light(meshcat, light)
+
+def _camera_from_path(camera_path, package_map, builder, lcm_buses):
+    if camera_path is not None:
+        config_path = _get_file(camera_path, package_map)
+        config = yaml_load_typed(
+            schema = CameraConfig,
+            filename=config_path)
+        if config is None:
+            return
+        ApplyCameraConfig(
+                config=config,
+                builder=builder,
+                lcm_buses=lcm_buses)
 
 def run(*, scenario, graphviz=None, packages=[]):
     """Runs a simulation of the given scenario.
@@ -163,13 +258,19 @@ def run(*, scenario, graphviz=None, packages=[]):
 
     # Add scene cameras.
     for _, camera in scenario.cameras.items():
-        ApplyCameraConfig(
-            config=camera,
-            builder=builder,
-            lcm_buses=lcm_buses)
+        if isinstance(camera, str):
+            _camera_from_path(camera, parser.package_map(), builder, lcm_buses)
+        else:
+            ApplyCameraConfig(
+                config=camera,
+                builder=builder,
+                lcm_buses=lcm_buses)
 
     # Add visualization.
-    ApplyVisualizationConfig(scenario.visualization, builder, lcm_buses)
+    meshcat = Meshcat()
+    _configure_meshcat(meshcat, scenario.meshcat_config, parser.package_map())
+    ApplyVisualizationConfig(scenario.visualization, builder, lcm_buses,
+                             meshcat=meshcat)
 
     # Build the diagram and its simulator.
     diagram = builder.Build()
