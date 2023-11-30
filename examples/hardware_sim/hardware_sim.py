@@ -21,6 +21,7 @@ scenario.h.
 import argparse
 import dataclasses as dc
 import math
+import os
 import typing
 
 from pydrake.common import RandomGenerator
@@ -39,6 +40,7 @@ from pydrake.multibody.plant import (
 from pydrake.multibody.parsing import (
     ModelDirective,
     ModelDirectives,
+    Parser,
     ProcessModelDirectives,
 )
 from pydrake.systems.analysis import (
@@ -123,7 +125,7 @@ def _load_scenario(*, filename, scenario_name, scenario_text):
     return result
 
 
-def run(*, scenario, graphviz=None):
+def run(*, scenario, graphviz=None, packages=[]):
     """Runs a simulation of the given scenario.
     """
     builder = DiagramBuilder()
@@ -133,10 +135,14 @@ def run(*, scenario, graphviz=None):
         config=scenario.plant_config,
         builder=builder)
 
+    parser = Parser(sim_plant)
+    for package_dir in packages:
+        package_xml = os.path.join(package_dir, 'package.xml')
+        parser.package_map().AddPackageXml(package_xml)
     # Add model directives.
     added_models = ProcessModelDirectives(
         directives=ModelDirectives(directives=scenario.directives),
-        plant=sim_plant)
+        plant=sim_plant, parser=parser)
 
     # Now the plant is complete.
     sim_plant.Finalize()
@@ -203,12 +209,16 @@ def main():
         "--graphviz", metavar="FILENAME",
         help="Dump the Simulator's Diagram to this file in Graphviz format "
              "as a debugging aid")
+    parser.add_argument(
+        "--package", metavar="DIR", action="append", dest='packages',
+        default=[], help="Specify a directory containing a package.xml file"
+    )
     args = parser.parse_args()
     scenario = _load_scenario(
         filename=args.scenario_file,
         scenario_name=args.scenario_name,
         scenario_text=args.scenario_text)
-    run(scenario=scenario, graphviz=args.graphviz)
+    run(scenario=scenario, graphviz=args.graphviz, packages=args.packages)
 
 
 if __name__ == "__main__":
