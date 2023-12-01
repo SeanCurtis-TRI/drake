@@ -102,7 +102,15 @@ def _main():
         "--environment_map", default=Path(), type=Path,
         help="Filesystem path to an image to be used as an environment map. "
              "It must be an image type normally used by your browser (e.g., "
-             ".jpg, .png, etc.). HDR images are not supported yet."
+             ".jpg, .png, etc.). HDR images are not supported yet. Only used "
+             "for meshcat."
+    )
+    args_parser.add_argument(
+        "--camera_config", default=None, type=Path,
+        help="Filesystem path to a yaml file containing the RenderEngineVtk "
+             "parameters. If a single camera is defined, it is used. If "
+             "multiple, an arbitrary camera is used. Only used if "
+             "--show_rgbd_sensor is true."
     )
 
     args_parser.add_argument(
@@ -151,7 +159,8 @@ def _main():
                                   publish_contacts=not args.omit_contacts,
                                   browser_new=args.browser_new,
                                   pyplot=args.pyplot,
-                                  environment_map=args.environment_map)
+                                  environment_map=args.environment_map,
+                                  camera_config=args.camera_config)
     package_map = visualizer.package_map()
     package_map.PopulateFromRosPackagePath()
     for item in args.filename:
