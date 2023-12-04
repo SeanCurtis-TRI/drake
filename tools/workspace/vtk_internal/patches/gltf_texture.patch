@@ -1,0 +1,38 @@
+The correct a couple of defects in VTK's glTF parsing. The foundation of the
+defect is the assumption that if *any* texture is present, it must be the base
+color texture. If this texture is missing, then other textures confuse VTK to
+cause spurious warnings (multiple sets of UVs defined) and otherwise cause the
+textures to get ignored.
+
+--- IO/Geometry/vtkGLTFDocumentLoader.h
++++ IO/Geometry/vtkGLTFDocumentLoader.h
+@@ -255,7 +255,7 @@ public:
+   struct TextureInfo
+   {
+     int Index = -1;
+-    int TexCoord;
++    int TexCoord = 0;
+   };
+ 
+   /**
+
+--- IO/Import/vtkGLTFImporter.cxx
++++ IO/Import/vtkGLTFImporter.cxx
+@@ -224,7 +224,7 @@ void ApplyGLTFMaterialToVTKActor(std::shared_ptr<vtkGLTFDocumentLoader::Model> m
+     baseColorTex = CreateVTKTextureFromGLTFTexture(model, texIndex, existingTextures);
+     baseColorTex->UseSRGBColorSpaceOn();
+     property->SetBaseColorTexture(baseColorTex);
+-
++  }
+     // merge ambient occlusion and metallic/roughness, then set material texture
+     int pbrTexIndex = material.PbrMetallicRoughness.MetallicRoughnessTexture.Index;
+     if (pbrTexIndex >= 0 && pbrTexIndex < static_cast<int>(model->Textures.size()))
+@@ -300,7 +300,7 @@ void ApplyGLTFMaterialToVTKActor(std::shared_ptr<vtkGLTFDocumentLoader::Model> m
+       auto normalTex = CreateVTKTextureFromGLTFTexture(model, normalMapIndex, existingTextures);
+       property->SetNormalTexture(normalTex);
+     }
+-  }
++  // }
+
+   // extension KHR_materials_unlit
+   actor->GetProperty()->SetLighting(!material.Unlit);
