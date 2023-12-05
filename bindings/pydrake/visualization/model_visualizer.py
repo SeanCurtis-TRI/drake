@@ -84,6 +84,11 @@ def _main():
         action="store_true",
         help="Visualize the frames as triads for all links.",
     )
+    assert defaults["publish_contacts"] is True
+    args_parser.add_argument(
+        "--omit_contacts", action="store_true",
+        help="Don't visualize contacts",
+    )
     assert defaults["show_rgbd_sensor"] is False
     args_parser.add_argument(
         "--show_rgbd_sensor",
@@ -143,6 +148,7 @@ def _main():
                                   triad_length=args.triad_length,
                                   triad_radius=args.triad_radius,
                                   triad_opacity=args.triad_opacity,
+                                  publish_contacts=not args.omit_contacts,
                                   browser_new=args.browser_new,
                                   pyplot=args.pyplot,
                                   environment_map=args.environment_map)
