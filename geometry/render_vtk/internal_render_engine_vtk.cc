@@ -738,7 +738,7 @@ void RenderEngineVtk::InitializePipelines() {
       skybox->SetFloorRight(0, -1, 0);
       skybox->SetProjection(vtkSkybox::Sphere);
       // Linear color space (aka *not HDR*) requires gamma correction.
-      skybox->SetGammaCorrect(!env_map.is_hdr);
+      skybox->SetGammaCorrect(env_map.is_hdr);
       renderer->AddActor(skybox);
     }
     // Setting an environment map should require all materials to be PBR.
