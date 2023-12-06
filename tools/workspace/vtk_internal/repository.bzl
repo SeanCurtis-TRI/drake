@@ -160,6 +160,7 @@ vtk_internal_repository = repository_rule(
                 "@drake//tools/workspace/vtk_internal:patches/vtkglew_hidden.patch",  # noqa
                 "@drake//tools/workspace/vtk_internal:patches/vtkpugixml_hidden.patch",  # noqa
                 "@drake//tools/workspace/vtk_internal:patches/vtksys_hidden.patch",  # noqa
+                # "@drake//tools/workspace/vtk_internal:patches/seans_debug.patch",  # noqa
             ],
         ),
         "extra_strip_prefix": attr.string(),

@@ -1,0 +1,207 @@
+--- Rendering/OpenGL2/vtkOpenGLRenderer.cxx
++++ Rendering/OpenGL2/vtkOpenGLRenderer.cxx
+@@ -137,6 +137,8 @@ int vtkOpenGLRenderer::UpdateLights()
+     lightingComplexity = 1;
+   }
+ 
++  std::cout << "vtkOpenGLRenderer reports " << lightingComplexity << " lighting complexity on " << lightingCount << " lights\n";
++
+   // create alight if needed
+   if (!lightingCount)
+   {
+@@ -211,6 +213,7 @@ int vtkOpenGLRenderer::UpdateLights()
+-                   << i << ";";
++                   << i << ";\n";
+         }
+         this->LightingDeclaration = toString.str();
++ //       std::cout << "Lights have the following declaration:\n" << this->LightingDeclaration << "\n";
+         break;
+     }
+   }
+
+
+--- Rendering/OpenGL2/vtkShadowMapBakerPass.cxx
++++ Rendering/OpenGL2/vtkShadowMapBakerPass.cxx
+@@ -319,6 +319,7 @@ void vtkShadowMapBakerPass::Render(const vtkRenderState* s)
+       }
+     }
+     this->HasShadows = hasOccluder;
++ //   std::cout << "Shadow map baker pass\n  has light: " << hasLight << "\n  has " << propArrayCount << " occluders: " << hasOccluder << "\n";
+     if (!hasOccluder)
+     {
+       delete[] propArray;
+@@ -360,6 +361,7 @@ void vtkShadowMapBakerPass::Render(const vtkRenderState* s)
+     bool autoLight = r->GetAutomaticLightCreation() == 1;
+     vtkCamera* realCamera = r->GetActiveCamera();
+     vtkRenderState s2(r);
++  //  std::cout << "    Needs upate: " << this->NeedUpdate << "\n";
+     if (this->NeedUpdate) // create or re-create the shadow maps.
+     {
+ #ifdef VTK_SHADOW_MAP_BAKER_PASS_DEBUG
+@@ -402,7 +404,7 @@ void vtkShadowMapBakerPass::Render(const vtkRenderState* s)
+         }
+         l = lights->GetNextItem();
+       }
+-
++      std::cout << "    Number of shadow lights: " << numberOfShadowLights << "\n";
+       if (this->ShadowMaps != nullptr && this->ShadowMaps->size() != numberOfShadowLights)
+       {
+         delete this->ShadowMaps;
+@@ -518,6 +520,7 @@ void vtkShadowMapBakerPass::Render(const vtkRenderState* s)
+           this->OpaqueSequence->Render(&s2);
+ 
+           this->NumberOfRenderedProps += this->OpaqueSequence->GetNumberOfRenderedProps();
++    //      std::cout << "    Light rendered " << this->NumberOfRenderedProps << " props in the opaque pass\n";
+ 
+           if (this->CompositeZPass != nullptr)
+           {
+@@ -640,6 +643,8 @@ void vtkShadowMapBakerPass::BuildCameraLight(
+   {
+     assert("pre: cone_angle_is_inf_90" && light->GetConeAngle() < 90.0);
+ 
++    std::cout << "    camera for spot light!\n";
++
+     lcamera->SetParallelProjection(0);
+     // view angle is an aperture, but cone (or light) angle is between
+     // the axis of the cone and a ray along the edge of the cone.
+@@ -654,11 +659,13 @@ void vtkShadowMapBakerPass::BuildCameraLight(
+     {
+       mFar = 2.0 * mNearmin;
+     }
++ //   std::cout << "      camera clipping range: [" << mNear << ", " << mFar << "]\n";
+     lcamera->SetClippingRange(mNear, mFar);
+   }
+   else
+   {
+     lcamera->SetParallelProjection(1);
++    std::cout << "    camera for directional light!\n";
+ 
+     double minx, maxx, miny, maxy, minz, maxz;
+     double orig[3] = { 0, 0, 0 };
+
+--- Rendering/OpenGL2/vtkLightsPass.cxx
++++ Rendering/OpenGL2/vtkLightsPass.cxx
+@@ -29,11 +29,12 @@ void vtkLightsPass::PrintSelf(ostream& os, vtkIndent indent)
+ void vtkLightsPass::Render(const vtkRenderState* s)
+ {
+   assert("pre: s_exists" && s != nullptr);
+-
++  std::cout << "vtkLightsPass::Render\n";
+   this->NumberOfRenderedProps = 0;
+ 
+   this->ClearLights(s->GetRenderer());
+   this->UpdateLightGeometry(s->GetRenderer());
+   this->UpdateLights(s->GetRenderer());
++  std::cout << "vtkLightsPass::Render -- Done\n";
+ }
+ VTK_ABI_NAMESPACE_END
+
+--- Rendering/OpenGL2/vtkOpaquePass.cxx
++++ Rendering/OpenGL2/vtkOpaquePass.cxx
+@@ -27,8 +27,9 @@ void vtkOpaquePass::PrintSelf(ostream& os, vtkIndent indent)
+ void vtkOpaquePass::Render(const vtkRenderState* s)
+ {
+   assert("pre: s_exists" && s != nullptr);
+-
++  std::cout << "vtkOpaquePass::Render\n";
+   this->NumberOfRenderedProps = 0;
+   this->RenderFilteredOpaqueGeometry(s);
++  std::cout << "vtkOpaquePass::Render - DOne\n";
+ }
+ VTK_ABI_NAMESPACE_END
+
+--- Rendering/OpenGL2/vtkSequencePass.cxx
++++ Rendering/OpenGL2/vtkSequencePass.cxx
+@@ -47,6 +47,7 @@ void vtkSequencePass::PrintSelf(ostream& os, vtkIndent indent)
+ // \pre s_exists: s!=0
+ void vtkSequencePass::Render(const vtkRenderState* s)
+ {
++  std::cout << "vtkSequencePass::Render\n";
+   assert("pre: s_exists" && s != nullptr);
+ 
+   this->NumberOfRenderedProps = 0;
+@@ -61,6 +62,7 @@ void vtkSequencePass::Render(const vtkRenderState* s)
+       p = this->Passes->GetNextRenderPass();
+     }
+   }
++  std::cout << "vtkSequencePass::Render - Done\n";
+ }
+ 
+ //------------------------------------------------------------------------------
+
+--- Rendering/OpenGL2/vtkShadowMapPass.cxx
++++ Rendering/OpenGL2/vtkShadowMapPass.cxx
+@@ -200,11 +200,14 @@ void vtkShadowMapPass::Render(const vtkRenderState* s)
+ 
+     this->ShadowTransforms.clear();
+     shadowingLightIndex = 0;
++    std::cout << "Shdadow map pass render traversing lights\n";
+     for (lights->InitTraversal(), light = lights->GetNextItem(), lightIndex = 0; light != nullptr;
+          light = lights->GetNextItem(), lightIndex++)
+     {
++  //    std::cout << "   testing light " << lightIndex << "\n";
+       if (this->ShadowTextureUnits[lightIndex] >= 0)
+       {
++  //      std::cout << "      Has valid shadow texture unit\n";
+         vtkCamera* lightCamera =
+           (*this->ShadowMapBakerPass->GetLightCameras())[static_cast<size_t>(shadowingLightIndex)];
+         transform->Push();
+@@ -459,6 +462,7 @@ void vtkShadowMapPass::BuildShaderCode()
+ 
+   // compute the factors then do the normal lighting
+   toString << "//VTK::Light::Impl\n";
++  // std::cout << "\n\nShadow map fragment program\n" << fdec << "\n" << toString.str() << "\n\n";
+   this->FragmentDeclaration = fdec;
+   this->FragmentImplementation = toString.str();
+ }
+
+--- Rendering/OpenGL2/vtkOpenGLPolyDataMapper.cxx
++++ Rendering/OpenGL2/vtkOpenGLPolyDataMapper.cxx
+@@ -1060,10 +1060,12 @@ void vtkOpenGLPolyDataMapper::ReplaceShaderLight(
+   // get Standard Lighting Decls
+   vtkShaderProgram::Substitute(
+     FSSource, "//VTK::Light::Dec", static_cast<vtkOpenGLRenderer*>(ren)->GetLightingUniforms());
+-
++ 
++  std::cout << "vtkOpenGlPOlyDataMapper doing fragment with complexity " << lastLightComplexity << "\n";
+   switch (lastLightComplexity)
+   {
+     case 0: // no lighting or RENDER_VALUES
++      
+       vtkShaderProgram::Substitute(FSSource, "//VTK::Light::Impl",
+         "  gl_FragData[0] = vec4(ambientColor + diffuseColor, opacity);\n"
+         "  //VTK::Light::Impl\n",
+@@ -1200,6 +1202,7 @@ void vtkOpenGLPolyDataMapper::ReplaceShaderLight(
+ 
+       if (actor->GetProperty()->GetInterpolation() == VTK_PBR)
+       {
++        std::cout << "   PolyDataMapper has complexity 3 with PBR interpolation\n";
+         for (int i = 0; i < lastLightCount; ++i)
+         {
+           toString << "  L = lightPositionVC" << i
+@@ -1288,6 +1291,7 @@ void vtkOpenGLPolyDataMapper::ReplaceShaderLight(
+       }
+       else
+       {
++        std::cout << "   PolyDataMapper has complexity 3 with PHONG interpolation\n";
+         toString << "  vec3 diffuse = vec3(0,0,0);\n"
+                     "  vec3 specular = vec3(0,0,0);\n"
+                     "  vec3 vertLightDirectionVC;\n"
+@@ -1417,6 +1380,7 @@ void vtkOpenGLPolyDataMapper::ReplaceShaderLight(
+     }
+   }
+ 
++  std::cout << "Fragment shader\n" << FSSource << "\n";
+   shaders[vtkShader::Fragment]->SetSource(FSSource);
+ }
+ 
+@@ -2386,7 +2350,8 @@ void vtkOpenGLPolyDataMapper::ReplaceShaderValues(
+ 
+   // cout << "VS: " << shaders[vtkShader::Vertex]->GetSource() << endl;
+   // cout << "GS: " << shaders[vtkShader::Geometry]->GetSource() << endl;
+-  // cout << "FS: " << shaders[vtkShader::Fragment]->GetSource() << endl;
++  cout << "\n**********************************************************\n";
++  cout << "FS: " << shaders[vtkShader::Fragment]->GetSource() << endl;
+ }
+ 
+ bool vtkOpenGLPolyDataMapper::DrawingTubesOrSpheres(vtkOpenGLHelper& cellBO, vtkActor* actor)
