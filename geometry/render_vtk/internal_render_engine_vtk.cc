@@ -10,7 +10,9 @@
 
 // To ease build system upkeep, we annotate VTK includes with their deps.
 #include <vtkActor.h>                    // vtkRenderingCore
+#include <vtkAutoInit.h>                 // vtkCommonCore
 #include <vtkCamera.h>                   // vtkRenderingCore
+#include <vtkCameraPass.h>
 #include <vtkCylinderSource.h>           // vtkFiltersSources
 #include <vtkGLTFImporter.h>             // vtkIOImport
 #include <vtkHDRReader.h>                // vtkIOImage
@@ -18,6 +20,8 @@
 #include <vtkImageFlip.h>                // vtkImagingCore
 #include <vtkImageReader2.h>             // vtkIOImage
 #include <vtkImageReader2Factory.h>      // vtkIOImage
+#include <vtkLightsPass.h>
+#include <vtkOpaquePass.h>
 #include <vtkOpenGLPolyDataMapper.h>     // vtkRenderingOpenGL2
 #include <vtkOpenGLRenderer.h>           // vtkRenderingOpenGL2
 #include <vtkOpenGLShaderProperty.h>     // vtkRenderingOpenGL2
@@ -25,8 +29,13 @@
 #include <vtkPNGReader.h>                // vtkIOImage
 #include <vtkPlaneSource.h>              // vtkFiltersSources
 #include <vtkProperty.h>                 // vtkRenderingCore
+#include <vtkRenderPassCollection.h>
+#include <vtkSequencePass.h>
+#include <vtkShadowMapBakerPass.h>
+#include <vtkShadowMapPass.h>
 #include <vtkSkybox.h>                   // vtkRenderingCore
 #include <vtkTexture.h>                  // vtkRenderingCore
+#include <vtkToneMappingPass.h>          // vtkRenderingCore
 #include <vtkTexturedSphereSource.h>     // vtkFiltersSources
 #include <vtkTransform.h>                // vtkCommonTransforms
 #include <vtkTransformPolyDataFilter.h>  // vtkFiltersGeneral
@@ -40,6 +49,10 @@
 #include "drake/math/rotation_matrix.h"
 #include "drake/systems/sensors/color_palette.h"
 #include "drake/systems/sensors/vtk_diagnostic_event_observer.h"
+
+// This, and the ModuleInitVtkRenderingOpenGL2, provide the basis for enabling
+// VTK's OpenGL2 infrastructure.
+VTK_MODULE_INIT(vtkRenderingOpenGL2)
 
 namespace drake {
 namespace geometry {
@@ -171,7 +184,7 @@ RenderEngineVtk::RenderEngineVtk(const RenderEngineVtkParams& parameters)
   // treated as if no environment map has been provided.
   if (!parameters.environment_map.has_value() ||
       parameters.environment_map->texture.index() == 0) {
-    fallback_lights_.push_back({});
+    fallback_lights_.push_back({.type = "spot", .position = {1, 1, 0}, .cone_angle = 90});
   }
   if (parameters.default_diffuse) {
     default_diffuse_.set(*parameters.default_diffuse);
@@ -697,6 +710,7 @@ void RenderEngineVtk::InitializePipelines() {
   for (const auto& light_param : active_lights()) {
     renderer->AddLight(MakeVtkLight(light_param));
   }
+  // Environment map.
   if (parameters_.environment_map.has_value()) {
     // Until we have a CubeMap, the zero-index represents the default value of
     // "no texture specified". So, we'll simply return.
@@ -730,6 +744,36 @@ void RenderEngineVtk::InitializePipelines() {
     // Setting an environment map should require all materials to be PBR.
     SetPbrMaterials();
   }
+  // Shadows.
+  vtkNew<vtkSequencePass> seq;
+  vtkNew<vtkRenderPassCollection> passes;
+  if (parameters_.cast_shadows) {
+    vtkNew<vtkShadowMapPass> shadows;
+    passes->AddItem(shadows->GetShadowMapBakerPass());
+    shadows->GetShadowMapBakerPass()->SetResolution(
+        parameters_.shadow_map_size);
+    passes->AddItem(shadows);
+  } else {
+    // Note: vtkShadowMap includes lights and opaque as its "OpaqueSequence" by
+    // default. However, if we're not casting shadows, we need to explicitly
+    // add them.
+    vtkNew<vtkLightsPass> lights;
+    vtkNew<vtkOpaquePass> opaque;
+    passes->AddItem(lights);
+    passes->AddItem(opaque);
+  }
+
+  seq->SetPasses(passes);
+  vtkNew<vtkCameraPass> camera_pass;
+  camera_pass->SetDelegatePass(seq);
+
+  vtkNew<vtkToneMappingPass> tone_mapping_pass;
+  tone_mapping_pass->SetToneMappingType(vtkToneMappingPass::GenericFilmic);
+  tone_mapping_pass->SetGenericFilmicUncharted2Presets();
+  tone_mapping_pass->SetExposure(parameters_.exposure);
+  tone_mapping_pass->SetDelegatePass(camera_pass);
+
+  renderer->SetPass(tone_mapping_pass);
 }
 
 void RenderEngineVtk::ImplementPolyData(vtkPolyDataAlgorithm* source,

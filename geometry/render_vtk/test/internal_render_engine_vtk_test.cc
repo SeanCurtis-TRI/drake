@@ -389,7 +389,10 @@ class RenderEngineVtkTest : public ::testing::Test {
   void Init(const RigidTransformd& X_WR, bool add_terrain = false) {
     const Vector3d bg_rgb{kBgColor.r / 255., kBgColor.g / 255.,
                           kBgColor.b / 255.};
-    RenderEngineVtkParams params{{}, bg_rgb};
+    RenderEngineVtkParams params{.default_clear_color = bg_rgb,
+                                 .lights = {{.position = {0, 0, 5},
+                                             .frame = "world",
+                                             .direction = {0, 0, -1}}}};
     renderer_ = make_unique<RenderEngineVtk>(params);
     InitializeRenderer(X_WR, add_terrain, renderer_.get());
     // Ensure that we truly have a non-default color.
@@ -906,6 +909,8 @@ TEST_F(RenderEngineVtkTest, CylinderTest) {
 
     expected_color_ =
         use_texture ? RgbaColor(kTextureColor, 255) : default_color_;
+    SCOPED_TRACE(
+        fmt::format("Cylinder test with{} texture", use_texture ? "" : "out"));
     PerformCenterShapeTest(renderer_.get(), "Cylinder test");
   }
 }

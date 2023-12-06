@@ -81,6 +81,9 @@ struct RenderEngineVtkParams {
     a->Visit(DRAKE_NVP(default_clear_color));
     a->Visit(DRAKE_NVP(lights));
     a->Visit(DRAKE_NVP(environment_map));
+    a->Visit(DRAKE_NVP(exposure));
+    a->Visit(DRAKE_NVP(cast_shadows));
+    a->Visit(DRAKE_NVP(shadow_map_size));
   }
 
   /** The (optional) rgba color to apply to the (phong, diffuse) property when
@@ -111,6 +114,29 @@ struct RenderEngineVtkParams {
    will not be present. Lights *can* be explicitly added to combine with the
    environment map. */
   std::optional<EnvironmentMap> environment_map;
+
+  /** Exposure is an aspect of "tone mapping" (as described in
+   <a href="https://www.kitware.com/pbrj1/">VTK's description of its PBR
+   capabilities</a>). Drake uses the GenericFilmic tone mapper and exposes
+   the *exposure* property.
+
+   The most common use for the `exposure` parameter is to combine a environment
+   with shadow-casting lights. If the environment map "contains" a great deal
+   of energy, it may overpower the strength of your lights. By reducing the
+   exposure, the shadows caused by the lights will become more apparent. */
+  double exposure{1};
+
+  /** If `true`, lights will cast shadows.
+   <!-- TODO: Figure out the limits on casting shadows. -->
+   <!-- TODO: Should this be a per-light basis? That might be tricky, but I
+    can use shadow attenuation to omit lights from casting shadows. -->
+  */
+  bool cast_shadows{true};
+
+  /** The size of texture map to use for shadow maps. Note: this is a global
+   setting. All shadow casting lights will use a map of the same size. Larger
+   map sizes increase GPU memory usage and rendering times. */
+  int shadow_map_size{256};
 };
 
 }  // namespace geometry
