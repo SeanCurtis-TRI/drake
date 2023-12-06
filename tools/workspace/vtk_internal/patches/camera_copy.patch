@@ -1,0 +1,102 @@
+Drake sets the VTK camera's projection matrix directly from Drake's intrinsics.
+This matrix was not copied from camera to camera, leading to erroneous results.
+
+--- Rendering/Core/vtkCamera.cxx
++++ Rendering/Core/vtkCamera.cxx
+@@ -1056,13 +1056,15 @@ void vtkCamera::ComputeProjectionTransform(double aspect, double nearz, double f
+   }
+
+   if (this->UseExplicitProjectionTransformMatrix)
+   {
+     assert(this->ExplicitProjectionTransformMatrix != nullptr);
+     this->ProjectionTransform->Concatenate(this->ExplicitProjectionTransformMatrix);
+     return;
+   }
+
+   if (this->UseExplicitAspectRatio)
+   {
+     aspect = this->ExplicitAspectRatio;
+   }
+@@ -1504,10 +1506,20 @@ void vtkCamera::ShallowCopy(vtkCamera* source)
+   this->ModelViewTransform = source->ModelViewTransform;
+   if (this->ModelViewTransform != nullptr)
+   {
+     this->ModelViewTransform->Register(this);
+   }
++
++  if (this->ExplicitProjectionTransformMatrix != nullptr)
++  {
++    this->ExplicitProjectionTransformMatrix->Delete();
++  }
++  this->ExplicitProjectionTransformMatrix = source->ExplicitProjectionTransformMatrix;
++  if (this->ExplicitProjectionTransformMatrix != nullptr)
++  {
++    this->ExplicitProjectionTransformMatrix->Register(this);
++  }
+ }
+
+ //------------------------------------------------------------------------------
+ // Description:
+ // Copy the properties of `source' into `this'.
+@@ -1697,10 +1709,28 @@ void vtkCamera::DeepCopy(vtkCamera* source)
+       this->WorldToScreenMatrix =
+         static_cast<vtkMatrix4x4*>(source->WorldToScreenMatrix->NewInstance());
+     }
+     this->WorldToScreenMatrix->DeepCopy(source->WorldToScreenMatrix);
+   }
++
++  if (source->ExplicitProjectionTransformMatrix == nullptr)
++  {
++    if (this->ExplicitProjectionTransformMatrix != nullptr)
++    {
++      this->ExplicitProjectionTransformMatrix->UnRegister(this);
++      this->ExplicitProjectionTransformMatrix = nullptr;
++    }
++  }
++  else
++  {
++    if (this->ExplicitProjectionTransformMatrix == nullptr)
++    {
++      this->ExplicitProjectionTransformMatrix =
++        static_cast<vtkMatrix4x4*>(source->ExplicitProjectionTransformMatrix->NewInstance());
++    }
++    this->ExplicitProjectionTransformMatrix->DeepCopy(source->ExplicitProjectionTransformMatrix);
++  }
+ }
+
+ //------------------------------------------------------------------------------
+ // Description:
+ // Copy the ivars. Do nothing for the matrices.
+@@ -1724,10 +1754,12 @@ void vtkCamera::PartialCopy(vtkCamera* source)
+   }
+   i = 0;
+   while (i < 3)
+   {
+     this->FocalPoint[i] = source->FocalPoint[i];
++    this->FocalPointShift[i] = source->FocalPointShift[i];
++    this->NearPlaneShift[i] = source->NearPlaneShift[i];
+     this->Position[i] = source->Position[i];
+     this->ViewUp[i] = source->ViewUp[i];
+     this->DirectionOfProjection[i] = source->DirectionOfProjection[i];
+     this->ViewPlaneNormal[i] = source->ViewPlaneNormal[i];
+     this->ViewShear[i] = source->ViewShear[i];
+@@ -1751,12 +1783,19 @@ void vtkCamera::PartialCopy(vtkCamera* source)
+
+   this->FocalDisk = source->FocalDisk;
+   this->FocalDistance = source->FocalDistance;
+   this->EyeSeparation = source->EyeSeparation;
+   this->WorldToScreenMatrixMTime = source->WorldToScreenMatrixMTime;
++  this->UseExplicitProjectionTransformMatrix =
++      source->UseExplicitProjectionTransformMatrix;
+
+   this->ViewingRaysMTime = source->ViewingRaysMTime;
++
++  this->ExplicitAspectRatio = source->ExplicitAspectRatio;
++  this->UseExplicitAspectRatio = source->UseExplicitAspectRatio;
++  this->NearPlaneScale = source->NearPlaneScale;
++  this->ShiftScaleThreshold = source->ShiftScaleThreshold;
+ }
+
+ //------------------------------------------------------------------------------
+ void vtkCamera::PrintSelf(ostream& os, vtkIndent indent)
+ {
