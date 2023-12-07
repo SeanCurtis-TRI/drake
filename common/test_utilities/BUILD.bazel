@@ -246,7 +246,7 @@ drake_cc_googletest(
 
 drake_cc_library(
     name = "maybe_pause_for_user",
-    testonly = 1,
+    # testonly = 1,
     srcs = ["maybe_pause_for_user.cc"],
     hdrs = ["maybe_pause_for_user.h"],
 )

@@ -39,6 +39,7 @@
 #include <vtkTexturedSphereSource.h>     // vtkFiltersSources
 #include <vtkTransform.h>                // vtkCommonTransforms
 #include <vtkTransformPolyDataFilter.h>  // vtkFiltersGeneral
+#include <vtkVersion.h>
 
 #include "drake/common/diagnostic_policy.h"
 #include "drake/common/text_logging.h"
@@ -637,6 +638,7 @@ void RenderEngineVtk::InitializePipelines() {
   const vtkSmartPointer<vtkTransform> vtk_identity =
       ConvertToVtkTransform(RigidTransformd::Identity());
 
+  fmt::print("VTK VERSION: {}\n", vtkVersion::GetVTKVersionFull());
   // Generic configuration of pipelines.
   for (auto& pipeline : pipelines_) {
     // When VTK experiences a warning, send it to drake::log()->warn().
@@ -662,6 +664,7 @@ void RenderEngineVtk::InitializePipelines() {
     // problematic, change this to only disable anti-aliasing in unit
     // tests. Alternatively, find other way to resolve the driver bug.
     pipeline->window->SetMultiSamples(0);
+    pipeline->window->SetSize(10, 10);
 
     auto* camera = pipeline->renderer->GetActiveCamera();
     camera->UseExplicitProjectionTransformMatrixOn();
@@ -744,16 +747,18 @@ void RenderEngineVtk::InitializePipelines() {
     // Setting an environment map should require all materials to be PBR.
     SetPbrMaterials();
   }
-  // Shadows.
+
   vtkNew<vtkSequencePass> seq;
   vtkNew<vtkRenderPassCollection> passes;
   if (parameters_.cast_shadows) {
+    fmt::print("Adding shadows!\n");
     vtkNew<vtkShadowMapPass> shadows;
     passes->AddItem(shadows->GetShadowMapBakerPass());
     shadows->GetShadowMapBakerPass()->SetResolution(
         parameters_.shadow_map_size);
     passes->AddItem(shadows);
   } else {
+    fmt::print("No shadows!\n");
     // Note: vtkShadowMap includes lights and opaque as its "OpaqueSequence" by
     // default. However, if we're not casting shadows, we need to explicitly
     // add them.

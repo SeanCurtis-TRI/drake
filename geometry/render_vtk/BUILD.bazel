@@ -1,5 +1,6 @@
 load(
     "//tools/skylark:drake_cc.bzl",
+    "drake_cc_binary",
     "drake_cc_googletest",
     "drake_cc_library",
     "drake_cc_package_library",
@@ -15,6 +16,40 @@ drake_cc_package_library(
     deps = [
         ":factory",
         ":render_engine_vtk_params",
+    ],
+)
+
+drake_cc_binary(
+    name = "shadows",
+    srcs = ["test/shadows.cc"],
+    deps = [
+        "//common:nice_type_name",
+        "@vtk_internal//:vtkCommonCore",
+        "@vtk_internal//:vtkCommonExecutionModel",
+        "@vtk_internal//:vtkCommonTransforms",
+        "@vtk_internal//:vtkFiltersSources",
+        "@vtk_internal//:vtkIOGeometry",
+        "@vtk_internal//:vtkIOImage",
+        "@vtk_internal//:vtkIOImport",
+        "@vtk_internal//:vtkImagingCore",
+        "@vtk_internal//:vtkRenderingCore",
+        "@vtk_internal//:vtkRenderingOpenGL2",
+    ]
+)
+
+drake_cc_binary(
+    name = "drake_shadows",
+    srcs = ["test/drake_shadows.cc"],
+    testonly = 1,
+    deps = [
+        ":internal_render_engine_vtk",
+        ":render_vtk",
+        "//common:essential",
+        "//common/test_utilities:maybe_pause_for_user",
+    ],
+    data = [
+        "//geometry:environment_maps",
+        "//geometry/render:test_models",
     ],
 )
 
