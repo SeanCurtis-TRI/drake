@@ -1,0 +1,90 @@
+Shadows with PBR materials don't work. This is due to two issues.
+
+1. The fragment shader has text search-and-replace games in two locations.
+   vtkOpenGLPolyDataMapper and vtkShadowMapPass. The former introduces the
+   lighting calculations to define "radiance", the latter updates the "radiance"
+   definition to account for shadows. This update depends on the shadow map
+   pass knowing what strings the data mapper uses. In this case, the strings
+   that vtkShadowMapPass was expecting didn't cover all of the strings produced
+   by vtkOpenGLPolyDataMapper. The latter has been updated.
+2. VTK Uses exponential shadow maps (ESM). That algorithm has a particular tuning
+   constant. Ideally, the constant would be infinity (so that the approximation
+   of a step function is perfect). Finite numerical precision makes that
+   impossible. However, it should be as large a number as possible before
+   numerical precision issues kick in. The authors of ESM recommend 80; VTK
+   used 11 (leading to bizarre shadow behaviors where shadows were being
+   strongly attenuated based on increased distance from the light).
+
+--- Rendering/OpenGL2/vtkOpenGLPolyDataMapper.cxx
++++ Rendering/OpenGL2/vtkOpenGLPolyDataMapper.cxx
+@@ -1249,8 +1249,10 @@ void vtkOpenGLPolyDataMapper::ReplaceShaderLight(
+                       "      }\n"
+                       "    }\n"
+                       "  }\n"
+-                      "  radiance = lightColor"
+-                   << i << " * attenuation;\n";
++                      // Don't change this definition of radiance; vtkShadowMapPass
++                      // uses it to inject shadows.
++                      "  radiance = lightColor" << i << ";\n"
++                      "  radiance *= attenuation;\n";
+ 
+           if (hasAnisotropy)
+           {
+
+--- Rendering/OpenGL2/vtkShadowMapBakerPass.cxx
++++ Rendering/OpenGL2/vtkShadowMapBakerPass.cxx
+@@ -570,7 +570,7 @@ bool vtkShadowMapBakerPass::SetShaderParameters(vtkShaderProgram* program, vtkAb
+   vtkCamera* lightCamera = (*this->LightCameras)[this->CurrentLightIndex];
+   double* crange = lightCamera->GetClippingRange();
+ 
+-  program->SetUniformf("depthC", 11.0);
++  program->SetUniformf("depthC", ExponentialConstant);
+   program->SetUniformf("nearZ", crange[0]);
+   program->SetUniformf("farZ", crange[1]);
+ 
+
+--- Rendering/OpenGL2/vtkShadowMapBakerPass.h
++++ Rendering/OpenGL2/vtkShadowMapBakerPass.h
+@@ -106,6 +106,21 @@ public:
+   vtkGetMacro(Resolution, unsigned int);
+   ///@}
+ 
++  ///@{
++  /**
++   * Set/Get the exponential constant for the Exponential Shadow Maps. The
++   * default value is that recommended by the authors of the Exponential
++   * Shadow Map paper: 80. This represents the maximum practical value for
++   * 32-bit floating point precision in the shadow map. Values that are too
++   * small will lead to "light leaking" (where shadows get attenuated away from
++   * the light source). Larger values will cause shadows near the light to
++   * disappear.
++   */
++  vtkSetMacro(ExponentialConstant, float);
++  vtkGetMacro(ExponentialConstant, float);
++  ///@}
++  
++
+   /**
+    * INTERNAL USE ONLY.
+    * Internally used by vtkShadowMapBakerPass and vtkShadowMapPass.
+@@ -212,6 +227,7 @@ protected:
+   vtkRenderPass* CompositeZPass;
+ 
+   unsigned int Resolution;
++  float ExponentialConstant{80.0f};
+ 
+   bool HasShadows;
+ 
+
+--- Rendering/OpenGL2/vtkShadowMapPass.cxx
++++ Rendering/OpenGL2/vtkShadowMapPass.cxx
+@@ -276,7 +276,8 @@ bool vtkShadowMapPass::SetShaderParameters(vtkShaderProgram* program, vtkAbstrac
+   float transform[16];
+   std::ostringstream toString;
+ 
+-  program->SetUniformf("depthC", 11.0);
++  // We have to use the same exponential constant that was used when baking.
++  program->SetUniformf("depthC", this->ShadowMapBakerPass->GetExponentialConstant());
+   for (size_t i = 0; i < numLights; i++)
+   {
+     if (this->ShadowTextureUnits[i] >= 0)

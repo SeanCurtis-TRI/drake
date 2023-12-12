@@ -154,6 +154,7 @@ vtk_internal_repository = repository_rule(
                 "@drake//tools/workspace/vtk_internal:patches/io_image_formats.patch",  # noqa
                 "@drake//tools/workspace/vtk_internal:patches/io_image_png_messages.patch",  # noqa
                 "@drake//tools/workspace/vtk_internal:patches/io_legacy_data_reader_uninit.patch",  # noqa
+                "@drake//tools/workspace/vtk_internal:patches/pbr_shadow.patch",  # noqa
                 "@drake//tools/workspace/vtk_internal:patches/rendering_opengl2_nobacktrace.patch",  # noqa
                 "@drake//tools/workspace/vtk_internal:patches/vtkdoubleconversion_hidden.patch",  # noqa
                 "@drake//tools/workspace/vtk_internal:patches/vtkglew_hidden.patch",  # noqa
