@@ -597,7 +597,7 @@ vtkSmartPointer<vtkLight> MakeVtkLight(const LightParameter& light_param) {
     const Vector3d& p_CL_C = light_param.position;
     const Vector3d p_CL_D(p_CL_C.x(), p_CL_C.y(), -p_CL_C.z() + 1);
     light->SetPosition(p_CL_D.data());
-    const Vector3d& dir_LT_C = light_param.direction;
+    const Vector3d& dir_LT_C = light_param.direction.normalized();
     const Vector3d& dir_LT_D{dir_LT_C.x(), dir_LT_C.y(), -dir_LT_C.z()};
     const Vector3d p_CT = p_CL_D + dir_LT_D;
     // Setting the focal point on a point light is harmless.
