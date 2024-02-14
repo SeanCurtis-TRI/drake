@@ -16,6 +16,19 @@ drake_cc_vector_gen_library(
     srcs = ["bouncing_ball_vector_named_vector.yaml"],
 )
 
+drake_cc_binary(
+    name = "convex_hull",
+    srcs = ["convex_hull.cc"],
+    testonly = 1,
+    data = ["//geometry/render:test_models"],
+    deps = [
+        "//common:essential",
+        "//common:find_resource",
+        "//geometry:read_obj",
+        "@qhull_internal//:qhull",
+    ],
+)
+
 drake_cc_library(
     name = "bouncing_ball_plant",
     srcs = ["bouncing_ball_plant.cc"],
