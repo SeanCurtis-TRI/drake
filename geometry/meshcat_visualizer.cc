@@ -11,6 +11,7 @@
 #include "drake/common/extract_double.h"
 #include "drake/common/overloaded.h"
 #include "drake/geometry/meshcat_graphviz.h"
+#include "drake/geometry/proximity/polygon_to_triangle_mesh.h"
 #include "drake/geometry/proximity/volume_to_surface_mesh.h"
 #include "drake/geometry/utilities.h"
 
@@ -200,7 +201,7 @@ void MeshcatVisualizer<T>::SetObjects(
           fmt::format("{}/{}", frame_path, geom_id.get_value());
       const Rgba rgba = properties.GetPropertyOrDefault("phong", "diffuse",
                                                         params_.default_color);
-      bool used_hydroelastic = false;
+      bool use_shape = true;
       if constexpr (std::is_same_v<T, double>) {
         if (params_.show_hydroelastic) {
           auto maybe_mesh = inspector.maybe_get_hydroelastic_mesh(geom_id);
@@ -209,18 +210,32 @@ void MeshcatVisualizer<T>::SetObjects(
                          [&](const TriangleSurfaceMesh<double>* mesh) {
                            DRAKE_DEMAND(mesh != nullptr);
                            meshcat_->SetObject(path, *mesh, rgba);
-                           used_hydroelastic = true;
+                           use_shape = false;
                          },
                          [&](const VolumeMesh<double>* mesh) {
                            DRAKE_DEMAND(mesh != nullptr);
                            meshcat_->SetObject(
                                path, ConvertVolumeToSurfaceMesh(*mesh), rgba);
-                           used_hydroelastic = true;
+                           use_shape = false;
                          }},
               maybe_mesh);
         }
       }
-      if (!used_hydroelastic) {
+
+      // Proximity role favors convex hulls if available.
+      if (params_.role == Role::kProximity) {
+        const PolygonSurfaceMesh<double>* hull =
+            inspector.GetConvexHull(geom_id);
+        if (hull != nullptr) {
+          // Convert polygonal surface mesh to triangle surface mesh.
+          const TriangleSurfaceMesh<double> tri_hull =
+              MakeTriangleFromPolygonMesh(*hull);
+          meshcat_->SetObject(path, tri_hull, rgba);
+          use_shape = false;
+        }
+      }
+
+      if (use_shape) {
         meshcat_->SetObject(path, inspector.GetShape(geom_id), rgba);
       }
       meshcat_->SetTransform(path, inspector.GetPoseInFrame(geom_id));

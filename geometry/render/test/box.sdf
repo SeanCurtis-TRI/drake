@@ -26,6 +26,13 @@
           </mesh>
         </geometry>
       </visual>
+      <collision name="box">
+        <geometry>
+          <mesh>
+            <uri>package://drake/geometry/test/non_convex_mesh.obj</uri>
+          </mesh>
+        </geometry>
+      </collision>
     </link>
     <static>1</static>
   </model>

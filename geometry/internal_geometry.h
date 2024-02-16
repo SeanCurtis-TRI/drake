@@ -12,6 +12,7 @@
 #include "drake/geometry/geometry_ids.h"
 #include "drake/geometry/geometry_roles.h"
 #include "drake/geometry/internal_frame.h"
+#include "drake/geometry/proximity/polygon_surface_mesh.h"
 #include "drake/geometry/proximity/volume_mesh.h"
 #include "drake/geometry/shape_specification.h"
 #include "drake/math/rigid_transform.h"
@@ -232,6 +233,20 @@ class InternalGeometry {
     return reference_mesh_.get();
   }
 
+  /* Clears the convex hull associated with this geometry. */
+  void clear_convex_hull() { convex_hull_ = nullptr; }
+
+  /* Sets the convex hull for this geometry. */
+  void set_convex_hull(PolygonSurfaceMesh<double>&& hull) {
+    convex_hull_ =
+        std::make_unique<PolygonSurfaceMesh<double>>(std::move(hull));
+  }
+
+  /* Returns a pointer to the geometry's convex hull. */
+  const PolygonSurfaceMesh<double>* convex_hull() const {
+    return convex_hull_.get();
+  }
+
  private:
   // The specification for this instance's shape.
   copyable_unique_ptr<Shape> shape_spec_;
@@ -266,6 +281,10 @@ class InternalGeometry {
   // configuration. The vertex positions are expressed in the geometry's
   // frame, G. It's a nullptr if the geometry is rigid.
   copyable_unique_ptr<VolumeMesh<double>> reference_mesh_;
+
+  // An optional representation of the convex hull associated with this
+  // geometry.
+  copyable_unique_ptr<PolygonSurfaceMesh<double>> convex_hull_;
 };
 
 }  // namespace internal
