@@ -1,7 +1,9 @@
 #include "drake/geometry/proximity/make_convex_hull_mesh.h"
 
+#include <algorithm>
 #include <map>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <fmt/format.h>
