@@ -1495,6 +1495,13 @@ drake_cc_googletest(
 )
 
 drake_cc_googletest(
+    name = "polygon_to_triangle_mesh_test",
+    deps = [
+        ":polygon_to_triangle_mesh",
+    ],
+)
+
+drake_cc_googletest(
     name = "posed_half_space_test",
     deps = [
         ":posed_half_space",
