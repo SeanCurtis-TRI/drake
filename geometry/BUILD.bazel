@@ -711,6 +711,7 @@ filegroup(
         "test/octahedron.obj",
         "test/quad_cube.mtl",
         "test/quad_cube.obj",
+        "test/cup.obj",
     ],
 )
 
