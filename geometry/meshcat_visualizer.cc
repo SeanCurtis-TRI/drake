@@ -201,7 +201,11 @@ void MeshcatVisualizer<T>::SetObjects(
           fmt::format("{}/{}", frame_path, geom_id.get_value());
       const Rgba rgba = properties.GetPropertyOrDefault("phong", "diffuse",
                                                         params_.default_color);
+
+      // For various reasons, we may not use the geometry's Shape directly.
+      // Only use it if none of the other alternatives apply.
       bool use_shape = true;
+
       if constexpr (std::is_same_v<T, double>) {
         if (params_.show_hydroelastic) {
           auto maybe_mesh = inspector.maybe_get_hydroelastic_mesh(geom_id);
@@ -223,16 +227,14 @@ void MeshcatVisualizer<T>::SetObjects(
       }
 
       // Proximity role favors convex hulls if available.
-      if (params_.role == Role::kProximity) {
-        const PolygonSurfaceMesh<double>* hull =
-            inspector.GetConvexHull(geom_id);
-        if (hull != nullptr) {
-          // Convert polygonal surface mesh to triangle surface mesh.
-          const TriangleSurfaceMesh<double> tri_hull =
-              MakeTriangleFromPolygonMesh(*hull);
-          meshcat_->SetObject(path, tri_hull, rgba);
-          use_shape = false;
-        }
+      if (const PolygonSurfaceMesh<double>* hull = nullptr;
+          (params_.role == Role::kProximity) &&
+          (hull = inspector.GetConvexHull(geom_id))) {
+        // Convert polygonal surface mesh to triangle surface mesh.
+        const TriangleSurfaceMesh<double> tri_hull =
+            MakeTriangleFromPolygonMesh(*hull);
+        meshcat_->SetObject(path, tri_hull, rgba);
+        use_shape = false;
       }
 
       if (use_shape) {

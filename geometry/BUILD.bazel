@@ -706,6 +706,7 @@ filegroup(
         "test/convex.obj",
         "test/cube_corners.obj",
         "test/cube_with_hole.obj",
+        "test/cup.obj",
         "test/extruded_u.obj",
         "test/forbidden_two_cubes.obj",
         "test/non_convex_mesh.obj",
@@ -713,7 +714,6 @@ filegroup(
         "test/octahedron.obj",
         "test/quad_cube.mtl",
         "test/quad_cube.obj",
-        "test/cup.obj",
     ],
 )
 
@@ -863,6 +863,7 @@ drake_cc_googletest(
 
 drake_cc_googletest(
     name = "geometry_state_test",
+    data = ["//geometry:test_obj_files"],
     deps = [
         ":geometry_state",
         "//common/test_utilities",
