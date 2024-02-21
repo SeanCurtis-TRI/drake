@@ -1035,6 +1035,7 @@ class Meshcat::Impl {
     material->wireframeLineWidth = wireframe_line_width;
     material->vertexColors = false;
     material->side = side;
+    material->flatShading = true;
     data.object.material = std::move(material);
 
     internal::MeshData mesh;
@@ -1082,6 +1083,7 @@ class Meshcat::Impl {
     material->wireframeLineWidth = wireframe_line_width;
     material->vertexColors = true;
     material->side = side;
+    material->flatShading = true;
     data.object.material = std::move(material);
 
     internal::MeshData mesh;

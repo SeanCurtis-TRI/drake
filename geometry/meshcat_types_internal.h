@@ -96,10 +96,14 @@ struct MaterialData {
   // is 1.
   std::optional<double> wireframeLineWidth;
 
+  // Controls the Gouraud shading. If true, overwrites normal information in
+  // the mesh.
+  bool flatShading{false};
+
   template <typename Packer>
   // NOLINTNEXTLINE(runtime/references) cpplint disapproves of msgpack choices.
   void msgpack_pack(Packer& o) const {
-    int n = 4;
+    int n = 5;
     if (linewidth) ++n;
     if (opacity) ++n;
     if (reflectivity) ++n;
@@ -113,6 +117,7 @@ struct MaterialData {
     PACK_MAP_VAR(o, type);
     PACK_MAP_VAR(o, color);
     PACK_MAP_VAR(o, vertexColors);
+    PACK_MAP_VAR(o, flatShading);
     if (linewidth) {
       o.pack("linewidth");
       o.pack(*linewidth);

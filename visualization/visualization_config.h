@@ -52,7 +52,7 @@ struct VisualizationConfig {
 
   /** The color to apply to any proximity geometry that hasn't defined one.
   The vector must be of size three (rgb) or four (rgba). */
-  geometry::Rgba default_proximity_color{1, 0, 0, 1};
+  geometry::Rgba default_proximity_color{0.8, 0, 0, 1};
 
   /** Whether to show body inertia. */
   bool publish_inertia{true};
