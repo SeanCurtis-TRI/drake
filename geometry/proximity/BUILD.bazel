@@ -57,6 +57,7 @@ drake_cc_package_library(
         ":polygon_to_triangle_mesh",
         ":posed_half_space",
         ":sorted_triplet",
+        ":surface_mesh_to_obj",
         ":tessellation_strategy",
         ":triangle_surface_mesh",
         ":volume_mesh",
@@ -813,6 +814,16 @@ drake_cc_library(
     deps = [
         "//common:essential",
         "//common:is_less_than_comparable",
+    ],
+)
+
+drake_cc_library(
+    name = "surface_mesh_to_obj",
+    srcs = ["surface_mesh_to_obj.cc"],
+    hdrs = ["surface_mesh_to_obj.h"],
+    deps = [
+        ":polygon_surface_mesh",
+        ":triangle_surface_mesh",
     ],
 )
 

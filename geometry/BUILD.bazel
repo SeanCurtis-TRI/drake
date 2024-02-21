@@ -264,6 +264,7 @@ drake_cc_library(
         ":proximity_engine",
         ":utilities",
         "//geometry/proximity:make_convex_hull_mesh",
+        "//geometry/proximity:surface_mesh_to_obj",
         "//geometry/render:render_engine",
         "//math:gradient",
     ],

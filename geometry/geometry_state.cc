@@ -16,6 +16,7 @@
 #include "drake/geometry/geometry_instance.h"
 #include "drake/geometry/geometry_roles.h"
 #include "drake/geometry/proximity/make_convex_hull_mesh.h"
+#include "drake/geometry/proximity/surface_mesh_to_obj.h"
 #include "drake/geometry/proximity_engine.h"
 #include "drake/geometry/proximity_properties.h"
 #include "drake/geometry/render/render_engine.h"
@@ -1048,6 +1049,7 @@ void GeometryState<T>::AssignRole(SourceId source_id, GeometryId geometry_id,
   // Add a convex hull if the proximity engine needs one.
   if (geometry_engine_->NeedsConvexHull(geometry)) {
     geometry.set_convex_hull(MakeConvexHull(geometry.shape()));
+    WriteToObj("/home/seancurtis/tmp/convex_hull.obj", *geometry.convex_hull());
   }
 
   geometry_version_.modify_proximity();
