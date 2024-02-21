@@ -23,10 +23,10 @@ namespace {
 
 using Eigen::Vector3d;
 
-/* Used for ordering polygon vertices associating an ordering "score" with
- the index associated with the scored vertex. See OrderPolyVertices(). */
+/* Used for ordering polygon vertices according to their angular distance from
+ a reference direction. See OrderPolyVertices(). */
 struct VertexScore {
-  double score;
+  double angle;
   int index;
 };
 
@@ -38,6 +38,7 @@ struct VertexScore {
 
  @param vertices  The set of vertices including the polygon's vertices.
  @param v_indices The indices of the vertices that bound the polygon.
+ @param center    A point in the "center" of the polygon.
  @param n         The plane normal.
 
  @pre The polygon has at least three vertices.
@@ -46,6 +47,7 @@ struct VertexScore {
  @pre the indexed vertices are truly all planar. */
 std::vector<int> OrderPolyVertices(const std::vector<Vector3d>& vertices,
                                    const std::vector<int>& v_indices,
+                                   const Vector3d& center,
                                    const Vector3d& n) {
   DRAKE_DEMAND(vertices.size() >= 3);
   DRAKE_DEMAND(v_indices.size() >= 3);
@@ -54,31 +56,27 @@ std::vector<int> OrderPolyVertices(const std::vector<Vector3d>& vertices,
    then order the other vertices such that they wind around the normal starting
    from v0. */
 
-  /* Define a reference direction from v0 to v1, v_01. For all other vertices,
-   we'll determine how far to each side of v_01 they lie, sorting them from
-   "right most" to "left most". This is the polygon ordering. */
-  const Vector3d& p_M0 = vertices[v_indices[0]];
-  const Vector3d& p_M1 = vertices[v_indices[1]];
-  const Vector3d v_01 = (p_M1 - p_M0).normalized();
-  /* Vertex 1 has a score of 0, by construction. */
-  std::vector<VertexScore> scored_vertices{{0, v_indices[1]}};
-
-  /* Now score the remaining vertices. */
-  for (int i = 2; i < ssize(v_indices); ++i) {
-    const Vector3d& p_MI = vertices[v_indices[i]];
-    const Vector3d v_0I = (p_MI - p_M0).normalized();
-    // Vertices to the "right" of v1 will get negative scores.
-    scored_vertices.emplace_back(v_01.cross(v_0I).dot(n), v_indices[i]);
+  /* Given the direction v_C0 (direction from center vertex to vertex 0), define
+   the angle between v_C0 and v_CI for all vertices. We'll then sort the
+   vertices on the angle and get a counter-clockwise winding. */
+  const Vector3d v_C0 = (vertices[0] - center).normalized();
+  std::vector<VertexScore> scored_vertices;
+  scored_vertices.reserve(v_indices.size());
+  for (int vi : v_indices) {
+    const Vector3d& p_MI = vertices[vi];
+    const Vector3d v_CI = (p_MI - center).normalized();
+    scored_vertices.emplace_back(
+        std::atan2((v_C0.cross(v_CI).dot(n)), v_C0.dot(v_CI)), vi);
   }
 
-  /* Sort by increasing score. */
+  /* Sort by increasing angle. */
   std::sort(scored_vertices.begin(), scored_vertices.end(),
             [](const VertexScore& a, const VertexScore& b) {
-              return a.score < b.score;
+              return a.angle < b.angle;
             });
 
   /* Construct the ordered polygon. */
-  std::vector<int> ordered{{v_indices[0]}};
+  std::vector<int> ordered;
   ordered.reserve(v_indices.size());
   for (const VertexScore& vs : scored_vertices) {
     ordered.push_back(vs.index);
@@ -177,8 +175,9 @@ PolygonSurfaceMesh<double> MakeConvexHull(const Shape& shape) {
                    });
     // QHull doesn't necessarily order the vertices in the winding we want.
     const Vector3d normal(facet.hyperplane().coordinates());
+    const Vector3d center(facet.getCenter().coordinates());
     std::vector<int> ordered_vertices =
-        OrderPolyVertices(vertices_M, mesh_indices, normal);
+        OrderPolyVertices(vertices_M, mesh_indices, center, normal);
 
     // Now populate the face data.
     face_data.push_back(ssize(ordered_vertices));
