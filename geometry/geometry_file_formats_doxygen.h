@@ -4,7 +4,17 @@
 namespace drake {
 namespace geometry {
 
+TODO(SeanCurtis-TRI)
+
+  - Add image file formats
+    - textures as inputs
+    - defer image *outputs* to sensor io. 
+  - I need to rejigger this a bit so that I have room for image and geometry
+    file formats.
+
 /** @addtogroup geometry_file_formats
+
+ @section supported_file_types Supported file types
 
  Drake offers a number of primitive types for representing objects' extents in
  space. They include:
@@ -33,7 +43,7 @@ namespace geometry {
  answers to those questions clear and provide best practices. As geometry file
  format support is in flux the contents of this page will change frequently.
 
- @section supported_file_types Supported file types
+ @section supported_file_types Supported geometry file types
 
  Drake is working towards a robust and consistent treatment of supported mesh
  types. During the transitional period, support will not be consistent. For each
@@ -244,7 +254,9 @@ namespace geometry {
   4. Default diffuse color defined by geometry consumer (visualizer or render
      engine) will be applied.
 
-<!-- Foot notes for this file -->
+@section geo_supported_image_file_types Supported image file types
+
+ <!-- Foot notes for this file -->
 
 <hr>
 
