@@ -157,6 +157,8 @@ void HydroelasticContactVisualizer::Update(
                                      item.faces, colors, false);
       meshcat_->SetTransform(path + "/contact_surface",
                              RigidTransformd(-item.centroid_W));
+      meshcat_->SetProperty(path + "/contact_surface/<object>", "castShadow",
+                            false);
     }
   }
 
@@ -191,12 +193,20 @@ HydroelasticContactVisualizer::FindOrAdd(const std::string& path) {
 
   meshcat_->SetObject(path + "/force_C_W/cylinder", cylinder,
                       params_.hydro_force_color);
+  meshcat_->SetProperty(path + "/force_C_W/cylinder/<object>", "castShadow",
+                        false);
   meshcat_->SetObject(path + "/force_C_W/head", arrowhead,
                       params_.hydro_force_color);
+  meshcat_->SetProperty(path + "/force_C_W/head/<object>", "castShadow",
+                        false);
   meshcat_->SetObject(path + "/moment_C_W/cylinder", cylinder,
                       params_.hydro_moment_color);
+  meshcat_->SetProperty(path + "/moment_C_W/cylinder/<object>", "castShadow",
+                        false);
   meshcat_->SetObject(path + "/moment_C_W/head", arrowhead,
                       params_.hydro_moment_color);
+  meshcat_->SetProperty(path + "/moment_C_W/head/<object>", "castShadow",
+                        false);
   return iter->second;
 }
 

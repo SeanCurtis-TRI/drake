@@ -109,12 +109,15 @@ PointContactVisualizer::VisibilityStatus& PointContactVisualizer::FindOrAdd(
   // and opposite) forces.
   const Cylinder cylinder(params_.radius, 2.0);
   meshcat_->SetObject(path + "/cylinder", cylinder, params_.color);
+  meshcat_->SetProperty(path + "/cylinder/<object>", "castShadow", false);
   const double arrowhead_height = params_.radius * 2.0;
   const double arrowhead_width = params_.radius * 2.0;
   const MeshcatCone arrowhead(
       arrowhead_height, arrowhead_width, arrowhead_width);
   meshcat_->SetObject(path + "/head", arrowhead, params_.color);
+  meshcat_->SetProperty(path + "/head/<object>", "castShadow", false);
   meshcat_->SetObject(path + "/tail", arrowhead, params_.color);
+  meshcat_->SetProperty(path + "/tail/<object>", "castShadow", false);
 
   return iter->second;
 }

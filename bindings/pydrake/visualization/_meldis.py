@@ -623,6 +623,7 @@ class _DrawFrameApplet:
         self._meshcat.SetObject(
             path + "/x-axis", Cylinder(radius, length), Rgba(1, 0, 0, opacity)
         )
+        self._meshcat.SetProperty(path + "/x-axis", "castShadow", False)
         # y-axis
         X_TG = RigidTransform(
             RotationMatrix.MakeXRotation(np.pi / 2), [0, length / 2.0, 0]
@@ -631,11 +632,13 @@ class _DrawFrameApplet:
         self._meshcat.SetObject(
             path + "/y-axis", Cylinder(radius, length), Rgba(0, 1, 0, opacity)
         )
+        self._meshcat.SetProperty(path + "/y-axis", "castShadow", False)
         # z-axis
         X_TG = RigidTransform([0, 0, length / 2.0])
         self._meshcat.SetTransform(path + "/z-axis", X_TG)
         self._meshcat.SetObject(
             path + "/z-axis", Cylinder(radius, length), Rgba(0, 0, 1, opacity)
+        self._meshcat.SetProperty(path + "/z-axis", "castShadow", False)
         )
 
     def on_frame_update(self, channel, message):
