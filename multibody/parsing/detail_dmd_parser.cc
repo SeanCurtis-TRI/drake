@@ -86,9 +86,15 @@ void ParseModelDirectivesImpl(
       }
       for (const auto& [body_name, pose] :
                directive.add_model->default_free_body_pose) {
+        const FrameIndex frame_F =
+            pose.base_frame ? plant
+                                  ->GetFrameByName(*pose.base_frame,
+                                                   *child_model_instance_id)
+                                  .index()
+                            : plant->world_frame().index();
         plant->SetDefaultFreeBodyPose(
             plant->GetBodyByName(body_name, *child_model_instance_id),
-            pose.GetDeterministicValue());
+            pose.GetDeterministicValue(), frame_F);
       }
       info.model_instance = *child_model_instance_id;
       info.model_name = name;

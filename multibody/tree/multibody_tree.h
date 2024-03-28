@@ -3017,6 +3017,14 @@ class MultibodyTree {
   // with constraints instead.
   std::vector<MobilizerIndex> joint_to_mobilizer_;
 
+  // Encodes the default pose of a free body; the rotation, position, and frame
+  // in which it is measured and expressed.
+  struct DefaultFreeBodyPose {
+    Eigen::Quaternion<double> quat_FB;
+    Eigen::Vector3<double> p_FB;
+    FrameIndex F_index;
+  };
+
   // Maps the default body poses of all floating bodies AND bodies touched by
   // MultibodyPlant::SetDefaultFreeBodyPose(). During Finalize(), the default
   // pose of a floating body is converted to the joint index of the floating
@@ -3026,9 +3034,7 @@ class MultibodyTree {
   // match the default positions stored in the quaternion floating joints
   // without any numerical conversions and thereby avoiding roundoff errors and
   // surprising discrepancies pre and post finalize.
-  std::unordered_map<
-      BodyIndex, std::variant<JointIndex, std::pair<Eigen::Quaternion<double>,
-                                                    Vector3<double>>>>
+  std::unordered_map<BodyIndex, std::variant<JointIndex, DefaultFreeBodyPose>>
       default_body_poses_;
 
   MultibodyTreeTopology topology_;

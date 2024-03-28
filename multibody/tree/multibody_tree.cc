@@ -1008,11 +1008,12 @@ template <typename T>
 void MultibodyTree<T>::SetDefaultFreeBodyPose(
     const RigidBody<T>& body, const RigidTransform<double>& X_WB) {
   if (!default_body_poses_.contains(body.index()) ||
-      std::holds_alternative<
-          std::pair<Eigen::Quaternion<double>, Vector3<double>>>(
+      std::holds_alternative<DefaultFreeBodyPose>(
           default_body_poses_.at(body.index()))) {
-    default_body_poses_[body.index()] =
-        std::make_pair(X_WB.rotation().ToQuaternion(), X_WB.translation());
+    default_body_poses_[body.index()] = DefaultFreeBodyPose{
+        .quat_FB = X_WB.rotation().ToQuaternion(),
+        .p_FB = X_WB.translation(),
+        .F_index = world_frame().index()};
     return;
   }
   auto& joint = joints_.get_mutable_element(
@@ -1047,8 +1048,9 @@ MultibodyTree<T>::GetDefaultFreeBodyPoseAsQuaternionVec3Pair(
         joints_.get_element(std::get<JointIndex>(default_body_pose));
     return joint.GetDefaultPosePair();
   }
-  return std::get<std::pair<Eigen::Quaternion<double>, Vector3<double>>>(
-      default_body_pose);
+  const DefaultFreeBodyPose& pose =
+      std::get<DefaultFreeBodyPose>(default_body_pose);
+  return std::make_pair(pose.quat_FB, pose.p_FB);
 }
 
 template <typename T>

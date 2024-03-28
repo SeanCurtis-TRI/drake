@@ -400,8 +400,18 @@ void DoScalarDependentDefinitions(py::module m, T) {
                 const RigidTransform<T>&>(&Class::SetFreeBodyPose),
             py::arg("context"), py::arg("body"), py::arg("X_WB"),
             cls_doc.SetFreeBodyPose.doc_3args)
-        .def("SetDefaultFreeBodyPose", &Class::SetDefaultFreeBodyPose,
+        .def(
+            "SetDefaultFreeBodyPose",
+            [](Class* self, const RigidBody<T>& body,
+                const RigidTransform<double>& X_WB) {
+              self->SetDefaultFreeBodyPose(body, X_WB);
+            },
             py::arg("body"), py::arg("X_WB"),
+            R"""(Python-only overload of
+             `SetDefaultFreeBodyPose(body, X_FB, frame_F)`, where F is the
+             world frame. So, X_FB becomes X_WB and frame_F is omitted.)""")
+        .def("SetDefaultFreeBodyPose", &Class::SetDefaultFreeBodyPose,
+            py::arg("body"), py::arg("X_FB"), py::arg("frame_F") = std::nullopt,
             cls_doc.SetDefaultFreeBodyPose.doc)
         .def("GetDefaultFreeBodyPose", &Class::GetDefaultFreeBodyPose,
             py::arg("body"), cls_doc.GetDefaultFreeBodyPose.doc)

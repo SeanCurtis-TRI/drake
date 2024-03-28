@@ -18,6 +18,7 @@
 #include "drake/common/drake_deprecated.h"
 #include "drake/common/nice_type_name.h"
 #include "drake/common/random.h"
+#include "drake/common/unused.h"
 #include "drake/geometry/scene_graph.h"
 #include "drake/math/rigid_transform.h"
 #include "drake/multibody/contact_solvers/contact_solver_results.h"
@@ -3086,17 +3087,22 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
     internal_tree().SetFreeBodyPoseOrThrow(body, X_WB, context, state);
   }
 
-  /// Sets the default pose of `body`. If `body.is_floating()` is true, this
-  /// will affect subsequent calls to SetDefaultState(); otherwise, the only
-  /// effect of the call is that the value will be echoed back in
-  /// GetDefaultFreeBodyPose().
+  /// Sets the default pose of `body` described with respect to an arbitrary
+  /// frame. If `body.is_floating()` is true, this will affect subsequent calls
+  /// to SetDefaultState(); otherwise, the only effect of the call is that the
+  /// value will be echoed back in GetDefaultFreeBodyPose() and
+  /// GetDefaultFreeBodyPoseWithFrame().
   /// @param[in] body
   ///   RigidBody whose default pose will be set.
-  /// @param[in] X_WB
+  /// @param[in] X_FB
   ///   Default pose of the body.
-  void SetDefaultFreeBodyPose(const RigidBody<T>& body,
-                              const math::RigidTransform<double>& X_WB) {
-    this->mutable_tree().SetDefaultFreeBodyPose(body, X_WB);
+  /// @param[in] frame_F
+  ///   Defines the frame F. If undefined, F is the world frame.
+  void SetDefaultFreeBodyPose(
+      const RigidBody<T>& body, const math::RigidTransform<double>& X_FB,
+      std::optional<FrameIndex> frame_F = std::nullopt) {
+    unused(frame_F);
+    this->mutable_tree().SetDefaultFreeBodyPose(body, X_FB);
   }
 
   /// Gets the default pose of `body` as set by SetDefaultFreeBodyPose(). If no
