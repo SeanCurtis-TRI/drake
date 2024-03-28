@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import json
 import logging
 import numpy as np
 from pathlib import Path
@@ -153,6 +154,8 @@ class _GeometryFileHasher:
                                         re.MULTILINE):
                 for mtl_name in mtl_names.decode("utf-8").split():
                     self.on_mtl(path.parent / mtl_name)
+        elif path.suffix.lower() == ".gltf":
+            self.on_gltf(path)
 
     def on_mtl(self, path: Path):
         assert isinstance(path, Path)
@@ -164,6 +167,27 @@ class _GeometryFileHasher:
     def on_texture(self, path: Path):
         assert isinstance(path, Path)
         self._read_file(path)
+
+    def on_gltf(self, path: Path):
+        assert isinstance(path, Path)
+        byte_contents = self._read_file(path)
+        try:
+            document = json.loads(byte_contents.decode(encoding="utf-8"))
+        except:
+            _logger.warn("Parse error in glTF; resending the scene")
+            return
+
+        # Handle the images
+        if "images" in document:
+            for image in document["images"]:
+                if not image["uri"].startswith("data:"):
+                    self._read_file(path.parent / image["uri"])
+
+        # Handle the .bin file.
+        if "buffers" in document:
+            for buffer in document["buffers"]:
+                if not buffer["uri"].startswith("data:"):
+                    self._read_file(path.parent / buffer["uri"])
 
 
 class _ViewerApplet:
