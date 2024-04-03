@@ -18,7 +18,6 @@
 #include "drake/common/drake_deprecated.h"
 #include "drake/common/nice_type_name.h"
 #include "drake/common/random.h"
-#include "drake/common/unused.h"
 #include "drake/geometry/scene_graph.h"
 #include "drake/math/rigid_transform.h"
 #include "drake/multibody/contact_solvers/contact_solver_results.h"
@@ -3103,8 +3102,7 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
   void SetDefaultFreeBodyPose(
       const RigidBody<T>& body, const math::RigidTransform<double>& X_FB,
       std::optional<FrameIndex> frame_F = std::nullopt) {
-    unused(frame_F);
-    this->mutable_tree().SetDefaultFreeBodyPose(body, X_FB);
+    this->mutable_tree().SetDefaultFreeBodyPose(body, X_FB, frame_F);
   }
 
   /// Gets the default pose of `body` as set by SetDefaultFreeBodyPose(). If no

@@ -1102,10 +1102,11 @@ GTEST_TEST(MultibodyPlantTest, SetDefaultFreeBodyPose) {
   // free bodies.
   MultibodyPlant<double> plant(0.0);
   // To avoid unnecessary warnings/errors, use a non-zero spatial inertia.
-  const auto& body =
-      plant.AddRigidBody("body", SpatialInertia<double>::MakeUnitary());
-  const auto& welded_body =
-      plant.AddRigidBody("welded body", SpatialInertia<double>::MakeUnitary());
+  const auto unit_inertia = SpatialInertia<double>::MakeUnitary();
+  const auto& body = plant.AddRigidBody("body", unit_inertia);
+  const auto& welded_body = plant.AddRigidBody("welded body", unit_inertia);
+  const auto& body2 =
+      plant.AddRigidBody("posed_relative_to_body", unit_inertia);
   plant.WeldFrames(plant.world_body().body_frame(), welded_body.body_frame());
   // Default pose is identity when unset.
   EXPECT_TRUE(CompareMatrices(plant.GetDefaultFreeBodyPose(body).GetAsMatrix4(),
@@ -1115,12 +1116,26 @@ GTEST_TEST(MultibodyPlantTest, SetDefaultFreeBodyPose) {
   const RigidTransformd X_WB(RollPitchYawd(0.1, 0.2, 0.3), Vector3d(1, 2, 3));
   EXPECT_NO_THROW(plant.SetDefaultFreeBodyPose(body, X_WB));
   EXPECT_NO_THROW(plant.SetDefaultFreeBodyPose(welded_body, X_WB));
+  EXPECT_NO_THROW(
+      plant.SetDefaultFreeBodyPose(body2, X_WB, body.body_frame().index()));
   const double kTolerance = 4.0 * std::numeric_limits<double>::epsilon();
   EXPECT_TRUE(CompareMatrices(plant.GetDefaultFreeBodyPose(body).GetAsMatrix4(),
                               X_WB.GetAsMatrix4(), kTolerance));
   EXPECT_TRUE(
       CompareMatrices(plant.GetDefaultFreeBodyPose(welded_body).GetAsMatrix4(),
                       X_WB.GetAsMatrix4(), kTolerance));
+  // Body whose default pose was declared w.r.t. the world frame.
+  const auto [X_WB_observed, frame_W] =
+      plant.GetDefaultFreeBodyPoseWithFrame(body);
+  EXPECT_TRUE(CompareMatrices(X_WB_observed.GetAsMatrix34(),
+                              X_WB.GetAsMatrix34(), kTolerance));
+  EXPECT_EQ(frame_W, plant.world_frame().index());
+  // Body whose default pose was declared w.r.t. another frame.
+  const auto [X_FB_observed, frame_F] =
+      plant.GetDefaultFreeBodyPoseWithFrame(body2);
+  EXPECT_TRUE(CompareMatrices(X_FB_observed.GetAsMatrix34(),
+                              X_WB.GetAsMatrix34(), kTolerance));
+  EXPECT_EQ(frame_F, body.body_frame().index());
 
   plant.Finalize();
   EXPECT_GT(plant.num_positions(), 0);
@@ -1132,6 +1147,9 @@ GTEST_TEST(MultibodyPlantTest, SetDefaultFreeBodyPose) {
   EXPECT_TRUE(
       CompareMatrices(welded_body.EvalPoseInWorld(*context).GetAsMatrix4(),
                       RigidTransformd::Identity().GetAsMatrix4(), kTolerance));
+  // TODO: Test body2 after finalize to make sure the frame still comes through.
+  // TODO: Confirm the actual EvalPoseInWorld is the right pose. Possibly in
+  // its own test.
 }
 
 TEST_F(AcrobotPlantTests, SetRandomState) {

@@ -1006,14 +1006,15 @@ RigidTransform<T> MultibodyTree<T>::GetFreeBodyPoseOrThrow(
 
 template <typename T>
 void MultibodyTree<T>::SetDefaultFreeBodyPose(
-    const RigidBody<T>& body, const RigidTransform<double>& X_WB) {
+    const RigidBody<T>& body, const RigidTransform<double>& X_WB,
+    std::optional<FrameIndex> frame_F) {
   if (!default_body_poses_.contains(body.index()) ||
       std::holds_alternative<DefaultFreeBodyPose>(
           default_body_poses_.at(body.index()))) {
     default_body_poses_[body.index()] = DefaultFreeBodyPose{
         .quat_FB = X_WB.rotation().ToQuaternion(),
         .p_FB = X_WB.translation(),
-        .F_index = world_frame().index()};
+        .F_index = frame_F.value_or(world_frame().index())};
     return;
   }
   auto& joint = joints_.get_mutable_element(
@@ -1038,7 +1039,9 @@ template <typename T>
 std::pair<math::RigidTransform<double>, FrameIndex>
 MultibodyTree<T>::GetDefaultFreeBodyPoseWithFrame(
     const RigidBody<T>& body) const {
+  fmt::print("GetDefaultFreeBodyPoseWithFrame({})\n", body.name());
   if (!default_body_poses_.contains(body.index())) {
+    fmt::print("  No pose stored!\n");
     return {RigidTransform<double>(Eigen::Quaternion<double>::Identity(),
                                    Vector3<double>::Zero()),
             world_frame_index()};
@@ -1049,9 +1052,11 @@ MultibodyTree<T>::GetDefaultFreeBodyPoseWithFrame(
     const auto& joint =
         joints_.get_element(std::get<JointIndex>(default_body_pose));
     const auto [quat, pos] = joint.GetDefaultPosePair();
+    fmt::print("  Calling post finalize defaults to world frame.\n")
     return {RigidTransform<double>(quat, pos),
             world_frame_index()};
   }
+  fmt::print("  Calling pre-finalize returns index.\n");
   const DefaultFreeBodyPose& pose =
       std::get<DefaultFreeBodyPose>(default_body_pose);
   return {RigidTransform<double>(pose.quat_FB, pose.p_FB), pose.F_index};
