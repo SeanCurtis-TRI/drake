@@ -470,8 +470,10 @@ class Joint : public MultibodyElement<T> {
   /// implement this function.
   /// @see get_default_positions() to see the resulting q₀ after this call.
   /// @see SetDefaultPosePair() for an alternative using a quaternion
-  void SetDefaultPose(const math::RigidTransform<double>& X_FM) {
-    SetDefaultPosePair(X_FM.rotation().ToQuaternion(), X_FM.translation());
+  void SetDefaultPose(const math::RigidTransform<double>& X_FM,
+                      FrameIndex frame_index) {
+    SetDefaultPosePair(X_FM.rotation().ToQuaternion(), X_FM.translation(),
+                       frame_index);
   }
 
   /// Returns this %Joint's default pose as a RigidTransform X_FM.
@@ -487,6 +489,21 @@ class Joint : public MultibodyElement<T> {
     return math::RigidTransform(pose_pair.first, pose_pair.second);
   }
 
+  /// Returns this %Joint's default pose as a RigidTransform X_FM.
+  /// @note Currently this is implemented only for floating (6 dof) joints
+  /// which can represent any pose.
+  /// @throws std::exception if called for any %Joint type that does not
+  /// implement this function.
+  /// @returns The default pose `X_FM` as a rigid transform and the index of
+  /// frame F. In the typical case, F is the world frame.
+  /// @see get_default_positions() to see the generalized positions q₀ that this
+  ///      joint used to generate the returned transform. However, be warned
+  std::pair<math::RigidTransform<double>, FrameIndex> GetDefaultPoseInFrame()
+      const {
+    const DefaultFreeBodyPose& pose = DoGetDefaultPoseInFrame();
+    return {math::RigidTransform(pose.quat_FB, pose.p_FB), pose.F_index};
+  }
+
   // BTW These are implemented with a (quaternion,vector) pair rather than a
   // rigid transform so that we can guarantee to preserve bit-perfect results
   // when mapping a floating body default pose to the default positions of its
@@ -496,8 +513,9 @@ class Joint : public MultibodyElement<T> {
   /// pose as a (quaternion, translation vector) pair.
   /// @see SetDefaultPose() for more information
   void SetDefaultPosePair(const Quaternion<double>& q_FM,
-                          const Vector3<double>& p_FM) {
-    DoSetDefaultPosePair(q_FM, p_FM);
+                          const Vector3<double>& p_FM,
+                          FrameIndex frame_index) {
+    DoSetDefaultPosePair(q_FM, p_FM, frame_index);
   }
 
   /// (Advanced) This is the same as GetDefaultPose() except it returns this
@@ -508,6 +526,8 @@ class Joint : public MultibodyElement<T> {
       const {
     return DoGetDefaultPosePair();
   }
+
+  /// (Advanced) Returns
 
   /// @}
 
@@ -704,8 +724,9 @@ class Joint : public MultibodyElement<T> {
   /// subclass already uses (quaternion, translation) as generalized coordinates
   /// (i.e. it's a quaternion_floating_joint) it must store those exactly.
   virtual void DoSetDefaultPosePair(const Quaternion<double>& q_FM,
-                                    const Vector3<double>& p_FM) {
-    unused(q_FM, p_FM);
+                                    const Vector3<double>& p_FM,
+                                    FrameIndex frame_index) {
+    unused(q_FM, p_FM, frame_index);
     throw std::logic_error(fmt::format(
         "SetDefaultPose(): not implemented for joint type {}.", type_name()));
   }
@@ -809,6 +830,16 @@ class Joint : public MultibodyElement<T> {
   /// If the MultibodyTree has been finalized, this will return true.
   bool has_implementation() const { return implementation_ != nullptr; }
 
+  /// (Internal only) For floating joints (joints whose configuration need be
+  /// interpreted w.r.t. a particular frame), describes a pose and a frame.
+  /// Primarily used to specify default floating poses with respect to arbitrary
+  /// frames.
+  struct DefaultFreeBodyPose {
+    Eigen::Quaternion<double> quat_FB;
+    Eigen::Vector3<double> p_FB;
+    FrameIndex F_index;
+  };
+
  private:
   // Make all other Joint<U> objects a friend of Joint<T> so they can make
   // Joint<ToScalar>::JointImplementation from CloneToScalar<ToScalar>().
@@ -865,6 +896,9 @@ class Joint : public MultibodyElement<T> {
 
   // Joint default position. This vector has zero size for joints with no state.
   VectorX<double> default_positions_;
+  // If defines, specifies the frame the default positions should be interpreted
+  // as being expressed in. This only applies to *floating* joints.
+  std::optional<FrameIndex> default_positions_frame_;
 
   // The Joint<T> implementation:
   std::unique_ptr<JointImplementation> implementation_;

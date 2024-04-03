@@ -441,7 +441,9 @@ class QuaternionFloatingJoint final : public Joint<T> {
   }
 
   void DoSetDefaultPosePair(const Quaternion<double>& q_FM,
-                            const Vector3<double>& p_FM) final {
+                            const Vector3<double>& p_FM,
+                            FrameIndex frame_index) final {
+    unused(frame_index);
     VectorX<double> q(7);
     q << q_FM.w(), q_FM.vec(), p_FM;
     this->set_default_positions(q);

@@ -426,7 +426,9 @@ class RpyFloatingJoint final : public Joint<T> {
   }
 
   void DoSetDefaultPosePair(const Quaternion<double>& q_FM,
-                            const Vector3<double>& p_FM) final {
+                            const Vector3<double>& p_FM,
+                            FrameIndex frame_index) final {
+    unused(frame_index);
     const math::RollPitchYaw<double> rpy_FM(q_FM);
     VectorX<double> q(6);
     q << rpy_FM.vector(), p_FM;

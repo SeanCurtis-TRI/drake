@@ -3030,6 +3030,11 @@ class MultibodyTree {
     FrameIndex F_index;
   };
 
+  // Returns the stored default pose for the given free body. If it doesn't
+  // exist, the identity pose is returned.
+  // const DefaultFreeBodyPose& GetDefaultFreeBodyPose(
+  //     const RigidBody<T>& body) const;
+
   // Maps the default body poses of all floating bodies AND bodies touched by
   // MultibodyPlant::SetDefaultFreeBodyPose(). During Finalize(), the default
   // pose of a floating body is converted to the joint index of the floating
