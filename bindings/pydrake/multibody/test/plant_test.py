@@ -1392,6 +1392,11 @@ class TestPlant(unittest.TestCase):
             # You can't specify keywords X_WB *and* frame_F simultaneously.
             plant.SetDefaultFreeBodyPose(body=body, X_WB=X_WB_default,
                                         frame_F=plant.world_frame().index())
+        X_FB, frame_F = plant.GetDefaultFreeBodyPoseWithFrame(body=body)
+        numpy_compare.assert_float_equal(
+            X_FB.GetAsMatrix4(),
+            X_WB_default.GetAsMatrix4())
+        self.assertEqual(frame_F, plant.world_frame().index())
 
     @numpy_compare.check_all_types
     def test_port_access(self, T):

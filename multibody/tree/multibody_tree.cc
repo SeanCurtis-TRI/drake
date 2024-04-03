@@ -1018,6 +1018,7 @@ void MultibodyTree<T>::SetDefaultFreeBodyPose(
   }
   auto& joint = joints_.get_mutable_element(
       std::get<JointIndex>(default_body_poses_.at(body.index())));
+  // TODO: What about RpyFloatingJoint?
   auto* quaternion_floating_joint =
       dynamic_cast<QuaternionFloatingJoint<T>*>(&joint);
   DRAKE_DEMAND(quaternion_floating_joint != nullptr);
@@ -1029,9 +1030,31 @@ void MultibodyTree<T>::SetDefaultFreeBodyPose(
 template <typename T>
 RigidTransform<double> MultibodyTree<T>::GetDefaultFreeBodyPose(
     const RigidBody<T>& body) const {
-  const std::pair<Eigen::Quaternion<double>, Vector3<double>> pose =
-      GetDefaultFreeBodyPoseAsQuaternionVec3Pair(body);
-  return RigidTransform<double>(pose.first, pose.second);
+  auto [X_FB, _] = GetDefaultFreeBodyPoseWithFrame(body);
+  return X_FB;
+}
+
+template <typename T>
+std::pair<math::RigidTransform<double>, FrameIndex>
+MultibodyTree<T>::GetDefaultFreeBodyPoseWithFrame(
+    const RigidBody<T>& body) const {
+  if (!default_body_poses_.contains(body.index())) {
+    return {RigidTransform<double>(Eigen::Quaternion<double>::Identity(),
+                                   Vector3<double>::Zero()),
+            world_frame_index()};
+  }
+  const auto& default_body_pose = default_body_poses_.at(body.index());
+  if (std::holds_alternative<JointIndex>(default_body_pose)) {
+    // TODO: This has to include frame index.
+    const auto& joint =
+        joints_.get_element(std::get<JointIndex>(default_body_pose));
+    const auto [quat, pos] = joint.GetDefaultPosePair();
+    return {RigidTransform<double>(quat, pos),
+            world_frame_index()};
+  }
+  const DefaultFreeBodyPose& pose =
+      std::get<DefaultFreeBodyPose>(default_body_pose);
+  return {RigidTransform<double>(pose.quat_FB, pose.p_FB), pose.F_index};
 }
 
 template <typename T>

@@ -1018,6 +1018,10 @@ class MultibodyTree {
   math::RigidTransform<double> GetDefaultFreeBodyPose(
       const RigidBody<T>& body) const;
 
+  // See MultibodyPlant::GetDefaultFreeBodyPoseWithFrame.
+  std::pair<math::RigidTransform<double>, FrameIndex>
+  GetDefaultFreeBodyPoseWithFrame(const RigidBody<T>& body) const;
+
   // See MultibodyPlant::SetFreeBodyPose.
   void SetFreeBodyPoseOrThrow(
       const RigidBody<T>& body, const math::RigidTransform<T>& X_WB,

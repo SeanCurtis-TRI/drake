@@ -415,6 +415,9 @@ void DoScalarDependentDefinitions(py::module m, T) {
             cls_doc.SetDefaultFreeBodyPose.doc)
         .def("GetDefaultFreeBodyPose", &Class::GetDefaultFreeBodyPose,
             py::arg("body"), cls_doc.GetDefaultFreeBodyPose.doc)
+        .def("GetDefaultFreeBodyPoseWithFrame",
+             &Class::GetDefaultFreeBodyPoseWithFrame, py::arg("body"),
+             cls_doc.GetDefaultFreeBodyPoseWithFrame.doc)
         .def("SetActuationInArray", &Class::SetActuationInArray,
             py::arg("model_instance"), py::arg("u_instance"), py::arg("u"),
             cls_doc.SetActuationInArray.doc)

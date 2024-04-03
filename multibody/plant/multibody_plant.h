@@ -3071,6 +3071,8 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
     internal_tree().SetFreeBodyPoseOrThrow(body, X_WB, context);
   }
 
+  // TODO(SeanCurtis-TRI): Consider expanding this API to allow for specifying
+  // the pose w.r.t. arbitrary frames.
   /// Sets `state` to store the pose `X_WB` of a given `body` B in the world
   /// frame W, for a given `context` of `this` model.
   /// @note In general setting the pose and/or velocity of a body in the model
@@ -3109,9 +3111,24 @@ class MultibodyPlant : public internal::MultibodyTreeSystem<T> {
   /// pose is specified for the body, returns the identity pose.
   /// @param[in] body
   ///   RigidBody whose default pose will be retrieved.
+  ///
+  /// @note The default free body pose can be declared with respect to an
+  /// arbitrary frame F. The transform returned will be X_FB. Generally, this
+  /// will be the world frame. To be certain what the frame is, call
+  /// GetDefaultFreeBodyPoseWithFrame() instead.
   math::RigidTransform<double> GetDefaultFreeBodyPose(
       const RigidBody<T>& body) const {
     return internal_tree().GetDefaultFreeBodyPose(body);
+  }
+
+  /// Gets the default pose of `body` with its measured-and-expressed-in frame
+  /// F (as set by SetDefaultFreeBodyPose()). If no pose is specified for the
+  /// body, returns the identity pose and the world frame.
+  /// @param[in] body
+  ///   RigidBody whose default pose will be retrieved.
+  std::pair<math::RigidTransform<double>, FrameIndex>
+  GetDefaultFreeBodyPoseWithFrame(const RigidBody<T>& body) const {
+    return internal_tree().GetDefaultFreeBodyPoseWithFrame(body);
   }
 
   /// Sets `context` to store the spatial velocity `V_WB` of a given `body` B in
