@@ -1,6 +1,7 @@
 #include "drake/geometry/render/internal_gltf_parser.h"
 
 #include <gtest/gtest.h>
+#include <gmock/gmock.h>
 
 #include "drake/common/find_resource.h"
 #include "drake/geometry/geometry_roles.h"
@@ -55,10 +56,56 @@ using std::string;
       - No normals throws
       - No UVs produce mesh with all zero UVs.   
  - glTF that doesn't define materials!
-   - parser with deferred material.   
+   - parser with deferred material.
+ - embedded texture vs external texture
 */
 
-GTEST_TEST(GltfParserTest, Pyramid) {
+class GltfParserTest : public testing::Test {
+
+};
+
+/* Confirms scene selection logic:
+   - default scene specified
+     - throw for invalid index
+     - loads only scene indicated by valid index.
+   - No default scene specified
+     - No scenes, no problem.
+     - One scene, no problem.
+     - Multiple scenes, loads the zeroth scene (also makes a warning).
+   - No scenes but nodes
+     - load all nodes.
+   - No nodes, but default scene
+     - No meshes
+   - No nodes, no scenes, no returned meshes.
+   - Nodes have cycle - throw
+     - Will this be caught by the parser?
+     - What if the node listed in a scene isn't a root node?
+
+  Make sure that when a scene gets loaded it comprises multiple root nodes and
+  multiple non-root nodes.
+*/
+TEST_F(GltfParserTest, SceneSelection) {}
+
+/* Confirm that the parser successfully identifies root nodes when there are
+ no scenes. */
+// TEST_F(GltfParserTest, RootNodeIdentification) {}
+// TEST_F(GltfParserTest, XXX) {}
+// TEST_F(GltfParserTest, XXX) {}
+// TEST_F(GltfParserTest, XXX) {}
+// TEST_F(GltfParserTest, XXX) {}
+// TEST_F(GltfParserTest, XXX) {}
+// TEST_F(GltfParserTest, XXX) {}
+// TEST_F(GltfParserTest, XXX) {}
+// TEST_F(GltfParserTest, XXX) {}
+// TEST_F(GltfParserTest, XXX) {}
+// TEST_F(GltfParserTest, XXX) {}
+// TEST_F(GltfParserTest, XXX) {}
+// TEST_F(GltfParserTest, XXX) {}
+// TEST_F(GltfParserTest, XXX) {}
+// TEST_F(GltfParserTest, XXX) {}
+
+/* A holistic test to give the sense that things are actually happening. */
+TEST_F(GltfParserTest, Pyramid) {
   string gltf_path = FindResourceOrThrow(
       "drake/geometry/render/test/meshes/fully_textured_pyramid.gltf");
 
@@ -68,7 +115,20 @@ GTEST_TEST(GltfParserTest, Pyramid) {
   const auto [meshes, image_cache] =
       GltfParser(gltf_path, &policy)
           .ExtractRenderData(properties, default_diffuse);
+
+  /* One mesh with a single material. */
   ASSERT_EQ(meshes.size(), 1);
+  const auto& mesh = meshes[0];
+  /* Pyramid with square base is made up of six triangles. */
+  EXPECT_EQ(mesh.indices.rows(), 6);
+  EXPECT_TRUE(mesh.material.has_value());
+  EXPECT_EQ(mesh.material->diffuse, Rgba(1, 1, 1, 1));
+  EXPECT_FALSE(mesh.material->diffuse_map.empty());
+  EXPECT_THAT(mesh.material->diffuse_map,
+              testing::EndsWith("fully_textured_pyramid_base_color.png"));
+  EXPECT_TRUE(std::filesystem::exists(mesh.material->diffuse_map))
+      << mesh.material->diffuse_map;
+
   ASSERT_TRUE(image_cache.empty());
 }
 }  // namespace

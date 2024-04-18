@@ -20,6 +20,28 @@ using std::pair;
 using std::string;
 using std::vector;
 
+// TODO(SeanCurtis-TRI): rather than having tinygltf read all of the image
+// data from disk, we should defer that to Drake. That'll save us load time to
+// just those images we explicitly care about. This would be done by setting
+// the TINYGLTF_NO_EXTERNAL_IMAGE compiler flag and then handling all of the
+// image loading on our end. Note: this is *only* external images. Any images
+// stored as data:// uris will get decoded by tinygltf. We'd need to handle the
+// case where a material references an unsupported image type (like .ktx2).
+
+// We'll force tingltf to skip all of the ktx2 files when loading images.
+bool DontLoadKtx2Data(tinygltf::Image* image, const int image_idx,
+                      std::string* err, std::string* warn, int req_width,
+                      int req_height, const unsigned char* bytes, int size,
+                      void* user_data) {
+  if (image->uri.ends_with(".ktx2")) {
+    // The return value indicates whether there was an error; skipping is *not*
+    // an error.
+    return true;
+  }
+  return tinygltf::LoadImageData(image, image_idx, err, warn, req_width,
+                                 req_height, bytes, size, user_data);
+}
+
 /* The size of the component type in bytes. */
 int ComponentSize(int component_type) {
   switch (component_type) {
@@ -134,12 +156,6 @@ class BufferReader {
     ThrowIfInvalidIndex(buffer_index, model.buffers, accessor_owner, "buffer",
                         "", file_name);
     const tinygltf::Buffer& buffer = model.buffers.at(buffer_index);
-    if (!buffer.uri.empty()) {
-      throw std::runtime_error(fmt::format(
-          "Drake's native glTF support requires embedded glTFs. Buffer {} "
-          "has a non-empty URI in {}.",
-          buffer_index, file_name));
-    }
     byte_stride_ = buffer_view.byteStride;
     buffer_ = buffer.data.data() + accessor.byteOffset + buffer_view.byteOffset;
   }
@@ -165,6 +181,7 @@ class DRAKE_NO_EXPORT GltfParser::Impl {
       : path_(std::move(gltf_path)), policy_(*policy) {
     DRAKE_DEMAND(policy != nullptr);
     tinygltf::TinyGLTF loader;
+    loader.SetImageLoader(&DontLoadKtx2Data, nullptr);
     string error;
     string warn;
 
@@ -200,8 +217,8 @@ class DRAKE_NO_EXPORT GltfParser::Impl {
    that scene's root nodes. If no default scene can be identified, then
    all root nodes in the file are returned. */
   vector<int> FindTargetRootNodes() {
-    // The root nodes of all the hierarchies that will be instantiated (by
-    // index).
+    /* The root nodes of all the hierarchies that will be instantiated (by
+     index). */
     vector<int> root_indices;
     if (model_.scenes.size() > 0) {
       if (model_.defaultScene >= ssize(model_.scenes)) {
@@ -220,7 +237,7 @@ class DRAKE_NO_EXPORT GltfParser::Impl {
       //   until a particular scene is requested.
       //
       // See: https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#scenes
-      if (model_.defaultScene < 0) {
+      if (model_.defaultScene < 0 && ssize(model_.scenes) > 1) {
         policy_.Warning(fmt::format(
             "Parsing a glTF file with multiple scene and no explicit "
             "default scene; using the zeroth scene: '{}'.",
@@ -228,6 +245,8 @@ class DRAKE_NO_EXPORT GltfParser::Impl {
       }
       // tinygltf initializes defaultScene to -1 to indicate an undefined value
       const int scene_index = std::max(model_.defaultScene, 0);
+      /* TODO: Can I trust that these are actually root nodes? Will tinygltf
+       catch them if there's an error? */
       root_indices = model_.scenes[scene_index].nodes;
     } else {
       if (model_.nodes.size() == 0) {
@@ -344,22 +363,29 @@ class DRAKE_NO_EXPORT GltfParser::Impl {
             gltf_mat.name.empty() ? string("<unnamed>") : gltf_mat.name,
             gltf_pbr.baseColorTexture.texCoord, path_.string());
       }
-      const string image_key =
-          fmt::format("{}?image={}", path_.string(), diffuse_index);
-      material.diffuse_map = image_key;
-      if (image_cache->count(image_key) == 0) {
-        const tinygltf::Image& image = model_.images.at(diffuse_index);
-        // The image is not "as is" encoded; it has been decoded into pixels.
-        DRAKE_DEMAND(image.as_is == false);
-        RenderTexture render_image{.width = image.width,
-                                   .height = image.height,
-                                   .channels = image.component,
-                                   .bits = image.bits,
-                                   .pixel_type = image.pixel_type};
-        render_image.pixel_data.reserve(image.image.size());
-        std::copy(image.image.begin(), image.image.end(),
-                  std::back_inserter(render_image.pixel_data));
-        (*image_cache)[image_key] = std::move(render_image);
+      const tinygltf::Image& image = model_.images.at(diffuse_index);
+      if (image.uri.starts_with("data:")) {
+        // An embedded texture needs to be included in the image cache.
+        const string image_key =
+            fmt::format("{}?image={}", path_.string(), diffuse_index);
+        material.diffuse_map = image_key;
+        if (image_cache->count(image_key) == 0) {
+          // The image is not "as is" encoded; it has been decoded into pixels.
+          DRAKE_DEMAND(image.as_is == false);
+          RenderTexture render_image{.width = image.width,
+                                     .height = image.height,
+                                     .channels = image.component,
+                                     .bits = image.bits,
+                                     .pixel_type = image.pixel_type};
+          render_image.pixel_data.reserve(image.image.size());
+          std::copy(image.image.begin(), image.image.end(),
+                    std::back_inserter(render_image.pixel_data));
+          (*image_cache)[image_key] = std::move(render_image);
+        }
+      } else {
+        // This implicitly ignores the extension used ktx textures (if named).
+        material.diffuse_map =
+            (path_.parent_path() / image.uri).lexically_normal();
       }
     }
     // TODO(SeanCurtis-TRI): Debug messages for any of the other textures that
