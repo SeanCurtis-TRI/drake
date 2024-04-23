@@ -249,6 +249,12 @@ void MeshcatVisualizer<T>::SetObjects(
       }
 
       meshcat_->SetTransform(path, inspector.GetPoseInFrame(geom_id));
+      meshcat_->SetProperty(
+          path + "/<object>", "castShadow",
+          properties.GetPropertyOrDefault("meshcat", "cast_shadows", true));
+      meshcat_->SetProperty(
+          path + "/<object>", "receiveShadow",
+          properties.GetPropertyOrDefault("meshcat", "receive_shadows", true));
       geometries_[geom_id] = path;
       geometries_to_delete.erase(geom_id);  // Don't delete this one.
       frame_has_any_geometry = true;

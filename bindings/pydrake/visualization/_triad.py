@@ -112,6 +112,14 @@ def AddFrameTriadIllustration(
         X_FG = X_FT @ RigidTransform(R_TG, p_TG)
         geom = GeometryInstance(X_FG, Cylinder(radius, length), geom_name)
         phong = MakePhongIllustrationProperties(np.append(eye[i] * brightness,
+                                                          [opacity]))
+        # Don't cast or receive shadows.
+        phong.AddProperty("meshcat", "cast_shadows", False)
+        phong.AddProperty("meshcat", "receive_shadows", False)
+        # TODO(SeanCurtis-TRI) We'd like to set the emissive color to match.
+        # However, Meshcat doesn't currently allow us to do this; meshcat has
+        # to provide a service to map [r, g, b] to a THREE.Color. We can't
+        # broadcast one. Passing arbitrary javascript would also solve this.
         geom.set_illustration_properties(phong)
         geometry_id = scene_graph.RegisterGeometry(source_id, frame_id, geom)
         result.append(geometry_id)
