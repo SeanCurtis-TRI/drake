@@ -10,8 +10,9 @@ def tinygltf_internal_repository(
         sha256 = "8e9977178f948c9267897194efc3c920580fb64b353e10e98ce14a797807c791",  # noqa
         build_file = ":package.BUILD.bazel",
         patches = [
-            ":patches/vendor.patch",
+            ":patches/function_pointer.patch",
             ":patches/json.patch",
+            ":patches/vendor.patch",
         ],
         mirrors = mirrors,
     )

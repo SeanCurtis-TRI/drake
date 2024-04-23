@@ -68,6 +68,17 @@ class TextureLibrary {
    @pre The OpenGl context "partnered" to this library has been bound. */
   std::optional<GLuint> GetTextureId(const std::string& file_name);
 
+  /* Adds a set of in-memory textures to the library. The textures are presented
+   in a map with (name, texture) pairs where the name is what will be used in
+   a RenderMaterial definition.
+
+   The names should *not* be valid image names to prevent possible collision
+   with real files.
+
+   If a name already exists in the library, the texture data is *assumed* to
+   be redundant and ignored. */
+  void AddInMemoryImages(std::map<std::string, RenderTexture> image_cache);
+
   /* Reports the key to use for the texture with the given file_name.
    This resolves symlinks to prevent redundant texture definitions. */
   static std::string GetTextureKey(const std::string& file_name);

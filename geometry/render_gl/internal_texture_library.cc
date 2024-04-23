@@ -20,6 +20,32 @@ namespace drake {
 namespace geometry {
 namespace render_gl {
 namespace internal {
+namespace {
+
+// Instantiates an OpenGL texture from image data.
+GLuint MakeGlTexture(unsigned char* pixel, GLint internal_format, int width,
+                   int height) {
+  GLuint texture_id;
+  glGenTextures(1, &texture_id);
+  // This will catch the problem that an OpenGl context is not bound; we have no
+  // way to tell if the *wrong* context is bound and we create the texture in
+  // the wrong place.
+  DRAKE_ASSERT(glGetError() == GL_NO_ERROR);
+  glBindTexture(GL_TEXTURE_2D, texture_id);
+
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+  glTexImage2D(GL_TEXTURE_2D, 0, internal_format, width, height, 0,
+               internal_format, GL_UNSIGNED_BYTE, pixel);
+  glGenerateMipmap(GL_TEXTURE_2D);
+  glBindTexture(GL_TEXTURE_2D, 0);
+
+  return texture_id;
+}
+
+}  // namespace
 
 namespace fs = std::filesystem;
 
@@ -83,30 +109,41 @@ std::optional<GLuint> TextureLibrary::GetTextureId(
     return std::nullopt;
   }
 
-  GLuint texture_id;
-  glGenTextures(1, &texture_id);
-  // This will catch the problem that an OpenGl context is not bound; we have no
-  // way to tell if the *wrong* context is bound and we create the texture in
-  // the wrong place.
-  DRAKE_ASSERT(glGetError() == GL_NO_ERROR);
-  glBindTexture(GL_TEXTURE_2D, texture_id);
-
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
   unsigned char* pixel = static_cast<unsigned char*>(image->GetScalarPointer());
-  glTexImage2D(GL_TEXTURE_2D, 0, internal_format, width, height, 0,
-               internal_format, GL_UNSIGNED_BYTE, pixel);
-  glGenerateMipmap(GL_TEXTURE_2D);
-  glBindTexture(GL_TEXTURE_2D, 0);
-
+  GLuint texture_id = MakeGlTexture(pixel, internal_format, width, height);
   textures_[file_name] = texture_id;
 
   return texture_id;
 }
 
+void TextureLibrary::AddInMemoryImages(
+    std::map<std::string, RenderTexture> image_cache) {
+  // TODO: RenderTexture will become MemoryTexture and not be decoded! It will
+  // need to be decoded here.
+  for (const auto& [name, texture]) {
+    const std::string key = GetTextureKey(name);
+
+    if (textures_.contains(key)) {
+      continue;
+    }
+
+    const GLint internal_format =
+        texture.channels == 4 ? GL_RGBA : (texture.channels == 3 ? GL_RGB : 0);
+    if (internal_format == 0) {
+      continue;
+    }
+    GLuint texture_id =
+        MakeGlTexture(texture.pixel_data.data(), internal_format, texture.width,
+                      texture.height);
+    textures_[key] = texture_id;
+  }
+}
+
 std::string TextureLibrary::GetTextureKey(const std::string& file_name) {
+  if (file_name.starts_with("data:")) {
+    return file_name;
+  }
+
   const fs::path path_in(file_name);
   const fs::path file_path =
       fs::is_symlink(path_in) ? fs::read_symlink(path_in) : path_in;

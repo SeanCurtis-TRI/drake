@@ -2,6 +2,8 @@
 
 #include <filesystem>
 #include <optional>
+#include <string>
+#include <vector>
 
 #include "drake/common/diagnostic_policy.h"
 #include "drake/geometry/geometry_properties.h"
@@ -15,6 +17,15 @@ namespace internal {
  should only be applied to meshes with *fully* assigned UVs. */
 enum class UvState { kNone, kFull, kPartial };
 
+/* An image file whose bytes are stored in memory instead of on disk (i.e., the
+ bytes of a jpg, png, etc.) It will still need to be decoded to produce a
+ useful image. */
+struct MemoryImageFile {
+  std::string mime_type;
+  std::vector<unsigned char> bytes;
+};
+
+// TODO: Delete this and replace it with MemoryImageFile.
 struct RenderTexture {
   int width{};
   int height{};

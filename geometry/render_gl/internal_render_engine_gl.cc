@@ -39,6 +39,7 @@ using render::RenderEngine;
 using render::RenderLabel;
 using std::make_shared;
 using std::make_unique;
+using std::map;
 using std::set;
 using std::shared_ptr;
 using std::string;
@@ -1289,16 +1290,22 @@ void RenderEngineGl::CacheFileMeshesMaybe(const std::string& filename,
   const std::string file_key = GetPathKey(filename, /*is_convex=*/false);
 
   if (!meshes_.contains(file_key)) {
-    // Note: either the obj has defined its own material or it hasn't. If it
+    // Note: either the mesh has defined its own material or it hasn't. If it
     // has, that material will be defined in the RenderMesh and that material
     // will be saved in the cache, forcing every instance to use that material.
     // If it hasn't defined its own material, then every instance must define
     // its own material. Either way, we don't require whatever properties were
     // available when we triggered this cache update. That's why we simply pass
     // a set of empty properties -- to emphasize its independence.
-    const vector<RenderMesh> meshes = LoadRenderMeshesFromFile(
+    vector<RenderMesh> meshes;
+    map<string, RenderTexture> embedded_images;
+    std::tie(meshes, embedded_images) = LoadRenderMeshesFromFile(
         filename, PerceptionProperties(), parameters_.default_diffuse,
         drake::internal::DiagnosticPolicy());
+
+    // The set of images that are *actually* being used (for now, we're omitting
+    // normal, occlusion, metallness, etc.)
+    map<string, RenderTexture> used_images;
     vector<RenderGlMesh> file_meshes;
     for (const auto& render_mesh : meshes) {
       int mesh_index = CreateGlGeometry(render_mesh);
@@ -1310,14 +1317,19 @@ void RenderEngineGl::CacheFileMeshesMaybe(const std::string& filename,
       file_meshes.push_back(
           {.mesh_index = mesh_index, .uv_state = render_mesh.uv_state});
 
-      // Only store materials defined by the obj file; otherwise let instances
-      // define their own (see ImplementMeshesForFile()).
       DRAKE_DEMAND(render_mesh.material.has_value());
       const RenderMaterial& material = *render_mesh.material;
+      // Only store materials defined by the mesh file; otherwise let instances
+      // define their own (see ImplementMeshesForFile()).
       if (material.from_mesh_file) {
         file_meshes.back().mesh_material = material;
+        if (embedded_images.contains(material.diffuse_map)) {
+          used_images.insert(material.diffuse_map,
+                             embedded_images.at(material.diffuse_map));
+        }
       }
     }
+    texture_library_->AddInMemoryImages(std::move(used_images));
     meshes_[file_key] = std::move(file_meshes);
   }
 }

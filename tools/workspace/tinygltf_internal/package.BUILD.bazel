@@ -14,14 +14,20 @@ cc_library(
     srcs = ["tiny_gltf.cc"],
     hdrs = ["tiny_gltf.h"],
     defines = [
-        # TODO: I'm not sure what happens if we disable images.
-        "TINYGLTF_NO_STB_IMAGE_WRITE"
+        # Don't bother reading external images during glTF parsing; we'll handle
+        # while processing the resulting RenderMaterial.
+        "TINYGLTF_NO_EXTERNAL_IMAGE",
+        # TODO: Eliminate the stb requirement by passing the encoded bits into
+        # RenderTexture and decode in TextureLibrary.
+        "TINYGLTF_NO_STB_IMAGE",
+        "TINYGLTF_NO_STB_IMAGE_WRITE",
+
     ],
     includes = ["."],
     linkstatic = 1,
     deps = [
         "@nlohmann_internal//:nlohmann",
-        "@stb_internal//:stb",
+        # "@stb_internal//:stb",
     ]
 )
 

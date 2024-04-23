@@ -52,28 +52,26 @@ namespace internal {
   - triangle fan vs triangle strip vs triangles
 */
 
-/* Parses a glTF file into one or more RenderMesh instances and a related image
- cache. */
-class GltfParser {
- public:
-  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(GltfParser);
+/* Parses the indicated glTF file, returning the set of RenderMeshes found. For
+ any embedded, base64-encoded image contains within the glTF, the bytes of the
+ image (as a png/jpg/whatever) will be returned in map of MemoryImageFile. The
+ key is the name that would appear as a texture map name in the RenderMesh's
+ RenderMaterial and can be used as a viable texture name in the TextureLibrary.
+ */
+std::pair<std::vector<RenderMesh>, std::map<std::string, MemoryImageFile>>
+GetRenderMeshesFromGltf(std::filesystem::path gltf_path,
+                        const GeometryProperties& properties,
+                        const Rgba& default_diffuse,
+                        const drake::internal::DiagnosticPolicy& policy);
 
-  /* Constructs a parser to parse the glTF at the given path. */
-  GltfParser(std::filesystem::path gltf_path,
-             const drake::internal::DiagnosticPolicy* policy);
-
-  ~GltfParser();
-
-  /* Creates the RenderMesh instances and image cache for this parser's gltf
-   path. */
-  std::pair<std::vector<RenderMesh>, std::map<std::string, RenderTexture>>
-  ExtractRenderData(const GeometryProperties& properties,
-                    const Rgba& default_diffuse);
-
- private:
-  class Impl;
-  Impl* impl_{};
-};
+/* (internal) An entry point to facilitate testing. Generally, we assume that
+ the glTF files will be consumed from file paths. */
+std::pair<std::vector<RenderMesh>, std::map<std::string, MemoryImageFile>>
+GetRenderMeshesFromGltfFromString(
+    std::string_view gltf_contents, const GeometryProperties& properties,
+    const Rgba& default_diffuse,
+    const drake::internal::DiagnosticPolicy& policy,
+    std::filesystem::path gltf_path = "<memory>");
 
 }  // namespace internal
 }  // namespace geometry

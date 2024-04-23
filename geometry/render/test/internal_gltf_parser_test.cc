@@ -4,6 +4,7 @@
 #include <gmock/gmock.h>
 
 #include "drake/common/find_resource.h"
+#include "drake/common/test_utilities/expect_throws_message.h"
 #include "drake/geometry/geometry_roles.h"
 
 namespace drake {
@@ -86,11 +87,17 @@ class GltfParserTest : public testing::Test {
 */
 TEST_F(GltfParserTest, SceneSelection) {}
 
-/* Confirm that the parser successfully identifies root nodes when there are
+/* Confirms that the parser successfully identifies root nodes when there are
  no scenes. */
-// TEST_F(GltfParserTest, RootNodeIdentification) {}
-// TEST_F(GltfParserTest, XXX) {}
-// TEST_F(GltfParserTest, XXX) {}
+TEST_F(GltfParserTest, RootNodeIdentification) {}
+
+/* Confirms that embedded textures are reported properly in the image cache. */
+TEST_F(GltfParserTest, EmbeddedTextures) {}
+
+/* Confirms that images with URIs pointing to external files git mapped into
+ the render material. */
+TEST_F(GltfParserTest, ExternalTextures) {}
+
 // TEST_F(GltfParserTest, XXX) {}
 // TEST_F(GltfParserTest, XXX) {}
 // TEST_F(GltfParserTest, XXX) {}
@@ -113,8 +120,7 @@ TEST_F(GltfParserTest, Pyramid) {
   const PerceptionProperties properties;
   const Rgba default_diffuse(0.25, 0.5, 0.75, 0.25);
   const auto [meshes, image_cache] =
-      GltfParser(gltf_path, &policy)
-          .ExtractRenderData(properties, default_diffuse);
+      GetRenderMeshesFromGltf(gltf_path, properties, default_diffuse, policy);
 
   /* One mesh with a single material. */
   ASSERT_EQ(meshes.size(), 1);
@@ -131,6 +137,35 @@ TEST_F(GltfParserTest, Pyramid) {
 
   ASSERT_TRUE(image_cache.empty());
 }
+
+// The core logic is tested via the "...FromString()" overload. This is simply
+// going to confirm that the file-path overload handles non-existent glTFs and
+// calls the FromString() successfully.
+TEST_F(GltfParserTest, FromFilePath) {
+  string gltf_path = FindResourceOrThrow(
+      "drake/geometry/render/test/meshes/fully_textured_pyramid.gltf");
+
+  DiagnosticPolicy policy;
+  const PerceptionProperties properties;
+  const Rgba default_diffuse(0.25, 0.5, 0.75, 0.25);
+
+  // Valid path produces valid results.
+  {
+    const auto [meshes, image_cache] =
+        GetRenderMeshesFromGltf(gltf_path, properties, default_diffuse, policy);
+    // A single existing mesh indicates that ...FromString() was invoked.
+    EXPECT_EQ(meshes.size(), 1);
+  }
+
+  // An invalid path produces a meaningful error message.
+  {
+    DRAKE_EXPECT_THROWS_MESSAGE(
+        GetRenderMeshesFromGltf("bad_path.gltf", properties, default_diffuse,
+                                policy),
+        ".*Unable to read.*bad_path.gltf.*");
+  }
+}
+
 }  // namespace
 }  // namespace internal
 }  // namespace geometry
