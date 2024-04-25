@@ -17,8 +17,8 @@ namespace {
 
 using drake::internal::DiagnosticPolicy;
 using Eigen::Matrix4d;
-using Eigen::Vector2d;
 using Eigen::Vector3d;
+using Eigen::Vector4d;
 using std::map;
 using std::pair;
 using std::string;
@@ -50,6 +50,29 @@ int ComponentSize(int component_type) {
   }
 }
 
+/* Reports the dimension of the requested element. */
+int ElementDimension(int element_type) {
+  switch (element_type) {
+    case TINYGLTF_TYPE_VEC2:
+      return 2;
+    case TINYGLTF_TYPE_VEC3:
+      return 3;
+    case TINYGLTF_TYPE_VEC4:
+      return 4;
+    case TINYGLTF_TYPE_MAT2:
+      return 4;
+    case TINYGLTF_TYPE_MAT3:
+      return 9;
+    case TINYGLTF_TYPE_MAT4:
+      return 16;
+    case TINYGLTF_TYPE_SCALAR:
+      return 1;
+    default:
+      throw std::runtime_error(
+          fmt::format("{} (invalid element type)", element_type));
+  }
+}
+
 template <typename Element>
 static void ThrowIfInvalidIndex(int index, const std::vector<Element>& array,
                                 std::string_view container_name,
@@ -63,35 +86,22 @@ static void ThrowIfInvalidIndex(int index, const std::vector<Element>& array,
   }
 }
 
-/* Convenience class for reading entries from a glTF buffer *for meshes*.*/
-class BufferReader {
+
+/* Provide a uniform interface to reading data from a glTF buffer. This will
+ enable us to extract vertex positions, normals, texture coordinates, and
+ triangle definitions (indices). More particularly, these quantities typically
+ need to be transformed, e.g., vertex positions and normals need to be expressed
+ in Drake's z-up frame.
+ 
+ The buffer being read from can consists of different scalar types (referred to
+ as "component types" in glTF.). */
+class BufferView {
  public:
-  DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(BufferReader);
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(BufferView);
 
-  /* Creates a zero-filled dummy reader that can write out zeros for
-   `count` elements each consisting of `byte_size` number of bytes. */
-  BufferReader(int count, int byte_size) {
-    const int total_bytes = count * byte_size;
-    owned_buffer_ = vector<unsigned char>(total_bytes, 0);
-    buffer_ = owned_buffer_.data();
-    end_ = buffer_ + total_bytes;
-    element_count_ = count;
-    byte_size_ = byte_size;
-    byte_stride_ = 0;
-  }
-
-  /* Constructs the reader for triangle indices. */
-  BufferReader(int tri_accessor_index, const tinygltf::Model& model,
-               const std::string& file_name) {
-    ThrowIfInvalidIndex(tri_accessor_index, model.accessors, "mesh primitive",
-                        "accessor", " for its indices", file_name);
-    Initialize(model.accessors.at(tri_accessor_index),
-               "mesh primitive's indices", model, file_name);
-  }
-
-  /* Constructs the reader on the model for the indexed accessor. The `model`
-   parameter is aliased by this instance and must outlive it. */
-  BufferReader(const tinygltf::Primitive& primitive,
+  /* Constructs the view on a primitive's attribute. The `model` parameter is
+   aliased by this instance and must outlive it. */
+  BufferView(const tinygltf::Primitive& primitive,
                const std::string& attribute, const tinygltf::Model& model,
                const std::string& file_name) {
     const auto iter = primitive.attributes.find(attribute);
@@ -101,34 +111,99 @@ class BufferReader {
           accessor_index, model.accessors, "mesh primitive", "accessor",
           fmt::format(" for the {} attribute", attribute), file_name);
       const tinygltf::Accessor& accessor = model.accessors.at(accessor_index);
+      // TODO: Configure to dispatch vertex_count Vec3<double> or vec2<double>.
       Initialize(accessor,
                  fmt::format("mesh primitive's {} attribute", attribute), model,
                  file_name);
+    } else if (attribute == "TEXCOORD_0") {
+      /* We've requested TEXCOORD_0, but it's not defined. So, we'll configure
+       the view to return 2 * V zeros (two 0-valued texture coordinates per
+       vertex). */
+      const auto pos_iter = primitive.attributes.find("POSITION");
+      DRAKE_DEMAND(pos_iter != primitive.attributes.end());
+      const tinygltf::Accessor& accessor = model.accessors.at(pos_iter->second);
+      element_count_ = accessor.count;
+      /* This is the default value, but we want to underscore here that it
+       *must* be zero to get the "auto-zeros" behavior. */
+      buffer_ = nullptr;
+      /* These last two values don't matter, but we'll initialize them to be
+       conceptually consistent with the expected behavior. */
+      components_per_element_ = 2;
+      component_type_ = TINYGLTF_COMPONENT_TYPE_DOUBLE;
     }
   }
 
-  /* Returns the number of elements this reader can produce. */
+  /* Constructs the reader for triangle indices. */
+  BufferView(int tri_accessor_index, const tinygltf::Model& model,
+               const std::string& file_name) {
+    ThrowIfInvalidIndex(tri_accessor_index, model.accessors, "mesh primitive",
+                        "accessor", " for its indices", file_name);
+    Initialize(model.accessors.at(tri_accessor_index),
+               "mesh primitive's indices", model, file_name);
+    /* Triangle indices report as 1-dimensional elements: scalars indicating
+     indices. We're going to reshape it here into a Tx3 block of indices. */
+    DRAKE_DEMAND(components_per_element_ == 1);
+    DRAKE_DEMAND(element_count_ % 3 == 0);
+    components_per_element_ = 3;
+    element_count_ /= 3;
+  }
+
+  /* Reports the number of elements. */
   int count() const { return element_count_; }
 
-  /* Writes a contiguous block of data from the ith element in the buffer to
-   the given pointer. */
-  void WriteElement(int i, void* data) {
-    DRAKE_DEMAND(i >= 0 && i < element_count_);
-    std::memcpy(data, buffer_ + (i * byte_stride_), byte_size_);
+  /* Reports if the view has defined values. If it is undefined, SetAttribute()
+   will return all zeros. */
+  bool is_defined() const { return buffer_ == nullptr; }
+
+  /* Populates a Vxd matrix of Target from these attributes (if compatible).
+   V is the number of elements and d is the dimension of the element.
+
+   @throws if this view is incompatible for reasons such as a) wrong element
+              dimension, b) the type cannot be implicitly converted to a Target,
+              etc. */
+  template <typename Target, int dimension>
+  Eigen::Matrix<Target, Eigen::Dynamic, dimension, Eigen::RowMajor>
+  GetValues() const {
+    DRAKE_DEMAND(components_per_element_ == dimension);
+
+    // Simply output zeros.
+    if (buffer_ == nullptr) {
+      return Eigen::Matrix<Target, Eigen::Dynamic, dimension,
+                           Eigen::RowMajor>::Zero(element_count_, dimension);
+    }
+
+    switch (component_type_) {
+      case TINYGLTF_COMPONENT_TYPE_BYTE:
+        return GetValuesFromType<char, Target, dimension>();
+      case TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE:
+        return GetValuesFromType<unsigned char, Target, dimension>();
+      case TINYGLTF_COMPONENT_TYPE_SHORT:
+        return GetValuesFromType<short, Target, dimension>();
+      case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT:
+        return GetValuesFromType<unsigned short, Target, dimension>();
+      case TINYGLTF_COMPONENT_TYPE_INT:
+        return GetValuesFromType<int, Target, dimension>();
+      case TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT:
+        return GetValuesFromType<unsigned int, Target, dimension>();
+      case TINYGLTF_COMPONENT_TYPE_FLOAT:
+        return GetValuesFromType<float, Target, dimension>();
+      case TINYGLTF_COMPONENT_TYPE_DOUBLE:
+        return GetValuesFromType<double, Target, dimension>();
+      default:
+        throw std::runtime_error(
+            fmt::format("{} (invalid component type)", component_type_));
+    }
   }
 
  private:
+
   /* Initializes the buffer reader for the given accessor. */
   void Initialize(const tinygltf::Accessor& accessor,
                   std::string_view accessor_owner, const tinygltf::Model& model,
                   const std::string& file_name) {
     element_count_ = accessor.count;
-    const int component_count = ComponentSize(accessor.componentType);
-    /* Tinygltf swaps the glTF strings with encoded ints in accessor.type. The
-     number of components in the accessor type are encoded in the lowest
-     *five* bits (because the largest possible value is 16). */
-    const int component_size = (accessor.type & 0x1f);
-    byte_size_ = component_count * component_size;
+    component_type_ = accessor.componentType;
+    components_per_element_ = ElementDimension(accessor.type);
 
     const int bufferView_index = accessor.bufferView;
     ThrowIfInvalidIndex(bufferView_index, model.bufferViews, accessor_owner,
@@ -140,20 +215,64 @@ class BufferReader {
                         "", file_name);
     const tinygltf::Buffer& buffer = model.buffers.at(buffer_index);
     byte_stride_ = buffer_view.byteStride;
+    DRAKE_DEMAND(byte_stride_ == 0 ||
+                 byte_stride_ >=
+                     components_per_element_ * ComponentSize(component_type_));
     buffer_ = buffer.data.data() + accessor.byteOffset + buffer_view.byteOffset;
   }
 
-  const unsigned char* buffer_{};
-  const unsigned char* end_{};
-  /* The number of elements. */
+  /* Takes the Nx3 matrix of component type Source in the view's buffer and
+   converts it to an Nx3 matrix of Target. */
+  template <typename Source, typename Target, int dimension>
+  Eigen::Matrix<Target, Eigen::Dynamic, dimension, Eigen::RowMajor>
+  GetValuesFromType() const {
+    /* The data is tightly packed, as signalled by a 0-valued byte stride. */
+    if (byte_stride_ == 0) {
+      auto from_buffer =
+          Eigen::Map<const Eigen::Matrix<Source, Eigen::Dynamic, dimension,
+                                         Eigen::RowMajor>>(
+              reinterpret_cast<const Source*>(buffer_), element_count_,
+              dimension);
+      return from_buffer.template cast<Target>();
+    }
+
+    /* We have interleaved data and need to select it out carefully. */
+    Eigen::Matrix<Source, Eigen::Dynamic, dimension, Eigen::RowMajor>
+        from_buffer(element_count_, dimension);
+    for (int e = 0; e < element_count_; ++e) {
+      from_buffer.row(e) = Eigen::Map<const Eigen::Vector<Source, dimension>>(
+          reinterpret_cast<const Source*>(buffer_ + e * byte_stride_));
+    }
+    return from_buffer.template cast<Target>();
+  }
+
+  /* The underlying buffer data aliased from the `model` parameter provided to
+   the constructor. If null, accessors should simply return zeros (used for
+   models without texture coordinates). */
+  const unsigned char* buffer_{nullptr};
+
+  /* The number of elements in the view. The definition of "element" depends
+   on the data the view is looking at; it could be a triple of ints (a triangle)
+   or a vector normal (triple of doubles). */
   int element_count_{};
-  /* The size of a single element (e.g., 1-byte for scalar byte, 12 bytes for
-   Vec3 of floats). */
-  int byte_size_{};
-  /* The distance (in bytes) between elements in the buffer. */
-  int byte_stride_{};
-  /* For the dummy reader, a vector of zeros. */
-  std::vector<unsigned char> owned_buffer_{};
+
+  /* The dimensionality of this view's elements (i.e., 1 for scalars, 2 for
+   Vector2, etc.) See `component_type_` below. */
+  int components_per_element_{};
+
+  /* The type of the component stored in the buffer (byte, int, float, etc.).
+   The name "component type" is taken from glTF. */
+  int component_type_{};
+
+  /* As documented by glTF, this is the "The stride, in bytes, between vertex
+   attributes." If zero, the bytes are tightly packed. We interpret that to mean
+   that, regardless of the *size* of the component (byte, short, int, etc.)
+   and the dimension of the element, if the first element is found at address
+   p, the next element is at address p + byte_stride_. Implicit in this is the
+   assumption that byte_stride_ >= sizeof(element).
+  
+  (https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#_bufferview_bytestride)*/
+  int byte_stride_{0};
 };
 
 /* Simply returns the indices of all nodes that have no parents (are root
@@ -212,6 +331,11 @@ vector<int> FindTargetRootNodes(
     /* TODO: Can I trust that these are actually root nodes? Will tinygltf
      catch them if there's an error? */
     root_indices = model.scenes[scene_index].nodes;
+    if (root_indices.empty()) {
+      policy.Error(fmt::format(
+          "Error parsing a glTF file; the 0th scene had no root nodes. '{}'.",
+          path.string()));
+    }
   } else {
     if (model.nodes.size() == 0) {
       policy.Error(fmt::format(
@@ -242,28 +366,30 @@ RenderMaterial MakeGltfMaterial(const tinygltf::Model& model,
   const vector<double>& gltf_rgba = gltf_pbr.baseColorFactor;
   material.diffuse =
       Rgba(gltf_rgba[0], gltf_rgba[1], gltf_rgba[2], gltf_rgba[3]);
-  const int diffuse_index = gltf_pbr.baseColorTexture.index;
+  const bool valid_uv_set = gltf_pbr.baseColorTexture.texCoord == 0;
+  if (!valid_uv_set) {
+    // TODO(SeanCurtis-TRI) Would this be better as a one-time warning?
+    log()->debug(
+        "Drake's support for glTF files only includes zero-indexed texture "
+        "coordinates. The material '{}' specifies texture coordinate set {}. "
+        "These texture coordinates will be ignored. '{}'.",
+        gltf_mat.name.empty() ? string("<unnamed>") : gltf_mat.name,
+        gltf_pbr.baseColorTexture.texCoord, path.string());
+  }
+  const int diffuse_index = valid_uv_set ? gltf_pbr.baseColorTexture.index : -1;
   if (diffuse_index >= 0) {
-    if (gltf_pbr.baseColorTexture.texCoord != 0) {
-      // TODO(SeanCurtis-TRI) Would this be better as a one-time warning?
-      log()->debug(
-          "Drake's native support of glTF files only includes zero-indexed "
-          "texture coordinates. The material '{}' specifies texture "
-          "coordinate set {} in {}.",
-          gltf_mat.name.empty() ? string("<unnamed>") : gltf_mat.name,
-          gltf_pbr.baseColorTexture.texCoord, path.string());
-    }
     const tinygltf::Image& image = model.images.at(diffuse_index);
-    if (image.uri.starts_with("data:")) {
+    // If the image *format* is unsupported, that will get reported downstream
+    // (in the TextureLibrary).
+    if (image.uri.starts_with("embedded:")) {
       material.diffuse_map = image.uri;
     } else {
-      // This implicitly ignores the extension used ktx textures (if named).
       material.diffuse_map =
           (path.parent_path() / image.uri).lexically_normal();
     }
   }
-  // TODO(SeanCurtis-TRI): Debug messages for any of the other textures that
-  // we're currently not supporting.
+  // TODO(SeanCurtis-TRI): One-time warning messages for any of the other
+  // textures that we're currently not supporting.
   return material;
 }
 
@@ -287,97 +413,102 @@ void AccumulateMeshData(const tinygltf::Model& model, const fs::path& path,
     return;
   }
 
-  BufferReader tri_data(prim.primitive->indices, model, path.string());
-  BufferReader pos_data(*prim.primitive, "POSITION", model, path.string());
+  /* Triangle data. */
+  const BufferView tri_data(prim.primitive->indices, model, path.string());
+
+  /* Vertex positions. */
+  const BufferView pos_data(*prim.primitive, "POSITION", model, path.string());
   DRAKE_DEMAND(pos_data.count() > 0);
-  // No normals is a failure.
-  BufferReader norm_data(*prim.primitive, "NORMAL", model, path.string());
+
+  /* Vertex normals. */
+  const BufferView norm_data(*prim.primitive, "NORMAL", model, path.string());
   if (norm_data.count() == 0) {
-    // The current practice for parsing an OBJ without normals is to simply
-    // throw, so we'll treat glTF the same.
+    /* In parsing other mesh file formats (e.g., .obj), we throw when normals
+     are missing. We'll continue that behavior here. */
     throw std::runtime_error(fmt::format(
         "Drake's native support of glTF files requires that all primitives "
         "define normals. At least one primitive is missing normals. {}",
         path.string()));
   }
 
-  // When parsing an OBJ, if there are no texture coordinates, we set the
-  // primitives to all zeros and mark the uv state appropriately. To maintain
-  // compatibility, we'll do the same here.
-  BufferReader uv_data(*prim.primitive, "TEXCOORD_0", model, path.string());
-  if (uv_data.count() == 0) {
-    // Replace the buffer reader with a zero-valued reader. A single texture
-    // coordinate is 2 floats, for a size of 8 bytes.
-    uv_data = BufferReader(pos_data.count(), 8);
-    if (render_mesh->uv_state == UvState::kFull) {
-      render_mesh->uv_state = UvState::kPartial;
-    }
-  } else {
+  /* Texture coordinates. */
+  const BufferView uv_data(*prim.primitive, "TEXCOORD_0", model, path.string());
+  if (uv_data.is_defined()) {
+    /* The model provided texture coordinates for *this* primitive, update the
+     RenderMesh accordingly. */
     if (render_mesh->uv_state == UvState::kNone) {
-      // If the render mesh hasn't accumulated any geometry yet, the current
-      // uv state is meaningless and we can simply set to full. Otherwise,
-      // "none" means previous primitives lacked UVs, so it becomes partial.
-      if (render_mesh->positions.rows() == 0) {
+      /* If the render mesh hasn't accumulated any geometry yet, the current
+       uv state is meaningless and we can simply set to full. Otherwise,
+       "none" means previous primitives lacked UVs, so it becomes partial. */
+      if (render_mesh->positions.rows() == 0) { 
         render_mesh->uv_state = UvState::kFull;
       } else {
         render_mesh->uv_state = UvState::kPartial;
       }
     }
-  }
-
-  DRAKE_DEMAND(pos_data.count() == norm_data.count());
-  DRAKE_DEMAND(pos_data.count() == uv_data.count());
-
-  /* The map from indices in the glTF file to indices in the RenderMesh.  */
-  map<int, int> gltf_vertex_to_new_vertex;
-  /* Accumulators for vertex positions, normals, and uvs. We can't write */
-  vector<Vector3d> positions(pos_data.count());
-  vector<Vector3d> normals(pos_data.count());
-  vector<Vector2d> uvs(pos_data.count());
-
-  /* Note: tri_data should have 3*N entries; each entry is an index into the
-   vertices. */
-  DRAKE_DEMAND(tri_data.count() % 3 == 0);
-  const int tri_count = tri_data.count() / 3;
-  const int tri_offset = render_mesh->indices.rows();
-  render_mesh->indices.resize(tri_offset + tri_count, 3);
-
-  /* The number of pre-existing vertices in the render_mesh. */
-  const int v_offset = render_mesh->positions.size();
-  int local_index = 0;
-  for (int i = 0; i < tri_data.count(); ++i) {
-    int v_index = 0;
-    // N.B. If the glTF has stored indices as shorts, we're assuming
-    // appropriate endianness, such that the two bytes written to this four
-    // byte int will report the right value.
-    tri_data.WriteElement(i, &v_index);
-    if (gltf_vertex_to_new_vertex.count(v_index) > 0) {
-      continue;
+  } else {
+    /* This primitive doesn't have texture coordinates; demote the RenderMesh
+     if necessary. */
+    if (render_mesh->uv_state == UvState::kFull) {
+      render_mesh->uv_state = UvState::kPartial;
     }
-    const int new_index = v_offset + local_index;
-    gltf_vertex_to_new_vertex[v_index] = new_index;
-    pos_data.WriteElement(i, positions[local_index].data());
-    norm_data.WriteElement(i, normals[local_index].data());
-    uv_data.WriteElement(i, uvs[local_index].data());
-    ++local_index;
-
-    const int tri_index = i / 3;
-    const int tri_vert_index = i % 3;
-    render_mesh->indices(tri_index, tri_vert_index) = new_index;
   }
 
-  // Now I need to concatenate the vectors I've made to render mesh's
-  // data.
-  //  1. Resize each of the arrays by the number of vertices I have.
-  //  2. Write.
-  render_mesh->positions.resize(v_offset + ssize(positions), 3);
-  render_mesh->normals.resize(v_offset + ssize(positions), 3);
-  render_mesh->uvs.resize(v_offset + ssize(positions), 2);
-  for (int v = 0; v < ssize(positions); ++v) {
-    render_mesh->positions.row(v + v_offset) = positions[v];
-    render_mesh->normals.row(v + v_offset) = normals[v];
-    render_mesh->uvs.row(v + v_offset) = uvs[v];
+  /* All vertex attributes line up. */
+  const int add_v_count = pos_data.count();
+  DRAKE_DEMAND(add_v_count == norm_data.count());
+  DRAKE_DEMAND(add_v_count == uv_data.count());
+
+  /* Extract and transform the triangle data from the buffer. The vertex indices
+   may need to be offset based on the concatenation operation. */
+  auto tris = tri_data.GetValues<unsigned int, 3>();
+  const int prev_v_count = render_mesh->positions.rows();
+  if (prev_v_count > 0) {
+    /* The presence of vertex data requires index remapping. */
+    const auto offset = Vector3<unsigned int>::Constant(
+        static_cast<unsigned int>(prev_v_count));
+    for (int r = 0; r < tris.rows(); ++r) {
+      tris.row(r) += offset;
+    }
   }
+
+  /* Vertex attribute data must likewise be transformed to eliminate the
+   transforms internal to the glTF file and then re-express in Drake's z-up
+   frame. */
+  auto pos = pos_data.GetValues<double, 3>();
+  auto norm = norm_data.GetValues<double, 3>();
+  auto uvs = uv_data.GetValues<double, 2>();
+
+  Eigen::Matrix4d X_DF;
+  // clang-format off
+  X_DF << 1, 0,  0, 0,
+          0, 0, -1, 0,
+          0, 1,  0, 0,
+          0, 0,  0, 1;
+  // clang-format on
+  Eigen::Matrix4d T_DN = X_DF * prim.T_FN;
+  for (int v = 0; v < add_v_count; ++v) {
+    const Vector4d p_FV(pos.row(v)[0], pos.row(v)[1], pos.row(v)[2], 1.0);
+    pos.row(v) = (T_DN * p_FV).head<3>();
+    /* TODO: Normals need to be scaled by the *inverse* scale. For non-identity
+     scale, I'll need to extract the scale (and the orientation of that
+     scale vector to apply it to the normals -- and then re-normalize). */
+    norm.row(v) = T_DN.block<3, 3>(0, 0) * norm.row(v).transpose();
+  }
+
+  /* Now concatenate the new data onto the old. */
+  render_mesh->positions.resize(prev_v_count + add_v_count, 3);
+  render_mesh->positions.block(prev_v_count, 0, add_v_count, 3) = pos;
+
+  render_mesh->normals.resize(prev_v_count + add_v_count, 3);
+  render_mesh->normals.block(prev_v_count, 0, add_v_count, 3) = norm;
+
+  render_mesh->uvs.resize(prev_v_count + add_v_count, 2);
+  render_mesh->uvs.block(prev_v_count, 0, add_v_count, 2) = uvs;
+
+  const int old_tri_count = render_mesh->indices.rows();
+  render_mesh->indices.resize(old_tri_count + tris.rows(), 3);
+  render_mesh->indices.block(old_tri_count, 0, tris.rows(), 3) = tris;
 }
 
 /* Creates a transform from the given `nodes` data. */
@@ -501,6 +632,12 @@ MakeRenderMeshesFromNodes(const tinygltf::Model& model, const fs::path& path,
       render_mesh.material = MakeGltfMaterial(model, path, mat_index);
     }
 
+    // TODO(SeanCurtis-TRI): It would be better to enumerate the buffers spanned
+    // by these primitives. Currently, each time a buffer is referenced, it
+    // gets copied into the RenderMesh again. Instead, the vertex data should
+    // get copied once, and the referenced multiple times. Or, better yet, if
+    // we have multiple instances of a single buffer (material and all), it
+    // should be instanced in the render engine as well.
     for (const PosedPrimitive& posed_prim : primitives) {
       AccumulateMeshData(model, path, posed_prim, &render_mesh);
     }
@@ -546,7 +683,7 @@ GetRenderMeshesFromGltfFromString(std::string_view gltf_contents,
     // We'll create a uri for this in-memory image that can be referenced
     // in the texture library.
     const string image_key =
-        fmt::format("data:{}?image={}", gltf_path.string(), image_index);
+        fmt::format("embedded:{}?image={}", gltf_path.string(), image_index);
     image->uri = image_key;
     DRAKE_DEMAND(!image->mimeType.empty());
     vector<unsigned char> data(bytes, bytes + size);

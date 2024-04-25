@@ -195,8 +195,11 @@ drake_cc_googletest(
     deps = [
         ":internal_gltf_parser",
         "//common:find_resource",
+        "//common/test_utilities:eigen_matrix_compare",
         "//common/test_utilities:expect_throws_message",
         "//geometry:geometry_roles",
+        "//math:geometric_transform",
+        "@nlohmann_internal//:nlohmann",
     ],
 )
 
