@@ -748,6 +748,7 @@ RenderEngineGl::~RenderEngineGl() {
 
   // Delete vertex array objects.
   for (auto& geometry : geometries_) {
+    // TODO: We're deleting the vertex arrays but not the buffers.
     glDeleteVertexArrays(1, &geometry.vertex_array);
   }
 
