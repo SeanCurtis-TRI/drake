@@ -248,6 +248,9 @@ class RenderEngineGl final : public render::RenderEngine, private ShapeReifier {
   void CacheFileMeshesMaybe(const std::string& filename,
                             RegistrationData* data);
 
+  std::vector<RenderGlMesh> DoCacheGltfMeshes(const std::string& filename,
+                                              RegisterationData* data);
+
   // Given the render type, returns the texture configuration for that render
   // type. These are the key arguments for glTexImage2D based on the render
   // type. They include:
@@ -288,7 +291,9 @@ class RenderEngineGl final : public render::RenderEngine, private ShapeReifier {
 
   // Given a geometry that has its buffers (and vertex counts assigned), ties
   // all of the buffer data into the vertex array attributes.
-  void CreateVertexArray(OpenGlGeometry* geometry) const;
+  // @pre the geometry.vertex_buffer contains `v_count` number of vertex
+  // positions, normals, and texture coordinates (all as floats).
+  void CreateVertexArray(OpenGlGeometry* geometry, int v_count) const;
 
   // Updates the vertex arrays in all of the OpenGlGeometry instances owned by
   // this render engine.
@@ -399,6 +404,7 @@ class RenderEngineGl final : public render::RenderEngine, private ShapeReifier {
   // OpenGlGeometry, RenderGlMesh, Part, and Prop are probably overly opaque.
   // I need a succinct summary of how all of these moving pieces work together
   // with clear delineation of roles.
+
 
   // A data struct that includes the index into geometries_ containing the
   // OpenGlGeometry representation and an optional material definition of the

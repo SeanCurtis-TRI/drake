@@ -22,6 +22,7 @@ namespace geometry {
 namespace render_gl {
 namespace internal {
 
+using Eigen::Matrix4d;
 using Eigen::Vector2d;
 using Eigen::Vector3d;
 using geometry::internal::LoadRenderMeshesFromFile;
@@ -1036,8 +1037,7 @@ void RenderEngineGl::RenderAt(const ShaderProgram& shader_program,
       //  three times. Stored, I'd cast once.
       shader_program.SetModelViewMatrix(X_CW, instance.X_WG, instance.scale);
 
-      glDrawElements(GL_TRIANGLES, geometry.index_buffer_size, GL_UNSIGNED_INT,
-                     0);
+      glDrawElements(geometry.mode, geometry.index_count, geometry.type, 0);
     }
   }
   // Unbind the vertex array back to the default of 0.
@@ -1291,48 +1291,451 @@ void RenderEngineGl::CacheFileMeshesMaybe(const std::string& filename,
   const std::string file_key = GetPathKey(filename, /*is_convex=*/false);
 
   if (!meshes_.contains(file_key)) {
-    // Note: either the mesh has defined its own material or it hasn't. If it
-    // has, that material will be defined in the RenderMesh and that material
-    // will be saved in the cache, forcing every instance to use that material.
-    // If it hasn't defined its own material, then every instance must define
-    // its own material. Either way, we don't require whatever properties were
-    // available when we triggered this cache update. That's why we simply pass
-    // a set of empty properties -- to emphasize its independence.
-    vector<RenderMesh> meshes;
-    map<string, RenderTexture> embedded_images;
-    std::tie(meshes, embedded_images) = LoadRenderMeshesFromFile(
-        filename, PerceptionProperties(), parameters_.default_diffuse,
-        drake::internal::DiagnosticPolicy());
-
-    // The set of images that are *actually* being used (for now, we're omitting
-    // normal, occlusion, metallness, etc.)
-    map<string, RenderTexture> used_images;
     vector<RenderGlMesh> file_meshes;
-    for (const auto& render_mesh : meshes) {
-      int mesh_index = CreateGlGeometry(render_mesh);
-      DRAKE_DEMAND(mesh_index >= 0);
+    if (extension == ".obj") {
+      // TODO: Move this into DoCacheObjMeshesMaybe().
 
-      geometries_[mesh_index].throw_if_undefined(
-          fmt::format("Error creating object for mesh {}", filename).c_str());
+      // Note: either the mesh has defined its own material or it hasn't. If it
+      // has, that material will be defined in the RenderMesh and that material
+      // will be saved in the cache, forcing every instance to use that
+      // material. If it hasn't defined its own material, then every instance
+      // must define its own material. Either way, we don't require whatever
+      // properties were available when we triggered this cache update. That's
+      // why we simply pass a set of empty properties -- to emphasize its
+      // independence.
+      vector<RenderMesh> meshes = LoadRenderMeshesFromObj(
+          filename, PerceptionProperties(), parameters_.default_diffuse,
+          drake::internal::DiagnosticPolicy());
 
-      file_meshes.push_back(
-          {.mesh_index = mesh_index, .uv_state = render_mesh.uv_state});
+      for (const auto& render_mesh : meshes) {
+        int mesh_index = CreateGlGeometry(render_mesh);
+        DRAKE_DEMAND(mesh_index >= 0);
 
-      DRAKE_DEMAND(render_mesh.material.has_value());
-      const RenderMaterial& material = *render_mesh.material;
-      // Only store materials defined by the mesh file; otherwise let instances
-      // define their own (see ImplementMeshesForFile()).
-      if (material.from_mesh_file) {
-        file_meshes.back().mesh_material = material;
-        if (embedded_images.contains(material.diffuse_map)) {
-          used_images.insert(material.diffuse_map,
-                             embedded_images.at(material.diffuse_map));
+        geometries_[mesh_index].throw_if_undefined(
+            fmt::format("Error creating object for mesh {}", filename).c_str());
+
+        file_meshes.push_back(
+            {.mesh_index = mesh_index, .uv_state = render_mesh.uv_state});
+
+        DRAKE_DEMAND(render_mesh.material.has_value());
+        const RenderMaterial& material = *render_mesh.material;
+        // Only store materials defined by the mesh file; otherwise let
+        // instances define their own (see ImplementMeshesForFile()).
+        if (material.from_mesh_file) {
+          file_meshes.back().mesh_material = material;
+        }
+      }
+    } else {
+      file_meshes = DoCacheGltfMeshes(filename, data);
+    }
+    meshes_[file_key] = std::move(file_meshes);
+  }
+}
+
+namespace {
+
+/* Simply returns the indices of all nodes that have no parents (are root
+ nodes). It searches *all* the nodes, unconstrained by what may or may not be
+ indicated by the model's scenes. */
+vector<int> FindAllRootNodes(const tinygltf::Model& model) {
+  vector<bool> has_parent(model.nodes.size(), false);
+  for (const auto& node : model.nodes) {
+    for (int child_index : node.children) {
+      has_parent[child_index] = true;
+    }
+  }
+  vector<int> roots;
+  for (int n = 0; n < ssize(has_parent); ++n) {
+    if (!has_parent[n]) {
+      roots.push_back(n);
+    }
+  }
+  return roots;
+}
+
+/* Identifies the source scene from the glTF file and returns the indices of
+ that scene's root nodes. If no default scene can be identified, then
+ all root nodes in the file are returned. */
+vector<int> FindTargetRootNodes(
+    const tinygltf::Model& model, const std::filesystem::path& path,
+    const drake::internal::DiagnosticPolicy& policy) {
+  /* The root nodes of all the hierarchies that will be instantiated (by
+   index). */
+  vector<int> root_indices;
+  if (model.scenes.size() > 0) {
+    if (model.defaultScene >= ssize(model.scenes)) {
+      policy.Error(fmt::format(
+          "Error parsing a glTF file; it defines {} scenes but has an "
+          "invalid value for the \"scene\" property: {}. '{}'. No geometry "
+          "will be added.",
+          model.scenes.size(), model.defaultScene, path.string()));
+      return root_indices;
+    }
+    // TODO(SeanCurtis-TRI): I need to decide if this *deserves* a warning. It
+    // is not clear if blindly picking the zeroth scene is consistent with the
+    // glTF spec, which states (EMPHASIS mine):
+    //
+    //   When scene is undefined, client implementations MAY delay rendering
+    //   until a particular scene is requested.
+    //
+    // See: https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#scenes
+    if (model.defaultScene < 0 && ssize(model.scenes) > 1) {
+      policy.Warning(
+          fmt::format("Parsing a glTF file with multiple scene and no explicit "
+                      "default scene; using the zeroth scene: '{}'.",
+                      path.string()));
+    }
+    // tinygltf initializes defaultScene to -1 to indicate an undefined value
+    const int scene_index = std::max(model.defaultScene, 0);
+    /* TODO: Can I trust that these are actually root nodes? Will tinygltf
+     catch them if there's an error? */
+    root_indices = model.scenes[scene_index].nodes;
+    if (root_indices.empty()) {
+      policy.Error(fmt::format(
+          "Error parsing a glTF file; the 0th scene had no root nodes. '{}'.",
+          path.string()));
+    }
+  } else {
+    if (model.nodes.size() == 0) {
+      policy.Error(fmt::format(
+          "Error parsing a glTF file; it has no scenes and no nodes. '{}'.",
+          path.string()));
+    }
+    root_indices = FindAllRootNodes(model);
+    if (root_indices.empty() && model.nodes.size() > 0) {
+      policy.Error(
+          fmt::format("Error parsing a glTF file; none of its {} nodes are "
+                      "root nodes. '{}'.",
+                      model.nodes.size(), path.string()));
+    }
+  }
+  return root_indices;
+}
+
+/* Specifies a particular vertex attribute for an OpenGlGeometry instance. This
+ assumes that there exists a vertex buffer object (VBO) to which these various
+ parameters apply. */
+struct VertexAttrib {
+  /* The index for this attribute as defined by the shaders. To match the
+   shaders this value must be 0 for position, 1 for normals, and 2 for uvs. */
+  int attribute_index{};
+  /* Number of values per element; e.g., 3 values per position, etc. */
+  int components_per_element{};
+  /* Offset into the corresponding buffer at which this data starts. */
+  int byte_offset{};
+  /* The byte distance between subsequent elements. Zero is a valid value;
+   OpenGL will assume compact representation and use a stride equal to
+   `components_per_element * sizeof(value_type). */
+  int stride{};
+  /* The numeric type of the individual values (e.g., int, float, etc.). */
+  GLenum value_type{};
+};
+
+/* Specifies the vertex data for an OpenGlGeometry. Note: if no specification is
+ provided for a given set of attributes, its components_per_element will be
+ zero. */
+struct VertexSpec {
+  VertexAttrib positions;
+  VertexAttrib normals;
+  VertexAttrib uvs;
+};
+
+class GltfParser {
+ public:
+  /* Given a set of glTF root nodes (indicated by index), returns a collection
+   of RenderGlMesh instances that represent the objects.
+   
+   @pre There is an active OpenGl context. */
+  vector<RenderGlMesh> BuildGeometriesFromRootNodes(
+      const vector<int>& root_nodes, const tinygltf::TinyGLTF& model,
+      std::vector<OpenGlGeometry>* geometries) {
+    vector<RenderGlMesh> result;
+    const Matrix4d I = Matrix4d::Identity();
+    for (int root_index : root_indices) {
+      WalkRootTree(root_index, model, I, &result, geometries);
+    }
+    return result;
+  }
+
+  /* Given the name of the glTF mesh.primitive attribute, reports the attribute
+   index that needs to be used to match the data to the shader definitions. */
+  static int GetAttributeIndex(std::string_view attr_name) {
+    if (attr_name == "POSITION") {
+      return 0;
+    } else if (attr_name == "NORMAL") {
+      return 1;
+    } else if (attr_name == "TEXCOORD_0") {
+      return 2;
+    }
+    DRAKE_UNREACHABLE();
+  }
+
+  /* Creates the description of the named attribute (and the buffer in which the
+   attribute data lives.
+   
+   @returns  A pair consisting of the attribute specification and its buffer.
+             If undefined, the buffer will be -1.
+   @throws std::exception if the requested attribute is missing (unless it is
+                          "TEXCOORD_0"). */
+  static std::pair<VertexAttrib, int> GetAttribute(
+      std::string_view attr_name, const tinygltf::Primitive& prim,
+      const tinygltf::Model& model) {
+    const auto iter = prim.attributes.find(attr_name);
+    VertexAttrib attribute;
+    int buffer_index{-1};
+    if (iter != attributes.end()) {
+      const int accessor_index = iter->second;
+      const tinygltf::Accessor& accessor = model.accessors.at(accessor_index);
+      const tinygltf::BufferView& buffer_view =
+          model.bufferViews.at(accessor.bufferView);
+
+      attribute.attribute_index = GetAttributeIndex(attr_name);
+      attribute.components_per_element =
+          tinygltf::GetNumComponentsInTYpe(accessor.type);
+      attribute.byte_offset = accessor.byteOffset + bufferView.byteOffset;
+      attribute.stride = accessor.ByteStride(buffer_view);
+      attribute.value_type = accessor.componentType;
+
+      buffer_index = buffer_view.buffer;
+    } else if (attr != "TEXCOORD_0") {
+      throw std::runtime_error(
+          fmt::format("RenderEngineGl has limited support for glTF files. "
+                      "Primitives must define both 'POSITION' and 'NORMAL' "
+                      "attributes. The primitive '{}' is missing the attribute "
+                      "'{}'.",
+                      prim.name.empty() ? "unnamed" : prim.name, attr_name));
+    }
+    return {attribute, buffer_index};
+  }
+
+  void WalkRootTree(int node_index, const tinygltf::TinyGLTF& model,
+                    const Matrix4d& T_FP, vector<RenderGlMesh>* result,
+                    std::vector<OpenGlGeometry>* geometries) {
+    const tinygltf::Node& node = model.nodes.at(node_index);
+
+    const Matrix4d T_PN = EigenMatrixFromNode(node);
+    const Matrix4d T_FN = T_FP * T_PN;
+    if (node.mesh >= 0) {
+      const tinygltf::Mesh& mesh = model.meshes.at(node.mesh);
+      for (const tinygltf::Primitive& prim : mesh.primitives) {
+        const auto [p_attr, p_buffer] = GetAttribute("POSITION", prim, model);
+        const auto [n_attr, n_buffer] = GetAttribute("NORMAL", prim, model);
+        const auto [uv_attr, uv_buffer] =
+            GetAttribute("TEXCOORD_0", prim, model);
+
+        if (p_buffer != n_buffer ||
+            (uv_buffer != -1 && uv_buffer != p_buffer)) {
+          throw std::runtime_error(fmt::format(
+              "RenderEngineGl has limited support for glTF files. All "
+              "primitives attributes must ultimately reference the same "
+              "buffer. The primitive '{}' has attributes referencing multiple "
+              "buffers.",
+              prim.name.empty() ? "unnamed" : prim.name, attr_name));
+        }
+
+        VertexSpec vertex_spec{
+            .positions = p_attr, .normals = n_attr, .uvs = uv_attr};
+
+        OpenGlGeometry geometry;
+        geometry.vertex_buffer = GetOpenGlBuffer(p_buffer, model);
+        ConfigureIndexBuffer(prim, model, &geometry);
+
+        // Assign vertex buffer and
+        CreateVertexArray(&geometry, vertex_spec);
+
+        const int g_index ssize(*geometries);
+        geometries->push_back(geometry);
+        // Handle the material.
+
+        // This needs to be registered with the render engine.
+      }
+    }
+    for (int child_index : node.children) {
+      WalkRootTree(child_index, model, T_FN, get_buffer, result);
+    }
+  }
+
+ private:
+  /* Returns the name of the OpenGL buffer that contains the data in the glTF
+   buffer indicated by `buffer_index` (creating the OpenGL object as needed).
+   
+   Note: the buffer is created in the current active context and only deleted
+   *with the context*. */
+  GLuint GetOpenGlBuffer(int buffer_index, const tinygltf::Model& model) {
+    if (buffers_.contains(buffer_index)) {
+      return buffers_.at(buffer_index);
+    }
+    const tinygltf::Buffer& buffer = model.buffers.at(buffer_index);
+    GLuint buffer_id;
+    glCreateBuffers(1, &buffer_id);
+    glNamedBufferStorage(buffer_id, buffer.byteLength, buffer.data.data(), 0);
+    buffers_[buffer_index] = buffer_id;
+    return buffer_id;
+  };
+
+  /* Configures the given `geometry` with the appropriate index data as
+   extracted from the given primitive (`prim`). This may include creating a new
+   buffer object. Upon successful completion, the `geometry` will have its
+   index_buffer, index_count, type, and mode configured.
+
+   @pre `prim.indices` names an accessor that can be interpreted as element
+        indices.
+   
+   Note: the buffer is created in the current active context and only deleted
+   *with the context*. */
+  void ConfigureIndexBuffer(const tinygltf::Primitive& prim,
+                            const tinygltf::Model& model,
+                            OpenGlGeometry* geometry) {
+    DRAKE_DEMAND(geometry != nullptr);
+    if (prim.indices == -1) {
+      throw std::runtime_error(fmt::format(
+          "RenderEngineGl has limited support for glTF files. All meshes "
+          "must be indexed. The primitive '{}' does not define 'indicies'.",
+          prim.name.empty() ? "unnamed" : prim.name, attr_name));
+    }
+    if (!index_buffers_.contains(prim.indices)) {
+      const tinygltf::Accessor& accessor = model.accessors.at(prim.indices);
+      DRAKE_DEMAND(accesssor.type == TINYGLTF_TYPE_SCALAR);
+      const tinygltf::BufferView& buffer_view =
+          model.bufferViews(accessor.bufferView);
+      if (buffer_view.byteStride != 0) {
+        throw std::runtime_error(
+            fmt::format("RenderEngineGl has limited support for glTF files. "
+                        "Primitive indices must be compactly stored in a "
+                        "buffer. The buffer view '{}' ({}) (referenced by "
+                        "primitive '{}') has non-zero stride length: {}.",
+                        buffer_view.name.empty() ? "unnamed" : buffer_view.name,
+                        accessor.buffer_view,
+                        prim.name.empty() ? "unnamed" : prim.name,
+                        buffer_view.byteStride));
+      }
+      const int offset = accessor.byteOffset + buffer_view.byteOffset;
+      const tinygltf::Buffer& buffer = model.buffer(buffer_view.buffer);
+
+      GLuint buffer_id;
+      glCreateBuffers(1, &buffer_id);
+      glNamedBufferStorage(buffer_id, buffer.byteLength,
+                          buffer.data.data() + offset, 0);
+      index_buffers_[prim.indices] = {.buffer = buffer_id,
+                                      .count = accessor.count,
+                                      .type = accessor.type};
+    }
+    const IndexBuffer& indices = index_buffers_.at(prim.indices);
+    geometry->index_buffer = indices.buffer;
+    geometry->index_count = indices.count;
+    geometry->type = indices.type;
+    geometry->mode = prim.mode;
+  }
+
+  /* Creates a transform from the given `nodes` data. */
+  static Matrix4d EigenMatrixFromNode(const tinygltf::Node& node) {
+    Matrix4d T;
+    if (node.matrix.size() == 16) {
+      // For glTF, transform matrix is a *column-major* matrix.
+      int i = -1;
+      for (int c = 0; c < 4; ++c) {
+        for (int r = 0; r < 4; ++r) {
+          T(r, c) = node.matrix.at(++i);
+        }
+      }
+    } else {
+      T = Matrix4d::Identity();
+      if (node.translation.size() > 0) {
+        DRAKE_DEMAND(node.translation.size() == 3);
+        const Vector3d p(node.translation.at(0), node.translation.at(1),
+                         node.translation.at(2));
+        T.block<3, 1>(0, 3) = p.transpose();
+      }
+      if (node.rotation.size() > 0) {
+        DRAKE_DEMAND(node.rotation.size() == 4);
+        const Quaternion<double> quat(node.rotation[3], node.rotation[0],
+                                      node.rotation[1], node.rotation[2]);
+        T.block<3, 3>(0, 0) = math::RotationMatrixd(quat).matrix();
+      }
+      if (node.scale.size() > 0) {
+        DRAKE_DEMAND(node.scale.size() == 3);
+        for (int i = 0; i < 3; ++i) {
+          T.block<3, 1>(0, i) *= node.scale.at(i);
         }
       }
     }
-    texture_library_->AddInMemoryImages(std::move(used_images));
-    meshes_[file_key] = std::move(file_meshes);
+    return T;
   }
+
+ /* A map from a buffer in the glTF file (named by its index) to a buffer in
+  OpenGl.
+
+  TODO(SeanCurtis-TRI): We're loading the whole buffer into a single
+  OpenGl buffer. This typically includes both vertex attributes and primitive
+  indices. However, the indices should be contained in their *own* buffer.
+  (See https://registry.khronos.org/OpenGL/extensions/ARB/ARB_vertex_buffer_object.txt).
+  `index_buffers_` below stores the buffers with those indices. Eventually, we
+  might choose to be less redundant in the buffers we allocate. */
+ map<int, GLuint> buffers_;
+
+ struct IndexBuffer {
+   GLuint buffer;
+   int count;
+   GLenum type;
+ };
+
+ /* A map from a glTF accessor (named by its index) used as a primitive indices
+  to the corresponding OpenGL index buffer. */
+ map<int, IndexBuffer> index_buffers_;
+};
+
+}  // namespace
+
+vector<RenderGlMesh> RenderEngineGl::DoCacheGltfMeshes(
+    const std::string& filename, RegisterationData* data) {
+  drake::internal::DiagnosticPolicy policy;
+
+  tinygltf::TinyGLTF loader;
+
+  // We capture all of the images embedded in the glTF file using this callback.
+  map<string, MemoryImageFile> embedded_images;
+  auto load_image_cb =
+      [&embedded_images, &gltf_path](
+          tinygltf::Image* image, const int image_index, std::string* /*err*/,
+          std::string* /*warn*/, int /*req_width*/, int /*req_height*/,
+          const unsigned char* bytes, int size, void* /*user_data*/) -> bool {
+    // We'll create a uri for this in-memory image that can be referenced
+    // in the texture library.
+    const string image_key =
+        fmt::format("embedded:{}?image={}", gltf_path.string(), image_index);
+    image->uri = image_key;
+    DRAKE_DEMAND(!image->mimeType.empty());
+    vector<unsigned char> data(bytes, bytes + size);
+    embedded_images.insert(
+        {image_key, MemoryImageFile{image->mimeType, std::move(data)}});
+    return true;
+  };
+  loader.SetImageLoader(load_image_cb, nullptr);
+
+  string error;
+  string warn;
+
+  tinygltf::Model model;
+  const bool valid_parse =
+      loader.LoadASCIIFromFile(&model, &error, &warn, filename);
+
+  if (!valid_parse) {
+    throw std::runtime_error(fmt::format("Failed parsing the glTF file: {}: {}",
+                                         gltf_path.string(), error));
+  }
+
+  /* We better not get any errors if we have a valid parse. */
+  DRAKE_DEMAND(error.empty());
+  if (!warn.empty()) {
+    policy.Warning(warn);
+  }
+
+  /* The root nodes of all the hierarchies that will be instantiated (by
+   index). */
+  vector<int> root_indices = FindTargetRootNodes(model, gltf_path, policy);
+
+  vector<RenderGlMesh> meshes =
+      GltfParser().BuildGeometriesFromRootNodes(root_indices, model);
 }
 
 std::tuple<GLint, GLenum, GLenum> RenderEngineGl::get_texture_format(
@@ -1443,6 +1846,8 @@ int RenderEngineGl::CreateGlGeometry(const RenderMesh& render_mesh,
   DRAKE_ASSERT(opengl_context_->IsCurrent());
 
   OpenGlGeometry geometry;
+  geometry.type = GL_TRIANGLES;
+  geometry.mode = GL_UNSIGNED_INT;
 
   // Create the vertex buffer object (VBO).
   glCreateBuffers(1, &geometry.vertex_buffer);
@@ -1485,10 +1890,9 @@ int RenderEngineGl::CreateGlGeometry(const RenderMesh& render_mesh,
                        render_mesh.indices.size() * sizeof(GLuint),
                        render_mesh.indices.data(), 0);
 
-  geometry.index_buffer_size = render_mesh.indices.size();
+  geometry.index_count = render_mesh.indices.size();
 
-  geometry.v_count = v_count;
-  CreateVertexArray(&geometry);
+  CreateVertexArray(&geometry, v_count);
 
   // Note: We won't need to call the corresponding glDeleteVertexArrays or
   // glDeleteBuffers. The meshes we store are "canonical" meshes. Even if a
@@ -1500,7 +1904,39 @@ int RenderEngineGl::CreateGlGeometry(const RenderMesh& render_mesh,
   return index;
 }
 
-void RenderEngineGl::CreateVertexArray(OpenGlGeometry* geometry) const {
+// Adds the vertex array object definition to the given `geometry` based on the
+// given vertex spec.
+// @pre geometry->vertex_buffer and geometry->index_buffer have already been
+// defined.
+// @pre if vertex_data->uvs.components_per_element == 0, then the texture shader
+// should never be assigned to the resulting OpenGlGeometry.
+void RenderEngineGl::CreateVertexArray(OpenGlGeometry* geometry,
+                                       const VertexSpec& vertex_spec) const {
+  // Confirm that the context is allocated.
+  DRAKE_ASSERT(opengl_context_->IsCurrent());
+
+  glCreateVertexArrays(1, &geometry->vertex_array);
+
+  auto init_array = [&g = *geometry](const VertexAttrib& props) {
+    glVertexArrayVertexBuffer(g.vertex_array, props.attribute_index,
+                              g.vertex_buffer, props.byte_offset, props.stride);
+    glVertexArrayAttribFormat(g.vertex_array, props.attribute_index,
+                              props.components_per_element, props.value_type,
+                              GL_FALSE, 0);
+    glEnableVertexArrayAttrib(g.vertex_array, props.attribute_index);
+  };
+  init_array(vertex_spec->positions);
+  init_array(vertex_spec->normals);
+  if (vertex_spec->uvs.components_per_element > 0) {
+    init_array(vertex_spec->uvs);
+  }
+
+  // Bind index buffer object (IBO) with the vertex array object (VAO).
+  glVertexArrayElementBuffer(geometry->vertex_array, geometry->index_buffer);
+}
+
+void RenderEngineGl::CreateVertexArray(OpenGlGeometry* geometry,
+                                       int v_count) const {
   // Confirm that the context is allocated.
   DRAKE_ASSERT(opengl_context_->IsCurrent());
 
@@ -1520,7 +1956,7 @@ void RenderEngineGl::CreateVertexArray(OpenGlGeometry* geometry) const {
   glVertexArrayAttribFormat(geometry->vertex_array, position_attrib,
                             kFloatsPerPosition, GL_FLOAT, GL_FALSE, 0);
   glEnableVertexArrayAttrib(geometry->vertex_array, position_attrib);
-  vbo_offset += geometry->v_count * kFloatsPerPosition * sizeof(GLfloat);
+  vbo_offset += v_count * kFloatsPerPosition * sizeof(GLfloat);
 
   const int normal_attrib = 1;
   glVertexArrayVertexBuffer(geometry->vertex_array, normal_attrib,
@@ -1529,7 +1965,7 @@ void RenderEngineGl::CreateVertexArray(OpenGlGeometry* geometry) const {
   glVertexArrayAttribFormat(geometry->vertex_array, normal_attrib,
                             kFloatsPerNormal, GL_FLOAT, GL_FALSE, 0);
   glEnableVertexArrayAttrib(geometry->vertex_array, normal_attrib);
-  vbo_offset += geometry->v_count * kFloatsPerNormal * sizeof(GLfloat);
+  vbo_offset += v_count * kFloatsPerNormal * sizeof(GLfloat);
 
   const int uv_attrib = 2;
   glVertexArrayVertexBuffer(geometry->vertex_array, uv_attrib,
@@ -1538,11 +1974,10 @@ void RenderEngineGl::CreateVertexArray(OpenGlGeometry* geometry) const {
   glVertexArrayAttribFormat(geometry->vertex_array, uv_attrib, kFloatsPerUv,
                             GL_FLOAT, GL_FALSE, 0);
   glEnableVertexArrayAttrib(geometry->vertex_array, uv_attrib);
-  vbo_offset += geometry->v_count * kFloatsPerUv * sizeof(GLfloat);
+  vbo_offset += v_count * kFloatsPerUv * sizeof(GLfloat);
 
   const float float_count =
-      geometry->v_count *
-      (kFloatsPerPosition + kFloatsPerNormal + kFloatsPerUv);
+      v_count * (kFloatsPerPosition + kFloatsPerNormal + kFloatsPerUv);
   DRAKE_DEMAND(vbo_offset == float_count * sizeof(GLfloat));
 
   // Bind index buffer object (IBO) with the vertex array object (VAO).

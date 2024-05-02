@@ -17,6 +17,9 @@ namespace internal {
  should only be applied to meshes with *fully* assigned UVs. */
 enum class UvState { kNone, kFull, kPartial };
 
+// TODO: This doesn't belong here any more, but I do need a way to get this
+// data into TextureLibrary -- bytes and mime_type passed as parameters would
+// probably be enough.
 /* An image file whose bytes are stored in memory instead of on disk (i.e., the
  bytes of a jpg, png, etc.) It will still need to be decoded to produce a
  useful image. */
