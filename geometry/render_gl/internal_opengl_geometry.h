@@ -102,31 +102,98 @@ struct OpenGlGeometry {
  will also turn the geometry "inside out".
 
  When rendering, the visual geometry will be scaled around G's origin and
- subsequently posed relative to W.  */
+ subsequently posed relative to W.
+
+ There are a number of frames relating to how geometries are handled in
+ RenderEngineGl. What they are and how they relate can be confusing. This
+ discussion defines the frames, their relationships, and looks at the provenance
+ of the values in those relationships (with particular focus on what values are
+ stored in each instance and how they are used).
+
+   W: Drake's world frame.
+   G: Drake's geometry frame (this is what gets posed by SceneGraph) and is
+      what we should think of as the frame of the instance.
+   M: An OpenGl "model" frame. This is a conceptual frame relating the parts of
+      a prop. It is neither the instance frame nor the frame that OpenGlGeometry
+      vertex positions or normals are measured and expressed in. For example,
+      the model can be scaled (as with Mesh or Convex shapes) to create the
+      effective geometry instance. Also, the instance can be built of multiple
+      parts (the constituent pieces of a "prop") and those parts can themselves
+      be transformed relative to each other to build the model.
+   N: The frame in which the vertex positions and normals of an OpenGlGeometry
+      are measured and expressed.
+
+ Relationships between these frames:
+
+   While Drake mostly focuses on rigid transforms between frames (X_AB) and
+   relative orientations (R_AB), rendering needs to describe additional
+   relationships. So, in addition to the X_ and R_ prefixes, we also use the
+   P_, S_, T_, and N_ prefixes:
+
+     P_: A homogenous matrix representing translation. The same as a
+         RigidTransform consisting of only a translation.
+     S_: A *scale* matrix. A diagonal matrix with the Sx, Sy, and Sz values on
+         the diagonal.
+     T_: A general affine transform which can include translation, rotation, and
+         anisotropic scale. T_AB = P_AB * R_AB * S_AB.
+     N_: The transform to apply to a mesh's normals to re-express them in
+         another frame. Given T_AB = P_AB * R_AB * S_AB, we can derive the
+         corresponding normal transform: N_AB = R_AB * S⁻¹_AB.
+
+   Immutable relationships defined when a Shape is registered with the engine:
+
+      S_GM: The scaling applied to the underlying "model" data to create the
+            requested Drake-specified geometry (e.g., usually the scale factor
+            associated with a Mesh or Convex).
+      S_MN: The scale to apply to the mesh data associated with an
+            OpenGlGeometry to create the requested model. For example, we
+            store the mesh of a unit sphere, but apply an arbitrary scale to
+            model an ellipsoid; this scale matrix contains that transformation.
+      T_MN: The pose (not necessarily RigidTransform) of the vertex position
+            data associated with a single part in the conceptual frame of the
+            prop.
+      T_GN: The transform for measuring and expressing the vertex position data
+            associated with an OpenGlGeometry in the instance's frame. Defined
+            as T_GN = S_GM * T_MN
+      N_GN: The transform for expressing the vertex normal data associated with
+            an OpenGlGeometry in the instance's frame.
+
+   Relationships that depend on the pose of the instance (as defined by
+   SceneGraph):
+
+      X_WG: The pose (RigidTransform) of the Drake geometry frame in Drake's
+            world frame. This is provided by SceneGraph and provided to
+            RenderEngineGl via UpdateVisualPose() and updates frequently.
+      T_WN: T_WG = X_WG * S_GN.
+      N_WN: N_WN = R_WG * N_GN.
+
+   With each instance, we store the necessary immutable transforms and, when
+   updating the pose of the geometry (X_WG), update the final transforms that
+   depend on the instantaneous pose and immutable transforms (see below). */
 struct OpenGlInstance {
-  /* Constructs an instance from a geometry definition, a pose, a scale factor
-   and the instance's shader data for depth and label shaders.
-   @pre g_in references a defined OpenGlGeometry.
-   @pre The shader program data has valid shader ids.  */
-  OpenGlInstance(int g_in, const math::RigidTransformd& pose_in,
-                 const Vector3<double>& scale_in, ShaderProgramData color_data,
-                 ShaderProgramData depth_data, ShaderProgramData label_data)
-      : geometry(g_in), X_WG(pose_in), scale(scale_in) {
-    DRAKE_DEMAND(color_data.shader_id().is_valid());
-    DRAKE_DEMAND(depth_data.shader_id().is_valid());
-    DRAKE_DEMAND(label_data.shader_id().is_valid());
-    shader_data[RenderType::kColor] = std::move(color_data);
-    shader_data[RenderType::kDepth] = std::move(depth_data);
-    shader_data[RenderType::kLabel] = std::move(label_data);
+  /* Previously this struct provided a constructor that would validate these
+   quantities. To facilitate designated initializers, we've killed the
+   constructor but moved the demanded properties into its on validator. */
+  void DemandValid() const {
+    DRAKE_DEMAND(shader_data[RenderType::kColor].shader_id().is_valid());
+    DRAKE_DEMAND(shader_data[RenderType::kDepth].shader_id().is_valid());
+    DRAKE_DEMAND(shader_data[RenderType::kLabel].shader_id().is_valid());
     DRAKE_DEMAND(geometry >= 0);
   }
 
-  // This is the index to the OpenGlGeometry stored by RenderEngineGl.
+  /* This is the index to the OpenGlGeometry stored by RenderEngineGl. */
   int geometry{};
-  // TODO(SeanCurtis-TRI) Change these quantities to be float-valued so they
-  //  can go directly into the shader without casting.
-  math::RigidTransformd X_WG;
-  Vector3<double> scale;
+
+  /* The immutable transform mapping vertex position to the instance frame. */
+  Eigen::Matrix4f T_GN{Eigen::Matrix3f::Identity()};
+  /* The pose-dependent transform mapping vertex position to Drake World. */
+  Eigen::Matrix4f T_WN;
+
+  /* The immutable transform mapping vertex normals to the instance frame. */
+  Eigen::Matrix3f N_GN{Eigen::Matrix3f::Identity()};
+  /* The pose-dependent transform mapping vertex normals to Drake World. */
+  Eigen::Matrix3f N_WN;
+
   std::array<ShaderProgramData, RenderType::kTypeCount> shader_data;
 };
 

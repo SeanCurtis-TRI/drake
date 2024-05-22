@@ -401,7 +401,7 @@ class RenderEngineGl final : public render::RenderEngine, private ShapeReifier {
   // and allowed deviation within a small tolerance, then we could reuse them.
 
   // TODO(SeanCurtis-TRI): The relationships between OpenGlInstance,
-  // OpenGlGeometry, RenderGlMesh, Part, and Prop are probably overly opaque.
+  // OpenGlGeometry, RenderGlMesh, and Prop are probably overly opaque.
   // I need a succinct summary of how all of these moving pieces work together
   // with clear delineation of roles.
 
@@ -446,31 +446,14 @@ class RenderEngineGl final : public render::RenderEngine, private ShapeReifier {
                      RenderType::kTypeCount>
       frame_buffers_;
 
-  // A geometry is modeled with one or more "parts". A part consists of an
-  // instance N and its optional pose in the geometry frame G: T_GN. If the
-  // pose is not provided, then T_GN = I. Posing the instance using the
-  // geometry's world pose X_WG is simply: T_WN = X_WG * T_GN.
-  // For primitives and meshes from file types like obj, T_GN will always be
-  // nullopt. In those representations, the definition of the geometry is
-  // uniquely given in the geometry frame. But for other file types (e.g., glTF)
-  // geometry instances can be defined with arbitrary internal transforms. So,
-  // in those cases T_GN will contain the transform between the mesh definition
-  // and its instantiation within the file (and, therefore, in the geometry
-  // frame).
-  struct Part {
-    OpenGlInstance instance;
-    // TODO(SeanCurtis-TRI): When we get to glTF support, this will have to
-    // become Matrix4 along with the value in OpenGlInstance.
-    std::optional<math::RigidTransformd> T_GN;
-  };
-
-  // Some geometries are represented by multiple parts (such as when importing
-  // a complex .obj file). A "prop" is the collection of parts which constitute
+  // Each OpenGlInstance is associated with a single material. Some visuals
+  // may be comprised of multiple instances (such as might come from an Obj or
+  // glTF file). A "prop" is the collection of instances which constitute
   // one visual geometry associated with a GeometryId.
   //
-  // For simple Drake primitives, there will be a single "part".
+  // For simple Drake primitives, the prop consists of a single instance.
   struct Prop {
-    std::vector<Part> parts;
+    std::vector<OpenGlInstance> instances;
   };
 
   // Mapping from GeometryId to the visual data associated with that geometry.

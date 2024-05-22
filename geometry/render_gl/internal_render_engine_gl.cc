@@ -266,25 +266,8 @@ vec4 GetIlluminatedColor(vec4 diffuse) {
 
   void DoSetModelViewMatrix(const Eigen::Matrix4f& X_CW,
                             const Eigen::Matrix4f& T_WM,
-                            const Eigen::Matrix4f& X_WG,
-                            const Vector3d& scale) const override {
-    // For lighting, we need the normal and position of a fragment in the world
-    // frame. The pose of the fragment (from its corresponding vertices) comes
-    // simply from T_WM. But the normals require a different transform:
-    //
-    //   1. No translation.
-    //   2. Same rotation as vertex positions.
-    //   3. *Inverse* scale as vertex positions.
-    //
-    // If the scale isn't identity, the normal may not be unit length. We rely
-    // on the shader to normalize the scaled normals.
-    // This is the quantity historically referred to as gl_NormalMatrix
-    // (available to glsl in the "compatibility profile"). See
-    // https://www.cs.upc.edu/~robert/teaching/idi/GLSLangSpec.4.50.pdf.
-    const Eigen::DiagonalMatrix<float, 3, 3> S_GM_normal(
-        Vector3<float>(1.0 / scale(0), 1.0 / scale(1), 1.0 / scale(2)));
-    const Eigen::Matrix3f X_WM_Normal = X_WG.block<3, 3>(0, 0) * S_GM_normal;
-    glUniformMatrix3fv(T_WM_normals_loc_, 1, GL_FALSE, X_WM_Normal.data());
+                            const Eigen::Matrix3f& N_WM) const override {
+    glUniformMatrix3fv(T_WM_normals_loc_, 1, GL_FALSE, N_WM.data());
     glUniformMatrix4fv(T_WM_loc_, 1, GL_FALSE, T_WM.data());
 
     Eigen::Matrix4f X_WC = Eigen::Matrix4f::Identity();
@@ -905,12 +888,10 @@ bool RenderEngineGl::DoRegisterDeformableVisual(
 
 void RenderEngineGl::DoUpdateVisualPose(GeometryId id,
                                         const RigidTransformd& X_WG) {
-  for (auto& part : visuals_.at(id).parts) {
-    if (part.T_GN.has_value()) {
-      part.instance.X_WG = X_WG * part.T_GN.value();
-    } else {
-      part.instance.X_WG = X_WG;
-    }
+  const auto X_WG_f = X_WG.cast<float>();
+  for (auto& instance : visuals_.at(id).instances) {
+    instance.T_WN = X_WG_f.GetAsMatrix4() * instance.T_GN;
+    instance.N_WN = X_WG_f.rotation().matrix() * instance.N_GN;
   }
 }
 
@@ -950,7 +931,7 @@ bool RenderEngineGl::DoRemoveGeometry(GeometryId id) {
   // Now remove the instances associated with the id (stored in visuals_).
   auto iter = visuals_.find(id);
   if (iter != visuals_.end()) {
-    // Multiple parts may have the same shader. We don't want to attempt
+    // Multiple instances may have the same shader. We don't want to attempt
     // removing the geometry id from the corresponding family redundantly.
     std::unordered_set<ShaderId> visited_families;
     // Remove from the shader families to which it belongs!
@@ -966,8 +947,7 @@ bool RenderEngineGl::DoRemoveGeometry(GeometryId id) {
           auto num_removed = geometries.erase(g_id);
           DRAKE_DEMAND(num_removed == 1);
         };
-    for (const auto& part : iter->second.parts) {
-      const OpenGlInstance& instance = part.instance;
+    for (const auto& instance : iter->second.instances) {
       maybe_remove_from_family(id, instance.shader_data, RenderType::kColor);
       maybe_remove_from_family(id, instance.shader_data, RenderType::kDepth);
       maybe_remove_from_family(id, instance.shader_data, RenderType::kLabel);
@@ -1020,8 +1000,7 @@ void RenderEngineGl::RenderAt(const ShaderProgram& shader_program,
 
   for (const GeometryId& g_id :
        shader_families_.at(render_type).at(shader_program.shader_id())) {
-    for (const auto& part : visuals_.at(g_id).parts) {
-      const OpenGlInstance& instance = part.instance;
+    for (const auto& instance : visuals_.at(g_id).instances) {
       if (instance.shader_data.at(render_type).shader_id() !=
           shader_program.shader_id()) {
         continue;
@@ -1030,12 +1009,7 @@ void RenderEngineGl::RenderAt(const ShaderProgram& shader_program,
       glBindVertexArray(geometry.vertex_array);
 
       shader_program.SetInstanceParameters(instance.shader_data[render_type]);
-      // TODO(SeanCurtis-TRI): Consider storing the float-valued pose in the
-      //  OpenGl instance to avoid the conversion every time it is rendered.
-      //  Generally, this wouldn't expect much savings; an instance is only
-      //  rendered once per image type. So, for three image types, I'd cast
-      //  three times. Stored, I'd cast once.
-      shader_program.SetModelViewMatrix(X_CW, instance.X_WG, instance.scale);
+      shader_program.SetModelViewMatrix(X_CW, instance.T_WN, instance.N_WN);
 
       glDrawElements(geometry.mode, geometry.index_count, geometry.type, 0);
     }
@@ -1175,10 +1149,18 @@ void RenderEngineGl::AddGeometryInstance(int geometry_index, void* user_data,
   DRAKE_DEMAND(color_data.has_value() && depth_data.has_value() &&
                label_data.has_value());
 
-  visuals_[data.id].parts.push_back(
-      {.instance = OpenGlInstance(geometry_index, data.X_WG, scale, *color_data,
-                                  *depth_data, *label_data),
-       .T_GN = std::nullopt});
+  // TODO: Provide T_MN and N_MN in user_data.
+  const Eigen::DiagonalMatrix<float, 4, 4> S_GM(
+        Vector4<float>(scale(0), scale(1), scale(2), 1.0));
+  visuals_[data.id].instances.push_back(
+      {.geometry = geometry_index,
+       .T_GN = S_GM,            // T_GN = S_GM * T_MN, s.t. T_MN = I.
+       .N_GN = S_GM.inverse(),  // T_GN = S_GM * T_MN, s.t. T_MN = I.
+       .shader_data = {*color_data, *depth_data, *label_data}});
+
+  // For anchored geometry, we need to make sure the instance's values for
+  // T_WN and N_WN are initialized based on the initial pose, X_WG.
+  DoUpdateVisualPose(data.id, data.X_WG);
 
   shader_families_[RenderType::kColor][color_data->shader_id()].insert(data.id);
   shader_families_[RenderType::kDepth][depth_data->shader_id()].insert(data.id);
