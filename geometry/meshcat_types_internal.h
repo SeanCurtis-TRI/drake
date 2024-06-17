@@ -419,6 +419,14 @@ struct RealtimeRateData {
   MSGPACK_DEFINE_MAP(type, rate);
 };
 
+// Communicates to the visualizer the interval of time associated with each
+// RealtimeRateData message (in wall clock seconds).
+struct RealtimeRatePeriod{
+  std::string type{"realtime_rate_period"};
+  double period{};
+  MSGPACK_DEFINE_MAP(type, period);
+};
+
 // Note that this struct is unique to Drake's integration of meshcat; it is not
 // part of upstream meshcat.js. We handle it directly within meshcat.html,
 // without ever feeding it into meshcat.js.

@@ -8,6 +8,12 @@
 </head>
 
 <body>
+  <div id="stats-block">
+    <!-- We'll insert the chart before the x-axis label. -->
+    <div id="stats-domain">
+      ? s sim time
+    </div>
+  </div>
   <div id="status-message">
     No connection to server.
   </div>
@@ -18,11 +24,30 @@
   <script type="text/javascript" src="stats.min.js"></script>
   <script>
     // TODO(#16486): add tooltips to Stats to describe chart contents
-    var stats = new Stats();
+    let stats = new Stats();
     var realtimeRatePanel = stats.addPanel(
             new Stats.Panel('rtr%', '#ff8', '#221')
     );
-    document.body.appendChild(stats.dom);
+    var statsDomain = document.getElementById("stats-domain");
+    statsDomain.style.cursor = "pointer";
+    statsDomain.addEventListener('click', function( event) {
+      // Clicking on the axis is the same as clicking on the chart.
+      stats.dom.dispatchEvent(new event.constructor(event.type, event));
+      event.preventDefault();
+      event.stopPropagation();
+      // TODO: This has two problems:
+      //   1. Clicking the stats block won't cause this to toggle.
+      //   2. This is synchronous, but the clicking on stats that it depends on
+      //      is asynchronous.
+      // Somehow, I need to create a single callback that successfully advances
+      // the charts and drags this along with it.
+      statsDomain.style.display = realtimeRatePanel.style.display;
+    });
+    stats.dom.style.position = "sticky";
+    var statsBlock = document.getElementById("stats-block");
+    statsBlock.insertBefore(stats.dom, statsDomain);
+    // document.body.appendChild(stats.dom);
+
     stats.dom.id = "stats-plot";
     // We want to show the realtime rate panel by default
     // it is the last element in the stats.dom.children list
@@ -105,7 +130,10 @@
         publishRealtimeRate = true;
         latestRealtimeRate = decoded.rate;
       } else if (decoded.type == "show_realtime_rate") {
-        stats.dom.style.display = decoded.show ? "block" : "none";
+        statsBlock.style.display = decoded.show ? "block" : "none";
+      } else if (decoded.type == "realtime_rate_period") {
+        let duration = decoded.period * pixel_width;
+        // Set the duration somewhere.
       } else {
         viewer.handle_command(decoded)
       }
@@ -265,8 +293,17 @@
       display: none;
     }
 
+    #stats-block {
+      text-align: left;
+      position: fixed;
+      color: #ff8;
+      background-color: #221;
+      left: 2%;
+      display: block;
+    }
+
     #stats-plot {
-      display: none;
+      display: block;
     }
   </style>
   <script id="embedded-json"></script>
