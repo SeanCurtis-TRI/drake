@@ -1,5 +1,6 @@
 #include "drake/geometry/proximity/boxes_overlap.h"
 
+#include <iostream>
 #include <string>
 
 #include <fmt/format.h>
@@ -45,13 +46,10 @@ class BoxesOverlapTest : public ::testing::Test {
   static bool InvokeBoxesOverlap(const Vector3d& a_half, const Vector3d& b_half,
                                  const RigidTransformd& X_AB,
                                  const std::string& label) {
-    const bool a_to_b = BoxesOverlap(a_half, b_half, X_AB.translation(),
-                                     X_AB.rotation().matrix());
-    // const RigidTransformd& X_BA = X_AB.inverse();
-    // const bool b_to_a = BoxesOverlap(b_half, a_half,  X_BA.translation(),
-    //                                  X_BA.rotation().matrix());
-    // DrawCase(a_half, b_half, X_AB, "BoxesOverlapTest/" + label);
-    // DRAKE_DEMAND(a_to_b == b_to_a);
+    const bool a_to_b = BoxesOverlap(a_half, b_half, X_AB);
+    const bool b_to_a = BoxesOverlap(b_half, a_half, X_AB.inverse());
+    DrawCase(a_half, b_half, X_AB, "BoxesOverlapTest/" + label);
+    DRAKE_DEMAND(a_to_b == b_to_a);
     return a_to_b;
   }
 
@@ -120,16 +118,16 @@ TEST_F(BoxesOverlapTest, AllCases) {
   a = Vector3d(2, 4, 3);
   b = Vector3d(3.5, 2, 1.5);
   for (int axis = 0; axis < 3; ++axis) {
-    // flushed_print("\nA {} separated\n", axes[axis]);
-    // X_AB = CalcCornerTransform(a, b, axis, false /* expect_overlap */);
-    // EXPECT_FALSE(InvokeBoxesOverlap(a, b, X_AB,
-    //                                 fmt::format("A{} separated", axes[axis])));
+    flushed_print("\nA {} separated\n", axes[axis]);
+    X_AB = CalcCornerTransform(a, b, axis, false /* expect_overlap */);
+    EXPECT_FALSE(InvokeBoxesOverlap(a, b, X_AB,
+                                    fmt::format("A{} separated", axes[axis])));
     X_AB = CalcCornerTransform(a, b, axis, true /* expect_overlap */);
     flushed_print("\nA {} colliding\n", axes[axis]);
     EXPECT_TRUE(InvokeBoxesOverlap(a, b, X_AB,
                                    fmt::format("A{} colliding", axes[axis])));
   }
-#if 0
+
   // To cover the local axes out of B, we can use the same method by swapping
   // the order of the boxes and then using the inverse of the transform.
   for (int axis = 0; axis < 3; ++axis) {
@@ -185,7 +183,6 @@ TEST_F(BoxesOverlapTest, AllCases) {
           fmt::format("A{}-B{} colliding", axes[a_axis], axes[b_axis])));
     }
   }
-  #endif
 }
 
 }  // namespace
