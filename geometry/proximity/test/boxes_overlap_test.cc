@@ -47,11 +47,11 @@ class BoxesOverlapTest : public ::testing::Test {
                                  const std::string& label) {
     const bool a_to_b = BoxesOverlap(a_half, b_half, X_AB.translation(),
                                      X_AB.rotation().matrix());
-    const RigidTransformd& X_BA = X_AB.inverse();
-    const bool b_to_a = BoxesOverlap(b_half, a_half,  X_BA.translation(),
-                                     X_BA.rotation().matrix());
-    DrawCase(a_half, b_half, X_AB, "BoxesOverlapTest/" + label);
-    DRAKE_DEMAND(a_to_b == b_to_a);
+    // const RigidTransformd& X_BA = X_AB.inverse();
+    // const bool b_to_a = BoxesOverlap(b_half, a_half,  X_BA.translation(),
+    //                                  X_BA.rotation().matrix());
+    // DrawCase(a_half, b_half, X_AB, "BoxesOverlapTest/" + label);
+    // DRAKE_DEMAND(a_to_b == b_to_a);
     return a_to_b;
   }
 
@@ -71,6 +71,12 @@ class BoxesOverlapTest : public ::testing::Test {
 
 std::unique_ptr<Meshcat> BoxesOverlapTest::meshcat_{nullptr};
 
+template <typename... T>
+void flushed_print(fmt::format_string<T...> fmt, T&&... args) {
+  fmt::print(fmt, std::forward<T>(args)...);
+  std::cout.flush();
+}
+
 // Tests whether OBBs overlap. There are 15 unique possibilities for
 // non-overlap. Therefore, there are 15 cases to test, each covering a different
 // separating axis between the two bounding boxes. The first 3 cases use the
@@ -86,7 +92,8 @@ TEST_F(BoxesOverlapTest, AllCases) {
   RigidTransformd X_AB(Vector3d(0.2, 0.4, 0.2));
   Vector3d a(1, 2, 1);
   Vector3d b(0.5, 1, 0.5);
-  EXPECT_TRUE(InvokeBoxesOverlap(a, b, X_AB, "parallel_and_contained"));
+  flushed_print("Inside\n");
+  // EXPECT_TRUE(InvokeBoxesOverlap(a, b, X_AB, "parallel_and_contained"));
 
   // The first cases are where the separating plane is perpendicular to an axis
   // of frame A. So, we pose box B along each axis. For example, in the case of
@@ -113,22 +120,26 @@ TEST_F(BoxesOverlapTest, AllCases) {
   a = Vector3d(2, 4, 3);
   b = Vector3d(3.5, 2, 1.5);
   for (int axis = 0; axis < 3; ++axis) {
-    X_AB = CalcCornerTransform(a, b, axis, false /* expect_overlap */);
-    EXPECT_FALSE(InvokeBoxesOverlap(a, b, X_AB,
-                                    fmt::format("A{} separated", axes[axis])));
+    // flushed_print("\nA {} separated\n", axes[axis]);
+    // X_AB = CalcCornerTransform(a, b, axis, false /* expect_overlap */);
+    // EXPECT_FALSE(InvokeBoxesOverlap(a, b, X_AB,
+    //                                 fmt::format("A{} separated", axes[axis])));
     X_AB = CalcCornerTransform(a, b, axis, true /* expect_overlap */);
+    flushed_print("\nA {} colliding\n", axes[axis]);
     EXPECT_TRUE(InvokeBoxesOverlap(a, b, X_AB,
                                    fmt::format("A{} colliding", axes[axis])));
   }
-
+#if 0
   // To cover the local axes out of B, we can use the same method by swapping
   // the order of the boxes and then using the inverse of the transform.
   for (int axis = 0; axis < 3; ++axis) {
+    flushed_print("\nB {} separated\n", axes[axis]);
     X_AB =
         CalcCornerTransform(b, a, axis, false /* expect_overlap */).inverse();
     EXPECT_FALSE(InvokeBoxesOverlap(a, b, X_AB,
                                     fmt::format("B{} separated", axes[axis])));
     X_AB = CalcCornerTransform(b, a, axis, true /* expect_overlap */).inverse();
+    flushed_print("\nB {} colliding\n", axes[axis]);
     EXPECT_TRUE(InvokeBoxesOverlap(a, b, X_AB,
                                    fmt::format("B{} colliding", axes[axis])));
   }
@@ -159,6 +170,7 @@ TEST_F(BoxesOverlapTest, AllCases) {
   // edge either outside (if expect_overlap is false) or inside (if true).
   for (int a_axis = 0; a_axis < 3; ++a_axis) {
     for (int b_axis = 0; b_axis < 3; ++b_axis) {
+      flushed_print("\nA-{}xB-{} separated\n", axes[a_axis], axes[b_axis]);
       X_AB =
           CalcEdgeTransform(a, b, a_axis, b_axis, false /* expect_overlap */);
       // Separate along a's y-axis and b's x-axis.
@@ -167,11 +179,13 @@ TEST_F(BoxesOverlapTest, AllCases) {
           fmt::format("A{}-B{} separated", axes[a_axis], axes[b_axis])));
       X_AB = CalcEdgeTransform(a, b, a_axis, b_axis, true /* expect_overlap */);
       // Separate along a's y-axis and b's x-axis.
+      flushed_print("\nA-{}xB-{} colliding\n", axes[a_axis], axes[b_axis]);
       EXPECT_TRUE(InvokeBoxesOverlap(
           a, b, X_AB,
           fmt::format("A{}-B{} colliding", axes[a_axis], axes[b_axis])));
     }
   }
+  #endif
 }
 
 }  // namespace

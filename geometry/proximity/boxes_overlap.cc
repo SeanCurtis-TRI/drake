@@ -1,5 +1,7 @@
 #include "drake/geometry/proximity/boxes_overlap.h"
 
+#include <fmt/format.h>
+
 #if defined(__AVX2__) && defined(__FMA__)
 #include <cstdint>
 
@@ -24,6 +26,15 @@ __m256d four(double d) {
 __m256d abs4(__m256d x) {
   return _mm256_andnot_pd(_mm256_set1_pd(-0.0), x);
 }
+
+void Print(const char* caption, const __m256d& v) {
+  fmt::print("{} ", caption);
+  for (int i = 0; i < 4; ++i) {
+    fmt::print("{}, ", v[i]);
+  }
+  fmt::print("\n");
+}
+
 }
 
 // This implementation follows section 64 (on PDF page 102) of:
@@ -63,7 +74,11 @@ bool BoxesOverlap(const Vector3d& pqr /* (aka half_size_a) */,
   right = _mm256_fmadd_pd(tttt, DEF_, right);  // +tD +tE +tF  _
   right = _mm256_fmadd_pd(uuuu, GHI_, right);  // +uG +uG +uI  _
   int cmp = _mm256_movemask_pd(_mm256_cmp_pd(left, right, _CMP_GT_OQ));
+  fmt::print("Testing separation on A axis\n");
+  Print("  left: ", left);
+  Print("  right: ", right);
   if (cmp & 7) {
+    fmt::print("    Separated on A axis\n");
     return false;
   }
 
@@ -97,7 +112,11 @@ bool BoxesOverlap(const Vector3d& pqr /* (aka half_size_a) */,
   right = _mm256_fmadd_pd(qqqq, BEH_, right);  // +pB +pE +pH  _
   right = _mm256_fmadd_pd(rrrr, CFI_, right);  // +rC +rF +rI  _
   cmp = _mm256_movemask_pd(_mm256_cmp_pd(left, right, _CMP_GT_OQ));
+  fmt::print("\nTesting separation on B axis\n");
+  Print("  left: ", left);
+  Print("  right: ", right);
   if (cmp & 7) {
+    fmt::print("    Separated on B axis\n");
     return false;
   }
 
@@ -137,7 +156,15 @@ bool BoxesOverlap(const Vector3d& pqr /* (aka half_size_a) */,
   right = _mm256_fmadd_pd(tus_, GAD_, right);
   right = _mm256_fmadd_pd(ust_, DGA_, right);
   cmp = _mm256_movemask_pd(_mm256_cmp_pd(left, right, _CMP_GT_OQ));
+  fmt::print("\nTesting separation on Edge 1\n");
+  Print("  zzzz: ", zzzz);
+  Print("  beh_: ", beh_);
+  Print("  yyyy: ", yyyy);
+  Print("  cfi_: ", cfi_);
+  Print("  left: ", left);
+  Print("  right: ", right);
   if (cmp & 7) {
+    fmt::print("    Separated on Edge 1\n");
     return false;
   }
 
@@ -162,7 +189,11 @@ bool BoxesOverlap(const Vector3d& pqr /* (aka half_size_a) */,
   right = _mm256_fmadd_pd(tus_, HBE_, right);
   right = _mm256_fmadd_pd(ust_, EHB_, right);
   cmp = _mm256_movemask_pd(_mm256_cmp_pd(left, right, _CMP_GT_OQ));
+  fmt::print("\nTesting separation on Edge 2\n");
+  Print("  left: ", left);
+  Print("  right: ", right);
   if (cmp & 7) {
+    fmt::print("    Separated on Edge 2\n");
     return false;
   }
 
@@ -187,10 +218,15 @@ bool BoxesOverlap(const Vector3d& pqr /* (aka half_size_a) */,
   right = _mm256_fmadd_pd(tus_, ICF_, right);
   right = _mm256_fmadd_pd(ust_, FIC_, right);
   cmp = _mm256_movemask_pd(_mm256_cmp_pd(left, right, _CMP_GT_OQ));
+  fmt::print("\nTesting separation on Edge 3\n");
+  Print("  left: ", left);
+  Print("  right: ", right);
   if (cmp & 7) {
+    fmt::print("    Separated on Edge 3\n");
     return false;
   }
 
+  fmt::print("Colliding\n");
   return true;
 }
 
