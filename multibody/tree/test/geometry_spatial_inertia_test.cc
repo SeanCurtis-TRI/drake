@@ -217,6 +217,7 @@ REGISTER_TYPED_TEST_SUITE_P(MeshTypeSpatialInertaTest, Administrivia);
 using MeshTypes = ::testing::Types<geometry::Convex, geometry::Mesh>;
 INSTANTIATE_TYPED_TEST_SUITE_P(All, MeshTypeSpatialInertaTest, MeshTypes);
 
+
 /* Tests the math for a triangle surface mesh by using a mesh that perfectly
  reproduces a primitive: a Box.
 
@@ -279,6 +280,23 @@ GTEST_TEST(TriangleSurfaceMassPropertiesTest, ExactPolyhedron) {
         CalcSpatialInertia(mesh, kDensity),
         SpatialInertia<double>(mass, p_BcmMcm, G_MMo_M), 8 * kTol));
   }
+}
+
+GTEST_TEST(Seans, GoodVsBad) {
+  const std::string good_vtk =
+      FindResourceOrThrow("drake/multibody/tree/test/good_inertia.obj");
+  const std::string bad_vtk =
+      FindResourceOrThrow("drake/multibody/tree/test/bad_inertia.obj");
+
+  fmt::print("The good one!\n");
+  const auto M_good = CalcSpatialInertia(geometry::Mesh(good_vtk, 1.0), 1.0);
+  EXPECT_TRUE(M_good.IsPhysicallyValid());
+  std::cout << M_good << "\n";
+  fmt::print("THe bad one\n");
+  const auto M_bad = CalcSpatialInertia(geometry::Mesh(bad_vtk, 1.0), 1.0);
+  EXPECT_FALSE(M_bad.IsPhysicallyValid());
+
+  
 }
 
 }  // namespace

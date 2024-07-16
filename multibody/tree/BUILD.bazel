@@ -687,6 +687,8 @@ drake_cc_googletest(
 drake_cc_googletest(
     name = "geometry_spatial_inertia_test",
     data = [
+        "test/bad_inertia.obj",
+        "test/good_inertia.obj",
         "//geometry:test_vtk_files",
         "//multibody/parsing:test_models",
     ],
