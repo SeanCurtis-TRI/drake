@@ -237,7 +237,7 @@ void MeshcatVisualizer<T>::SetObjects(
       }
 
       if (!geometry_already_set) {
-        meshcat_->SetObject(path, inspector.GetShape(geom_id), rgba);
+        meshcat_->SetObject(path, inspector.GetShape(geom_id), properties);
       }
 
       meshcat_->SetTransform(path, inspector.GetPoseInFrame(geom_id));

@@ -36,6 +36,7 @@
 #include "drake/geometry/meshcat_recording_internal.h"
 #include "drake/geometry/meshcat_types_internal.h"
 #include "drake/geometry/proximity/polygon_to_triangle_mesh.h"
+#include "drake/geometry/geometry_roles.h"
 #include "drake/systems/analysis/realtime_rate_calculator.h"
 
 #ifdef BOOST_VERSION
@@ -263,14 +264,80 @@ int ToMeshcatColor(const Rgba& rgba) {
          static_cast<int>(255 * rgba.b());
 }
 
+// Sets the material properties, as defined by the given geometry properties,
+// into the material data.
+//
+// Note: if textures are named by `props`, then the texture-related parameters
+// must all be non-null: file_storage, images, textures, and uuid_generator.
+std::vector<std::shared_ptr<const MemoryFile>> SetMaterialFromProperties(
+    const GeometryProperties& props, internal::MaterialData* material,
+    FileStorage* file_storage, std::vector<internal::ImageData>* images,
+    std::vector<internal::TextureData>* textures,
+    internal::UuidGenerator* uuid_generator) {
+  const Rgba rgba =
+      props.GetPropertyOrDefault("phong", "diffuse", Rgba(0.9, 0.9, 0.9));
+  material->color = ToMeshcatColor(rgba);
+  // From meshcat-python: Three.js allows a material to have an opacity
+  // which is != 1, but to still be non - transparent, in which case the
+  // opacity only serves to desaturate the material's color. That's a
+  // pretty odd combination of things to want, so by default we just use
+  // the opacity value to decide whether to set transparent to True or
+  // False.
+  material->transparent = (rgba.a() != 1.0);
+  material->opacity = rgba.a();
+
+  std::vector<std::shared_ptr<const MemoryFile>> assets;
+  if (std::string diffuse_map =
+          props.GetPropertyOrDefault("phong", "diffuse_map", "");
+      !diffuse_map.empty()) {
+    DRAKE_DEMAND(file_storage != nullptr);
+    DRAKE_DEMAND(images != nullptr);
+    DRAKE_DEMAND(textures != nullptr);
+    DRAKE_DEMAND(uuid_generator != nullptr);
+    std::optional<std::string> content = ReadFile(diffuse_map);
+    if (!content) {
+      throw std::runtime_error(
+          fmt::format("Properties for a Shape specified a diffuse map that "
+                      "cannot be read: '{}'.",
+                      diffuse_map));
+    }
+    if (content->empty()) {
+      throw std::runtime_error(
+          fmt::format("File {} was empty!\n", diffuse_map));
+    }
+    std::shared_ptr<const MemoryFile> asset =
+        file_storage->Insert(std::move(*content), std::move(diffuse_map));
+    assets.push_back(asset);
+    const std::string url = FileStorage::GetCasUrl(*asset);
+    std::string image_uuid;
+    for (const auto& image : *images) {
+      if (image.url == url) {
+        image_uuid = image.uuid;
+        break;
+      }
+    }
+    if (image_uuid.empty()) {
+      image_uuid = uuid_generator->GenerateRandom();
+      images->emplace_back(image_uuid, url);
+    }
+    const std::string tex_uuid = uuid_generator->GenerateRandom();
+    textures->emplace_back(tex_uuid, image_uuid);
+    material->map = tex_uuid;
+    
+  }
+  return assets;
+}
+
 // Sets the lumped object's geometry, material, and object type based on the
 // mesh data and its material properties.
-void SetLumpedObjectFromTriangleMesh(
+std::vector<std::shared_ptr<const MemoryFile>> SetLumpedObjectFromTriangleMesh(
     internal::LumpedObjectData* object,
     const Eigen::Ref<const Eigen::Matrix3Xd>& vertices,
-    const Eigen::Ref<const Eigen::Matrix3Xi>& faces, const Rgba& rgba,
-    bool wireframe, double wireframe_line_width,
-    Meshcat::SideOfFaceToRender side, internal::UuidGenerator* uuid_generator) {
+    const Eigen::Ref<const Eigen::Matrix3Xi>& faces,
+    const GeometryProperties& properties, bool wireframe,
+    double wireframe_line_width, Meshcat::SideOfFaceToRender side,
+    internal::UuidGenerator* uuid_generator,
+    FileStorage* file_storage) {
   DRAKE_DEMAND(object != nullptr);
   DRAKE_DEMAND(uuid_generator != nullptr);
 
@@ -283,14 +350,14 @@ void SetLumpedObjectFromTriangleMesh(
   auto material = std::make_unique<internal::MaterialData>();
   material->uuid = uuid_generator->GenerateRandom();
   material->type = "MeshPhongMaterial";
-  material->color = ToMeshcatColor(rgba);
-  material->transparent = (rgba.a() != 1.0);
-  material->opacity = rgba.a();
   material->wireframe = wireframe;
   material->wireframeLineWidth = wireframe_line_width;
   material->vertexColors = false;
   material->side = side;
   material->flatShading = true;
+  auto assets = SetMaterialFromProperties(properties, material.get(),
+                                          file_storage, &object->images,
+                                          &object->textures, uuid_generator);
   object->material = std::move(material);
 
   internal::MeshData mesh;
@@ -299,6 +366,7 @@ void SetLumpedObjectFromTriangleMesh(
   mesh.geometry = object->geometry->uuid;
   mesh.material = object->material->uuid;
   object->object = std::move(mesh);
+  return assets;
 }
 
 class MeshcatShapeReifier : public ShapeReifier {
@@ -306,12 +374,14 @@ class MeshcatShapeReifier : public ShapeReifier {
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(MeshcatShapeReifier);
 
   MeshcatShapeReifier(internal::UuidGenerator* uuid_generator,
-                      FileStorage* file_storage, Rgba rgba)
+                      FileStorage* file_storage,
+                      const GeometryProperties* props)
       : uuid_generator_(*uuid_generator),
         file_storage_(*file_storage),
-        rgba_(rgba) {
+        properties_(props) {
     DRAKE_DEMAND(uuid_generator != nullptr);
     DRAKE_DEMAND(file_storage != nullptr);
+    DRAKE_DEMAND(props != nullptr);
   }
 
   ~MeshcatShapeReifier() = default;
@@ -545,10 +615,12 @@ class MeshcatShapeReifier : public ShapeReifier {
         faces(j, i) = e.vertex(j);
       }
     }
-    SetLumpedObjectFromTriangleMesh(&output.lumped, vertices, faces, rgba_,
-                                    /* wireframe =*/false, 1.0,
-                                    Meshcat::SideOfFaceToRender::kDoubleSide,
-                                    &uuid_generator_);
+    // TODO(SeanCurtis-TRI): We shouldn't allow diffuse maps on convex. So we
+    // don't need to worry about the assets.
+    SetLumpedObjectFromTriangleMesh(
+        &output.lumped, vertices, faces, *properties_,
+        /* wireframe =*/false, 1.0, Meshcat::SideOfFaceToRender::kDoubleSide,
+        &uuid_generator_, &file_storage_);
   }
 
   void ImplementGeometry(const Cylinder& cylinder, void* data) override {
@@ -582,10 +654,16 @@ class MeshcatShapeReifier : public ShapeReifier {
     geometry->radius = 1;
     lumped.geometry = std::move(geometry);
 
+    // three.js spheres are different from VTK spheres in several ways:
+    //   - Different up vector (y- vs z-up)
+    //   - Different texture coordinate mapping.
+    // However, we can account for both by scaling and rotating things
+    // simultaneously. This makes a textured ellipsoid in meshcat resemble the
+    // textured sphere in VTK. And with non-uniform scale, it's an ellipsoid.
     Eigen::Map<Eigen::Matrix4d> matrix(mesh.matrix);
-    matrix(0, 0) = ellipsoid.a();
-    matrix(1, 1) = ellipsoid.b();
-    matrix(2, 2) = ellipsoid.c();
+    matrix.col(0) << -ellipsoid.a(), 0, 0, 0;
+    matrix.col(1) << 0, 0, ellipsoid.c(), 0;
+    matrix.col(2) << 0, ellipsoid.b(), 0, 0;
   }
 
   void ImplementGeometry(const HalfSpace&, void*) override {
@@ -625,18 +703,29 @@ class MeshcatShapeReifier : public ShapeReifier {
     DRAKE_DEMAND(data != nullptr);
     auto& output = *static_cast<Output*>(data);
     auto& lumped = output.lumped;
-    lumped.object = internal::MeshData();
+    auto& mesh = lumped.object.emplace<internal::MeshData>();
 
     auto geometry = std::make_unique<internal::SphereGeometryData>();
     geometry->uuid = uuid_generator_.GenerateRandom();
     geometry->radius = sphere.radius();
     lumped.geometry = std::move(geometry);
+
+    // three.js spheres are different from VTK spheres in several ways:
+    //   - Different up vector (y- vs z-up)
+    //   - Different texture coordinate mapping.
+    // However, we can account for both by scaling and rotating things
+    // simultaneously. This makes a textured sphere in meshcat resemble the
+    // textured sphere in VTK.
+    Eigen::Map<Eigen::Matrix4d> matrix(mesh.matrix);
+    matrix.col(0) << -1, 0, 0, 0;
+    matrix.col(1) << 0, 0, 1, 0;
+    matrix.col(2) << 0, 1, 0, 0;
   }
 
  private:
   internal::UuidGenerator& uuid_generator_;
   FileStorage& file_storage_;
-  Rgba rgba_;
+  const GeometryProperties* properties_{};
 };
 
 // Meshcat inherits three.js's y-up world and it is applied to camera and
@@ -915,6 +1004,15 @@ class Meshcat::Impl {
   // This function is public via the PIMPL.
   void SetObject(std::string_view path, const Shape& shape, const Rgba& rgba) {
     DRAKE_DEMAND(IsThread(main_thread_id_));
+    IllustrationProperties props;
+    props.AddProperty("phong", "diffuse", rgba);
+    SetObject(path, shape, props);
+  }
+
+  // This function is public via the PIMPL.
+  void SetObject(std::string_view path, const Shape& shape,
+                 const GeometryProperties& props) {
+    DRAKE_DEMAND(IsThread(main_thread_id_));
 
     internal::SetObjectData data;
     data.path = FullPath(path);
@@ -924,7 +1022,7 @@ class Meshcat::Impl {
     // them again for efficiency. We don't want to send meshes over the network
     // (which could be from the cloud to a local browser) more than necessary.
 
-    MeshcatShapeReifier reifier(&uuid_generator_, &file_storage_, rgba);
+    MeshcatShapeReifier reifier(&uuid_generator_, &file_storage_, &props);
     std::vector<std::shared_ptr<const MemoryFile>> assets;
     MeshcatShapeReifier::Output reifier_output{.lumped = data.object,
                                                .assets = assets};
@@ -945,21 +1043,19 @@ class Meshcat::Impl {
         auto material = std::make_unique<internal::MaterialData>();
         material->uuid = uuid_generator_.GenerateRandom();
         material->type = "MeshPhongMaterial";
-        material->color = ToMeshcatColor(rgba);
         // TODO(russt): Most values are taken verbatim from meshcat-python.
         material->reflectivity = 0.5;
         material->side = SideOfFaceToRender::kDoubleSide;
-        // From meshcat-python: Three.js allows a material to have an opacity
-        // which is != 1, but to still be non - transparent, in which case the
-        // opacity only serves to desaturate the material's color. That's a
-        // pretty odd combination of things to want, so by default we just use
-        // the opacity value to decide whether to set transparent to True or
-        // False.
-        material->transparent = (rgba.a() != 1.0);
-        material->opacity = rgba.a();
         material->linewidth = 1.0;
         material->wireframe = false;
         material->wireframeLineWidth = 1.0;
+        std::vector<std::shared_ptr<const MemoryFile>> mat_assets =
+            SetMaterialFromProperties(props, material.get(), &file_storage_,
+                                      &data.object.images,
+                                      &data.object.textures, &uuid_generator_);
+        for (auto&& asset : mat_assets) {
+          assets.emplace_back(asset);
+        }
 
         meshfile_object.uuid = uuid_generator_.GenerateRandom();
         meshfile_object.material = material->uuid;
@@ -1119,10 +1215,14 @@ class Meshcat::Impl {
 
     internal::SetObjectData data;
     data.path = FullPath(path);
+    IllustrationProperties props;
+    props.AddProperty("phong", "diffuse", rgba);
 
-    SetLumpedObjectFromTriangleMesh(&data.object, vertices, faces, rgba,
+    // TODO(SeanCurtis-TRI): We don't have UVs so we shouldn't worry about
+    // possibly loaded assets.
+    SetLumpedObjectFromTriangleMesh(&data.object, vertices, faces, props,
                                     wireframe, wireframe_line_width, side,
-                                    &uuid_generator_);
+                                    &uuid_generator_, &file_storage_);
 
     Defer([this, data = std::move(data)]() {
       std::stringstream message_stream;
@@ -1298,7 +1398,8 @@ class Meshcat::Impl {
     data.path = FullPath(path);
     data.property = std::move(property);
     data.value = FileStorage::GetCasUrl(*asset);
-
+    fmt::print("SetPropertyToFile({}, {}, {}) -> URL {}\n", path, property,
+               file_path.string(), data.value);
     Defer([this, data = std::move(data), asset = std::move(asset)]() {
       DRAKE_DEMAND(IsThread(websocket_thread_id_));
       DRAKE_DEMAND(app_ != nullptr);
@@ -2133,6 +2234,7 @@ class Meshcat::Impl {
     // Handle content-addressable storage. This must align with GetCasUrl() in
     // FileStorage so if you change it be sure to change both places.
     if (url_path.substr(0, 8) == "/cas-v1-") {
+      fmt::print("File storage has {} files\n", file_storage_.size());
       const std::string_view suffix = url_path.substr(8);
       std::optional<Sha256> key = Sha256::Parse(suffix);
       if (!key.has_value()) {
@@ -2480,6 +2582,11 @@ void Meshcat::Flush() const {
 void Meshcat::SetObject(std::string_view path, const Shape& shape,
                         const Rgba& rgba) {
   impl().SetObject(path, shape, rgba);
+}
+
+void Meshcat::SetObject(std::string_view path, const Shape& shape,
+                        const GeometryProperties& props) {
+  impl().SetObject(path, shape, props);
 }
 
 void Meshcat::SetObject(std::string_view path,

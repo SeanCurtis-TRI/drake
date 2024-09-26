@@ -38,6 +38,22 @@ namespace internal {
 // compatible with msgpack, which wants to be able to unpack into the same
 // structure.
 
+struct ImageData {
+  std::string uuid;
+  std::string url;
+  MSGPACK_DEFINE_MAP(uuid, url);
+};
+
+struct TextureData {
+  std::string uuid;
+  std::string image;  // UUID of the image the texture uses.
+  // TODO(SeanCurtis-TRI): There are a number of fields that would come in handy
+  //  https://threejs.org/docs/?q=Texture#api/en/textures/Texture
+  //   - offset, repeat, rotation, center (or matrix)
+
+  MSGPACK_DEFINE_MAP(uuid, image);
+};
+
 // TODO(russt): We should expose these options to the user.
 // The documentation of the fields is adapted from
 // https://threejs.org/docs/#api/en/materials/Material and its derived classes.
@@ -51,6 +67,10 @@ struct MaterialData {
 
   // Default color is a light gray.
   int color{(229 << 16) + (229 << 8) + 229};
+
+  // In three.js parlance, the material "map" properties is the diffuse color
+  // map.
+  std::optional<std::string> map;
 
   // For LineBasicMaterial, controls line thickness. The three.js default is 1.
   // Due to limitations of the OpenGL Core Profile with the WebGL renderer on
@@ -112,6 +132,7 @@ struct MaterialData {
   // NOLINTNEXTLINE(runtime/references) cpplint disapproves of msgpack choices.
   void msgpack_pack(Packer& o) const {
     int n = 4;
+    if (map) ++n;
     if (linewidth) ++n;
     if (opacity) ++n;
     if (reflectivity) ++n;
@@ -126,6 +147,10 @@ struct MaterialData {
     PACK_MAP_VAR(o, type);
     PACK_MAP_VAR(o, color);
     PACK_MAP_VAR(o, vertexColors);
+    if (map) {
+      o.pack("map");
+      o.pack(*map);
+    }
     if (linewidth) {
       o.pack("linewidth");
       o.pack(*linewidth);
@@ -343,6 +368,8 @@ struct LumpedObjectData {
   std::unique_ptr<GeometryData> geometry;
   std::unique_ptr<MaterialData> material;
   std::variant<std::monostate, MeshData, MeshfileObjectData> object;
+  std::vector<TextureData> textures;
+  std::vector<ImageData> images;
 
   template <typename Packer>
   // NOLINTNEXTLINE(runtime/references) cpplint disapproves of msgpack choices.
@@ -350,6 +377,8 @@ struct LumpedObjectData {
     int size = 2;
     if (geometry) ++size;
     if (material) ++size;
+    if (textures.size()) ++size;
+    if (images.size()) ++size;
     o.pack_map(size);
     PACK_MAP_VAR(o, metadata);
     if (geometry) {
@@ -361,6 +390,20 @@ struct LumpedObjectData {
       o.pack("materials");
       o.pack_array(1);
       o.pack(*material);
+    }
+    if (textures.size()) {
+      o.pack("textures");
+      o.pack_array(textures.size());
+      for (const auto& t : textures) {
+        o.pack(t);
+      }
+    }
+    if (images.size()) {
+      o.pack("images");
+      o.pack_array(images.size());
+      for (const auto& i : images) {
+        o.pack(i);
+      }
     }
     o.pack("object");
     if (std::holds_alternative<MeshData>(object)) {

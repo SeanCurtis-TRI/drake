@@ -19,6 +19,7 @@ struct FileStorage::Impl {
     ~MemoryFileAndBackreference() {
       if (std::shared_ptr<FileStorage::Impl> impl = backreference.lock()) {
         std::lock_guard guard(impl->mutex);
+        fmt::print("Deleting {}\n", memory_file.sha256().to_string());
         auto iter = impl->map.find(memory_file.sha256());
         if (iter != impl->map.end()) {
           // Only erase the map entry when it's use_count is actually zero. In
@@ -62,14 +63,14 @@ std::shared_ptr<const MemoryFile> FileStorage::Insert(
   // files being inserted, so we'll simply provide an empty extension.
   MemoryFile new_memory_file(std::move(content), "", std::move(filename_hint));
 
-  // Hold a transactional lock for all operations on our map.
-  // This is important to avoid TOCTOU races.
-  std::lock_guard guard(impl_->mutex);
+    // Hold a transactional lock for all operations on our map.
+    // This is important to avoid TOCTOU races.
+    std::lock_guard guard(impl_->mutex);
 
-  // Attempt to re-use an existing entry.
-  if (std::shared_ptr<const MemoryFile> old_memory_file =
-          FindWhileLocked(new_memory_file.sha256())) {
-    return old_memory_file;
+    // Attempt to re-use an existing entry.
+    if (std::shared_ptr<const MemoryFile> old_memory_file =
+            FindWhileLocked(new_memory_file.sha256())) {
+      return old_memory_file;
   }
 
   // We'll be returning a shared_ptr<const MemoryFile> but what we allocate here
@@ -84,6 +85,8 @@ std::shared_ptr<const MemoryFile> FileStorage::Insert(
                                    &(fat_memory_file->memory_file));
 
   impl_->map[file->sha256()] = file;
+  fmt::print("\nFileStorage::Insert({}) ->\n  {}\n  {}\n  size: {}\n", file->filename_hint(),
+          file->sha256().to_string(), static_cast<void*>(this), impl_->map.size());
 
   return file;
 }

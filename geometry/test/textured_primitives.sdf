@@ -1,0 +1,66 @@
+<?xml version="1.0"?>
+<sdf xmlns:drake="http://drake.mit.edu" version="1.7">
+  <model name="textured_primitives">
+    <link name="base">
+      <inertial>
+        <mass>1</mass>
+      </inertial>
+      <visual name="sphere">
+        <pose>-2 0 0 0 0 0</pose>
+        <geometry>
+          <sphere>
+            <radius>0.25</radius>
+          </sphere>
+        </geometry>
+        <material>
+          <drake:diffuse_map>color_panel.png</drake:diffuse_map>
+        </material>
+      </visual>
+      <visual name="cylinder">
+        <pose>-1 0 0 0 0 0</pose>
+        <geometry>
+          <cylinder>
+            <radius>0.25</radius>
+            <length>0.5</length>
+          </cylinder>
+        </geometry>
+        <material>
+          <drake:diffuse_map>color_panel.png</drake:diffuse_map>
+        </material>
+      </visual>
+      <visual name="ellipsoid">
+        <geometry>
+          <ellipsoid>
+            <radii>0.25 0.25 0.5</radii>
+          </ellipsoid>
+        </geometry>
+        <material>
+          <drake:diffuse_map>color_panel.png</drake:diffuse_map>
+        </material>
+      </visual>
+      <visual name="box">
+        <pose>1 0 0 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>0.25 0.25 0.5</size>
+          </box>
+        </geometry>
+        <material>
+          <drake:diffuse_map>color_panel.png</drake:diffuse_map>
+        </material>
+      </visual>
+      <visual name="capsule">
+        <pose>2 0 0 0 0 0</pose>
+        <geometry>
+          <capsule>
+            <radius>0.25</radius>
+            <length>0.5</length>
+          </capsule>
+        </geometry>
+        <material>
+          <drake:diffuse_map>color_panel.png</drake:diffuse_map>
+        </material>
+      </visual>
+    </link>
+  </model>
+</sdf>

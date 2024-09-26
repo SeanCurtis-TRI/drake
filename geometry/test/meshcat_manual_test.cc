@@ -56,7 +56,12 @@ int do_main() {
   // The weird name for the sphere is to confirm that meshcat collapses
   // redundant slashes. We'll subsequently refer to it without the slash to
   // make sure they're equivalent.
-  meshcat->SetObject("sphere//scoped_name", Sphere(0.25), Rgba(1.0, 0, 0, 1));
+  const std::string checkers =
+      FindResourceOrThrow("drake/geometry/render/test/meshes/checker.png");
+  IllustrationProperties sphere_props;
+  sphere_props.AddProperty("phong", "diffuse", Rgba(1, 0, 0));
+  sphere_props.AddProperty("phong", "diffuse_map", checkers);
+  meshcat->SetObject("sphere//scoped_name", Sphere(0.25), sphere_props);
   meshcat->SetTransform("sphere/scoped_name", RigidTransformd(sphere_home));
   // Note: this isn't the preferred means for setting opacity, but it is the
   // simplest way to exercise chained property names.
@@ -73,8 +78,11 @@ int do_main() {
   // For animation, we'll aim the camera between the cylinder and ellipsoid.
   const Vector3d animation_target{x + 0.5, 0, 0};
 
-  meshcat->SetObject("ellipsoid", Ellipsoid(0.25, 0.25, 0.5),
-                     Rgba(1.0, 0, 1, 0.5));
+  IllustrationProperties ell_props;
+  ell_props.AddProperty("phong", "diffuse", Rgba(1, 0, 1, 0.5));
+  ell_props.AddProperty("phong", "diffuse_map", checkers);
+  meshcat->SetObject("sphere//scoped_name", Sphere(0.25), sphere_props);
+  meshcat->SetObject("ellipsoid", Ellipsoid(0.25, 0.25, 0.5), ell_props);
   meshcat->SetTransform("ellipsoid", RigidTransformd(Vector3d{++x, 0, 0}));
 
   Vector3d box_home{++x, 0, 0};

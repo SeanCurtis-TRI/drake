@@ -11,6 +11,7 @@
 #include "drake/common/drake_copyable.h"
 #include "drake/common/name_value.h"
 #include "drake/common/timer.h"
+#include "drake/geometry/geometry_properties.h"
 #include "drake/geometry/meshcat_animation.h"
 #include "drake/geometry/meshcat_params.h"
 #include "drake/geometry/proximity/triangle_surface_mesh.h"
@@ -190,6 +191,18 @@ class Meshcat {
   void SetObject(std::string_view path, const Shape& shape,
                  const Rgba& rgba = Rgba(.9, .9, .9, 1.));
 
+  /** Variant of the SetObject(path, shape) which defines the visual appearance
+   of the shape from the corresponding geometry properties. Specifically, the
+   following properties will be evaluated:
+
+    | Group name | Property Name |  Property Type  |  Default  | Property Description |
+    | :--------: | :-----------: | :-------------: | :-------: | :-------------: |
+    |    phong   | diffuse       |     Rgba        | (1, 1, 1) | The rgba value of the object surface. |
+    |    phong   | diffuse_map   |    string       |     ""    | The path to a texture to apply to the geometry. |
+
+   */
+  void SetObject(std::string_view path, const Shape& shape,
+                 const GeometryProperties& props);
   // TODO(russt): SetObject with texture map.
 
   /** Sets the "object" at a given `path` in the scene tree to be
