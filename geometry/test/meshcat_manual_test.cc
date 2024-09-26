@@ -364,7 +364,7 @@ Ignore those for now; we'll need to circle back and fix them later.
   meshcat->SetCameraTarget(gltf_pose);
   meshcat->SetProperty("/Background", "visible", true);
   meshcat->SetEnvironmentMap(
-      FindResourceOrThrow("drake/geometry/test/env_256_cornell_box.png"));
+      FindResourceOrThrow("drake/geometry/test/env_256_six_color_room2.hdr"));
 
   std::cout << "- An environment map has been loaded from a png -- the Cornell "
             << "box.\n"
