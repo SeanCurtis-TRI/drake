@@ -505,6 +505,15 @@ RenderEngineVtk::RenderEngineVtk(const RenderEngineVtk& other)
       fallback_lights_(other.fallback_lights_) {
   InitializePipelines();
 
+  auto configure_depth = [this](vtkActor* actor) {
+    vtkOpenGLShaderProperty* shader_prop =
+        vtkOpenGLShaderProperty::SafeDownCast(actor->GetShaderProperty());
+    DRAKE_DEMAND(shader_prop != nullptr);
+    shader_prop->SetVertexShaderCode(render::shaders::kDepthVS);
+    shader_prop->SetFragmentShaderCode(render::shaders::kDepthFS);
+    actor->GetMapper()->AddObserver(vtkCommand::UpdateShaderEvent,
+                                    uniform_setting_callback_.Get());
+  };
   for (const auto& [id, source_props] : other.props_) {
     PropArray target_props;
     for (int i = 0; i < kNumPipelines; ++i) {
@@ -517,6 +526,9 @@ RenderEngineVtk::RenderEngineVtk(const RenderEngineVtk& other)
         vtkNew<vtkOpenGLPolyDataMapper> target_mapper;
         target_mapper->ShallowCopy(source_part.actor->GetMapper());
         target_actor->SetMapper(target_mapper);
+        if (i == kDepth) {
+          configure_depth(target_actor);
+        }
         renderer.AddActor(target_actor);
         target_prop.parts.push_back(
             Part{.actor = std::move(target_actor), .T_GA = source_part.T_GA});
