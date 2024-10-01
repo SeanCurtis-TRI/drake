@@ -1,6 +1,7 @@
 #include "drake/multibody/tree/geometry_spatial_inertia.h"
 
 #include <algorithm>
+#include <filesystem>
 #include <limits>
 #include <string>
 
@@ -24,6 +25,8 @@ using Eigen::AngleAxisd;
 using Eigen::Vector3d;
 using math::RigidTransformd;
 using math::RotationMatrixd;
+
+namespace fs = std::filesystem;
 
 // Arbitrary, non-unit density.
 constexpr double kDensity = 1.5;
@@ -159,37 +162,53 @@ GTEST_TEST(GeometrySpatialInertiaTest, Convex) {
       /* tolerance = */ 1e-1));
 }
 
+// Create an obj file at the given path with the property of having a volume
+// with the given "sign" as encoded by one of three strings: "pos", "neg", or
+// "zero".
+void MakeVolumeObj(const fs::path& obj_path, std::string_view volume_sign) {
+  const std::string_view vertices = R"""(v 0.0  0.0   0.5
+v 0.0  0.0   0.5
+v 0.0  0.0  -0.5
+v 1.0  1.0   0.5
+v 1.0  1.0  -0.5
+f 1 3 2
+f 2 3 4
+)""";
+  // Both faces with correct winding --> positive volume.
+  const std::string_view positive_volume = R"""(
+f 1 3 2
+f 2 3 4)""";
+  // One face reversed winding --> zero volume.
+  const std::string_view zero_volume = R"""(
+f 1 2 3
+f 2 3 4)""";
+  // Both faces reversed winding --> negative volume.
+  const std::string_view negative_volume = R"""(
+f 1 2 3
+f 2 4 3)""";
+  std::ofstream file(obj_path);
+        DRAKE_DEMAND(file.is_open());
+        file << fmt::format(
+            "{}{}", vertices,
+            volume_sign == "neg"
+                ? negative_volume
+                : (volume_sign == "pos" ? positive_volume : zero_volume));
+}
+
 // Throw an exception message when CalcSpatialInertia(Shape) calculates an
 // invalid volume for an associated geometry file.
 GTEST_TEST(GeometrySpatialInertiaTest, ExceptionOnBadGeometry) {
-  // Throw an exception for the mesh in bad_geometryA.obj since
-  // its calculated volume is negative (volume = -0.5).
-  std::string geometry_file_path =
-      FindResourceOrThrow("drake/geometry/test/bad_geometryA.obj");
-  const geometry::Mesh bad_geometryA_obj(geometry_file_path, 1.0);
-  DRAKE_EXPECT_THROWS_MESSAGE(
-      CalcSpatialInertia(bad_geometryA_obj, kDensity),
-      ".*volume of a triangle surface mesh is.* whereas a reasonable "
-      "positive value was expected. The mesh may have bad geometry.*");
-
-  // Throw an exception for the mesh in bad_geometryB.obj since
-  // its calculated volume is negative (volume = -0.5).
-  geometry_file_path =
-      FindResourceOrThrow("drake/geometry/test/bad_geometryB.obj");
-  const geometry::Mesh bad_geometryB_obj(geometry_file_path, 1.0);
-  DRAKE_EXPECT_THROWS_MESSAGE(
-      CalcSpatialInertia(bad_geometryB_obj, kDensity),
-      ".*volume of a triangle surface mesh is.* whereas a reasonable "
-      "positive value was expected. The mesh may have bad geometry.*");
-
-  // Ensure no exception is thrown for the mesh in bad_geometry_corrected.obj.
-  // This file has the same vertices as bad_geometryA_obj and bad_geometryB_obj,
-  // but its faces has vertices in an appropriate order.
-  // This mesh has an appropriate spatial inertia and positive volume.
-  geometry_file_path =
-      FindResourceOrThrow("drake/geometry/test/bad_geometry_corrected.obj");
-  const geometry::Mesh ok_geometry_obj(geometry_file_path, 1.0);
-  EXPECT_NO_THROW(CalcSpatialInertia(ok_geometry_obj, kDensity));
+  fs::path dir = temp_directory();
+  for (const auto sign : {"pos", "neg", "zero"}) {
+    fs::path obj_path = dir / fmt::format("{}.obj", sign);
+    MakeVolumeObj(obj_path, sign);
+    if (sign == "pos") {
+      EXPECT_NO_THROW(CalcSpatialInertia(Mesh(obj_path)), kDensity);
+      continue;
+    }
+    DRAKE_EXPECT_THROWS_MESSAGE(CalcSpatialInertia(Mesh(obj_path), kDensity),
+    ".*volume of a triangle surface mesh.*");
+  }
 }
 
 // Exercises the common code paths for Mesh and Convex (i.e., "MeshTypes").
