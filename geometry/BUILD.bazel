@@ -847,7 +847,7 @@ filegroup(
 
 filegroup(
     name = "environment_maps",
-    testonly = 1,
+    # testonly = 1,
     srcs = [
         "test/env_256_brick_room.jpg",
         "test/env_256_cornell_box.png",
