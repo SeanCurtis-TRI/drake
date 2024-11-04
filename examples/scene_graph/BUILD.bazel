@@ -6,6 +6,20 @@ load(
     "drake_cc_library",
 )
 load("//tools/skylark:test_tags.bzl", "vtk_test_tags")
+load(
+    "//tools/skylark:drake_py.bzl",
+    "drake_py_binary",
+)
+
+drake_py_binary(
+    # This is the directly-runnable form of spong_sim.py.
+    name = "lighting_py",
+    srcs = ["lighting_games.py"],
+    main = "lighting_games.py",
+    deps = [
+        "//bindings/pydrake",
+    ],
+)
 
 package(default_visibility = ["//visibility:private"])
 
