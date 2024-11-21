@@ -8,6 +8,10 @@ filegroup(
     data = [
         "resources/sphere.gltf",
         "resources/sphere.bin",
+        "resources/env_color_room.png",
+        "resources/env_color_room_125.hdr",
+        "resources/env_color_room_250.hdr",
+        "resources/env_color_room_500.hdr",
     ],
 )
 
