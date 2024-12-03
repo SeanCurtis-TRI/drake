@@ -132,30 +132,24 @@ EnvironmentTexture ReadEquirectangularFile(std::string const& fileName) {
                    return std::tolower(c);
                  });
 
-  bool is_hdr = false;
-  if (std::string(".jpeg .jpg .png").find(extension, 0) != std::string::npos) {
-    vtkNew<vtkImageReader2Factory> readerFactory;
-    vtkSmartPointer<vtkImageReader2> imgReader;
-    imgReader.TakeReference(
-        readerFactory->CreateImageReader2(fileName.c_str()));
-    imgReader->SetFileName(fileName.c_str());
-    texture->SetInputConnection(imgReader->GetOutputPort());
-  } else {
-    vtkNew<vtkHDRReader> reader;
-    auto extensions = reader->GetFileExtensions();
-    if (std::string(extensions).find(extension, 0) != std::string::npos) {
-      if (reader->CanReadFile(fileName.c_str())) {
-        reader->SetFileName(fileName.c_str());
+  vtkNew<vtkImageReader2Factory> readerFactory;
+  vtkSmartPointer<vtkImageReader2> imgReader;
+  imgReader.TakeReference(
+      readerFactory->CreateImageReader2FromExtension(extension.c_str()));
+  if (imgReader == nullptr) {
+    throw std::runtime_error(fmt::format(
+        "Unable to instantiate environment map for RenderEngineVtk: '{}'.",
+        fileName));
+  }
+  imgReader->SetFileName(fileName.c_str());
+  texture->SetInputConnection(imgReader->GetOutputPort());
 
-        texture->SetInputConnection(reader->GetOutputPort());
-        texture->SetColorModeToDirectScalars();
-        is_hdr = true;
-      } else {
-        throw std::runtime_error(fmt::format(
-            "Unable to instantiate environment map for RenderEngineVtk: '{}'.",
-            fileName));
-      }
-    }
+  // The only images we parse that turn into float-valued pixels are hdr images.
+  // However, we can't know if it's float-valued until after we call Update().
+  imgReader->Update();
+  const bool is_hdr = imgReader->GetDataScalarType() == VTK_FLOAT;
+  if (is_hdr) {
+    texture->SetColorModeToDirectScalars();
   }
 
   texture->MipmapOn();
@@ -1191,7 +1185,7 @@ void RenderEngineVtk::UpdateWindow(const DepthRenderCamera& camera,
   uniform_setting_callback_->set_z_far(
       static_cast<float>(camera.depth_range().max_depth()));
   // Never show window for depth camera; it is a meaningless operation as the
-  // raw depth rasterization is not human consummable.
+  // raw depth rasterization is not human consumable.
   UpdateWindow(camera.core(), false, p, "");
 }
 
