@@ -21,7 +21,8 @@ GTEST_TEST(YamlJsonTest, WriteScalars) {
                                   R"""("some_int64":14,)"""
                                   R"""("some_string":"kNominalString",)"""
                                   R"""("some_uint32":12,)"""
-                                  R"""("some_uint64":15})""");
+                                  R"""("some_uint64":15})"""
+                                  R"""("some_path":"/path/to/nowhere")""");
 }
 
 GTEST_TEST(YamlJsonTest, StringEscaping) {
