@@ -5,6 +5,7 @@
 #include <variant>
 #include <vector>
 
+#include "drake/common/file_source.h"
 #include "drake/common/eigen_types.h"
 #include "drake/common/name_value.h"
 #include "drake/common/string_map.h"
@@ -31,13 +32,11 @@ struct EquirectangularMap {
    Refer to @ref yaml_serialization "YAML Serialization" for background. */
   template <typename Archive>
   void Serialize(Archive* a) {
-    a->Visit(DRAKE_NVP(path));
+    a->Visit(DRAKE_NVP(source));
   }
 
-  // TODO(SeanCurtis-TRI): It would be nice if this supported package. To that
-  // end proper URIs including file:// or even data://, I suppose.
-  /** The path to the map file. */
-  std::string path;
+  /** The source of the environment map; it could be on disk or in memory. */
+  FileSource source;
 };
 
 struct EnvironmentMap {
@@ -62,7 +61,7 @@ struct EnvironmentMap {
      environment_map:
        skybox: true
        texture: !EquirectangularMap
-         path: /path/to/environment_image.hdr
+         source: /path/to/environment_image.hdr
    @endcode
 
    @experimental
