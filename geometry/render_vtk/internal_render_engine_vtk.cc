@@ -122,26 +122,49 @@ struct EnvironmentTexture {
 };
 
 // Taken from: https://examples.vtk.org/site/Cxx/Rendering/PBR_HDR_Environment/
-EnvironmentTexture ReadEquirectangularFile(std::string const& fileName) {
+EnvironmentTexture ReadEquirectangularFile(const FileSource& source) {
   vtkNew<vtkTexture> texture;
 
-  std::string extension =
-      std::filesystem::path(fileName).extension().generic_string();
-  std::transform(extension.cbegin(), extension.cend(), extension.begin(),
-                 [](char c) {
-                   return std::tolower(c);
-                 });
+  const std::string extension = std::visit<std::string>(
+      overloaded{[](const std::filesystem::path& path) {
+                   std::string ext = path.extension().generic_string();
+                   std::transform(ext.cbegin(), ext.cend(), ext.begin(),
+                                  [](char c) {
+                                    return std::tolower(c);
+                                  });
+                   return ext;
+                 },
+                 [](const MemoryFile& in_memory) {
+                   return in_memory.extension();
+                 }},
+      source);
 
   vtkNew<vtkImageReader2Factory> readerFactory;
   vtkSmartPointer<vtkImageReader2> imgReader;
   imgReader.TakeReference(
       readerFactory->CreateImageReader2FromExtension(extension.c_str()));
   if (imgReader == nullptr) {
+    const std::string fileName = std::visit<std::string>(
+        overloaded{[](const std::filesystem::path& path) {
+                     return path.string();
+                   },
+                   [](const MemoryFile& in_memory) {
+                     return in_memory.filename_hint();
+                   }},
+        source);
     throw std::runtime_error(fmt::format(
         "Unable to instantiate environment map for RenderEngineVtk: '{}'.",
         fileName));
   }
-  imgReader->SetFileName(fileName.c_str());
+  std::visit(overloaded{[&imgReader](const std::filesystem::path& path) {
+                          imgReader->SetFileName(path.c_str());
+                        },
+                        [&imgReader](const MemoryFile& in_memory) {
+                          const std::string& contents = in_memory.contents();
+                          imgReader->SetMemoryBuffer(contents.c_str());
+                          imgReader->SetMemoryBufferLength(contents.size());
+                        }},
+             source);
   texture->SetInputConnection(imgReader->GetOutputPort());
 
   // The only images we parse that turn into float-valued pixels are hdr images.
@@ -868,9 +891,9 @@ void RenderEngineVtk::InitializePipelines() {
           "no equirectangular texture has been provided.");
       return;
     }
-    const std::string& path =
-        std::get<EquirectangularMap>(parameters_.environment_map->texture).path;
-    EnvironmentTexture env_map = ReadEquirectangularFile(path);
+    const auto& equi_map =
+        std::get<EquirectangularMap>(parameters_.environment_map->texture);
+    EnvironmentTexture env_map = ReadEquirectangularFile(equi_map.source);
     renderer->UseImageBasedLightingOn();
     renderer->SetUseSphericalHarmonics(env_map.is_hdr);
     renderer->SetEnvironmentTexture(env_map.texture,

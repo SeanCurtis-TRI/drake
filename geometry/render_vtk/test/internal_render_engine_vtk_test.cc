@@ -1827,7 +1827,7 @@ TEST_F(RenderEngineVtkTest, EnvironmentMap) {
     RotationMatrixd R_WC;
     Rgba bg_color;
     Rgba sphere_color;
-    std::string map_path;
+    FileSource map_source;
     bool show_map{true};
     bool render_clone{false};
   };
@@ -1877,34 +1877,46 @@ TEST_F(RenderEngineVtkTest, EnvironmentMap) {
        .R_WC = RotationMatrixd(),
        .bg_color = Rgba(0, 0, 1),
        .sphere_color = Rgba(0.9882, 0.6353, 0.9098),  // magenta-ish
-       .map_path = hdr_path},
+       .map_source = hdr_path},
       {.description = "Facing blue; testing the skybox",
        .R_WC = RotationMatrixd(),
        .bg_color = Rgba(0, 0, 1),
        .sphere_color = Rgba(0.9882, 0.6353, 0.9098),  // magenta-ish
-       .map_path = hdr_path,
+       .map_source = hdr_path,
        .show_map = false},
       {.description = "Facing blue; testing the clone",
        .R_WC = RotationMatrixd(),
        .bg_color = Rgba(0, 0, 1),
        .sphere_color = Rgba(0.9882, 0.6353, 0.9098),  // magenta-ish
-       .map_path = hdr_path,
+       .map_source = hdr_path,
        .render_clone = true},
       {.description = "Facing +Wy, toward the green face, yellow behind; HDR",
        .R_WC = RotationMatrixd::MakeXRotation(M_PI / 2),
        .bg_color = Rgba(0, 1, 0),
        .sphere_color = Rgba(0.9843, 0.9098, 0.6353),  // yellow-ish
-       .map_path = hdr_path},
+       .map_source = hdr_path},
       {.description = "Facing +Wx, toward the red face, cyan behind; HDR",
        .R_WC = RotationMatrixd::MakeYRotation(M_PI / 2),
        .bg_color = Rgba(1, 0, 0),
        .sphere_color = Rgba(0.5177, 0.9804, 0.9765),  // cyan-ish
-       .map_path = hdr_path},
+       .map_source = hdr_path},
+      {.description =
+           "Facing +Wx, toward the red face, cyan behind; HDR from memory",
+       .R_WC = RotationMatrixd::MakeYRotation(M_PI / 2),
+       .bg_color = Rgba(1, 0, 0),
+       .sphere_color = Rgba(0.5177, 0.9804, 0.9765),  // cyan-ish
+       .map_source = MemoryFile::Make(hdr_path)},
       {.description = "Facing +Wz, toward the blue face, magenta behind; LDR",
        .R_WC = RotationMatrixd(),
        .bg_color = Rgba(0.0588, 0.0588, 0.9255),
        .sphere_color = Rgba(0.7255, 0.4275, 0.6275),  // magenta-ish
-       .map_path = ldr_path},
+       .map_source = ldr_path},
+      {.description =
+           "Facing +Wz, toward the blue face, magenta behind; LDR from memory",
+       .R_WC = RotationMatrixd(),
+       .bg_color = Rgba(0.0588, 0.0588, 0.9255),
+       .sphere_color = Rgba(0.7255, 0.4275, 0.6275),  // magenta-ish
+       .map_source = MemoryFile::Make(ldr_path)},
   };
 
   for (const auto& config : configs) {
@@ -1913,7 +1925,7 @@ TEST_F(RenderEngineVtkTest, EnvironmentMap) {
         .environment_map =
             EnvironmentMap{
                 .skybox = config.show_map,
-                .texture = EquirectangularMap{.path = config.map_path}},
+                .texture = EquirectangularMap{.source = config.map_source}},
         .backend = FLAGS_backend,
     };
     RenderEngineVtk renderer(params);
@@ -2822,7 +2834,7 @@ TEST_F(RenderEngineVtkTest, WholeImageCustomParams) {
         .environment_map = {EnvironmentMap{
             // Note: The ground plane covers the full background, we won't be
             // able to see the skybox.
-            .texture = EquirectangularMap{.path = hdr_path}}},
+            .texture = EquirectangularMap{.source = hdr_path}}},
         .exposure = 0.75,
         .cast_shadows = true,
         .shadow_map_size = 1024,
@@ -2918,7 +2930,7 @@ TEST_F(RenderEngineVtkTest, WholeImageVerticalAspectRatio) {
       .environment_map = {EnvironmentMap{
           // Note: The ground plane covers the full background, we won't be
           // able to see the skybox.
-          .texture = EquirectangularMap{.path = hdr_path}}},
+          .texture = EquirectangularMap{.source = hdr_path}}},
       .exposure = 0.75,
       .cast_shadows = true,
       .shadow_map_size = 1024,

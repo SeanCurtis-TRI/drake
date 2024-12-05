@@ -5,6 +5,7 @@
 #include <variant>
 #include <vector>
 
+#include "drake/common/file_source.h"
 #include "drake/common/eigen_types.h"
 #include "drake/common/name_value.h"
 #include "drake/common/string_map.h"
@@ -31,13 +32,17 @@ struct EquirectangularMap {
    Refer to @ref yaml_serialization "YAML Serialization" for background. */
   template <typename Archive>
   void Serialize(Archive* a) {
-    a->Visit(DRAKE_NVP(path));
+    a->Visit(DRAKE_NVP(source));
   }
 
-  // TODO(SeanCurtis-TRI): It would be nice if this supported package. To that
-  // end proper URIs including file:// or even data://, I suppose.
-  /** The path to the map file. */
-  std::string path;
+  // TODO(SeanCurtis-TRI): `path` is the original name when it was simply a
+  // path. "source" better reflects the new semantics. Keeping it `path` would
+  // give us backwards compatibility. The old strings that resolved to a
+  // path should still assign in. How do we deprecate the name of a serialized
+  // field? Is there a way to load yaml "labeled" path and written to "source"?
+
+  /** The source of the environment map; it could be on disk or in memory. */
+  FileSource source;
 };
 
 struct EnvironmentMap {
@@ -62,13 +67,13 @@ struct EnvironmentMap {
      environment_map:
        skybox: true
        texture: !EquirectangularMap
-         path: /path/to/environment_image.hdr
+         source: /path/to/environment_image.hdr
    @endcode
 
    @experimental
    @note This will change from a simple file path to a more comprehensive URI
    soon. So, be aware you will have to change /path/image.png to
-   file:///path/image.png in the near future. */
+   file:///path/image.png in the future. */
   std::variant<NullTexture, EquirectangularMap> texture;
 };
 
