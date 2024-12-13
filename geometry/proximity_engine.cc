@@ -1027,6 +1027,12 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
       const ProximityProperties& props, bool is_dynamic,
       fcl::DynamicAABBTreeCollisionManager<double>* tree,
       unordered_map<GeometryId, unique_ptr<CollisionObjectd>>* objects) {
+    if (is_dynamic && shape.type_name() == "HalfSpace" && false) {
+      throw std::runtime_error(
+          "HalfSpace should never be registered to a dynamic frame. It should "
+          "either be registered as anchored (welded to the world frame) or "
+          "should be replaced with a large, flat Box.");
+    }
     const double margin =
         props.GetPropertyOrDefault<double>(kHydroGroup, kMargin, 0.0);
     ReifyData data{nullptr, id, props, X_WG, margin};

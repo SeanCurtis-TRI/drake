@@ -27,6 +27,9 @@ DEFINE_bool(color, true, "Sets the enabled camera to render color");
 DEFINE_bool(depth, true, "Sets the enabled camera to render depth");
 DEFINE_bool(label, true, "Sets the enabled camera to render label");
 DEFINE_double(render_fps, 10, "Frames per simulation second to render");
+DEFINE_bool(dynamic_ground, false,
+            "Sets whether the ground plane is affixed to a dynamic frame "
+            "(true) or welded to the ground (false)");
 
 namespace drake {
 namespace examples {
@@ -85,8 +88,13 @@ int do_main() {
   // X_WH will be the identity.
   Vector3<double> Hz_W(0, 0, 1);
   Vector3<double> p_WHo_W(0, 0, 0);
-  const GeometryId ground_id = scene_graph->RegisterAnchoredGeometry(
-      global_source,
+  geometry::FrameId ground_frame_id = scene_graph->world_frame_id();
+  if (FLAGS_dynamic_ground) {
+    ground_frame_id = scene_graph->RegisterFrame(
+        global_source, geometry::GeometryFrame("ground"));
+  }
+  const GeometryId ground_id = scene_graph->RegisterGeometry(
+      global_source, ground_frame_id,
       make_unique<GeometryInstance>(HalfSpace::MakePose(Hz_W, p_WHo_W),
                                     make_unique<HalfSpace>(), "ground"));
   scene_graph->AssignRole(global_source, ground_id, ProximityProperties());
@@ -190,6 +198,18 @@ int do_main() {
   };
   init_ball(bouncing_ball1, 0.3, 0.);
   init_ball(bouncing_ball2, 0.3, 0.3);
+  if (FLAGS_dynamic_ground) {
+    systems::Context<double>& sg_context =
+        scene_graph->GetMyMutableContextFromRoot(
+            &simulator.get_mutable_context());
+    const auto& ground_port = scene_graph->get_source_pose_port(global_source);
+    // The pose is ever so slightly off of identity to cause FCL to respond
+    // to the half space differently.
+    geometry::FramePoseVector<double> X_WGround{
+        {ground_frame_id,
+         RigidTransformd(RotationMatrixd::MakeXRotation(0.001))}};
+    ground_port.FixValue(&sg_context, X_WGround);
+  }
 
   simulator.get_mutable_integrator().set_maximum_step_size(0.002);
   simulator.set_target_realtime_rate(1.f);
