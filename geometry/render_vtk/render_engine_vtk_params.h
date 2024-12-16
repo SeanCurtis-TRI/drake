@@ -32,16 +32,24 @@ struct EquirectangularMap {
    Refer to @ref yaml_serialization "YAML Serialization" for background. */
   template <typename Archive>
   void Serialize(Archive* a) {
+    a->Visit(DRAKE_NVP(path));
     a->Visit(DRAKE_NVP(source));
   }
 
-  // TODO(SeanCurtis-TRI): `path` is the original name when it was simply a
-  // path. "source" better reflects the new semantics. Keeping it `path` would
-  // give us backwards compatibility. The old strings that resolved to a
-  // path should still assign in. How do we deprecate the name of a serialized
-  // field? Is there a way to load yaml "labeled" path and written to "source"?
+  /* The path to the map file.
 
-  /** The source of the environment map; it could be on disk or in memory. */
+   @warning `path` is deprecated. Use `source` instead. The same path value will
+   continue to work, just assign it to the `source` field instead of the `path`
+   field. This field will be removed from Drake on or after 2024-04-01.
+
+   If both `path` and `source` are non-empty, the `source` value will be used
+   and `path` ignored. */
+  std::string path;
+
+  /** The source of the environment map; it could be on disk or in memory.
+
+   @warning If `source` is set to a MemoryFile, you will _not_ be able to
+    serialize this struct. */
   FileSource source;
 };
 

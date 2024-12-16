@@ -132,9 +132,11 @@ EnvironmentTexture ReadEquirectangularFile(const FileSource& source) {
                                   [](char c) {
                                     return std::tolower(c);
                                   });
+                   fmt::print("Env map in path: '{}'\n", path.string());
                    return ext;
                  },
                  [](const MemoryFile& in_memory) {
+                  fmt::print("Env map in memory: '{}'\n", in_memory.filename_hint());
                    return in_memory.extension();
                  }},
       source);
@@ -891,9 +893,30 @@ void RenderEngineVtk::InitializePipelines() {
           "no equirectangular texture has been provided.");
       return;
     }
-    const auto& equi_map =
+    const auto& equirect_map =
         std::get<EquirectangularMap>(parameters_.environment_map->texture);
-    EnvironmentTexture env_map = ReadEquirectangularFile(equi_map.source);
+    // TODO(2024-04-01) The following block serves the deprecation. When we
+    // finish deprecating EquirectangularMap::path, we can nuke the entire block
+    // and simply pass equirect_map.source into ReadEquirectangularFile().
+    const FileSource deprecated_path(equirect_map.path);
+    if (!std::get<std::filesystem::path>(deprecated_path).empty()) {
+      static const drake::internal::WarnDeprecated warn_once(
+          "2025-04-01",
+          "When specifying the environment map in RenderEnvintVtkParams, use "
+          "EquirectangularMap::source instead of EquirectangularMap::path.");
+    }
+    const FileSource* source_to_use = std::visit(
+        overloaded{[&source = equirect_map.source,
+                    &deprecated_path](const std::filesystem::path& path) {
+                     if (path.empty()) return &deprecated_path;
+                     return &source;
+                   },
+                   [&source = equirect_map.source](const MemoryFile&) {
+                     return &source;
+                   }},
+        equirect_map.source);
+    // End of deprecation block.
+    EnvironmentTexture env_map = ReadEquirectangularFile(*source_to_use);
     renderer->UseImageBasedLightingOn();
     renderer->SetUseSphericalHarmonics(env_map.is_hdr);
     renderer->SetEnvironmentTexture(env_map.texture,
