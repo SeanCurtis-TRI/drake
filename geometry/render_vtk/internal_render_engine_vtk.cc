@@ -90,6 +90,8 @@ namespace {
 
 const double kTerrainSize = 100.;
 
+namespace fs = std::filesystem;
+
 void SetModelTransformMatrixToVtkCamera(
     vtkCamera* camera, const vtkSmartPointer<vtkTransform>& X_WC) {
   // vtkCamera contains a transformation as the internal state and
@@ -130,7 +132,9 @@ EnvironmentTexture ReadEquirectangularFile(vtkImageReader2* imgReader) {
 
   // The only images we parse that turn into float-valued pixels are hdr images.
   // However, we can't know if it's float-valued until after we call Update().
+  fmt::print("Updating\n");
   imgReader->Update();
+  fmt::print("...updated\n");
   const bool is_hdr = imgReader->GetDataScalarType() == VTK_FLOAT;
   if (is_hdr) {
     texture->SetColorModeToDirectScalars();
@@ -143,7 +147,7 @@ EnvironmentTexture ReadEquirectangularFile(vtkImageReader2* imgReader) {
 }
 
 // Taken from: https://examples.vtk.org/site/Cxx/Rendering/PBR_HDR_Environment/
-EnvironmentTexture ReadEquirectangularFile(const std::filesystem::path& path) {
+EnvironmentTexture ReadEquirectangularFile(const fs::path& path) {
   const std::string extension = [&path]() {
     std::string ext = path.extension().generic_string();
     std::transform(ext.cbegin(), ext.cend(), ext.begin(), [](char c) {
@@ -162,6 +166,7 @@ EnvironmentTexture ReadEquirectangularFile(const std::filesystem::path& path) {
         path.string()));
   }
   imgReader->SetFileName(path.c_str());
+  DRAKE_DEMAND(imgReader->GetFileName() != path.c_str());
   return ReadEquirectangularFile(imgReader);
 }
 
@@ -184,10 +189,10 @@ EnvironmentTexture ReadEquirectangularFile(const MemoryFile& in_memory) {
   imgReader->SetMemoryBufferLength(contents.size());
   return ReadEquirectangularFile(imgReader);
 }
-#if 0
+
 // Taken from: https://examples.vtk.org/site/Cxx/Rendering/PBR_HDR_Environment/
-EnvironmentTexture ReadEquirectangularFile(const FileSource& source) {
-  return std::visit(overloaded{[](const std::filesystem::path& path) {
+EnvironmentTexture ReadEquirectangularSource(const FileSource& source) {
+  return std::visit(overloaded{[](const fs::path& path) {
                                  return ReadEquirectangularFile(path);
                                },
                                [](const MemoryFile& in_memory) {
@@ -195,7 +200,7 @@ EnvironmentTexture ReadEquirectangularFile(const FileSource& source) {
                                }},
                     source);
 }
-#endif
+
 }  // namespace
 
 ShaderCallback::ShaderCallback()
@@ -912,7 +917,8 @@ void RenderEngineVtk::InitializePipelines() {
     // TODO(2024-04-01) The following block serves the deprecation. When we
     // finish deprecating EquirectangularMap::path, we can nuke the entire block
     // and replace it with:
-    // EnvironmentTexture env_map = ReadEquirectangularFile(source);
+    // EnvironmentTexture env_map =
+    //    ReadEquirectangularSource(equirect_map.source);
     const std::string& deprecated_path = equirect_map.path;
     if (!deprecated_path.empty()) {
       static const drake::internal::WarnDeprecated warn_once(
@@ -920,18 +926,17 @@ void RenderEngineVtk::InitializePipelines() {
           "When specifying the environment map in RenderEnvintVtkParams, use "
           "EquirectangularMap::source instead of EquirectangularMap::path.");
     }
-    EnvironmentTexture env_map = std::visit(overloaded{
-      [&deprecated_path](const std::filesystem::path& path) {
-        if (path.empty()) {
-          return ReadEquirectangularFile(
-              std::filesystem::path(deprecated_path));
+    EnvironmentTexture env_map = [&deprecated_path,
+                                  &source = equirect_map.source]() {
+      if (!deprecated_path.empty()) {
+        if (const auto* path_ptr = std::get_if<fs::path>(&source);
+            path_ptr != nullptr && path_ptr->empty()) {
+          // Deprecated path is defined and source offers up no alternative.
+          return ReadEquirectangularFile(fs::path(deprecated_path));
         }
-        return ReadEquirectangularFile(path);
-      },
-      [](const MemoryFile& in_memory) {
-        return ReadEquirectangularFile(in_memory);
       }
-    }, equirect_map.source);
+      return ReadEquirectangularSource(source);
+    }();
     // End of deprecation block.
     renderer->UseImageBasedLightingOn();
     renderer->SetUseSphericalHarmonics(env_map.is_hdr);
@@ -1072,7 +1077,7 @@ void RenderEngineVtk::ImplementPolyData(vtkPolyDataAlgorithm* source,
               throw std::runtime_error(
                   "RenderEngineVtk: diffuse map must be on-disk or in-memory");
             },
-            [reader = texture_reader.Get()](const std::filesystem::path& path) {
+            [reader = texture_reader.Get()](const fs::path& path) {
               reader->SetFileName(path.c_str());
               return path.string();
             },
