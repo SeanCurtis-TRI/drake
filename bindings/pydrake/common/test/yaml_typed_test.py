@@ -1073,7 +1073,10 @@ class TestYamlTypedWrite(unittest.TestCase):
             actual_doc = yaml_dump_typed(LegacyOptionalStruct(value=value))
             self.assertEqual(actual_doc, expected_doc)
 
+    def test_write_optional_bytes(self):
         # Smoke test for compatibility for the odd scalar: vector<byte>.
+        actual_doc = yaml_dump_typed(OptionalByteStruct(None))
+        self.assertEqual(actual_doc, "{}\n")
         actual_doc = yaml_dump_typed(OptionalByteStruct(b"other\x03\xffstuff"))
         self.assertEqual(actual_doc, "value: !!binary |\n  b3RoZXID/3N0dWZm\n")
 

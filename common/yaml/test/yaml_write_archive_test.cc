@@ -281,7 +281,9 @@ TEST_F(YamlWriteArchiveTest, Optional) {
 
   test(std::nullopt, "doc:\n");
   test(1.0, "doc:\n  value: 1.0\n");
+}
 
+TEST_F(YamlWriteArchiveTest, OptionalBytes) {
   // Smoke test for compatibility for the odd scalar: vector<byte>.
   const auto test_bytes = [](const std::optional<std::vector<std::byte>>& value,
                              const std::string& expected) {
