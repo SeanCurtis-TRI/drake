@@ -83,7 +83,7 @@ class InnerStruct:
 
 @dc.dataclass
 class OptionalByteStruct:
-    value: bytes | None = None
+    value: bytes | None = b"\x10\x20\x30"
 
 
 @dc.dataclass
