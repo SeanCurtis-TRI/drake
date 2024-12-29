@@ -322,8 +322,7 @@ doc:
   EXPECT_EQ(x.some_uint64, 105);
   EXPECT_EQ(x.some_string, "foo");
   EXPECT_EQ(x.some_path, "/alternative/path");
-  using b = std::byte;
-  EXPECT_EQ(x.some_bytes, std::vector<b>({b(10), b(20), b(30)}));
+  EXPECT_EQ(x.some_bytes, StringToByteVector("\n\x14\x1e"));
 }
 
 TEST_P(YamlReadArchiveTest, StdArray) {
