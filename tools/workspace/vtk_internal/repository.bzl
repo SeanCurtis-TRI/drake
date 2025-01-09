@@ -167,7 +167,7 @@ def _resolve_drake_abbreviation(name, label_str):
 
 def vtk_internal_repository(
         name,
-        local_repository_override = None,
+        local_repository_override = "/home/seancurtis/code/VTK",
         repository = "Kitware/VTK",
         # TODO(jwnimmer-tri) Once there's a tagged release with support for
         # VTK_ABI_NAMESPACE, we should switch to an official version number
@@ -178,15 +178,15 @@ def vtk_internal_repository(
         patches = [
             ":patches/upstream/fix_illumination_bugs.patch",
             ":patches/upstream/gltf_selected_load.patch",
-            ":patches/upstream/io_geometry_gltf_default_scene.patch",
-            ":patches/upstream/gltf_importer_from_stream.patch",
+            ":patches/upstream/io_geometry_gltf_default_scene.patch", #
+            ":patches/upstream/gltf_importer_from_stream.patch",      #
             ":patches/common_core_nobacktrace.patch",
             ":patches/common_core_version.patch",
-            ":patches/disable_static_destructors.patch",
+            ":patches/disable_static_destructors.patch",              #
             ":patches/io_image_formats.patch",
             ":patches/nerf_pegtl.patch",
             ":patches/rendering_opengl2_nobacktrace.patch",
-            ":patches/rendering_opengl2_no_factory.patch",
+            ":patches/rendering_opengl2_no_factory.patch",            #
             ":patches/vtkdoubleconversion_hidden.patch",
             ":patches/vtkfast_float_hidden.patch",
             ":patches/vtkpugixml_hidden.patch",
