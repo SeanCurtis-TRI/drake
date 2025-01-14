@@ -720,6 +720,7 @@ vtkSmartPointer<vtkLight> MakeVtkLight(const LightParameter& light_param) {
   vtkNew<vtkLight> light;
   light->SetColor(light_param.color.rgba().data());
   light->SetIntensity(light_param.intensity);
+  light->SetExponent(0);
   if (light_param.type == "directional") {
     light->SetPositional(false);
   } else {

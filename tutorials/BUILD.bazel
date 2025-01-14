@@ -13,6 +13,7 @@ filegroup(
         "resources/env_color_room_250.hdr",
         "resources/env_color_room_500.hdr",
         "resources/env_color_room_in_situ.png",
+        "resources/white_sky_75.hdr",
     ],
 )
 
