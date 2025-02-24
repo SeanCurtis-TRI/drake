@@ -218,12 +218,13 @@ TEST_F(ObjToMeshDiagnosticsTest, ErrorModes) {
   )""";
   const MeshSource source(
       InMemoryMesh{MemoryFile(no_face_obj, ".obj", "no_faces")});
+  const Eigen::Vector3d scale(1, 2, 3);
   auto maybe_mesh =
-      internal::DoReadObjToSurfaceMesh(source, 1.0, diagnostic_policy_);
+      internal::DoReadObjToSurfaceMesh(source, scale, diagnostic_policy_);
   ASSERT_FALSE(maybe_mesh.has_value());
   EXPECT_THAT(TakeError(), testing::HasSubstr("no objects"));
   DRAKE_EXPECT_THROWS_MESSAGE(
-      internal::DoReadObjToSurfaceMesh(source, 1.0,
+      internal::DoReadObjToSurfaceMesh(source, scale,
                                        drake::internal::DiagnosticPolicy()),
       "[^]*no objects[^]*");
 }

@@ -42,7 +42,7 @@ namespace {
 // shape_specification_thread_test.cc.
 void ComputeConvexHullAsNecessary(
     std::shared_ptr<PolygonSurfaceMesh<double>>* hull_ptr,
-    const MeshSource& mesh_source, double scale) {
+    const MeshSource& mesh_source, const Vector3<double>& scale) {
   std::shared_ptr<PolygonSurfaceMesh<double>> check =
       std::atomic_load(hull_ptr);
   if (check == nullptr) {
@@ -164,7 +164,8 @@ std::string Convex::filename() const {
 }
 
 const PolygonSurfaceMesh<double>& Convex::GetConvexHull() const {
-  ComputeConvexHullAsNecessary(&hull_, source_, scale_);
+  ComputeConvexHullAsNecessary(&hull_, source_,
+                               Vector3<double>::Constant(scale_));
   return *hull_;
 }
 
@@ -287,7 +288,7 @@ double Mesh::scale() const {
 
 const PolygonSurfaceMesh<double>& Mesh::GetConvexHull() const {
   // TODO: Use the whole vector.
-  ComputeConvexHullAsNecessary(&hull_, source_, scale_.x());
+  ComputeConvexHullAsNecessary(&hull_, source_, scale_);
   return *hull_;
 }
 
