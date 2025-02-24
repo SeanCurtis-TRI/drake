@@ -523,6 +523,7 @@ class Mesh final : public Shape {
                                 of magnitude should be plenty without
                                 considering revisiting the model itself. */
   explicit Mesh(const std::filesystem::path& filename, double scale = 1.0);
+  explicit Mesh(const std::filesystem::path& filename, const Vector3<double>& scale);
 
   /** Constructs a mesh shape specification from the contents of a
    Drake-supported mesh file type.
@@ -536,12 +537,14 @@ class Mesh final : public Shape {
                       this shape.
    @param scale       An optional scale to coordinates. */
   explicit Mesh(InMemoryMesh mesh_data, double scale = 1.0);
+  explicit Mesh(InMemoryMesh mesh_data, const Vector3<double>& scale);
 
   /** Constructs a mesh shape specification from the given `source`.
 
    @param source   The source for the mesh data.
    @param scale    An optional scale to coordinates. */
   explicit Mesh(MeshSource source, double scale = 1.0);
+  explicit Mesh(MeshSource source, const Vector3<double>& scale);
 
   ~Mesh() final;
 
@@ -568,7 +571,9 @@ class Mesh final : public Shape {
    of the MemoryFile passed to the constructor. */
   const std::string& extension() const { return source_.extension(); }
 
-  double scale() const { return scale_; }
+  /** @throws if the scale is not uniform in all directions. */
+  double scale() const;
+  const Vector3<double>& scales() const { return scale_; }
 
   /** Reports the convex hull of the named mesh.
 
@@ -590,7 +595,7 @@ class Mesh final : public Shape {
 
   // NOTE: Cannot be const to support default copy/move semantics.
   MeshSource source_;
-  double scale_{};
+  Vector3<double> scale_;
   // Allows the deferred computation of the hull on an otherwise const Mesh.
   mutable std::shared_ptr<PolygonSurfaceMesh<double>> hull_{nullptr};
 };

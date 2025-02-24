@@ -69,10 +69,11 @@ std::string MeshToString(std::string_view class_name, const MeshSource& source,
   return fmt::format("{}({}, scale={})", class_name, mesh_parameter, scale);
 }
 
-void ThrowForBadScale(double scale, std::string_view source) {
-  if (std::abs(scale) < 1e-8) {
+void ThrowForBadScale(const Vector3<double>& scale, std::string_view source) {
+  if ((scale.array().abs() < 1e-8).any()) {
     throw std::logic_error(
-        fmt::format("{} |scale| cannot be < 1e-8, given {}.", source, scale));
+        fmt::format("{} |scale| cannot be < 1e-8 on any axis, given [{}].",
+                    source, fmt_eigen(scale.transpose())));
   }
 }
 
@@ -142,7 +143,7 @@ Convex::Convex(MeshSource source, double scale)
     : source_(std::move(source)), scale_(scale) {
   // Note: We don't validate extensions because there's a possibility that a
   // mesh of unsupported type is used, but only processed by client code.
-  ThrowForBadScale(scale, "Convex");
+  ThrowForBadScale(Vector3<double>::Constant(scale), "Convex");
 }
 
 Convex::Convex(const Eigen::Matrix3X<double>& points, const std::string& label,
@@ -242,12 +243,21 @@ std::string HalfSpace::do_to_string() const {
 }
 
 Mesh::Mesh(const std::filesystem::path& filename, double scale)
+    : Mesh(filename, Vector3<double>::Constant(scale)) {}
+
+Mesh::Mesh(const std::filesystem::path& filename, const Vector3<double>& scale)
     : Mesh(MeshSource(std::filesystem::absolute(filename)), scale) {}
 
 Mesh::Mesh(InMemoryMesh mesh_data, double scale)
+    : Mesh(std::move(mesh_data), Vector3<double>::Constant(scale)) {}
+
+Mesh::Mesh(InMemoryMesh mesh_data, const Vector3<double>& scale)
     : Mesh(MeshSource(std::move(mesh_data)), scale) {}
 
 Mesh::Mesh(MeshSource source, double scale)
+    : Mesh(std::move(source), Vector3<double>::Constant(scale)) {}
+
+Mesh::Mesh(MeshSource source, const Vector3<double>& scale)
     : source_(std::move(source)), scale_(scale) {
   // Note: We don't validate extensions because there's a possibility that a
   // mesh of unsupported type is used, but only processed by client code.
@@ -265,8 +275,19 @@ std::string Mesh::filename() const {
                   source_.in_memory().mesh_file.filename_hint()));
 }
 
+double Mesh::scale() const {
+  if ((scale_.array() != scale_[0]).any()) {
+    throw std::runtime_error(
+        fmt::format("Mesh::scale() can only be called for uniform scaling. "
+                    "This mesh has scale [{}]. Use Mesh::scales() instead.",
+                    fmt_eigen(scale_.transpose())));
+  }
+  return scale_[0];
+}
+
 const PolygonSurfaceMesh<double>& Mesh::GetConvexHull() const {
-  ComputeConvexHullAsNecessary(&hull_, source_, scale_);
+  // TODO: Use the whole vector.
+  ComputeConvexHullAsNecessary(&hull_, source_, scale_.x());
   return *hull_;
 }
 

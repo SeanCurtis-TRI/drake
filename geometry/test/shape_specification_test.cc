@@ -525,6 +525,45 @@ GTEST_TEST(ShapeTest, Constructors) {
   EXPECT_EQ(s.radius(), 1.0);
 }
 
+GTEST_TEST(ShapeTest, MeshAnisotropicScale) {
+  const std::string kFilename = "/fictitious_name.obj";
+  const Vector3<double> good_scale(1, 2, 3);
+  const Vector3<double> bad_scale(1, 0, 3);
+
+  // From filename.
+  DRAKE_EXPECT_THROWS_MESSAGE(Mesh(kFilename, bad_scale),
+                              ".*|scale|.*\\[1 0 3\\].*");
+  const Mesh mesh_file{kFilename, good_scale};
+  DRAKE_EXPECT_THROWS_MESSAGE(mesh_file.scale(),
+                              ".*uniform scaling.*\\[1 2 3\\].*");
+  EXPECT_TRUE(CompareMatrices(mesh_file.scales(), good_scale));
+
+  // From memory.
+  const std::string obj_contents = R"""(
+    v 0 0 0
+    v 1 0 0
+    v 0 1 0
+    f 1 2 3
+    )""";
+  const InMemoryMesh mesh_data{
+      MemoryFile(obj_contents, ".obj", "test_mesh.obj")};
+  DRAKE_EXPECT_THROWS_MESSAGE(Mesh(mesh_data, bad_scale),
+                              ".*|scale|.*\\[1 0 3\\].*");
+  const Mesh mesh_memory{mesh_data, good_scale};
+  DRAKE_EXPECT_THROWS_MESSAGE(mesh_memory.scale(),
+                              ".*uniform scaling.*\\[1 2 3\\].*");
+  EXPECT_TRUE(CompareMatrices(mesh_memory.scales(), good_scale));
+
+  // From source.
+  const MeshSource source(kFilename);
+  DRAKE_EXPECT_THROWS_MESSAGE(Mesh(source, bad_scale),
+                              ".*|scale|.*\\[1 0 3\\].*");
+  const Mesh mesh_source{source, good_scale};
+  DRAKE_EXPECT_THROWS_MESSAGE(mesh_source.scale(),
+                              ".*uniform scaling.*\\[1 2 3\\].*");
+  EXPECT_TRUE(CompareMatrices(mesh_source.scales(), good_scale));
+}
+
 // Confirms that shape parameters are validated. For the vector-based
 // constructors, we only provide a single invocation, relying on the idea that
 // it forwards construction to the validating constructor with individual
