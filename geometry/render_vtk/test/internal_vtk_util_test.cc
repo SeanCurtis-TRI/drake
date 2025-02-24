@@ -67,10 +67,11 @@ GTEST_TEST(ConvertToVtkTransformTest, ConversionTest) {
     }
   }
 
-  const double scale = 1.5;
+  const Vector3<double> scale = Vector3<double>::Constant(1.5);
   auto dut_T_AB = ConvertToVtkTransform(X_AB, scale);
   Eigen::Matrix4d T_AB_expected = X_AB.GetAsMatrix4();
-  T_AB_expected.block<3, 3>(0, 0) *= scale;
+  // This works because we know scale is uniform.
+  T_AB_expected.block<3, 3>(0, 0) *= scale.x();
 
   for (int i = 0; i < 4; ++i) {
     for (int j = 0; j < 4; ++j) {

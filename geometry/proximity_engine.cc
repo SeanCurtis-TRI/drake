@@ -1117,7 +1117,7 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
     } else if (mesh.extension() == ".obj") {
       mesh_sdf_data_.emplace(data.id,
                              MeshDistanceBoundary(ReadObjToTriangleSurfaceMesh(
-                                 mesh.source(), mesh.scale())));
+                                 mesh.source(), mesh.scale3())));
     }
     // Meshes are unsupported if we cannot compute a MeshDistanceBoundary.
     // point_distance::Callback() skips every Mesh that doesn't have an entry
