@@ -549,14 +549,14 @@ class MeshcatShapeReifier : public ShapeReifier {
     }
 
     // Set the scale.
-    const double scale = mesh.scale();
+    const Vector3<double>& scale = mesh.scales();
     std::visit<void>(
         overloaded{[](std::monostate) {},
                    [scale](auto& lumped_object) {
                      Eigen::Map<Eigen::Matrix4d> matrix(lumped_object.matrix);
-                     matrix(0, 0) = scale;
-                     matrix(1, 1) = scale;
-                     matrix(2, 2) = scale;
+                     matrix(0, 0) = scale.x();
+                     matrix(1, 1) = scale.y();
+                     matrix(2, 2) = scale.z();
                    }},
         lumped.object);
   }

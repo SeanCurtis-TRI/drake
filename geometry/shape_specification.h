@@ -523,7 +523,8 @@ class Mesh final : public Shape {
                                 of magnitude should be plenty without
                                 considering revisiting the model itself. */
   explicit Mesh(const std::filesystem::path& filename, double scale = 1.0);
-  explicit Mesh(const std::filesystem::path& filename, const Vector3<double>& scale);
+  explicit Mesh(const std::filesystem::path& filename,
+                const Vector3<double>& scale);
 
   /** Constructs a mesh shape specification from the contents of a
    Drake-supported mesh file type.
@@ -572,7 +573,7 @@ class Mesh final : public Shape {
   const std::string& extension() const { return source_.extension(); }
 
   /** @throws if the scale is not uniform in all directions. */
-  double scale() const;
+  // double scale() const;
   const Vector3<double>& scales() const { return scale_; }
 
   /** Reports the convex hull of the named mesh.

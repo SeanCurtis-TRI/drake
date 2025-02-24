@@ -407,9 +407,9 @@ void ShapeMatcher<Mesh>::TestShapeParameters(const Mesh& test) {
     error() << "\nExpected description " << expected_.source().description()
             << ", received description " << test.source().description();
   }
-  if (test.scale() != expected_.scale()) {
-    error() << "\nExpected mesh scale " << expected_.scale()
-            << ", received mesh scale " << test.scale();
+  if ((test.scales() - expected_.scale()).norm() != 0) {
+    error() << "\nExpected mesh scale " << expected_.scales()
+            << ", received mesh scale " << test.scales();
   }
 }
 

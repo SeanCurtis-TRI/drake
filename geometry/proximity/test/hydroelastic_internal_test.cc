@@ -735,14 +735,16 @@ void TestRigidMeshCube(const Mesh& mesh) {
   EXPECT_EQ(surface_mesh.num_vertices(), 8);
   EXPECT_EQ(surface_mesh.num_triangles(), 12);
 
-  // The scale factor multiplies the measure of every vertex position, so
-  // the expected distance of the vertex to the origin should be:
-  // scale * sqrt(3) (because the original mesh was the unit sphere).
-  const double expected_dist = std::sqrt(3) * mesh.scale();
+  // The original mesh was the unit sphere. So, the expected distance will get
+  // changed by the scale factor.
+  const double expected_dist =
+      mesh.scales().cwiseProduct(Vector3d::Ones()).norm();
+  const double tolerance = mesh.scales().norm() * kEps;
   for (int v = 0; v < surface_mesh.num_vertices(); ++v) {
     const double dist = surface_mesh.vertex(v).norm();
-    ASSERT_NEAR(dist, expected_dist, mesh.scale() * kEps)
-        << "for scale: " << mesh.scale() << " at vertex " << v;
+    ASSERT_NEAR(dist, expected_dist, tolerance)
+        << "for scale: " << fmt::to_string(fmt_eigen(mesh.scales().transpose()))
+        << " at vertex " << v;
   }
 }
 

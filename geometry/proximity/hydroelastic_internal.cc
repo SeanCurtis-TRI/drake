@@ -386,7 +386,7 @@ std::optional<RigidGeometry> MakeRigidRepresentation(
     }
     mesh =
         make_unique<TriangleSurfaceMesh<double>>(ReadObjToTriangleSurfaceMesh(
-            mesh_spec.source().path(), mesh_spec.scale()));
+            mesh_spec.source().path(), mesh_spec.scales()));
   } else if (extension == ".vtk") {
     mesh = make_unique<TriangleSurfaceMesh<double>>(
         ConvertVolumeToSurfaceMesh(MakeVolumeMeshFromVtk<double>(mesh_spec)));

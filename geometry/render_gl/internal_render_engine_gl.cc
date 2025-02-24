@@ -857,8 +857,8 @@ void RenderEngineGl::ImplementGeometry(const Mesh& mesh, void* user_data) {
   RegistrationData* data = static_cast<RegistrationData*>(user_data);
   CacheFileMeshesMaybe(mesh.source(), data);
   if (data->accepted) {
-    ImplementMeshesForSource(user_data, kUnitScale * mesh.scale(),
-                             mesh.source(), /* is_convex=*/false);
+    ImplementMeshesForSource(user_data, mesh.scales(), mesh.source(),
+                             /* is_convex=*/false);
   }
 }
 

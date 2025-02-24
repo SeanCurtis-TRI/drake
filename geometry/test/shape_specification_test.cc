@@ -506,7 +506,8 @@ GTEST_TEST(ShapeTest, Constructors) {
   const Mesh mesh{kFilename, 1.4};
   EXPECT_EQ(mesh.source().description(), kFilename);
   EXPECT_EQ(mesh.extension(), ".obj");
-  EXPECT_EQ(mesh.scale(), 1.4);
+  // EXPECT_EQ(mesh.scale(), 1.4);
+  EXPECT_TRUE(CompareMatrices(mesh.scales(), Eigen::Vector3d::Constant(1.4)));
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
   EXPECT_EQ(mesh.filename(), kFilename);
@@ -534,8 +535,8 @@ GTEST_TEST(ShapeTest, MeshAnisotropicScale) {
   DRAKE_EXPECT_THROWS_MESSAGE(Mesh(kFilename, bad_scale),
                               ".*|scale|.*\\[1 0 3\\].*");
   const Mesh mesh_file{kFilename, good_scale};
-  DRAKE_EXPECT_THROWS_MESSAGE(mesh_file.scale(),
-                              ".*uniform scaling.*\\[1 2 3\\].*");
+  // DRAKE_EXPECT_THROWS_MESSAGE(mesh_file.scale(),
+  //                             ".*uniform scaling.*\\[1 2 3\\].*");
   EXPECT_TRUE(CompareMatrices(mesh_file.scales(), good_scale));
 
   // From memory.
@@ -550,8 +551,8 @@ GTEST_TEST(ShapeTest, MeshAnisotropicScale) {
   DRAKE_EXPECT_THROWS_MESSAGE(Mesh(mesh_data, bad_scale),
                               ".*|scale|.*\\[1 0 3\\].*");
   const Mesh mesh_memory{mesh_data, good_scale};
-  DRAKE_EXPECT_THROWS_MESSAGE(mesh_memory.scale(),
-                              ".*uniform scaling.*\\[1 2 3\\].*");
+  // DRAKE_EXPECT_THROWS_MESSAGE(mesh_memory.scale(),
+  //                             ".*uniform scaling.*\\[1 2 3\\].*");
   EXPECT_TRUE(CompareMatrices(mesh_memory.scales(), good_scale));
 
   // From source.
@@ -559,8 +560,8 @@ GTEST_TEST(ShapeTest, MeshAnisotropicScale) {
   DRAKE_EXPECT_THROWS_MESSAGE(Mesh(source, bad_scale),
                               ".*|scale|.*\\[1 0 3\\].*");
   const Mesh mesh_source{source, good_scale};
-  DRAKE_EXPECT_THROWS_MESSAGE(mesh_source.scale(),
-                              ".*uniform scaling.*\\[1 2 3\\].*");
+  // DRAKE_EXPECT_THROWS_MESSAGE(mesh_source.scale(),
+  //                             ".*uniform scaling.*\\[1 2 3\\].*");
   EXPECT_TRUE(CompareMatrices(mesh_source.scales(), good_scale));
 }
 
@@ -748,7 +749,8 @@ GTEST_TEST(ShapeTest, MeshFromMemory) {
   )""";
   InMemoryMesh mesh_data{MemoryFile(obj_contents, ".OBJ", mesh_name)};
   const Mesh mesh(std::move(mesh_data), 2.0);
-  EXPECT_EQ(mesh.scale(), 2.0);
+  // EXPECT_EQ(mesh.scale(), 2.0);
+  EXPECT_TRUE(CompareMatrices(mesh.scales(), Eigen::Vector3d(2, 2, 2)));
   EXPECT_EQ(mesh.extension(), ".obj");
   const MeshSource& source = mesh.source();
   ASSERT_TRUE(source.is_in_memory());
@@ -763,7 +765,8 @@ GTEST_TEST(ShapeTest, MeshFromMemory) {
   ASSERT_TRUE(from_source.source().is_in_memory());
   EXPECT_EQ(from_source.source().in_memory().mesh_file.filename_hint(),
             mesh_name);
-  EXPECT_EQ(from_source.scale(), 3);
+  // EXPECT_EQ(from_source.scale(), 3);
+  EXPECT_TRUE(CompareMatrices(from_source.scales(), Eigen::Vector3d(3, 3, 3)));
 
   // Also confirm that we can compute the convex hull from the in-memory
   // representation. We don't test all file formats; we trust that visual
