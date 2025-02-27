@@ -735,13 +735,17 @@ void TestRigidMeshCube(const Mesh& mesh) {
   EXPECT_EQ(surface_mesh.num_vertices(), 8);
   EXPECT_EQ(surface_mesh.num_triangles(), 12);
 
-  // The original mesh was the unit sphere. So, the expected distance will get
-  // changed by the scale factor.
+  // The original mesh was the unit sphere. The mesh will be scaled by scale3.
+  // If we compute the inverse scale, then all vertices should be 1 unit away
+  // from the origin.
+  // KEEP DOING THIS.
+  const Vector3d S_inv(mesh.scale3().x())
   const double expected_dist =
       mesh.scale3().cwiseProduct(Vector3d::Ones()).norm();
   const double tolerance = mesh.scale3().norm() * kEps;
   for (int v = 0; v < surface_mesh.num_vertices(); ++v) {
     const double dist = surface_mesh.vertex(v).norm();
+    const double expected_dist = mesh.scale3().cwiseProduct(surface_mesh.vertex(v));
     ASSERT_NEAR(dist, expected_dist, tolerance)
         << "for scale: " << fmt::to_string(fmt_eigen(mesh.scale3().transpose()))
         << " at vertex " << v;
@@ -751,27 +755,27 @@ void TestRigidMeshCube(const Mesh& mesh) {
 // Confirm support for a rigid Mesh. Tests that a hydroelastic representation
 // is made.
 TEST_F(HydroelasticRigidGeometryTest, Mesh) {
-  // We just want a non-unit scale.
-  constexpr double kScale = 0.75;
+  // Non-unit, non-uniform scale.
+  const Vector3d kScale3(2, 3, 4);
   const std::string obj_path =
       FindResourceOrThrow("drake/geometry/test/quad_cube.obj");
   const std::string vtk_path =
       FindResourceOrThrow("drake/geometry/test/cube_as_volume.vtk");
   {
     SCOPED_TRACE("Rigid Mesh, on-disk obj");
-    TestRigidMeshCube(Mesh(obj_path, kScale));
+    TestRigidMeshCube(Mesh(obj_path, kScale3));
   }
   {
     SCOPED_TRACE("Rigid Mesh, on-disk vtk");
-    TestRigidMeshCube(Mesh(vtk_path, kScale));
+    TestRigidMeshCube(Mesh(vtk_path, kScale3));
   }
   {
     SCOPED_TRACE("Rigid Mesh, in-memory vtk");
-    TestRigidMeshCube(Mesh(InMemoryMesh{MemoryFile::Make(vtk_path)}, kScale));
+    TestRigidMeshCube(Mesh(InMemoryMesh{MemoryFile::Make(vtk_path)}, kScale3));
   }
   {
     SCOPED_TRACE("Rigid Mesh, unsupported extension");
-    DRAKE_EXPECT_THROWS_MESSAGE(TestRigidMeshCube(Mesh("invalid.stl", kScale)),
+    DRAKE_EXPECT_THROWS_MESSAGE(TestRigidMeshCube(Mesh("invalid.stl", kScale3)),
                                 ".*Mesh shapes can only use .*invalid.stl");
   }
 }
