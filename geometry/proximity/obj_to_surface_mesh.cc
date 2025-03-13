@@ -24,7 +24,7 @@ std::optional<TriangleSurfaceMesh<double>> DoReadObjToSurfaceMesh(
   std::shared_ptr<std::vector<int>> face_data;
   int num_tris{};
   std::tie(vertices, face_data, num_tris) =
-      ReadObj(mesh_source, scale, /* triangulate = */ true,
+      ReadObj(mesh_source, Vector3d::Constant(scale), /* triangulate = */ true,
               /* vertices_only = */ false, diagnostic);
   if (vertices == nullptr) {
     // ReadObj() only returns nullptr when there's an error. When nullptr
