@@ -6,7 +6,9 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
+#include "drake/common/eigen_types.h"
 #include "drake/common/find_resource.h"
+#include "drake/common/fmt_eigen.h"
 #include "drake/common/test_utilities/diagnostic_policy_test_base.h"
 #include "drake/common/test_utilities/expect_throws_message.h"
 
@@ -222,6 +224,37 @@ GTEST_TEST(ReadObjTest, VertexOnly) {
   EXPECT_EQ(vertices->size(), 4);
   EXPECT_EQ(faces->size(), 0);
   EXPECT_EQ(num_faces, 0);
+}
+
+// When the non-uniform scale allows flipping, we want to make sure the faces
+// get rewound so that inside is still inside. We know the cube is centered
+// on the origin. That means the origin should be on the "inside" of every
+// triangle. We'll sample one triangle as evidence that winding got handled.
+GTEST_TEST(ReadObjTest, InverseScaleWinding) {
+  for (double sx : {-1.0, 1.0}) {
+    for (double sy : {-1.0, 1.0}) {
+      for (double sz : {-1.0, 1.0}) {
+        const Eigen::Vector3d scale(sx, sy, sz);
+        const auto [vertices, faces, num_faces] =
+            ReadObj(FindPathOrThrow("drake/geometry/test/quad_cube.obj"), scale,
+                    /* triangulate= */ true);
+        ASSERT_EQ(num_faces, 12);
+        // Remember: faces is encoded as [n0, v0_0, v0_1, v0_2, n1, ...].
+        const Eigen::Vector3d& p_GoA_G = vertices->at(faces->at(1));
+        const Eigen::Vector3d& p_GoB_G = vertices->at(faces->at(2));
+        const Eigen::Vector3d& p_GoC_G = vertices->at(faces->at(3));
+
+        const Eigen::Vector3d p_AB_G = p_GoB_G - p_GoA_G;
+        const Eigen::Vector3d p_AC_G = p_GoC_G - p_GoA_G;
+        // EXPECT_NE(p_AB_G.cross(p_AC_G)(0), 0);
+        const Eigen::Vector3d n_G = p_AB_G.cross(p_AC_G);
+        // The vector OA should point in basically the same direction as the
+        // normal.
+        SCOPED_TRACE(fmt::format("Scale [{}]", fmt_eigen(scale.transpose())));
+        EXPECT_GT(n_G.dot(p_GoA_G), 0);
+      }
+    }
+  }
 }
 
 class ReadObjDiagnosticsTest : public test::DiagnosticPolicyTestBase {};

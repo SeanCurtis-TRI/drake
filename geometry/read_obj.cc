@@ -6,6 +6,7 @@
 #include <tiny_obj_loader.h>
 
 #include "drake/common/drake_assert.h"
+#include "drake/common/fmt_eigen.h"
 #include "drake/common/memory_file.h"
 
 static_assert(std::is_same_v<tinyobj::real_t, double>,
@@ -82,7 +83,7 @@ std::vector<Eigen::Vector3d> TinyObjToFclVertices(
 // mesh.num_face_vertices.size() which *cannot* be easily inferred from the
 // *size* of the returned vector.
 std::vector<int> TinyObjToFclFaces(
-    const std::vector<tinyobj::shape_t>& shapes) {
+    const std::vector<tinyobj::shape_t>& shapes, bool reverse_winding) {
   // Estimate (to an order of magnitude) how much space we need for face data.
   int estimated_face_data_size = 0;
   for (const auto& shape : shapes) {
@@ -91,14 +92,20 @@ std::vector<int> TinyObjToFclFaces(
   }
   std::vector<int> faces;
   faces.reserve(estimated_face_data_size);
+  auto append_face_vertex = [&faces](const tinyobj::index_t& index) {
+    faces.push_back(index.vertex_index);
+  };
   for (const auto& shape : shapes) {
     const tinyobj::mesh_t& mesh = shape.mesh;
     auto iter = mesh.indices.begin();
     for (int num : mesh.num_face_vertices) {
       faces.push_back(num);
-      std::for_each(iter, iter + num, [&faces](const tinyobj::index_t& index) {
-        faces.push_back(index.vertex_index);
-      });
+      if (reverse_winding) {
+        std::for_each(std::reverse_iterator(iter + num),
+                      std::reverse_iterator(iter), append_face_vertex);
+      } else {
+        std::for_each(iter, iter + num, append_face_vertex);
+      }
       iter += num;
     }
   }
@@ -110,6 +117,8 @@ std::tuple<std::shared_ptr<std::vector<Eigen::Vector3d>>,
 ReadObjContents(const MemoryFile& file, const Eigen::Vector3d& scale,
                 bool triangulate, bool vertices_only,
                 const DiagnosticPolicy& diagnostic) {
+  // Negating scale along an odd number of axes requires reversed winding.
+  const bool reverse_winding = ((scale.array() < 0).cast<int>().sum() % 2) == 1;
   tinyobj::ObjReader reader;
   tinyobj::ObjReaderConfig config;
   // Don't bother triangulating if we're only reading vertices.
@@ -155,8 +164,8 @@ ReadObjContents(const MemoryFile& file, const Eigen::Vector3d& scale,
   for (const tinyobj::shape_t& shape : shapes) {
     num_faces += shape.mesh.num_face_vertices.size();
   }
-  auto faces =
-      std::make_shared<std::vector<int>>(TinyObjToFclFaces(shapes));
+  auto faces = std::make_shared<std::vector<int>>(
+      TinyObjToFclFaces(shapes, reverse_winding));
   return {vertices, faces, num_faces};
 }
 
