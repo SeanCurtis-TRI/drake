@@ -22,11 +22,6 @@ using Eigen::Vector3d;
 
 VolumeMesh<double> ReadVtkToVolumeMesh(const MeshSource& mesh_source,
                                        const Eigen::Vector3d& scale) {
-  if ((scale.array() <= 0).any()) {
-    throw std::runtime_error(fmt::format(
-        "ReadVtkToVolumeMesh() requires a positive scale. Given [{}] for '{}'.",
-        fmt_eigen(scale.transpose()), mesh_source.description()));
-  }
   vtkNew<vtkUnstructuredGridReader> reader;
   if (mesh_source.is_path()) {
     reader->SetFileName(mesh_source.path().c_str());
@@ -51,6 +46,12 @@ VolumeMesh<double> ReadVtkToVolumeMesh(const MeshSource& mesh_source,
     vertices.push_back(scale.cwiseProduct(Vector3d(xyz)));
   }
 
+  // Mapping from vtk-file tet vertex indices, to Drake tet vertex indices.
+  // Depending on scale, we may have to reverse the winding.
+  const bool reverse_winding = ((scale.array() < 0).cast<int>().sum() % 2) == 1;
+  std::array<int, 4> v_local{0, 1, 2, 3};
+  if (reverse_winding) std::swap(v_local[0], v_local[2]);
+
   std::vector<VolumeElement> elements;
   elements.reserve(vtk_mesh->GetNumberOfCells());
   auto iter =
@@ -70,10 +71,10 @@ VolumeMesh<double> ReadVtkToVolumeMesh(const MeshSource& mesh_source,
     }
     vtkIdList* vtk_vertex_ids = iter->GetPointIds();
     // clang-format off
-    elements.emplace_back(vtk_vertex_ids->GetId(0),
-                          vtk_vertex_ids->GetId(1),
-                          vtk_vertex_ids->GetId(2),
-                          vtk_vertex_ids->GetId(3));
+    elements.emplace_back(vtk_vertex_ids->GetId(v_local[0]),
+                          vtk_vertex_ids->GetId(v_local[1]),
+                          vtk_vertex_ids->GetId(v_local[2]),
+                          vtk_vertex_ids->GetId(v_local[3]));
     // clang-format on
   }
 

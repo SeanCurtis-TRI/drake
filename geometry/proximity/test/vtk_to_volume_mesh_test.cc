@@ -72,20 +72,25 @@ GTEST_TEST(VtkToVolumeMeshTest, FromMemory) {
   EXPECT_TRUE(volume_mesh.Equal(expected_mesh));
 }
 
-// Note: we're distributing the "bad" values around different axes of the scale
-// to suggest that they all matter.
-GTEST_TEST(VtkToVolumeMeshTest, BadScale) {
-  const fs::path test_file =
-      FindResourceOrThrow("drake/geometry/test/one_tetrahedron.vtk");
-
-  const Vector3d kNegativeScale(1, -0.01, 2);
-  DRAKE_EXPECT_THROWS_MESSAGE(
-      internal::ReadVtkToVolumeMesh(test_file, kNegativeScale),
-      "ReadVtkToVolumeMesh.* requires a positive scale.*");
-
-  const Vector3d kZeroScale(2, 1, 0);
-  EXPECT_THROW(internal::ReadVtkToVolumeMesh(test_file, kZeroScale),
-               std::exception);
+// When the non-uniform scale allows flipping, we want to make sure the tets
+// get rewound so that inside is still inside. The volume mesh is a 2x2x2 cube.
+// It's volume should be 8. But if the winding got messed up, the volume will
+// be wrong (specifically, -8).
+GTEST_TEST(VtkToVolumeMeshTest, InverseScaleWinding) {
+  const fs::path vtk_file =
+      FindResourceOrThrow("drake/geometry/test/cube_as_volume.vtk");
+  for (double sx : {-1.0, 1.0}) {
+    for (double sy : {-1.0, 1.0}) {
+      for (double sz : {-1.0, 1.0}) {
+        const Eigen::Vector3d scale(sx, sy, sz);
+        SCOPED_TRACE(fmt::format("Scale [{}]", fmt_eigen(scale.transpose())));
+        const VolumeMesh<double> mesh =
+            internal::ReadVtkToVolumeMesh(vtk_file, scale);
+        ASSERT_EQ(mesh.num_elements(), 12);
+        EXPECT_EQ(mesh.CalcVolume(), 8);
+      }
+    }
+  }
 }
 
 GTEST_TEST(VtkToVolumeMeshTest, BogusFileName) {
