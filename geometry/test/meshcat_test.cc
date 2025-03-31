@@ -838,15 +838,13 @@ GTEST_TEST(MeshcatTest, InitialPropeties) {
   const bool some_bool{true};
   const double some_double{22.2};
   const Meshcat meshcat{MeshcatParams{
-      // clang-format off
-      // The linter wants { on this line; the formatter moves it to the next.
-      .initial_properties = {
-          {.path = "/a", .property = "p1", .value = some_vector},
-          {.path = "/b", .property = "p2", .value = some_string},
-          {.path = "/c", .property = "p3", .value = some_bool},
-          {.path = "/d", .property = "p4", .value = some_double},
-      },
-      // clang-format on
+      .initial_properties =
+          {
+              {.path = "/a", .property = "p1", .value = some_vector},
+              {.path = "/b", .property = "p2", .value = some_string},
+              {.path = "/c", .property = "p3", .value = some_bool},
+              {.path = "/d", .property = "p4", .value = some_double},
+          },
   }};
 
   // Check that they all showed up.
