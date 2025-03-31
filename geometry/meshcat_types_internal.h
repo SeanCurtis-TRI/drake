@@ -570,25 +570,20 @@ MSGPACK_ADD_ENUM(drake::geometry::MeshcatAnimation::LoopMode);
 // We use the msgpack "non-intrusive" approach for packing types exposed in the
 // public interface. https://github.com/msgpack/msgpack-c/wiki/v2_0_cpp_adaptor
 namespace msgpack {
-// TODO(#4843) The macro namespace declaration is confusing clang formatter and
-// causing the contents to become indented (which angers the linter). In this
-// case, the linter is correct.
-// clang-format off
 MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS) {
 namespace adaptor {
 
 template <typename Scalar, int RowsAtCompileTime, int ColsAtCompileTime,
           int Options, int MaxRowsAtCompileTime, int MaxColsAtCompileTime>
-struct pack<
-    Eigen::Matrix<Scalar, RowsAtCompileTime, ColsAtCompileTime, Options,
-                  MaxRowsAtCompileTime, MaxColsAtCompileTime> > {
+struct pack<Eigen::Matrix<Scalar, RowsAtCompileTime, ColsAtCompileTime, Options,
+                          MaxRowsAtCompileTime, MaxColsAtCompileTime> > {
   template <typename Stream>
   packer<Stream>& operator()(
       // NOLINTNEXTLINE(runtime/references) cpplint disapproves of msgpack.
       msgpack::packer<Stream>& o,
-      const Eigen::Matrix<Scalar, RowsAtCompileTime, ColsAtCompileTime,
-                          Options, MaxRowsAtCompileTime,
-                          MaxColsAtCompileTime>& mat) const {
+      const Eigen::Matrix<Scalar, RowsAtCompileTime, ColsAtCompileTime, Options,
+                          MaxRowsAtCompileTime, MaxColsAtCompileTime>& mat)
+      const {
     o.pack_map(4);
     o.pack("itemSize");
     o.pack(mat.rows());
@@ -610,7 +605,7 @@ struct pack<
       ext = 0x16;
     } else {
       throw std::runtime_error("Unsupported Scalar " +
-                                drake::NiceTypeName::Get(typeid(Scalar)));
+                               drake::NiceTypeName::Get(typeid(Scalar)));
     }
     o.pack("array");
     if (std::is_same_v<std::remove_cv<Scalar>, double>) {
@@ -684,8 +679,7 @@ struct pack<drake::geometry::Meshcat::PerspectiveCamera> {
 };
 
 }  // namespace adaptor
-}  // namespace MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
-// clang-format on
+}  // MSGPACK_API_VERSION_NAMESPACE(MSGPACK_DEFAULT_API_NS)
 }  // namespace msgpack
 
 #endif  // DRAKE_DOXYGEN_CXX
