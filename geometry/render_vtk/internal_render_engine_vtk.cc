@@ -608,6 +608,13 @@ RenderEngineVtk::RenderEngineVtk(const RenderEngineVtk& other)
   }
 }
 
+bool RenderEngineVtk::DoParametersMatch(const void* param_ptr,
+                                        std::string_view param_type) const {
+  if (param_type != "RenderEngineVtkParams") return false;
+  const auto& params = *static_cast<const RenderEngineVtkParams*>(param_ptr);
+  return params == parameters_;
+}
+
 void RenderEngineVtk::ImplementRenderMesh(RenderMesh&& mesh,
                                           const Vector3<double>& scale,
                                           const RegistrationData& data) {

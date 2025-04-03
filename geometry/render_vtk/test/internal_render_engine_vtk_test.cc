@@ -719,6 +719,26 @@ class RenderEngineVtkTest : public ::testing::Test {
   unique_ptr<RenderEngineVtk> renderer_;
 };
 
+TEST_F(RenderEngineVtkTest, ParameterMatching) {
+  RenderEngineVtkParams params1{.lights = {LightParameter{.type = "spot"}}};
+  RenderEngineVtkParams params1_copy = params1;
+  RenderEngineVtkParams params2;
+
+  RenderEngineVtk engine(params1);
+  using Comparator = geometry::render::internal::RenderEngineComparator;
+
+  EXPECT_TRUE(
+      Comparator::ParametersMatch(engine, &params1, "RenderEngineVtkParams"));
+  EXPECT_TRUE(Comparator::ParametersMatch(engine, &params1_copy,
+                                          "RenderEngineVtkParams"));
+  EXPECT_FALSE(
+      Comparator::ParametersMatch(engine, &params2, "RenderEngineVtkParams"));
+  EXPECT_FALSE(
+      Comparator::ParametersMatch(engine, &params1, "RenderEngineOtherParams"));
+  EXPECT_FALSE(
+      Comparator::ParametersMatch(engine, nullptr, "RenderEngineVtkParams"));
+}
+
 // Tests an empty image -- confirms that it clears to the "empty" color -- no
 // use of "inlier" or "outlier" pixel locations.
 TEST_F(RenderEngineVtkTest, NoBodyTest) {

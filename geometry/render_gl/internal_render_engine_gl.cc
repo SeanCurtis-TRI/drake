@@ -1240,6 +1240,13 @@ void RenderEngineGl::DoRenderLabelImage(const ColorRenderCamera& camera,
   GetLabelImage(label_image_out, render_target);
 }
 
+bool RenderEngineGl::DoParametersMatch(const void* param_ptr,
+                                        std::string_view param_type) const {
+  if (param_type != "RenderEngineGlParams") return false;
+  const auto& params = *static_cast<const RenderEngineGlParams*>(param_ptr);
+  return params == parameters_;
+}
+
 void RenderEngineGl::AddGeometryInstance(int geometry_index, void* user_data,
                                          const Vector3d& scale) {
   const RegistrationData& data = *static_cast<RegistrationData*>(user_data);

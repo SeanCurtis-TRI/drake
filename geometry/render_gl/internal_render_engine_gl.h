@@ -193,6 +193,9 @@ class RenderEngineGl final : public render::RenderEngine, private ShapeReifier {
       const render::ColorRenderCamera& camera,
       systems::sensors::ImageLabel16I* label_image_out) const final;
 
+  bool DoParametersMatch(const void* param_ptr,
+                         std::string_view param_type) const override;
+
   // Copy constructor used for cloning.
   // Do *not* call this copy constructor directly. The resulting RenderEngineGl
   // is not complete -- it will render nothing except the background color.

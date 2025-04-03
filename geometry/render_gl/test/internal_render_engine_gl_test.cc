@@ -616,6 +616,26 @@ class RenderEngineGlTest : public ::testing::Test {
   fs::path temp_dir_;
 };
 
+TEST_F(RenderEngineGlTest, ParameterMatching) {
+  RenderEngineGlParams params1{.lights = {LightParameter{.type = "spot"}}};
+  RenderEngineGlParams params1_copy = params1;
+  RenderEngineGlParams params2;
+
+  RenderEngineGl engine(params1);
+  using Comparator = geometry::render::internal::RenderEngineComparator;
+
+  EXPECT_TRUE(
+      Comparator::ParametersMatch(engine, &params1, "RenderEngineGlParams"));
+  EXPECT_TRUE(Comparator::ParametersMatch(engine, &params1_copy,
+                                          "RenderEngineGlParams"));
+  EXPECT_FALSE(
+      Comparator::ParametersMatch(engine, &params2, "RenderEngineGlParams"));
+  EXPECT_FALSE(
+      Comparator::ParametersMatch(engine, &params1, "RenderEngineOtherParams"));
+  EXPECT_FALSE(
+      Comparator::ParametersMatch(engine, nullptr, "RenderEngineGlParams"));
+}
+
 // Tests an empty image -- confirms that it clears to the "empty" color -- no
 // use of "inlier" or "outlier" pixel locations.
 TEST_F(RenderEngineGlTest, NoBodyTest) {

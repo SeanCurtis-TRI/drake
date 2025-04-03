@@ -10,6 +10,7 @@
 #include <Eigen/Dense>
 
 #include "drake/common/drake_copyable.h"
+#include "drake/common/unused.h"
 #include "drake/geometry/geometry_ids.h"
 #include "drake/geometry/geometry_roles.h"
 #include "drake/geometry/render/render_camera.h"
@@ -24,6 +25,12 @@
 namespace drake {
 namespace geometry {
 namespace render {
+namespace internal {
+
+// Forward declare for friendship.
+class RenderEngineComparator;
+
+}  // namespace internal
 
 /** The engine for performing rasterization operations on geometry. This
  includes rgb images and depth images. The coordinate system of
@@ -172,7 +179,8 @@ class RenderEngine {
    @returns True if the %RenderEngine implementation accepted the geometry for
             registration. */
   bool RegisterDeformableVisual(
-      GeometryId id, const std::vector<internal::RenderMesh>& render_meshes,
+      GeometryId id,
+      const std::vector<geometry::internal::RenderMesh>& render_meshes,
       const PerceptionProperties& properties);
 
   //@}
@@ -325,7 +333,8 @@ class RenderEngine {
 
    @experimental */
   virtual bool DoRegisterDeformableVisual(
-      GeometryId id, const std::vector<internal::RenderMesh>& render_meshes,
+      GeometryId id,
+      const std::vector<geometry::internal::RenderMesh>& render_meshes,
       const PerceptionProperties& properties);
 
   /** The NVI-function for updating the pose of a rigid render geometry
@@ -473,8 +482,34 @@ class RenderEngine {
     }
   }
 
+  /** The NVI-function for ParametersMatch(). Derived classes must implement
+   this in order to support parameter matching.
+
+   Derived classes are promised that `param_ptr` will not be null and
+   `param_type` will not be empty. */
+  virtual bool DoParametersMatch(const void* param_ptr,
+                                 std::string_view param_type) const {
+    unused(param_ptr, param_type);
+    return false;
+  }
+
  private:
   friend class RenderEngineTester;
+  // Used to compare sets of engine parameters.
+  friend class internal::RenderEngineComparator;
+
+  /** Reports `true` if this engine's parameters are _known_ to match the
+   parameters with the given pointer to a set of parameters (`param_ptr`) of the
+   named parameter type (`param_type`).
+
+   If a derived class doesn't implement `DoParametersMatch()`, then matching
+   can't be determined and false is returned. Likewise, a nullptr or empty
+   `param_type` will return false. */
+  bool ParametersMatch(const void* param_ptr,
+                       std::string_view param_type) const {
+    if (param_ptr == nullptr || param_type.empty()) return false;
+    return DoParametersMatch(param_ptr, param_type);
+  }
 
   // The following collections represent a disjoint partition of all registered
   // geometry ids (i.e., the id for a registered visual must appear in one and
@@ -499,6 +534,26 @@ class RenderEngine {
   // RenderLabel default constructor.
   RenderLabel default_render_label_{};
 };
+
+namespace internal {
+
+// A class with access to RenderEngine private members in order to be able to
+// compare the engine parameters between two RenderEngines (of possibly
+// disparate types).
+class RenderEngineComparator {
+ public:
+  RenderEngineComparator() = delete;
+
+  /* Reports `true` if the parameters used by `engine` match the `param_size`
+   byte sequence pointed to by `param_ptr`.
+
+   This makes use of the RenderEngine::get_parameter_bytes() protected method.
+   */
+  static bool ParametersMatch(const RenderEngine& engine, const void* param_ptr,
+                              std::string_view param_type);
+};
+
+}  // namespace internal
 
 }  // namespace render
 }  // namespace geometry
