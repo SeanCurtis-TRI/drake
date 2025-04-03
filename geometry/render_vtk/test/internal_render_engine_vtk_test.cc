@@ -24,6 +24,7 @@
 #include "drake/common/drake_copyable.h"
 #include "drake/common/find_resource.h"
 #include "drake/common/fmt_eigen.h"
+#include "drake/common/nice_type_name.h"
 #include "drake/common/test_utilities/eigen_matrix_compare.h"
 #include "drake/common/test_utilities/expect_no_throw.h"
 #include "drake/common/test_utilities/expect_throws_message.h"
@@ -724,19 +725,17 @@ TEST_F(RenderEngineVtkTest, ParameterMatching) {
   RenderEngineVtkParams params1_copy = params1;
   RenderEngineVtkParams params2;
 
+  const std::string valid_name = NiceTypeName::Get(params1);
+  const std::string bad_name("NotParameters");
+
   RenderEngineVtk engine(params1);
   using Comparator = geometry::render::internal::RenderEngineComparator;
 
-  EXPECT_TRUE(
-      Comparator::ParametersMatch(engine, &params1, "RenderEngineVtkParams"));
-  EXPECT_TRUE(Comparator::ParametersMatch(engine, &params1_copy,
-                                          "RenderEngineVtkParams"));
-  EXPECT_FALSE(
-      Comparator::ParametersMatch(engine, &params2, "RenderEngineVtkParams"));
-  EXPECT_FALSE(
-      Comparator::ParametersMatch(engine, &params1, "RenderEngineOtherParams"));
-  EXPECT_FALSE(
-      Comparator::ParametersMatch(engine, nullptr, "RenderEngineVtkParams"));
+  EXPECT_TRUE(Comparator::ParametersMatch(engine, &params1, valid_name));
+  EXPECT_TRUE(Comparator::ParametersMatch(engine, &params1_copy, valid_name));
+  EXPECT_FALSE(Comparator::ParametersMatch(engine, &params2, valid_name));
+  EXPECT_FALSE(Comparator::ParametersMatch(engine, &params1, bad_name));
+  EXPECT_FALSE(Comparator::ParametersMatch(engine, nullptr, valid_name));
 }
 
 // Tests an empty image -- confirms that it clears to the "empty" color -- no

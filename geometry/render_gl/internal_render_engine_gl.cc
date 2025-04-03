@@ -10,6 +10,7 @@
 #include <tiny_gltf.h>
 
 #include "drake/common/diagnostic_policy.h"
+#include "drake/common/nice_type_name.h"
 #include "drake/common/overloaded.h"
 #include "drake/common/pointer_cast.h"
 #include "drake/common/scope_exit.h"
@@ -1242,7 +1243,9 @@ void RenderEngineGl::DoRenderLabelImage(const ColorRenderCamera& camera,
 
 bool RenderEngineGl::DoParametersMatch(const void* param_ptr,
                                         std::string_view param_type) const {
-  if (param_type != "RenderEngineGlParams") return false;
+  if (param_type != NiceTypeName::Get(parameters_)) {
+    return false;
+  }
   const auto& params = *static_cast<const RenderEngineGlParams*>(param_ptr);
   return params == parameters_;
 }

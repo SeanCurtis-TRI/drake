@@ -129,8 +129,10 @@ GTEST_TEST(CameraConfigFunctionsTestAux, DefaultConfigRenders) {
 /* If base frame is not defined for X_PB, the sensor must be posed relative to
  the world. */
 TEST_F(CameraConfigFunctionsTest, ParentBaseFrameDefaultToWorld) {
+  fmt::print("HELLO!\n");
   CameraConfig config;
   config.X_PB.base_frame = std::nullopt;
+  fmt::print("Calling ApplyCameraCOnfig()\n");
   ApplyCameraConfig(config, &builder_);
 
   const auto& sensor = builder_.GetDowncastSubsystemByName<RgbdSensor>(
@@ -169,15 +171,19 @@ TEST_F(CameraConfigFunctionsTest, InvalidParentBaseFrame) {
     engine is added and the sensor is assigned to it.
   - If a previously existing engine is named, no new engine is created and
     the existing engine is shared.
-    - The error case where the same name is used with a different class is
-      dealt with in RendererNameReuse.
+  - A previously existing engine is named, but the second set of parameters
+    match and nd the existing engine is shared.
+    - The error cases where the same name is used with a different class or
+      with mismatched parameters is dealt with in RendererNameReuse.
   - The provided renderer_name and config.name is piped into the sensor.
   This is independent of image type, so, we'll use rgb. */
 TEST_F(CameraConfigFunctionsTest, RendererClassBasic) {
   ASSERT_EQ(scene_graph_->RendererCount(), 0);
 
+  // This will instantiate a RenderEngineVtk.
   CameraConfig config;
   ApplyCameraConfig(config, &builder_);
+  const std::string default_renderer_name = config.renderer_name;
   ASSERT_EQ(scene_graph_->RendererCount(), 1);
 
   const auto& sensor1 = builder_.GetDowncastSubsystemByName<RgbdSensor>(
@@ -187,7 +193,8 @@ TEST_F(CameraConfigFunctionsTest, RendererClassBasic) {
   EXPECT_EQ(sensor1.default_depth_render_camera().core().renderer_name(),
             config.renderer_name);
 
-  // Now add second camera which uses the same name.
+  // Now add second camera which uses the same renderer name (still no
+  // specification of `renderer_class`).
   size_t previous_system_count = builder_.GetSystems().size();
   config.name = config.name + "_the_other_one";
   EXPECT_NO_THROW(ApplyCameraConfig(config, &builder_));
@@ -211,12 +218,30 @@ TEST_F(CameraConfigFunctionsTest, RendererClassBasic) {
   ASSERT_EQ(scene_graph_->RendererCount(), 2);
   // New RgbdSensor added.
   EXPECT_GT(builder_.GetSystems().size(), previous_system_count);
+  previous_system_count = builder_.GetSystems().size();
   const auto& sensor3 = builder_.GetDowncastSubsystemByName<RgbdSensor>(
       "rgbd_sensor_just_for_test");
   EXPECT_EQ(sensor3.default_color_render_camera().core().renderer_name(),
             config.renderer_name);
   EXPECT_EQ(sensor3.default_depth_render_camera().core().renderer_name(),
             config.renderer_name);
+  
+  // Creating the default parameters should create an equivalent render engine,
+  // so no new renderer will be created.
+  config.name = "same_renderer_name_class_spelled_differently";
+  config.renderer_class = geometry::RenderEngineVtkParams();
+  EXPECT_NO_THROW(ApplyCameraConfig(config, &builder_));
+  // No new render engine added.
+  ASSERT_EQ(scene_graph_->RendererCount(), 2);
+  // New RgbdSensor added.
+  EXPECT_GT(builder_.GetSystems().size(), previous_system_count);
+  previous_system_count = builder_.GetSystems().size();
+  const auto& sensor4 = builder_.GetDowncastSubsystemByName<RgbdSensor>(
+      "rgbd_sensor_preview_camera_the_other_one");
+  EXPECT_EQ(sensor4.default_color_render_camera().core().renderer_name(),
+            default_renderer_name);
+  EXPECT_EQ(sensor4.default_depth_render_camera().core().renderer_name(),
+            default_renderer_name);
 }
 
 /* Exercises the various ways to specify the various RenderEngine classes - via
@@ -285,16 +310,28 @@ TEST_F(CameraConfigFunctionsTest, RendererClassVariant) {
   }
 }
 
+
+/* As noted in RendererClassBasic the error condition is to reuse a
+renderer_name but change either the type or a parameter from a previously
+existing instance with the same name. */
+TEST_F(CameraConfigFunctionsTest, RendererNameReuseErrors) {
+
+}
+
 /* Confirms the logic for when a renderer name is successfully used several
  times.
 
   - If a name is reused and the class is specified via parameters, the
     parameterized spec must come first.
  */
-TEST_F(CameraConfigFunctionsTest, RendererNameReuse) {
+TEST_F(CameraConfigFunctionsTest, RendererNameReuse2) {
   int renderer_count = 0;
 
+  // TODO: Finish this test off. I need to reconcile it with the other
+  // RendererClassBasic test. THey seem to be overlapping a bit much. This is
+  // covering *good* resuse as well as bad reuse.
   auto perform_test = [this, &renderer_count](const auto& parameters,
+                                              const auto& mutator,
                                               const std::string& name) {
     CameraConfig config{.renderer_name = name + "_renderer",
                         .renderer_class = parameters,
@@ -304,13 +341,15 @@ TEST_F(CameraConfigFunctionsTest, RendererNameReuse) {
     EXPECT_THAT(scene_graph_->GetRendererTypeName(config.renderer_name),
                 testing::EndsWith(name));
 
-    // Another camera config using parameters should throw.
-    config.name = name + "_second_params_throws";
-    DRAKE_EXPECT_THROWS_MESSAGE(
-        ApplyCameraConfig(config, &builder_),
-        ".*Only the first instance of the named renderer can use parameters.");
+    // Another camera config using the same parameters should *not* throw.
+    // But doesn't add another renderer.
+    config.name = name + "_second_params_succeeds";
+    ApplyCameraConfig(config, &builder_);
+    EXPECT_EQ(scene_graph_->RendererCount(), renderer_count);
+    EXPECT_THAT(scene_graph_->GetRendererTypeName(config.renderer_name),
+                testing::EndsWith(name));
 
-    // However, camera config using the same class name is happy.
+    // Camera config using the same class name is happy.
     config.name = name + "_class_name_succeeds";
     config.renderer_class = name;
     EXPECT_NO_THROW(ApplyCameraConfig(config, &builder_));
@@ -321,6 +360,13 @@ TEST_F(CameraConfigFunctionsTest, RendererNameReuse) {
     config.renderer_class = "";
     EXPECT_NO_THROW(ApplyCameraConfig(config, &builder_));
     EXPECT_EQ(scene_graph_->RendererCount(), renderer_count);
+
+    // Changing the parameters at all is angry.
+    CameraConfig mutated_config = config;
+    mutated_config.renderer_class = mutated_parameters();
+    DRAKE_EXPECT_THROWS_MESSAGE(
+        ApplyCameraConfig(config, &builder_),
+        ".*The name is already used with a different type.*.");
 
     // Camera config using the name of a different class is angry.
     config.name = name + "_wrong_class_name_throws";
@@ -333,7 +379,7 @@ TEST_F(CameraConfigFunctionsTest, RendererNameReuse) {
 
   {
     SCOPED_TRACE("Vtk");
-    perform_test(RenderEngineVtkParams(), "RenderEngineVtk");
+    perform_test(RenderEngineVtkParams(), [](const )"RenderEngineVtk", );
   }
 
   {

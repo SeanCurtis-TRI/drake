@@ -18,6 +18,7 @@
 
 #include "drake/common/find_resource.h"
 #include "drake/common/fmt_eigen.h"
+#include "drake/common/nice_type_name.h"
 #include "drake/common/temp_directory.h"
 #include "drake/common/test_utilities/expect_no_throw.h"
 #include "drake/common/test_utilities/expect_throws_message.h"
@@ -621,19 +622,17 @@ TEST_F(RenderEngineGlTest, ParameterMatching) {
   RenderEngineGlParams params1_copy = params1;
   RenderEngineGlParams params2;
 
+  const std::string valid_name = NiceTypeName::Get(params1);
+  const std::string bad_name("NotParameters");
+
   RenderEngineGl engine(params1);
   using Comparator = geometry::render::internal::RenderEngineComparator;
 
-  EXPECT_TRUE(
-      Comparator::ParametersMatch(engine, &params1, "RenderEngineGlParams"));
-  EXPECT_TRUE(Comparator::ParametersMatch(engine, &params1_copy,
-                                          "RenderEngineGlParams"));
-  EXPECT_FALSE(
-      Comparator::ParametersMatch(engine, &params2, "RenderEngineGlParams"));
-  EXPECT_FALSE(
-      Comparator::ParametersMatch(engine, &params1, "RenderEngineOtherParams"));
-  EXPECT_FALSE(
-      Comparator::ParametersMatch(engine, nullptr, "RenderEngineGlParams"));
+  EXPECT_TRUE(Comparator::ParametersMatch(engine, &params1, valid_name));
+  EXPECT_TRUE(Comparator::ParametersMatch(engine, &params1_copy, valid_name));
+  EXPECT_FALSE(Comparator::ParametersMatch(engine, &params2, valid_name));
+  EXPECT_FALSE(Comparator::ParametersMatch(engine, &params1, bad_name));
+  EXPECT_FALSE(Comparator::ParametersMatch(engine, nullptr, valid_name));
 }
 
 // Tests an empty image -- confirms that it clears to the "empty" color -- no

@@ -43,6 +43,7 @@
 
 #include "drake/common/diagnostic_policy.h"
 #include "drake/common/never_destroyed.h"
+#include "drake/common/nice_type_name.h"
 #include "drake/common/overloaded.h"
 #include "drake/common/text_logging.h"
 #include "drake/geometry/proximity/polygon_to_triangle_mesh.h"
@@ -610,7 +611,12 @@ RenderEngineVtk::RenderEngineVtk(const RenderEngineVtk& other)
 
 bool RenderEngineVtk::DoParametersMatch(const void* param_ptr,
                                         std::string_view param_type) const {
-  if (param_type != "RenderEngineVtkParams") return false;
+  fmt::print("RenderEngineVtk::DoParametersMatch\n");
+  fmt::print("  param_type: {}\n", param_type);
+  fmt::print("  expected: {}\n", NiceTypeName::Get(parameters_));
+  if (param_type != NiceTypeName::Get(parameters_)) {
+    return false;
+  }
   const auto& params = *static_cast<const RenderEngineVtkParams*>(param_ptr);
   return params == parameters_;
 }
