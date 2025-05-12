@@ -50,6 +50,7 @@ drake_cc_package_library(
         ":parallelism",
         ":pointer_cast",
         ":polynomial",
+        ":profiler",
         ":random",
         ":reset_after_move",
         ":reset_on_copy",
@@ -239,6 +240,13 @@ drake_cc_library(
         ":essential",
         "//common/symbolic:expression",
     ],
+)
+
+drake_cc_library(
+    name = "profiler",
+    srcs = ["profiler.cc"],
+    hdrs = ["profiler.h"],
+    deps = [":type_safe_index"],
 )
 
 drake_cc_library(
@@ -1164,6 +1172,11 @@ drake_cc_googletest(
         "//common/test_utilities:expect_no_throw",
         "//common/test_utilities:random_polynomial_matrix",
     ],
+)
+
+drake_cc_googletest(
+    name = "profiler_test",
+    deps = [":profiler"],
 )
 
 drake_cc_googletest(
