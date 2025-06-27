@@ -12,8 +12,6 @@
 #include "drake/planning/dof_mask.h"
 #include "drake/solvers/mathematical_program.h"
 #include "drake/systems/framework/leaf_system.h"
-#include "operational_space_control/differential_inverse_kinematics_parameters.h"
-#include "planning/support_polygon.h"
 
 namespace anzu {
 namespace operational_space_control {
@@ -162,45 +160,6 @@ class DifferentialInverseKinematicsSystem final
   class JointCenteringCost;
   class JointVelocityLimitConstraint;
   class LeastSquaresCost;
-  class StabilityConstraint;
-  class WeightedSpatialCost;
-
-  // TODO(jeremy-nimmer) Relocate this factory function to a different file,
-  // probably differential_inverse_kinematics_controller_helper, so that this
-  // leaf system does not depend on the packrat "DIKParameters" class.
-  /** Constructs the DifferentialInverseKinematicsSystem.
-
-  There are two formulations of differential inverse kinematics implemented:
-  (1) Legacy Diff-IK (used for Panda stations) uses LeastSquaresCost.
-  (2) Current Diff-IK (used for Rainbow stations) uses WeightedSpatialCost.
-  Refer to the specific '...Cost' class documentation for details.
-
-  @param collision_checker Pointer to the collision checker. This system uses
-  the checker's underlying MultibodyPlant model. The plant() methods provides
-  access to that shared plant.
-  @param support_polygon_B Optional support polygon to check for stability of
-  the plant, expressed in the base frame given by `support_polygon_base_frame`.
-  @param support_polygon_base_frame The frame name in which the CoM state and
-  jacobian are to be expressed. Must be non-nullopt when support_polygon_B is
-  also non-nullopt.
-  @param parameters Collection of various problem specific constraints and
-  constants which can be set in the `DifferentialInverseKinematicsParameters`
-  object.
-  @param time_step is the time step
-  @param select_data_for_collision_constraint optional function to filter
-  constraints.
-  @pre The plant must be finalized (i.e., plant.is_finalized() must return
-  `true`). */
-  static std::unique_ptr<DifferentialInverseKinematicsSystem>
-  MakeFromParameters(
-      std::shared_ptr<const drake::planning::CollisionChecker>
-          collision_checker,
-      const std::optional<planning::SupportPolygon>& support_polygon_B,
-      const std::optional<std::string>& support_polygon_base_frame,
-      const DifferentialInverseKinematicsParameters& parameters,
-      double time_step,
-      SelectDataForCollisionConstraintFunction
-          select_data_for_collision_constraint = nullptr);
 
   /** (Advanced) Constructs the DifferentialInverseKinematicsSystem with a
   user-provided recipe for the mathematical program formulation. */
@@ -437,41 +396,6 @@ class DifferentialInverseKinematicsSystem::LeastSquaresCost final
   drake::string_unordered_map<drake::Vector6d> cartesian_axis_masks;
 };
 
-/** Provides a primary DifferentialInverseKinematicsSystem objective to maximize
-scaling factors α_j (within a bounding box), also known as the "weighted
-spatial" formulation. The objective constrains the generalized Jacobian
-transformation to be satisfied by the scaled desired spatial velocity:
-```
-  max_{v_next, α}
-     ∑ α_j
-  such that
-     0 ≤ α_j ≤ 1
-     Jv_TGs * v_next =  S E(q) diag(α) E⁻¹(q) V_TGs
-```
-
-Where:
-- E(.) is the linear map from derivative of euler angle to spatial velocity,
-- E⁻¹(.) is the linear map from spatial velocity to derivative of euler angle.
-- S is a block-diagonal matrix of axis masks, enabling per-axis tracking.
-
-TODO(jeremy-nimmer) Add a scaling weight (akin to G elsewhere) so that the user
-can configure how to balance multiple costs. Also consider unifying the naming
-of cost weights (G, K, etc.) to be consistent throughout. */
-class DifferentialInverseKinematicsSystem::WeightedSpatialCost final
-    : public Ingredient {
- public:
-  WeightedSpatialCost();
-  ~WeightedSpatialCost() final;
-  std::vector<drake::solvers::Binding<drake::solvers::EvaluatorBase>>
-  AddToProgram(CallbackDetails* details) const final;
-
-  /** Map from fully-scoped frame names to their 6D spatial velocity axis mask.
-  Each Vector6d is a binary mask [ωx, ωy, ωz, vx, vy, vz] indicating which
-  Cartesian velocity components (angular and translational) are being tracked.
-  */
-  drake::string_unordered_map<drake::Vector6d> cartesian_axis_masks;
-};
-
 /** There will almost inevitably be times when the jacobian `Jv_TGs` is not full
 rank. Sometimes because of current position values and sometimes because
 `Jv_TGs` is rectangular by construction. At those times, there's no longer a
@@ -645,27 +569,6 @@ class DifferentialInverseKinematicsSystem::JointVelocityLimitConstraint final
   drake::planning::JointLimits joint_limits;
   double min_margin{0.0025};
   double influence_margin{0.1};
-};
-
-/** Constrains the plant's center of mass to remain within the support polygon:
-```
-A*(p_BScm + Jv_v_BScm_active * v_next * Δt
-          + Jv_v_BScm_passive * v_passive * Δt) <= ub
-where `A` is a matrix where each row represents a normal vector defining a
-half-plane constraint; see SupportPolygon for details.
-```
-TODO(Aditya.Bhat): At the moment, v_passive is not plumbed through, so is
-always set to zero. */
-class DifferentialInverseKinematicsSystem::StabilityConstraint final
-    : public Ingredient {
- public:
-  StabilityConstraint();
-  ~StabilityConstraint() final;
-  std::vector<drake::solvers::Binding<drake::solvers::EvaluatorBase>>
-  AddToProgram(CallbackDetails* details) const final;
-
-  planning::SupportPolygon support_polygon_B;
-  std::string support_polygon_base_frame;
 };
 
 }  // namespace operational_space_control

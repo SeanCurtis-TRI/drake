@@ -70,14 +70,10 @@ DifferentialInverseKinematicsSystem::CollisionConstraint::CollisionConstraint() 
 DifferentialInverseKinematicsSystem::CollisionConstraint::~CollisionConstraint() = default;  // NOLINT
 DifferentialInverseKinematicsSystem::LeastSquaresCost::LeastSquaresCost() = default;  // NOLINT
 DifferentialInverseKinematicsSystem::LeastSquaresCost::~LeastSquaresCost() = default;  // NOLINT
-DifferentialInverseKinematicsSystem::WeightedSpatialCost::WeightedSpatialCost() = default;  // NOLINT
-DifferentialInverseKinematicsSystem::WeightedSpatialCost::~WeightedSpatialCost() = default;  // NOLINT
 DifferentialInverseKinematicsSystem::JointCenteringCost::JointCenteringCost() = default;  // NOLINT
 DifferentialInverseKinematicsSystem::JointCenteringCost::~JointCenteringCost() = default;  // NOLINT
 DifferentialInverseKinematicsSystem::JointVelocityLimitConstraint::JointVelocityLimitConstraint() = default;  // NOLINT
 DifferentialInverseKinematicsSystem::JointVelocityLimitConstraint::~JointVelocityLimitConstraint() = default;  // NOLINT
-DifferentialInverseKinematicsSystem::StabilityConstraint::StabilityConstraint() = default;  // NOLINT
-DifferentialInverseKinematicsSystem::StabilityConstraint::~StabilityConstraint() = default;  // NOLINT
 // clang-format on
 
 /* Constructs a block-diagonal matrix selecting Cartesian velocity axes
@@ -173,142 +169,6 @@ DifferentialInverseKinematicsSystem::LeastSquaresCost::AddToProgram(
   return std::vector<Binding<EvaluatorBase>>{std::move(binding)};
 }
 
-namespace {
-
-/* The linear map between q̇ and v is given by matrix E_F(q) defined by:
-         [ cos(y) * cos(p), -sin(y), 0, 0, 0, 0]
-E_F(q) = [ sin(y) * cos(p),  cos(y), 0, 0, 0, 0]
-         [         -sin(p),       0, 1, 0, 0, 0]
-         [               0,       0, 0, 1, 0, 0]
-         [               0,       0, 0, 0, 1, 0]
-         [               0,       0, 0, 0, 0, 1]
-w_FM = E_F(q) * q̇; q̇ = [ṙ, ṗ, ẏ]ᵀ */
-MatrixXd ComputeE(const VectorXd& euler_angles) {
-  const double sp = sin(euler_angles[1]);
-  const double cp = cos(euler_angles[1]);
-  const double sy = sin(euler_angles[2]);
-  const double cy = cos(euler_angles[2]);
-
-  Matrix3d E_FRot;
-  // clang-format off
-  E_FRot <<
-    cy * cp, -sy, 0.0,
-    sy * cp,  cy, 0.0,
-        -sp, 0.0, 1.0;
-  // clang-format on
-  MatrixXd E_F = MatrixXd::Identity(6, 6);
-  E_F.template topLeftCorner<3, 3>() = E_FRot;
-  return E_F;
-}
-
-/* The linear map from v to q̇ is given by the inverse of E_F(q):
-         [          cos(y) / cos(p),          sin(y) / cos(p), 0, 0, 0, 0]
-Einv_F = [                  -sin(y),                   cos(y), 0, 0, 0, 0]
-         [ sin(p) * cos(y) / cos(p), sin(p) * sin(y) / cos(p), 1, 0, 0, 0]
-         [                        0,                        0, 0, 1, 0, 0]
-         [                        0,                        0, 0, 0, 1, 0]
-         [                        0,                        0, 0, 0, 0, 1]
-such that q̇ = Einv_F(q) * w_FM; q̇ = [ṙ, ṗ, ẏ]ᵀ */
-MatrixXd ComputeEInverse(const VectorXd& euler_angles) {
-  const double cp = cos(euler_angles[1]);
-  // Demand for the computation to be away from a state for which Einv_F is
-  // singular.
-  if (abs(cp) < 1.0e-3) {
-    throw std::runtime_error(
-        fmt::format("Singular configuration: {}", euler_angles[1]));
-  }
-
-  const double sp = sin(euler_angles[1]);
-  const double sy = sin(euler_angles[2]);
-  const double cy = cos(euler_angles[2]);
-  const double cpi = 1.0 / cp;
-
-  const double cy_x_cpi = cy * cpi;
-  const double sy_x_cpi = sy * cpi;
-
-  MatrixXd Einv = MatrixXd::Identity(6, 6);
-  Matrix3d E_FRot;
-  // clang-format off
-  E_FRot <<
-         cy_x_cpi,      sy_x_cpi, 0.0,
-              -sy,            cy, 0.0,
-    cy_x_cpi * sp, sy_x_cpi * sp, 1.0;
-  // clang-format on
-  Einv.template topLeftCorner<3, 3>() = E_FRot;
-  return Einv;
-}
-
-/* Adds a linear equality constraint to enforce a differential inverse
-kinematics relationship.
-
-This function imposes the constraint:
-   Jv_TGs * v_next = diag(cartesian_axis_mask) E(q) diag(α) E⁻¹(q) Vd_TGs
-
-where:
-- Jv_TGs is the Jacobian matrix,
-- v_next is the next-step decision variable for joint velocities,
-- E(q) is the linear map from derivative of euler angle to spatial velocity,
-- E^{-1}(q) is the linear map from spatial velocity to derivative of euler
-angle,
-- alpha is a scaling factor applied element-wise, and
-- Vd_TGs is the desired cartesian velocities.
-
-@param alpha Decision variable representing the scaling factors for
-transformation. */
-Binding<EvaluatorBase>
-AddDifferentialInverseKinematicsEqualityLinearMapConstraint(
-    CallbackDetails* details,
-    const Eigen::Ref<const VectorXDecisionVariable>& alpha,
-    const drake::string_unordered_map<drake::Vector6d>& cartesian_axis_masks) {
-  DRAKE_DEMAND(details != nullptr);
-  auto& prog = details->mathematical_program;
-  const auto& v_next = details->v_next;
-  const auto& X_TGlist = details->X_TGlist;
-  const auto& Vd_TGlist = details->Vd_TGlist;
-  const auto& Jv_TGs = details->Jv_TGs;
-  const int ndof = details->active_dof.count();
-  const int num_cart_constraints = Vd_TGlist.size() * kSpatialVelocityRows;
-
-  DRAKE_DEMAND(num_cart_constraints > 0);
-  DRAKE_DEMAND(Jv_TGs.rows() == num_cart_constraints);
-  DRAKE_DEMAND(Jv_TGs.cols() == ndof);
-  DRAKE_DEMAND(X_TGlist.size() == Vd_TGlist.size());
-  MatrixXd Beq = MatrixXd::Zero(num_cart_constraints, num_cart_constraints);
-
-  const auto get_axis_selector = [&](const std::string& frame_name) {
-    auto it = cartesian_axis_masks.find(frame_name);
-    if (it != cartesian_axis_masks.end()) {
-      return it->second;
-    } else {
-      return Vector6d::Ones().eval();
-    }
-  };
-
-  for (int i = 0; i < ssize(X_TGlist); ++i) {
-    const Vector3d rpy_TGi = RollPitchYawd(X_TGlist[i].rotation()).vector();
-    const Vector6d& Vd_TGi = Vd_TGlist[i].get_coeffs();
-    const std::string frame_name =
-        details->frame_list[i]->scoped_name().to_string();
-    const Vector6d axis_selector = get_axis_selector(frame_name);
-    Beq.block(i * 6, i * 6, 6, 6) =
-        axis_selector.asDiagonal() *
-        (-ComputeE(rpy_TGi) *
-         ((ComputeEInverse(rpy_TGi) * Vd_TGi).asDiagonal()));
-  }
-
-  MatrixXd A(num_cart_constraints, ndof + num_cart_constraints);
-  A.leftCols(ndof) = BuildBlockDiagonalAxisSelector(details->frame_list,
-                                                    cartesian_axis_masks) *
-                     Jv_TGs;
-  A.rightCols(num_cart_constraints) = Beq;
-  auto binding = prog.AddLinearEqualityConstraint(
-      A, VectorXd::Zero(num_cart_constraints), {v_next, alpha});
-  binding.evaluator()->set_description("Linear map constraint");
-  return binding;
-}
-
-}  // namespace
-
 std::vector<Binding<EvaluatorBase>>
 DifferentialInverseKinematicsSystem::CollisionConstraint::AddToProgram(
     CallbackDetails* details) const {
@@ -357,56 +217,6 @@ DifferentialInverseKinematicsSystem::CollisionConstraint::AddToProgram(
     result.push_back(std::move(binding));
   }
   return result;
-}
-
-std::vector<Binding<EvaluatorBase>>
-DifferentialInverseKinematicsSystem::StabilityConstraint::AddToProgram(
-    CallbackDetails* details) const {
-  DRAKE_DEMAND(details != nullptr);
-  auto& prog = details->mathematical_program;
-  const auto& v_next = details->v_next;
-  const auto& plant = details->collision_checker.plant();
-  const auto& plant_context = details->plant_context;
-  const auto& collision_checker = details->collision_checker;
-  const auto& active_dof = details->active_dof;
-  const double dt = details->time_step;
-  const int v_dim = plant.num_velocities();
-
-  // Compute robot CoM and its Jacobian.
-  // TODO(jeremy-nimmer) Missing unit test coverage that we've properly used the
-  // robot model CoM here instead of the world model CoM.
-  Vector3d p_BScm;
-  MatrixXd Jv_v_BScm(3, v_dim);
-  const Vector3d p_WScm = plant.CalcCenterOfMassPositionInWorld(
-      plant_context, collision_checker.robot_model_instances());
-  const Frame<double>& B = plant.GetFrameByName(support_polygon_base_frame);
-  const RigidTransformd X_BW =
-      plant.CalcRelativeTransform(plant_context, B, plant.world_frame());
-  p_BScm = X_BW * p_WScm;
-  plant.CalcJacobianCenterOfMassTranslationalVelocity(
-      plant_context, JacobianWrtVariable::kV, B, B, &Jv_v_BScm);
-
-  MatrixX3d A;
-  VectorXd upper_bound;
-  VectorXd negative_inf;
-  support_polygon_B.PopulateSupportPolygonPolyhedronAndBounds(
-      &A, &upper_bound,
-      /* lower_bound = */ &negative_inf);
-  DRAKE_ASSERT((negative_inf.array() == -kInf).all());
-
-  MatrixXd Jv_v_BScm_active(3, active_dof.count());
-  MatrixXd Jv_v_BScm_passive(3, Jv_v_BScm.cols() - active_dof.count());
-  active_dof.GetColumnsFromMatrix(Jv_v_BScm, &Jv_v_BScm_active);
-  active_dof.Complement().GetColumnsFromMatrix(Jv_v_BScm, &Jv_v_BScm_passive);
-
-  // TODO(Aditya.Bhat): Remove the assumption of passive DoFs having 0 velocity.
-  unused(Jv_v_BScm_passive);
-  upper_bound -= A * p_BScm;
-  auto binding = prog.AddLinearConstraint(dt * A * Jv_v_BScm_active,
-                                          /* lower_bound = */ negative_inf,
-                                          upper_bound, v_next);
-  binding.evaluator()->set_description("Stability constraint");
-  return std::vector<Binding<EvaluatorBase>>{std::move(binding)};
 }
 
 namespace {
@@ -590,34 +400,6 @@ VectorXd TrySolveQPAndFallbackToZero(const MathematicalProgram& prog,
 
 }  // namespace
 
-std::vector<Binding<EvaluatorBase>>
-DifferentialInverseKinematicsSystem::WeightedSpatialCost::AddToProgram(
-    CallbackDetails* details) const {
-  DRAKE_DEMAND(details != nullptr);
-  std::vector<Binding<EvaluatorBase>> result;
-  auto& prog = details->mathematical_program;
-  const auto& Vd_TGlist = details->Vd_TGlist;
-
-  VectorXDecisionVariable alpha = prog.NewContinuousVariables(
-      ssize(Vd_TGlist) * kSpatialVelocityRows, "alpha");
-  Binding<EvaluatorBase> binding =
-      prog.AddLinearCost(-VectorXd::Ones(alpha.size()).transpose(), alpha);
-  binding.evaluator()->set_description("Maximize alpha cost");
-  result.push_back(std::move(binding));
-
-  // 0 <= alpha <= 1
-  binding = prog.AddBoundingBoxConstraint(VectorXd::Zero(alpha.size()),
-                                          VectorXd::Ones(alpha.size()), alpha);
-  binding.evaluator()->set_description("Alpha constraint");
-  result.push_back(std::move(binding));
-
-  binding = AddDifferentialInverseKinematicsEqualityLinearMapConstraint(
-      details, alpha, cartesian_axis_masks);
-  result.push_back(std::move(binding));
-
-  return result;
-}
-
 /* Each value on the input port for either desired cartesian poses or desired
 cartesian velocities is reprocessed into this internal value which is easier to
 work with. The desires stored here are always in terms of spatial velocities; if
@@ -632,84 +414,6 @@ struct DifferentialInverseKinematicsSystem::CartesianDesires {
   /* The commanded velocity of the controlled frame. */
   std::vector<SpatialVelocity<double>> Vd_TGlist;
 };
-
-std::unique_ptr<DifferentialInverseKinematicsSystem>
-DifferentialInverseKinematicsSystem::MakeFromParameters(
-    std::shared_ptr<const CollisionChecker> collision_checker,
-    const std::optional<planning::SupportPolygon>& support_polygon_B,
-    const std::optional<std::string>& support_polygon_base_frame,
-    const DifferentialInverseKinematicsParameters& parameters, double time_step,
-    SelectDataForCollisionConstraintFunction
-        select_data_for_collision_constraint) {
-  DRAKE_THROW_UNLESS(collision_checker != nullptr);
-
-  // Set up the recipe based on the parameters.
-  auto recipe = std::make_unique<Recipe>();
-  switch (parameters.get_diff_ik_version()) {
-    case DifferentialInverseKinematicsVersion::kLeastSquares: {
-      auto ingredient = std::make_shared<LeastSquaresCost>();
-      ingredient->cartesian_qp_weight = parameters.get_cartesian_qp_weight();
-      ingredient->cartesian_axis_masks =
-          parameters.get_cartesian_axis_mask_map();
-      recipe->AddIngredient(std::move(ingredient));
-      break;
-    }
-    case DifferentialInverseKinematicsVersion::kWeightedSpatial: {
-      auto ingredient = std::make_shared<WeightedSpatialCost>();
-      ingredient->cartesian_axis_masks =
-          parameters.get_cartesian_axis_mask_map();
-      recipe->AddIngredient(std::move(ingredient));
-      break;
-    }
-  }
-  {
-    auto ingredient = std::make_shared<JointCenteringCost>();
-    ingredient->posture_gain = parameters.get_posture_gain();
-    ingredient->cartesian_axis_masks = parameters.get_cartesian_axis_mask_map();
-    recipe->AddIngredient(std::move(ingredient));
-  }
-  {
-    auto ingredient = std::make_shared<CartesianPositionLimitConstraint>();
-    ingredient->cartesian_bounds_lower =
-        parameters.get_cartesian_bounds().first;
-    ingredient->cartesian_bounds_upper =
-        parameters.get_cartesian_bounds().second;
-    recipe->AddIngredient(std::move(ingredient));
-  }
-  {
-    auto ingredient = std::make_shared<CartesianVelocityLimitConstraint>();
-    ingredient->spatial_velocity_limit =
-        parameters.get_spatial_velocity_limit();
-    recipe->AddIngredient(std::move(ingredient));
-  }
-  {
-    auto ingredient = std::make_shared<JointVelocityLimitConstraint>();
-    ingredient->joint_limits = parameters.get_joint_limits();
-    recipe->AddIngredient(std::move(ingredient));
-  }
-  if (parameters.collision_avoidance_enabled()) {
-    auto ingredient = std::make_shared<CollisionConstraint>();
-    ingredient->safety_distance = parameters.get_safety_distance();
-    ingredient->influence_distance = parameters.get_influence_distance();
-    ingredient->select_data_for_collision_constraint =
-        std::move(select_data_for_collision_constraint);
-    recipe->AddIngredient(std::move(ingredient));
-  }
-  if (support_polygon_B.has_value()) {
-    // TODO(jeremy.nimmer) Least Squares mode should not support / allow this
-    // option, since we don't want to open-source this constraint.
-    auto ingredient = std::make_shared<StabilityConstraint>();
-    ingredient->support_polygon_B = support_polygon_B.value();
-    ingredient->support_polygon_base_frame = support_polygon_base_frame.value();
-    recipe->AddIngredient(std::move(ingredient));
-  }
-
-  return std::make_unique<DifferentialInverseKinematicsSystem>(
-      std::move(recipe), parameters.get_task_frame(),
-      std::move(collision_checker), parameters.get_active_dof(), time_step,
-      parameters.get_K_VX(),
-      SpatialVelocity<double>(parameters.get_spatial_velocity_limit()));
-}
 
 DifferentialInverseKinematicsSystem::DifferentialInverseKinematicsSystem(
     std::unique_ptr<const Recipe> recipe, const std::string_view task_frame,
