@@ -1,4 +1,4 @@
-#include "operational_space_control/differential_inverse_kinematics_system.h"
+#include "planning/differential_inverse_kinematics_system.h"
 
 #include <memory>
 #include <string>
@@ -13,35 +13,25 @@
 #include "drake/planning/scene_graph_collision_checker.h"
 #include "drake/systems/framework/bus_value.h"
 
-namespace anzu {
-namespace operational_space_control {
+namespace drake {
+namespace planning {
 namespace {
 
-using drake::CompareMatrices;
-using drake::Value;
-using drake::geometry::Sphere;
-using drake::math::RigidTransformd;
-using drake::multibody::CoulombFriction;
-using drake::multibody::ModelInstanceIndex;
-using drake::multibody::MultibodyPlant;
-using drake::multibody::PrismaticJoint;
-using drake::multibody::RigidBody;
-using drake::multibody::SpatialInertia;
-using drake::multibody::SpatialVelocity;
-using drake::planning::CollisionChecker;
-using drake::planning::CollisionCheckerParams;
-using drake::planning::DofMask;
-using drake::planning::JointLimits;
-using drake::planning::RobotClearance;
-using drake::planning::RobotDiagram;
-using drake::planning::RobotDiagramBuilder;
-using drake::planning::SceneGraphCollisionChecker;
-using drake::solvers::Binding;
-using drake::solvers::EvaluatorBase;
-using drake::systems::BusValue;
 using Eigen::Vector2d;
 using Eigen::Vector3d;
 using Eigen::VectorXd;
+using geometry::Sphere;
+using math::RigidTransformd;
+using multibody::CoulombFriction;
+using multibody::ModelInstanceIndex;
+using multibody::MultibodyPlant;
+using multibody::PrismaticJoint;
+using multibody::RigidBody;
+using multibody::SpatialInertia;
+using multibody::SpatialVelocity;
+using solvers::Binding;
+using solvers::EvaluatorBase;
+using systems::BusValue;
 
 using DiffIk = DifferentialInverseKinematicsSystem;
 using CallbackDetails = DiffIk::CallbackDetails;
@@ -112,8 +102,7 @@ class DifferentialInverseKinematicsTest : public ::testing::Test {
 
   /* Convenience function for adding the least-squares cost. */
   static void AddLeastSquaresCost(
-      Recipe* recipe,
-      const drake::string_unordered_map<drake::Vector6d>& masks = {}) {
+      Recipe* recipe, const string_unordered_map<Vector6d>& masks = {}) {
     auto ingredient = std::make_shared<DiffIk::LeastSquaresCost>();
     ingredient->cartesian_axis_masks = masks;
     recipe->AddIngredient(std::move(ingredient));
@@ -303,8 +292,8 @@ class TestIngredient final : public Ingredient {
  public:
   TestIngredient() = default;
   ~TestIngredient() final = default;
-  std::vector<drake::solvers::Binding<drake::solvers::EvaluatorBase>>
-  AddToProgram(CallbackDetails* details) const final {
+  std::vector<Binding<EvaluatorBase>> AddToProgram(
+      CallbackDetails* details) const final {
     // program?
     if (details->v_next.size() != dut_->active_dof().count()) {
       throw std::runtime_error("Detail has wrong number of decision variables");
@@ -372,8 +361,8 @@ TEST_F(DifferentialInverseKinematicsTest, LeastSquaresAxisMask) {
     The "masked" rows were already zero. */
     auto recipe = std::make_unique<Recipe>();
     auto ingredient = std::make_shared<DiffIk::LeastSquaresCost>();
-    drake::string_unordered_map<drake::Vector6d> masks;
-    masks["robot::ball"] = drake::Vector6d(0, 0, 0, 1, 1, 0);
+    string_unordered_map<Vector6d> masks;
+    masks["robot::ball"] = Vector6d(0, 0, 0, 1, 1, 0);
     recipe->AddIngredient(ingredient);
     ingredient->cartesian_axis_masks = masks;
     DiffIk dut = MakeDiffIk(std::move(recipe));
@@ -389,9 +378,9 @@ TEST_F(DifferentialInverseKinematicsTest, LeastSquaresAxisMask) {
     /* Also mask out vy; the solution ignores vd_y. */
     auto recipe = std::make_unique<Recipe>();
     auto ingredient = std::make_shared<DiffIk::LeastSquaresCost>();
-    drake::string_unordered_map<drake::Vector6d> masks;
+    string_unordered_map<Vector6d> masks;
     // Omitting a critical cartesian velocity element means we won't get it.
-    masks["robot::ball"] = drake::Vector6d(0, 0, 0, 1, 0, 0);
+    masks["robot::ball"] = Vector6d(0, 0, 0, 1, 0, 0);
     recipe->AddIngredient(ingredient);
     ingredient->cartesian_axis_masks = masks;
     DiffIk dut = MakeDiffIk(std::move(recipe));
@@ -534,9 +523,9 @@ TEST_F(DifferentialInverseKinematicsTest, JointCenteringCostAxisMask) {
   // q picked such that we get the expected command.
   const Vector3d q(-0.5, 0, 1 / std::sqrt(2));
 
-  drake::string_unordered_map<drake::Vector6d> masks;
+  string_unordered_map<Vector6d> masks;
   // Masking out vy.
-  masks["robot::ball"] = drake::Vector6d(0, 0, 0, 1, 0, 0);
+  masks["robot::ball"] = Vector6d(0, 0, 0, 1, 0, 0);
   const Vector3d vd_WB_masked(1.5, 0, 0);
 
   std::vector<VectorXd> commands;
@@ -891,5 +880,5 @@ TEST_F(DifferentialInverseKinematicsTest, JointVelocityLimitConstraint) {
 }
 
 }  // namespace
-}  // namespace operational_space_control
-}  // namespace anzu
+}  // namespace planning
+}  // namespace drake

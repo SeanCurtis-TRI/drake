@@ -10,11 +10,12 @@
 #include "drake/common/string_unordered_map.h"
 #include "drake/planning/collision_checker.h"
 #include "drake/planning/dof_mask.h"
+#include "drake/planning/joint_limits.h"
 #include "drake/solvers/mathematical_program.h"
 #include "drake/systems/framework/leaf_system.h"
 
-namespace anzu {
-namespace operational_space_control {
+namespace drake {
+namespace planning {
 
 // TODO(jeremy-nimmer) After the DIK constructors are cleaned up, relocate this
 // definition to be closer to the (only) constraint that needs it.
@@ -32,8 +33,7 @@ citations from robot_bridge/common/motion_primitive.h.
   columns must match the number of active degrees of freedom. Guaranteed to be
   non-null on entry. */
 using SelectDataForCollisionConstraintFunction = std::function<void(
-    const drake::planning::DofMask& active_dof,
-    const drake::planning::RobotClearance& robot_clearance,
+    const DofMask& active_dof, const RobotClearance& robot_clearance,
     Eigen::VectorXd* dist_out, Eigen::MatrixXd* ddist_dq_out)>;
 
 /** The %DifferentialInverseKinematicsSystem takes as input desired cartesian
@@ -85,13 +85,13 @@ Port `position` accepts the current generalized position (for the full `plant`,
 not just the active dofs).
 
 Port `desired_cartesian_velocities` accepts desired cartesian velocities, typed
-as drake::systems::BusValue where key is the name of the frame to track and the
-value is the drake::multibody::SpatialVelocity<double> w.r.t the task frame
+as systems::BusValue where key is the name of the frame to track and the
+value is the multibody::SpatialVelocity<double> w.r.t the task frame
 (described in the DifferentialInverseKinematicsParameters).
 
 Port `desired_cartesian_poses` accepts desired cartesian poses, typed as
-drake::systems::BusValue where key is the name of the frame to track and the
-value is the drake::math::RigidTransformd spatial pose w.r.t the task frame.
+systems::BusValue where key is the name of the frame to track and the
+value is the math::RigidTransformd spatial pose w.r.t the task frame.
 
 Port `nominal_posture` accepts a generalized position to be used to handle
 nullspace resolution; this has the dimension of the full degrees of freedom
@@ -143,7 +143,7 @@ center of mass.
 
 @ingroup control_systems */
 class DifferentialInverseKinematicsSystem final
-    : public drake::systems::LeafSystem<double> {
+    : public systems::LeafSystem<double> {
  public:
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(DifferentialInverseKinematicsSystem);
 
@@ -165,56 +165,52 @@ class DifferentialInverseKinematicsSystem final
   user-provided recipe for the mathematical program formulation. */
   DifferentialInverseKinematicsSystem(
       std::unique_ptr<const Recipe> recipe, std::string_view task_frame,
-      std::shared_ptr<const drake::planning::CollisionChecker>
-          collision_checker,
-      const drake::planning::DofMask& active_dof, double time_step, double K_VX,
-      const drake::multibody::SpatialVelocity<double>& Vd_TG_limit);
+      std::shared_ptr<const CollisionChecker> collision_checker,
+      const DofMask& active_dof, double time_step, double K_VX,
+      const multibody::SpatialVelocity<double>& Vd_TG_limit);
 
   ~DifferentialInverseKinematicsSystem() final;
 
   /** Gets the plant used by the controller. */
-  const drake::multibody::MultibodyPlant<double>& plant() const {
+  const multibody::MultibodyPlant<double>& plant() const {
     return collision_checker_->plant();
   }
 
   /** Gets the collision checker used by the controller. */
-  const drake::planning::CollisionChecker& collision_checker() const {
+  const CollisionChecker& collision_checker() const {
     return *collision_checker_;
   }
 
   /** Gets the mask of active DOFs in plant() that are being controlled. */
-  const drake::planning::DofMask& active_dof() const { return active_dof_; }
+  const DofMask& active_dof() const { return active_dof_; }
 
   /** Gets the time step used by the controller. */
   double time_step() const { return time_step_; }
 
   /** Gets the frame assumed on the desired_cartesian_poses input port. */
-  const drake::multibody::Frame<double>& task_frame() const {
-    return *task_frame_;
-  }
+  const multibody::Frame<double>& task_frame() const { return *task_frame_; }
 
   /** Returns the input port for the joint positions. */
-  const drake::systems::InputPort<double>& get_input_port_position() const {
+  const systems::InputPort<double>& get_input_port_position() const {
     return this->get_input_port(input_port_index_position_);
   }
 
   /** Returns the input port for the nominal joint positions to be used to
   handle nullspace resolution. This has the dimension of the full
   `plant.num_positions()`; non-active dofs will be ignored. */
-  const drake::systems::InputPort<double>& get_input_port_nominal_posture()
-      const {
+  const systems::InputPort<double>& get_input_port_nominal_posture() const {
     return this->get_input_port(input_port_index_nominal_posture_);
   }
 
   /** Returns the input port for the desired cartesian poses (of type
-  drake::systems::BusValue containing drake::math::RigidTransformd). */
-  const drake::systems::InputPort<double>&
-  get_input_port_desired_cartesian_poses() const {
+  systems::BusValue containing math::RigidTransformd). */
+  const systems::InputPort<double>& get_input_port_desired_cartesian_poses()
+      const {
     return this->get_input_port(input_port_index_desired_cartesian_poses_);
   }
 
   /** Returns the input port for the desired cartesian velocities. */
-  const drake::systems::InputPort<double>&
+  const systems::InputPort<double>&
   get_input_port_desired_cartesian_velocities() const {
     return this->get_input_port(input_port_index_desired_cartesian_velocities_);
   }
@@ -222,42 +218,41 @@ class DifferentialInverseKinematicsSystem final
   /** Returns the output port for the generalized velocity command that realizes
   the desired poses within the constraints. The size is equal to
   `get_active_dof().count()`. */
-  const drake::systems::OutputPort<double>& get_output_port_commanded_velocity()
+  const systems::OutputPort<double>& get_output_port_commanded_velocity()
       const {
     return this->get_output_port(output_port_index_commanded_velocity_);
   }
 
  private:
   struct CartesianDesires;
-  void PrepareMultibodyContext(const drake::systems::Context<double>&,
-                               drake::systems::Context<double>*) const;
-  void PrepareCartesianDesires(const drake::systems::Context<double>&,
+  void PrepareMultibodyContext(const systems::Context<double>&,
+                               systems::Context<double>*) const;
+  void PrepareCartesianDesires(const systems::Context<double>&,
                                CartesianDesires*) const;
 
-  void CalcCommandedVelocity(const drake::systems::Context<double>& context,
-                             drake::systems::BasicVector<double>* output) const;
+  void CalcCommandedVelocity(const systems::Context<double>& context,
+                             systems::BasicVector<double>* output) const;
 
   // Constructor arguments.
   const std::unique_ptr<const Recipe> recipe_;
-  const std::shared_ptr<const drake::planning::CollisionChecker>
-      collision_checker_;
-  const drake::planning::DofMask active_dof_;
+  const std::shared_ptr<const CollisionChecker> collision_checker_;
+  const DofMask active_dof_;
   const double time_step_;
   const double K_VX_;
-  const drake::multibody::SpatialVelocity<double> Vd_TG_limit_;
+  const multibody::SpatialVelocity<double> Vd_TG_limit_;
 
   // Derived from constructor arguments.
-  const drake::multibody::Frame<double>* const task_frame_;
+  const multibody::Frame<double>* const task_frame_;
 
   // LeafSystem plumbing, set once during the constructor and then never changed
   // again.
-  drake::systems::InputPortIndex input_port_index_position_;
-  drake::systems::InputPortIndex input_port_index_nominal_posture_;
-  drake::systems::InputPortIndex input_port_index_desired_cartesian_poses_;
-  drake::systems::InputPortIndex input_port_index_desired_cartesian_velocities_;
-  drake::systems::OutputPortIndex output_port_index_commanded_velocity_;
-  drake::systems::CacheIndex plant_context_cache_index_;
-  drake::systems::CacheIndex cartesian_desires_cache_index_;
+  systems::InputPortIndex input_port_index_position_;
+  systems::InputPortIndex input_port_index_nominal_posture_;
+  systems::InputPortIndex input_port_index_desired_cartesian_poses_;
+  systems::InputPortIndex input_port_index_desired_cartesian_velocities_;
+  systems::OutputPortIndex output_port_index_commanded_velocity_;
+  systems::CacheIndex plant_context_cache_index_;
+  systems::CacheIndex cartesian_desires_cache_index_;
 };
 
 /** (Internal use only) A group of common arguments relevant to multiple
@@ -267,23 +262,23 @@ arguments that is set once and then processed by multiple helper functions; it
 is not intended to be a long-lived abstract data type. */
 struct DifferentialInverseKinematicsSystem::CallbackDetails {
   /** The mutable, work-in-progress optimization program. */
-  drake::solvers::MathematicalProgram& mathematical_program;
+  solvers::MathematicalProgram& mathematical_program;
 
   /** The decision variables being optimized. This has the dimension of the
   number of active degrees of freedom (see `active_dof`). */
-  const drake::solvers::VectorXDecisionVariable& v_next;
+  const solvers::VectorXDecisionVariable& v_next;
 
   /** A context for the control plant, set to current positions.
   (At the moment, velocities are zero but that might change down the road.) */
-  const drake::systems::Context<double>& plant_context;
+  const systems::Context<double>& plant_context;
 
   /** The collision checker for the robot being controlled.
   Note that its robot_model_instances() accessor also partitions which parts of
   the `plant` are the robot model vs its environment. */
-  const drake::planning::CollisionChecker& collision_checker;
+  const CollisionChecker& collision_checker;
 
   /** The active degrees of freedom in `plant`. */
-  const drake::planning::DofMask& active_dof;
+  const DofMask& active_dof;
 
   /** The control rate for DifferentialInverseKinematicsSystem (the pace at
   which velocity commands are expected to be applied). */
@@ -294,13 +289,13 @@ struct DifferentialInverseKinematicsSystem::CallbackDetails {
   const Eigen::VectorXd& nominal_posture;
 
   /** The list of frames being controlled. */
-  std::vector<const drake::multibody::Frame<double>*> frame_list;
+  std::vector<const multibody::Frame<double>*> frame_list;
 
   /** The current poses of the goal frames. */
-  const std::vector<drake::math::RigidTransformd>& X_TGlist;
+  const std::vector<math::RigidTransformd>& X_TGlist;
 
   /** The desired velocities of the goal frames. */
-  const std::vector<drake::multibody::SpatialVelocity<double>> Vd_TGlist;
+  const std::vector<multibody::SpatialVelocity<double>> Vd_TGlist;
 
   /** The jacobian relating spatial velocities to generalized velocities, i.e.,
   V_TGs (rows) with respect to v_active (cols). */
@@ -326,8 +321,8 @@ class DifferentialInverseKinematicsSystem::Ingredient {
 
   @param[in,out] details A group of arguments commonly used by most costs and
   constraints. */
-  virtual std::vector<drake::solvers::Binding<drake::solvers::EvaluatorBase>>
-  AddToProgram(CallbackDetails* details) const = 0;
+  virtual std::vector<solvers::Binding<solvers::EvaluatorBase>> AddToProgram(
+      CallbackDetails* details) const = 0;
 
   // TODO(jeremy-nimmer) Add an 'update program' virtual method (which accepts
   // the vector-of-bindings returned by `AddToProgram` plus the new `details`),
@@ -353,8 +348,8 @@ class DifferentialInverseKinematicsSystem::Recipe {
 
   /** Calls DifferentialInverseKinematicsSystem::Ingredient::AddToProgram on all
   of the ingredients in this recipe. */
-  std::vector<drake::solvers::Binding<drake::solvers::EvaluatorBase>>
-  AddToProgram(CallbackDetails* details) const;
+  std::vector<solvers::Binding<solvers::EvaluatorBase>> AddToProgram(
+      CallbackDetails* details) const;
 
  private:
   std::vector<std::shared_ptr<const Ingredient>> ingredients_;
@@ -384,8 +379,8 @@ class DifferentialInverseKinematicsSystem::LeastSquaresCost final
  public:
   LeastSquaresCost();
   ~LeastSquaresCost() final;
-  std::vector<drake::solvers::Binding<drake::solvers::EvaluatorBase>>
-  AddToProgram(CallbackDetails* details) const final;
+  std::vector<solvers::Binding<solvers::EvaluatorBase>> AddToProgram(
+      CallbackDetails* details) const final;
 
   double cartesian_qp_weight{1.0};
 
@@ -393,7 +388,7 @@ class DifferentialInverseKinematicsSystem::LeastSquaresCost final
   Each Vector6d is a binary mask [ωx, ωy, ωz, vx, vy, vz] indicating which
   Cartesian velocity components (angular and translational) are being tracked.
   */
-  drake::string_unordered_map<drake::Vector6d> cartesian_axis_masks;
+  string_unordered_map<Vector6d> cartesian_axis_masks;
 };
 
 /** There will almost inevitably be times when the jacobian `Jv_TGs` is not full
@@ -440,8 +435,8 @@ class DifferentialInverseKinematicsSystem::JointCenteringCost final
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(JointCenteringCost);
   JointCenteringCost();
   ~JointCenteringCost() final;
-  std::vector<drake::solvers::Binding<drake::solvers::EvaluatorBase>>
-  AddToProgram(CallbackDetails* details) const final;
+  std::vector<solvers::Binding<solvers::EvaluatorBase>> AddToProgram(
+      CallbackDetails* details) const final;
 
   /** The proportional gain `K`. */
   double posture_gain{1.0};
@@ -450,7 +445,7 @@ class DifferentialInverseKinematicsSystem::JointCenteringCost final
   Each Vector6d is a binary mask [ωx, ωy, ωz, vx, vy, vz] indicating which
   Cartesian velocity components (angular and translational) are being tracked.
   */
-  drake::string_unordered_map<drake::Vector6d> cartesian_axis_masks;
+  string_unordered_map<Vector6d> cartesian_axis_masks;
 };
 
 // ============================================================================
@@ -467,8 +462,8 @@ class DifferentialInverseKinematicsSystem::CartesianPositionLimitConstraint
  public:
   CartesianPositionLimitConstraint();
   ~CartesianPositionLimitConstraint() final;
-  std::vector<drake::solvers::Binding<drake::solvers::EvaluatorBase>>
-  AddToProgram(CallbackDetails* details) const final;
+  std::vector<solvers::Binding<solvers::EvaluatorBase>> AddToProgram(
+      CallbackDetails* details) const final;
 
   Eigen::VectorXd cartesian_bounds_lower;
   Eigen::VectorXd cartesian_bounds_upper;
@@ -481,8 +476,8 @@ class DifferentialInverseKinematicsSystem::CartesianVelocityLimitConstraint
  public:
   CartesianVelocityLimitConstraint();
   ~CartesianVelocityLimitConstraint() final;
-  std::vector<drake::solvers::Binding<drake::solvers::EvaluatorBase>>
-  AddToProgram(CallbackDetails* details) const final;
+  std::vector<solvers::Binding<solvers::EvaluatorBase>> AddToProgram(
+      CallbackDetails* details) const final;
 
   Eigen::VectorXd spatial_velocity_limit;
 };
@@ -505,8 +500,8 @@ class DifferentialInverseKinematicsSystem::CollisionConstraint final
  public:
   CollisionConstraint();
   ~CollisionConstraint() final;
-  std::vector<drake::solvers::Binding<drake::solvers::EvaluatorBase>>
-  AddToProgram(CallbackDetails* details) const final;
+  std::vector<solvers::Binding<solvers::EvaluatorBase>> AddToProgram(
+      CallbackDetails* details) const final;
 
   double safety_distance{};
   double influence_distance{};
@@ -563,13 +558,13 @@ class DifferentialInverseKinematicsSystem::JointVelocityLimitConstraint final
  public:
   JointVelocityLimitConstraint();
   ~JointVelocityLimitConstraint() final;
-  std::vector<drake::solvers::Binding<drake::solvers::EvaluatorBase>>
-  AddToProgram(CallbackDetails* details) const final;
+  std::vector<solvers::Binding<solvers::EvaluatorBase>> AddToProgram(
+      CallbackDetails* details) const final;
 
-  drake::planning::JointLimits joint_limits;
+  JointLimits joint_limits;
   double min_margin{0.0025};
   double influence_margin{0.1};
 };
 
-}  // namespace operational_space_control
-}  // namespace anzu
+}  // namespace planning
+}  // namespace drake
