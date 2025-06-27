@@ -27,6 +27,7 @@ and/or trajectories of dynamical systems.
   internal::DefinePlanningCollisionChecker(m);
   internal::DefinePlanningDofMask(m);
   internal::DefinePlanningJointLimits(m);
+  internal::DefinePlanningDifferentialIk(m)
   internal::DefinePlanningGraphAlgorithms(m);
   internal::DefinePlanningTrajectoryOptimization(m);
   internal::DefinePlanningVisibilityGraph(m);
