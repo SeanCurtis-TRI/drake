@@ -49,20 +49,23 @@ enum class EngineType { Vtk, Gl };
 
 /* Creates a render engine of the given type with the given background color. */
 template <EngineType engine_type>
-std::unique_ptr<RenderEngine> MakeEngine(const Vector3d& bg_rgb) {
+std::unique_ptr<RenderEngine> MakeEngine(const Vector3d& bg_rgb,
+                                         bool readback = true) {
   // Offset the light from its default position (coincident with the camera)
   // so that shadows can be seen in the render.
   if constexpr (engine_type == EngineType::Vtk) {
     const RenderEngineVtkParams params{
         .default_clear_color = bg_rgb,
-        .lights = {{.type = "point", .position = {0.5, 0.5, 0}}}};
+        .lights = {{.type = "point", .position = {0.5, 0.5, 0}}},
+        .readback_color = readback};
     return MakeRenderEngineVtk(params);
   }
   if constexpr (engine_type == EngineType::Gl) {
     const Rgba bg(bg_rgb[0], bg_rgb[1], bg_rgb[2]);
     const RenderEngineGlParams params{
         .default_clear_color = bg,
-        .lights = {{.type = "point", .position = {0.5, 0.5, 0}}}};
+        .lights = {{.type = "point", .position = {0.5, 0.5, 0}}},
+        .readback_color = readback};
     return MakeRenderEngineGl(params);
   }
 }
@@ -79,8 +82,9 @@ class RenderBenchmark : public benchmark::Fixture {
   template <EngineType engine_type>
   // NOLINTNEXTLINE(runtime/references)
   void ColorImage(::benchmark::State& state, const std::string& name) {
-    auto renderer = MakeEngine<engine_type>(bg_rgb_);
-    auto [sphere_count, camera_count, width, height] = ReadState(state);
+    auto [sphere_count, camera_count, width, height, readback] =
+        ReadState(state);
+    auto renderer = MakeEngine<engine_type>(bg_rgb_, readback);
     SetupScene(sphere_count, camera_count, width, height, renderer.get());
     ImageRgba8U color_image(width, height);
 
@@ -113,7 +117,7 @@ class RenderBenchmark : public benchmark::Fixture {
   // NOLINTNEXTLINE(runtime/references)
   void DepthImage(::benchmark::State& state, const std::string& name) {
     auto renderer = MakeEngine<engine_type>(bg_rgb_);
-    auto [sphere_count, camera_count, width, height] = ReadState(state);
+    auto [sphere_count, camera_count, width, height, nil] = ReadState(state);
     SetupScene(sphere_count, camera_count, width, height, renderer.get());
     ImageDepth32F depth_image(width, height);
 
@@ -142,7 +146,7 @@ class RenderBenchmark : public benchmark::Fixture {
   // NOLINTNEXTLINE(runtime/references)
   void LabelImage(::benchmark::State& state, const std::string& name) {
     auto renderer = MakeEngine<engine_type>(bg_rgb_);
-    auto [sphere_count, camera_count, width, height] = ReadState(state);
+    auto [sphere_count, camera_count, width, height, nil] = ReadState(state);
     SetupScene(sphere_count, camera_count, width, height, renderer.get());
     ImageLabel16I label_image(width, height);
 
@@ -174,10 +178,10 @@ class RenderBenchmark : public benchmark::Fixture {
   /* Parse arguments from the benchmark state.
    @return A tuple representing the sphere count, camera count, width, and
            height.  */
-  static std::tuple<int, int, int, int> ReadState(
+  static std::tuple<int, int, int, int, bool> ReadState(
       const benchmark::State& state) {
     return std::make_tuple(state.range(0), state.range(1), state.range(2),
-                           state.range(3));
+                           state.range(3), state.range(4) != 0);
   }
 
   /* Helper function for generating the image path name based on the benchmark
@@ -188,7 +192,7 @@ class RenderBenchmark : public benchmark::Fixture {
                                      const std::string& format) {
     DRAKE_DEMAND(!FLAGS_save_image_path.empty());
     std::filesystem::path save_path = FLAGS_save_image_path;
-    const auto [sphere_count, camera_count, width, height] = ReadState(state);
+    const auto [sphere_count, camera_count, width, height, readback] = ReadState(state);
     return save_path.append(fmt::format("{}_{}_{}_{}_{}.{}", test_name,
                                         sphere_count, camera_count, width,
                                         height, format));
@@ -336,29 +340,29 @@ class RenderBenchmark : public benchmark::Fixture {
   }                                                                    \
   BENCHMARK_REGISTER_F(RenderBenchmark, Renderer##ImageT)              \
       ->Unit(benchmark::kMillisecond)                                  \
-      ->Args({1, 1, 640, 480})                                         \
-      ->Args({12, 1, 640, 480})                                        \
-      ->Args({120, 1, 640, 480})                                       \
-      ->Args({240, 1, 640, 480})                                       \
-      ->Args({480, 1, 640, 480})                                       \
-      ->Args({1200, 1, 640, 480})                                      \
-      ->Args({1, 10, 640, 480})                                        \
-      ->Args({1200, 10, 640, 480})                                     \
-      ->Args({1, 1, 320, 240})                                         \
-      ->Args({1, 1, 1280, 960})                                        \
-      ->Args({1, 1, 2560, 1920})                                       \
-      ->Args({1200, 1, 320, 240})                                      \
-      ->Args({1200, 1, 1280, 960})                                     \
-      ->Args({1200, 1, 2560, 1920})
+      ->Args({1, 1, 640, 480, 1})                                      \
+      ->Args({60, 1, 640, 480, 1})                                     \
+      ->Args({120, 1, 640, 480, 1})                                    \
+      ->Args({240, 1, 640, 480, 1})                                    \
+      ->Args({480, 1, 640, 480, 1})                                    \
+      ->Args({960, 1, 640, 480, 1})                                    \
+      ->Args({1, 10, 640, 480, 1})                                     \
+      ->Args({960, 10, 640, 480, 1})                                   \
+      ->Args({1, 1, 320, 240, 1})                                      \
+      ->Args({1, 1, 1280, 960, 1})                                     \
+      ->Args({1, 1, 2560, 1920, 1})                                    \
+      ->Args({960, 1, 320, 240, 1})                                    \
+      ->Args({960, 1, 1280, 960, 1})                                   \
+      ->Args({960, 1, 2560, 1920, 1})
 
 MAKE_BENCHMARK(Vtk, Color);
-MAKE_BENCHMARK(Vtk, Depth);
-MAKE_BENCHMARK(Vtk, Label);
+// MAKE_BENCHMARK(Vtk, Depth);
+// MAKE_BENCHMARK(Vtk, Label);
 
 #ifndef __APPLE__
 MAKE_BENCHMARK(Gl, Color);
-MAKE_BENCHMARK(Gl, Depth);
-MAKE_BENCHMARK(Gl, Label);
+// MAKE_BENCHMARK(Gl, Depth);
+// MAKE_BENCHMARK(Gl, Label);
 #endif
 
 }  // namespace
