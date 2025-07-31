@@ -106,6 +106,7 @@ struct RenderEngineVtkParams {
     a->Visit(DRAKE_NVP(force_to_pbr));
     a->Visit(DRAKE_NVP(gltf_extensions));
     a->Visit(DRAKE_NVP(backend));
+    a->Visit(DRAKE_NVP(readback_color));
   }
 
   /** The (optional) rgba color to apply to the (phong, diffuse) property when
@@ -256,6 +257,9 @@ struct RenderEngineVtkParams {
   %RenderEngineVtk instance (after resolving default values as documented
   above). _Currently_, the EGL background does not support this display. */
   std::string backend;
+
+  /* Hidden flag that actually turns of the read back. */
+  bool readback_color{true};
 };
 
 namespace render_vtk {

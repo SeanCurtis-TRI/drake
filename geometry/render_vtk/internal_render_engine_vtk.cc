@@ -494,12 +494,15 @@ void RenderEngineVtk::DoRenderColorImage(const ColorRenderCamera& camera,
                *pipelines_[ImageType::kColor], "Color Image");
   PerformVtkUpdate(*pipelines_[ImageType::kColor]);
 
-  // TODO(SeanCurtis-TRI): When the VTK square-window-shadow bug is resolved,
-  // render from the original camera (instead of the shadow_camera) and replace
-  // the call to ExtractImage with a simple invocation of:
-  // pipelines_[ImageType::kColor]->exporter->Export(color_image_out->at(0, 0));
-  ExtractImage(shadow_camera, pipelines_[ImageType::kColor]->exporter,
-               color_image_out);
+  if (parameters_.readback_color) {
+    // TODO(SeanCurtis-TRI): When the VTK square-window-shadow bug is resolved,
+    // render from the original camera (instead of the shadow_camera) and
+    // replace the call to ExtractImage with a simple invocation of:
+    // pipelines_[ImageType::kColor]->exporter->Export(color_image_out->at(0,
+    // 0));
+    ExtractImage(shadow_camera, pipelines_[ImageType::kColor]->exporter,
+                 color_image_out);
+  }
 }
 
 void RenderEngineVtk::DoRenderDepthImage(const DepthRenderCamera& camera,

@@ -31,6 +31,9 @@ struct RenderEngineGlParams {
   /** Lights in the scene. More than five lights is an error. If no lights are
    defined, a single directional light, fixed to the camera frame, is used. */
   std::vector<render::LightParameter> lights;
+
+  /* Hidden flag that actually turns of the read back. */
+  bool readback_color{true};
 };
 
 }  // namespace geometry

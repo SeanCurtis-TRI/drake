@@ -1162,8 +1162,10 @@ void RenderEngineGl::DoRenderColorImage(const ColorRenderCamera& camera,
   // the front buffer; reversing the order means the image we've just rendered
   // wouldn't be visible.
   SetWindowVisibility(camera.core(), camera.show_window(), render_target);
-  glGetTextureImage(render_target.value_texture, 0, GL_RGBA, GL_UNSIGNED_BYTE,
-                    color_image_out->size(), color_image_out->at(0, 0));
+  if (parameters_.readback_color) {
+    glGetTextureImage(render_target.value_texture, 0, GL_RGBA, GL_UNSIGNED_BYTE,
+                      color_image_out->size(), color_image_out->at(0, 0));
+  }
 }
 
 void RenderEngineGl::DoRenderDepthImage(const DepthRenderCamera& camera,
