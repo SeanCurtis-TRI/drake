@@ -12,6 +12,7 @@
 #include "drake/common/diagnostic_policy.h"
 #include "drake/common/overloaded.h"
 #include "drake/common/pointer_cast.h"
+#include "drake/common/profiler.h"
 #include "drake/common/scope_exit.h"
 #include "drake/common/ssize.h"
 #include "drake/common/string_map.h"
@@ -25,6 +26,7 @@ namespace geometry {
 namespace render_gl {
 namespace internal {
 
+using common::TimerIndex;
 using Eigen::Matrix3f;
 using Eigen::Matrix4d;
 using Eigen::Matrix4f;
@@ -1125,8 +1127,25 @@ void RenderEngineGl::RenderAt(const ShaderProgram& shader_program,
   glBindVertexArray(0);
 }
 
+namespace {
+
+/* This is a hack for the benchmark program. It runs all the VTK and then all
+the GL and I don't want to mix VTK measurements with GL measurements in my
+output. So, I simply clear the timers the first time I call gl rendering. */
+TimerIndex resetAndAddTimer(const std::string& name) {
+  clearAllTimers();
+  return addTimer(name);
+}
+}
+
 void RenderEngineGl::DoRenderColorImage(const ColorRenderCamera& camera,
                                         ImageRgba8U* color_image_out) const {
+  static const TimerIndex timer = resetAndAddTimer("RenderEngineGl::DoRenderColorImage");
+  static const TimerIndex setup = addTimer("RenderEngineGl::DoRenderColorImage - setup");
+  static const TimerIndex render = addTimer("RenderEngineGl::DoRenderColorImage - render");
+  static const TimerIndex readback = addTimer("RenderEngineGl::DoRenderColorImage - readback");
+  startTimer(timer);
+  startTimer(setup);
   opengl_context_->MakeCurrent();
   // TODO(SeanCurtis-TRI): For transparency to work properly, I need to
   //  segregate objects with transparency from those without. The transparent
@@ -1148,7 +1167,8 @@ void RenderEngineGl::DoRenderColorImage(const ColorRenderCamera& camera,
   // Matrix mapping a geometry vertex from the camera frame C to the device
   // frame D.
   const Matrix4f T_DC = camera.core().CalcProjectionMatrix().cast<float>();
-
+  stopTimer(setup);
+  startTimer(render);
   for (const auto& [_, shader_program] : shader_programs_[RenderType::kColor]) {
     shader_program->Use();
     shader_program->SetProjectionMatrix(T_DC);
@@ -1162,10 +1182,15 @@ void RenderEngineGl::DoRenderColorImage(const ColorRenderCamera& camera,
   // the front buffer; reversing the order means the image we've just rendered
   // wouldn't be visible.
   SetWindowVisibility(camera.core(), camera.show_window(), render_target);
+  glFinish();
+  stopTimer(render);
   if (parameters_.readback_color) {
+    startTimer(readback);
     glGetTextureImage(render_target.value_texture, 0, GL_RGBA, GL_UNSIGNED_BYTE,
                       color_image_out->size(), color_image_out->at(0, 0));
+    stopTimer(readback);
   }
+  stopTimer(timer);
 }
 
 void RenderEngineGl::DoRenderDepthImage(const DepthRenderCamera& camera,
