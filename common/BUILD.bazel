@@ -247,6 +247,9 @@ drake_cc_library(
     srcs = ["profiler.cc"],
     hdrs = ["profiler.h"],
     deps = [":type_safe_index"],
+    defines = [
+        "ENABLE_TIMERS",
+    ],
 )
 
 drake_cc_library(
