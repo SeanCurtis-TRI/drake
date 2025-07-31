@@ -1,0 +1,196 @@
+RenderBenchmark/VtkColor/1/1/640/480/true
+All registered profiles average times:
+       Time (s)   Samples   Total Time (s)  Label
+    0.000332258      2099        0.6974095  RenderEngineVtk::DoRenderColorImage
+   2.125981e-06      2099      0.004462435  RenderEngineVtk::DoRenderColorImage - setup
+   0.0001365688      2099        0.2866579  RenderEngineVtk::DoRenderColorImage - render
+   0.0001934833      2099        0.4061214  RenderEngineVtk::DoRenderColorImage - readback
+RenderBenchmark/VtkColor/60/1/640/480/true
+All registered profiles average times:
+       Time (s)   Samples   Total Time (s)  Label
+   0.0006365976      1013        0.6448734  RenderEngineVtk::DoRenderColorImage
+   2.128876e-06      1013      0.002156551  RenderEngineVtk::DoRenderColorImage - setup
+   0.0004483375      1013        0.4541659  RenderEngineVtk::DoRenderColorImage - render
+   0.0001860517      1013        0.1884704  RenderEngineVtk::DoRenderColorImage - readback
+RenderBenchmark/VtkColor/120/1/640/480/true
+All registered profiles average times:
+       Time (s)   Samples   Total Time (s)  Label
+   0.0009883047       639        0.6315267  RenderEngineVtk::DoRenderColorImage
+   2.205673e-06       639      0.001409425  RenderEngineVtk::DoRenderColorImage - setup
+   0.0007939662       639        0.5073444  RenderEngineVtk::DoRenderColorImage - render
+   0.0001920524       639        0.1227215  RenderEngineVtk::DoRenderColorImage - readback
+RenderBenchmark/VtkColor/240/1/640/480/true
+All registered profiles average times:
+       Time (s)   Samples   Total Time (s)  Label
+    0.001963894       321          0.63041  RenderEngineVtk::DoRenderColorImage
+   2.309109e-06       321      0.000741224  RenderEngineVtk::DoRenderColorImage - setup
+    0.001625784       321        0.5218767  RenderEngineVtk::DoRenderColorImage - render
+   0.0003357178       321        0.1077654  RenderEngineVtk::DoRenderColorImage - readback
+RenderBenchmark/VtkColor/480/1/640/480/true
+All registered profiles average times:
+       Time (s)   Samples   Total Time (s)  Label
+    0.004072612       159        0.6475454  RenderEngineVtk::DoRenderColorImage
+   2.581094e-06       159      0.000410394  RenderEngineVtk::DoRenderColorImage - setup
+    0.003690029       159        0.5867145  RenderEngineVtk::DoRenderColorImage - render
+   0.0003799139       159       0.06040631  RenderEngineVtk::DoRenderColorImage - readback
+RenderBenchmark/VtkColor/960/1/640/480/true
+All registered profiles average times:
+       Time (s)   Samples   Total Time (s)  Label
+    0.008914684        64        0.5705398  RenderEngineVtk::DoRenderColorImage
+   3.105672e-06        64      0.000198763  RenderEngineVtk::DoRenderColorImage - setup
+    0.008414615        64        0.5385354  RenderEngineVtk::DoRenderColorImage - render
+    0.000496859        64       0.03179898  RenderEngineVtk::DoRenderColorImage - readback
+RenderBenchmark/VtkColor/1/10/640/480/true
+All registered profiles average times:
+       Time (s)   Samples   Total Time (s)  Label
+   0.0005464903      1060        0.5792797  RenderEngineVtk::DoRenderColorImage
+   2.122633e-06      1060      0.002249991  RenderEngineVtk::DoRenderColorImage - setup
+   0.0002264776      1060        0.2400663  RenderEngineVtk::DoRenderColorImage - render
+   0.0003178093      1060        0.3368779  RenderEngineVtk::DoRenderColorImage - readback
+RenderBenchmark/VtkColor/960/10/640/480/true
+All registered profiles average times:
+       Time (s)   Samples   Total Time (s)  Label
+    0.006281112        90        0.5653001  RenderEngineVtk::DoRenderColorImage
+   2.595778e-06        90       0.00023362  RenderEngineVtk::DoRenderColorImage - setup
+    0.006029663        90        0.5426697  RenderEngineVtk::DoRenderColorImage - render
+    0.000248764        90       0.02238876  RenderEngineVtk::DoRenderColorImage - readback
+RenderBenchmark/VtkColor/1/1/320/240/true
+All registered profiles average times:
+       Time (s)   Samples   Total Time (s)  Label
+   0.0002342322      3214        0.7528222  RenderEngineVtk::DoRenderColorImage
+   2.003802e-06      3214      0.006440221  RenderEngineVtk::DoRenderColorImage - setup
+   0.0001266273      3214        0.4069802  RenderEngineVtk::DoRenderColorImage - render
+   0.0001055202      3214        0.3391421  RenderEngineVtk::DoRenderColorImage - readback
+RenderBenchmark/VtkColor/1/1/1280/960/true
+All registered profiles average times:
+       Time (s)   Samples   Total Time (s)  Label
+   0.0006791747       953        0.6472535  RenderEngineVtk::DoRenderColorImage
+   2.304651e-06       953      0.002196332  RenderEngineVtk::DoRenderColorImage - setup
+   0.0001543978       953        0.1471411  RenderEngineVtk::DoRenderColorImage - render
+   0.0005223847       953        0.4978326  RenderEngineVtk::DoRenderColorImage - readback
+RenderBenchmark/VtkColor/1/1/2560/1920/true
+All registered profiles average times:
+       Time (s)   Samples   Total Time (s)  Label
+    0.003046283       226          0.68846  RenderEngineVtk::DoRenderColorImage
+   2.992956e-06       226      0.000676408  RenderEngineVtk::DoRenderColorImage - setup
+   0.0002909605       226       0.06575708  RenderEngineVtk::DoRenderColorImage - render
+    0.002752236       226        0.6220053  RenderEngineVtk::DoRenderColorImage - readback
+RenderBenchmark/VtkColor/960/1/320/240/true
+All registered profiles average times:
+       Time (s)   Samples   Total Time (s)  Label
+    0.008563846        73        0.6251608  RenderEngineVtk::DoRenderColorImage
+   2.880575e-06        73      0.000210282  RenderEngineVtk::DoRenderColorImage - setup
+    0.008394554        73        0.6128024  RenderEngineVtk::DoRenderColorImage - render
+   0.0001663076        73       0.01214046  RenderEngineVtk::DoRenderColorImage - readback
+RenderBenchmark/VtkColor/960/1/1280/960/true
+All registered profiles average times:
+       Time (s)   Samples   Total Time (s)  Label
+     0.01137509        54        0.6142551  RenderEngineVtk::DoRenderColorImage
+   3.495074e-06        54      0.000188734  RenderEngineVtk::DoRenderColorImage - setup
+    0.009868325        54        0.5328895  RenderEngineVtk::DoRenderColorImage - render
+     0.00150315        54        0.0811701  RenderEngineVtk::DoRenderColorImage - readback
+RenderBenchmark/VtkColor/960/1/2560/1920/true
+All registered profiles average times:
+       Time (s)   Samples   Total Time (s)  Label
+     0.01868568        33        0.6166274  RenderEngineVtk::DoRenderColorImage
+   4.728667e-06        33      0.000156046  RenderEngineVtk::DoRenderColorImage - setup
+     0.01312486        33        0.4331205  RenderEngineVtk::DoRenderColorImage - render
+    0.005555977        33        0.1833472  RenderEngineVtk::DoRenderColorImage - readback
+RenderBenchmark/GlColor/1/1/640/480/true
+All registered profiles average times:
+       Time (s)   Samples   Total Time (s)  Label
+   0.0002113338      3440        0.7269884  RenderEngineGl::DoRenderColorImage
+   2.560428e-06      3440      0.008807871  RenderEngineGl::DoRenderColorImage - setup
+   3.907585e-05      3440        0.1344209  RenderEngineGl::DoRenderColorImage - render
+   0.0001696155      3440        0.5834773  RenderEngineGl::DoRenderColorImage - readback
+RenderBenchmark/GlColor/60/1/640/480/true
+All registered profiles average times:
+       Time (s)   Samples   Total Time (s)  Label
+   0.0002657046      2665        0.7081028  RenderEngineGl::DoRenderColorImage
+   2.824295e-06      2665      0.007526747  RenderEngineGl::DoRenderColorImage - setup
+   7.920605e-05      2665        0.2110841  RenderEngineGl::DoRenderColorImage - render
+   0.0001835919      2665        0.4892723  RenderEngineGl::DoRenderColorImage - readback
+RenderBenchmark/GlColor/120/1/640/480/true
+All registered profiles average times:
+       Time (s)   Samples   Total Time (s)  Label
+   0.0002736014      2822        0.7721032  RenderEngineGl::DoRenderColorImage
+   2.553328e-06      2822      0.007205492  RenderEngineGl::DoRenderColorImage - setup
+   8.459495e-05      2822         0.238727  RenderEngineGl::DoRenderColorImage - render
+   0.0001863778      2822        0.5259583  RenderEngineGl::DoRenderColorImage - readback
+RenderBenchmark/GlColor/240/1/640/480/true
+All registered profiles average times:
+       Time (s)   Samples   Total Time (s)  Label
+     0.00029303      2358        0.6909648  RenderEngineGl::DoRenderColorImage
+   2.607495e-06      2358      0.006148474  RenderEngineGl::DoRenderColorImage - setup
+   0.0001279066      2358        0.3016039  RenderEngineGl::DoRenderColorImage - render
+    0.000162438      2358        0.3830289  RenderEngineGl::DoRenderColorImage - readback
+RenderBenchmark/GlColor/480/1/640/480/true
+All registered profiles average times:
+       Time (s)   Samples   Total Time (s)  Label
+   0.0003537128      1876        0.6635652  RenderEngineGl::DoRenderColorImage
+   3.007036e-06      1876        0.0056412  RenderEngineGl::DoRenderColorImage - setup
+   0.0001855078      1876        0.3480126  RenderEngineGl::DoRenderColorImage - render
+   0.0001651157      1876        0.3097571  RenderEngineGl::DoRenderColorImage - readback
+RenderBenchmark/GlColor/960/1/640/480/true
+All registered profiles average times:
+       Time (s)   Samples   Total Time (s)  Label
+   0.0004849843      1315        0.6377544  RenderEngineGl::DoRenderColorImage
+   2.861189e-06      1315      0.003762464  RenderEngineGl::DoRenderColorImage - setup
+   0.0003163487      1315        0.4159985  RenderEngineGl::DoRenderColorImage - render
+   0.0001656815      1315        0.2178712  RenderEngineGl::DoRenderColorImage - readback
+RenderBenchmark/GlColor/1/10/640/480/true
+All registered profiles average times:
+       Time (s)   Samples   Total Time (s)  Label
+   0.0002041195      3530        0.7205417  RenderEngineGl::DoRenderColorImage
+   2.515389e-06      3530      0.008879324  RenderEngineGl::DoRenderColorImage - setup
+   3.958113e-05      3530        0.1397214  RenderEngineGl::DoRenderColorImage - render
+   0.0001619467      3530        0.5716718  RenderEngineGl::DoRenderColorImage - readback
+RenderBenchmark/GlColor/960/10/640/480/true
+All registered profiles average times:
+       Time (s)   Samples   Total Time (s)  Label
+   0.0005030777      1390         0.699278  RenderEngineGl::DoRenderColorImage
+   2.668742e-06      1390      0.003709552  RenderEngineGl::DoRenderColorImage - setup
+   0.0003338529      1390        0.4640555  RenderEngineGl::DoRenderColorImage - render
+   0.0001664668      1390        0.2313889  RenderEngineGl::DoRenderColorImage - readback
+RenderBenchmark/GlColor/1/1/320/240/true
+All registered profiles average times:
+       Time (s)   Samples   Total Time (s)  Label
+   7.649965e-05      9825         0.751609  RenderEngineGl::DoRenderColorImage
+   2.423558e-06      9825       0.02381146  RenderEngineGl::DoRenderColorImage - setup
+   3.628478e-05      9825        0.3564979  RenderEngineGl::DoRenderColorImage - render
+   3.771494e-05      9825        0.3705493  RenderEngineGl::DoRenderColorImage - readback
+RenderBenchmark/GlColor/1/1/1280/960/true
+All registered profiles average times:
+       Time (s)   Samples   Total Time (s)  Label
+   0.0005810927      1201        0.6978923  RenderEngineGl::DoRenderColorImage
+   2.804426e-06      1201      0.003368116  RenderEngineGl::DoRenderColorImage - setup
+   4.402897e-05      1201        0.0528788  RenderEngineGl::DoRenderColorImage - render
+   0.0005341724      1201        0.6415411  RenderEngineGl::DoRenderColorImage - readback
+RenderBenchmark/GlColor/1/1/2560/1920/true
+All registered profiles average times:
+       Time (s)   Samples   Total Time (s)  Label
+    0.002017439       353         0.712156  RenderEngineGl::DoRenderColorImage
+   3.170337e-06       353      0.001119129  RenderEngineGl::DoRenderColorImage - setup
+   9.384671e-05       353       0.03312789  RenderEngineGl::DoRenderColorImage - render
+    0.001920339       353        0.6778797  RenderEngineGl::DoRenderColorImage - readback
+RenderBenchmark/GlColor/960/1/320/240/true
+All registered profiles average times:
+       Time (s)   Samples   Total Time (s)  Label
+   0.0003528304      1777        0.6269796  RenderEngineGl::DoRenderColorImage
+   2.720906e-06      1777       0.00483505  RenderEngineGl::DoRenderColorImage - setup
+   0.0003106942      1777        0.5521037  RenderEngineGl::DoRenderColorImage - render
+   3.932577e-05      1777        0.0698819  RenderEngineGl::DoRenderColorImage - readback
+RenderBenchmark/GlColor/960/1/1280/960/true
+All registered profiles average times:
+       Time (s)   Samples   Total Time (s)  Label
+   0.0008651746       789        0.6826228  RenderEngineGl::DoRenderColorImage
+   3.347861e-06       789      0.002641462  RenderEngineGl::DoRenderColorImage - setup
+   0.0003252043       789        0.2565862  RenderEngineGl::DoRenderColorImage - render
+   0.0005365068       789        0.4233039  RenderEngineGl::DoRenderColorImage - readback
+RenderBenchmark/GlColor/960/1/2560/1920/true
+All registered profiles average times:
+       Time (s)   Samples   Total Time (s)  Label
+     0.00240187       290        0.6965423  RenderEngineGl::DoRenderColorImage
+   4.935348e-06       290      0.001431251  RenderEngineGl::DoRenderColorImage - setup
+   0.0003726581       290        0.1080708  RenderEngineGl::DoRenderColorImage - render
+    0.002024171       290        0.5870094  RenderEngineGl::DoRenderColorImage - readback
