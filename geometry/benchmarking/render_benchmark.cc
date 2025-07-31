@@ -1,5 +1,5 @@
 /* See render_benchmark_doxygen.h for discussion of this benchmark.  */
-
+#include <iostream>
 #include <unistd.h>
 
 #include <filesystem>
@@ -8,6 +8,7 @@
 #include <fmt/format.h>
 #include <gflags/gflags.h>
 
+#include "drake/common/profiler.h"
 #include "drake/geometry/render_gl/factory.h"
 #include "drake/geometry/render_vtk/factory.h"
 #include "drake/systems/sensors/image_writer.h"
@@ -72,9 +73,22 @@ std::unique_ptr<RenderEngine> MakeEngine(const Vector3d& bg_rgb,
 
 class RenderBenchmark : public benchmark::Fixture {
  public:
+  struct ArgProfiler {
+    std::string name;
+    benchmark::IterationCount iterations;
+    std::string table;
+  };
+
   RenderBenchmark() {
     material_.AddProperty("phong", "diffuse", sphere_rgba_);
     material_.AddProperty("label", "id", RenderLabel::kDontCare);
+  }
+
+  ~RenderBenchmark() override {
+    for (const auto& result : profilers_) {
+      std::cerr << result.name << "\n"
+                << result.table << "\n";
+    }
   }
 
   void SetUp(::benchmark::State&) { depth_cameras_.clear(); }
@@ -98,6 +112,7 @@ class RenderBenchmark : public benchmark::Fixture {
       renderer->RenderColorImage(color_cam, &color_image);
     }
 
+    reset();
     /* Now the timed loop. */
     for (auto _ : state) {
       renderer->UpdatePoses(poses_);
@@ -105,6 +120,23 @@ class RenderBenchmark : public benchmark::Fixture {
         const ColorRenderCamera color_cam(depth_cameras_[i].core(),
                                           FLAGS_show_window);
         renderer->RenderColorImage(color_cam, &color_image);
+      }
+    }
+    const std::string profile_name =
+        fmt::format("{}/{}/{}/{}/{}/{}", state.name(), sphere_count,
+                    camera_count, width, height, readback);
+    if (profilers_.size() == 0) {
+      profilers_.push_back({.name = profile_name,
+                            .iterations = state.iterations(),
+                            .table = TableOfAverages()});
+    } else {
+      if (profilers_.back().name != profile_name) {
+        profilers_.push_back({.name = profile_name,
+                              .iterations = state.iterations(),
+                              .table = TableOfAverages()});
+      } else if (profilers_.back().iterations < state.iterations()) {
+        profilers_.back().iterations += state.iterations();
+        profilers_.back().table = TableOfAverages();
       }
     }
     if (!FLAGS_save_image_path.empty()) {
@@ -309,6 +341,7 @@ class RenderBenchmark : public benchmark::Fixture {
   const Vector3d bg_rgb_{200 / 255., 0, 250 / 255.};
   const Rgba sphere_rgba_{0, 0.8, 0.5, 1};
   std::unordered_map<GeometryId, RigidTransformd> poses_;
+  std::vector<ArgProfiler> profilers_;
 };
 
 /* These macros serve the purpose of allowing compact and *consistent*

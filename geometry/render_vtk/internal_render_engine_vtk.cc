@@ -44,6 +44,7 @@
 #include "drake/common/diagnostic_policy.h"
 #include "drake/common/never_destroyed.h"
 #include "drake/common/overloaded.h"
+#include "drake/common/profiler.h"
 #include "drake/common/text_logging.h"
 #include "drake/common/yaml/yaml_io.h"
 #include "drake/geometry/proximity/polygon_to_triangle_mesh.h"
@@ -60,6 +61,7 @@ namespace geometry {
 namespace render_vtk {
 namespace internal {
 
+using common::TimerIndex;
 using drake::internal::DiagnosticDetail;
 using drake::internal::DiagnosticPolicy;
 using Eigen::Vector2d;
@@ -483,16 +485,43 @@ void ExtractImage(const ColorRenderCamera& vtk_camera, vtkImageExport* exporter,
   }
 }
 
+/* This is a hack for the benchmark program. It runs all the VTK and then all
+the GL and I don't want to mix VTK measurements with GL measurements in my
+output. So, I simply clear the timers the first time I call vtk rendering. */
+TimerIndex resetAndAddTimer(const std::string& name) {
+  clearAllTimers();
+  return addTimer(name);
+}
+
 }  // namespace
 
 void RenderEngineVtk::DoRenderColorImage(const ColorRenderCamera& camera,
                                          ImageRgba8U* color_image_out) const {
+  static const TimerIndex timer = resetAndAddTimer("RenderEngineVtk::DoRenderColorImage");
+  static const TimerIndex setup = addTimer("RenderEngineVtk::DoRenderColorImage - setup");
+  static const TimerIndex render = addTimer("RenderEngineVtk::DoRenderColorImage - render");
+  static const TimerIndex readback = addTimer("RenderEngineVtk::DoRenderColorImage - readback");
+  startTimer(timer);
+  startTimer(setup);
   const ColorRenderCamera shadow_camera =
       MakeShadowCamera(camera, parameters_.cast_shadows);
 
   UpdateWindow(shadow_camera.core(), shadow_camera.show_window(),
                *pipelines_[ImageType::kColor], "Color Image");
-  PerformVtkUpdate(*pipelines_[ImageType::kColor]);
+  stopTimer(setup);
+  // The actual "render" timing is happening inside PerformVtkUpdate.
+  // PerformVtkUpdate(*pipelines_[ImageType::kColor]);
+
+  {
+    const auto& p = *pipelines_[ImageType::kColor];
+    startTimer(render);
+    p.window->Render();
+    p.window->WaitForCompletion();
+    stopTimer(render);
+    startTimer(readback);
+    p.filter->Modified();
+    p.filter->Update();
+  }
 
   if (parameters_.readback_color) {
     // TODO(SeanCurtis-TRI): When the VTK square-window-shadow bug is resolved,
@@ -503,6 +532,8 @@ void RenderEngineVtk::DoRenderColorImage(const ColorRenderCamera& camera,
     ExtractImage(shadow_camera, pipelines_[ImageType::kColor]->exporter,
                  color_image_out);
   }
+  stopTimer(readback);
+  stopTimer(timer);
 }
 
 void RenderEngineVtk::DoRenderDepthImage(const DepthRenderCamera& camera,
@@ -1197,7 +1228,11 @@ void RenderEngineVtk::SetDepthShader(vtkActor* actor) {
 }
 
 void RenderEngineVtk::PerformVtkUpdate(const RenderingPipeline& p) {
+  static const TimerIndex render = addTimer("RenderEngineVtk::DoRenderColorImage - render");
+  startTimer(render);
   p.window->Render();
+  p.window->WaitForCompletion();
+  stopTimer(render);
   p.filter->Modified();
   p.filter->Update();
 }
