@@ -79,7 +79,9 @@ drake_cc_googlebench_binary(
     srcs = ["render_benchmark.cc"],
     add_test_rule = True,
     test_args = [
-        # To save time, only run the low-resolution tests in CI.
+        # To save time, only run the low-resolution tests in CI for a single
+        # iteration (dry run).
+        "--benchmark_dry_run",
         "--benchmark_filter=.*/1/1/320/240",
     ],
     test_display = True,

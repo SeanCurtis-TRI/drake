@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 SPHERE_COUNT = 0
 CAM_COUNT = 1
 IMAGE_SIZE = 2
+LIGHT_COUNT = 3
 TOTAL_TIME = 4
 SETUP_TIME = 5
 RENDER_TIME = 6
@@ -16,6 +17,7 @@ READBACK_TIME = 7
 DATA_LABELS = {SPHERE_COUNT: "Sphere Count",
                CAM_COUNT: "Camera Count",
                IMAGE_SIZE: "Image Size (pixels)",
+               LIGHT_COUNT: "Light Count",
                TOTAL_TIME: "Total Time",
                SETUP_TIME: "Setup Time",
                RENDER_TIME: "Render Time",
@@ -25,10 +27,10 @@ IMAGE_LABELS = {320 * 240: "320x240",
                 1280 * 960: "1280x960",
                 2560 * 1920: "2560x1920"}
 
-def parse_data(file_path: Path):
+def parse_data(file_path: Path, prefix: str):
     """A block of data looks like this:
 
-    benchmark/engine_name/s/c/w/h/r
+    prefixBenchmark/engine_name/s/c/w/h/r
     All registered profiles average times:
     Time (s)   Samples   Total Time (s)  Label 
     total_time       160       0.01987654  RenderEngineGl::DoRenderColorImage
@@ -46,24 +48,24 @@ def parse_data(file_path: Path):
     Creates a dictionary of 2D tables. Each entry based on the engine_name. In
     the table, each row is a data point and the columns are defined as:
 
-    (spheres, cameras, width * height, readback_enabled, total_time,
+    (spheres, cameras, width * height, light_count, total_time,
      setup_time, render_time, readback_time)
     """
     benchmarks = {}
     with open(file_path, 'r') as f:
         lines = f.readlines()
         l = 0
-        while not lines[l].startswith('RenderBenchmark'):
+        while not lines[l].startswith(prefix):
             l += 1  # Skip to the first benchmark line.
 
         while l < len(lines):
             header = lines[l].strip().replace('true', '1').replace('false', '0')
             tokens = header.split('/')
             name = tokens[1]  # Engine name
-            s, c, w, h, r = map(int, tokens[2:])
+            s, c, w, h, lc = map(int, tokens[2:])
             if name not in benchmarks:
                 benchmarks[name] = []
-            line_list = [s, c, w * h, r]
+            line_list = [s, c, w * h, lc]
             l += 3  # Skip "All registered profiles ..." line and the header line.
             for _ in range(4):
                 line_list.append(float(lines[l].split()[0]))
@@ -102,7 +104,8 @@ def render_time_vs_scene_complexity(data_dict):
         render_times = data[:, TOTAL_TIME] * 1000  # Convert to milliseconds
         resolutions = np.unique(data[:, IMAGE_SIZE])
         for resolution in resolutions[::-1]:
-            mask = data[:, IMAGE_SIZE] == resolution
+            mask = ((data[:, IMAGE_SIZE] == resolution) &
+                    (data[:, CAM_COUNT] == 1))
             x, y = reduce_plot_data(data[mask, SPHERE_COUNT],
                                     render_times[mask])
             ax.plot(x, y, label=f"Image Size: {IMAGE_LABELS[int(resolution)]}")
@@ -113,7 +116,7 @@ def render_time_vs_scene_complexity(data_dict):
 
     # Force the vertical scale to match to facilitate comparison.
     for ax in axes:
-        ax.set_ylim(0, max(y_limits) + 1)
+        ax.set_ylim(0, max(y_limits) * 1.1)
     # plt.legend()
     plt.tight_layout(rect=[0, 0.03, 1, 0.95])  # Adjust layout to fit title
     plt.subplots_adjust(wspace=0.3)  # Adjust space between subplots
@@ -150,7 +153,7 @@ def _add_stacked_time_bars(ax, data, title, blocks, mask, x_axis, tick_maker,
     bottom = np.zeros_like(np.unique(x_values), dtype=float)
     ticks = np.arange(len(bottom))
     for col in blocks:
-        label = DATA_LABELS[col] if not add_bar_label else None
+        label = DATA_LABELS[col] if add_bar_label else None
         y = data[mask, col] * 1000
         x, y = reduce_plot_data(x_values, y)
         bars = ax.bar(ticks + offset, y, width, label=label,
@@ -162,9 +165,45 @@ def _add_stacked_time_bars(ax, data, title, blocks, mask, x_axis, tick_maker,
         ax.text(bar.get_x() + bar.get_width() / 2, bottom[i], name,
                 ha='center', va='bottom', fontsize=9)
 
-    ax.legend()
+    if add_bar_label:
+        ax.legend()
     ax.set_xlabel(DATA_LABELS[x_axis])
     ax.set_ylabel("Render Time (ms)")
+
+def _add_grouped_time_bars(ax, data, title, group_member, x_axis, mask,
+                           tick_maker):
+    """Adds grouped bars to the given axis. The bar values are assumed to be
+    time values (in seconds).
+
+    Args:
+        ax: The matplotlib axis to plot on.
+        data: The data array containing the values to plot.
+        title: The title of the plot.
+        group_member: The axis in `data` that defines the bar group.
+        x_axis: The column index for the x-axis values.
+        mask: A boolean mask to select which rows in the data to use.
+        tick_maker: A function that takes x values and returns labels for them.
+    """
+    COLORS = ["#000", "#d00", "#00d", "#f80", "#b0b", "#dd0"]
+    width = 0.1  # Revisit this.
+    ax.set_title(title, fontsize=14)
+    members = np.unique(data[:, group_member])
+    ticks = np.arange(len(members))
+    offset = -0.5 * width * (len(members) - 1)
+    for member in members:
+        member_mask = data[:, group_member] == member
+        x_values = data[member_mask & mask, x_axis]
+        y_values = data[member_mask & mask, RENDER_TIME] * 1000
+        x, y = reduce_plot_data(x_values, y_values)
+        ticks = np.arange(len(x))
+        ax.bar(ticks + offset, y, width, label=f"{int(member)}",
+               color=COLORS[int(member)])
+        offset += width
+    ax.set_xticks(ticks)
+    ax.set_xticklabels(tick_maker(x))
+    ax.legend(title="Light Count")
+    ax.set_xlabel(DATA_LABELS[x_axis], fontsize=14)
+    ax.set_ylabel("Render Time (ms)", fontsize=14)
 
 def render_phases_vis_dimensions(data_dict):
     fig, axes = plt.subplots(1, len(data_dict), figsize=(10, 5))
@@ -172,8 +211,7 @@ def render_phases_vis_dimensions(data_dict):
     width = 0.38
     offset = -width * 0.5
     BLOCKS = [READBACK_TIME, RENDER_TIME]
-    colors = {READBACK_TIME: "#849", RENDER_TIME: "#CB0"}
-    first_done = True
+    needs_labels = True
     for engine_name, data in data_dict.items():
         name = 'VTK' if 'vtk' in engine_name.lower() else 'GL'
         # Left subplot is a grouped, stacked bar chart of rendering time
@@ -188,7 +226,7 @@ def render_phases_vis_dimensions(data_dict):
                   tick_maker=lambda x: [f"{int(x_i)}" for x_i in x],
                   offset=offset,
                   name=name,
-                  add_bar_label=first_done)
+                  add_bar_label=needs_labels)
 
         # Right subplot is also a grouped, stacked bar chart of rendering time
         # vs image size.
@@ -202,36 +240,117 @@ def render_phases_vis_dimensions(data_dict):
                   tick_maker=lambda x: [IMAGE_LABELS[int(x_i)] for x_i in x],
                   offset=offset,
                   name=name,
-                  add_bar_label=first_done)
+                  add_bar_label=needs_labels)
         offset += width * 1.05
-        first_done = False
+        needs_labels = False
     fig.suptitle("Sensitivity to Scene Complexity and Image Size")
     plt.legend()
     plt.tight_layout(rect=[0, 0.03, 1, 0.95])  # Adjust layout to fit title
     plt.subplots_adjust(wspace=0.3)  # Adjust space between subplots
 
+def render_time_vs_lights(data_dict):
+    """Plots the render time vs number of lights for each engine. Each subplot
+    corresponds to a different engine, and the x-axis is the number of lights.
+    However, there's a separate line based on image size."""
+    fig, axes = plt.subplots(2, len(data_dict), figsize=(12, 11))
+    axes = axes.flatten() if len(data_dict) > 1 else [axes]
+
+    # Create four subplots.
+    # The top row considers image size (with fixed number of spheres).
+    # The bottom row considers sphere count (with fixed image size).
+    # In both rows, there are two subplots: one for each render engine. Each
+    # subplot has a number of bar groups (one for each unique x-axis value).
+    # Each group has one bar for each number of lights.
+    axis_index = 0
+    for engine_name, data in data_dict.items():
+        name = 'VTK' if 'vtk' in engine_name.lower() else 'GL'
+
+        ax = axes[axis_index]
+        axis_index += 1
+
+        _add_grouped_time_bars(
+            ax=ax,
+            data=data,
+            title=f"Varying Image Size with One Sphere ({name})",
+            group_member=LIGHT_COUNT,
+            x_axis=IMAGE_SIZE,
+            mask=data[:, SPHERE_COUNT] == 1,
+            tick_maker=lambda x: [IMAGE_LABELS[int(x_i)] for x_i in x],
+        )
+    for engine_name, data in data_dict.items():
+        name = 'VTK' if 'vtk' in engine_name.lower() else 'GL'
+
+        ax = axes[axis_index]
+        axis_index += 1
+
+        _add_grouped_time_bars(
+            ax=ax,
+            data=data,
+            title=f"Varying Sphere Count in a 2560x1920 Image ({name})",
+            group_member=LIGHT_COUNT,
+            x_axis=SPHERE_COUNT,
+            mask=data[:, IMAGE_SIZE] == 2560 * 1920,
+            tick_maker=lambda x: [f"{int(x_i)}" for x_i in x],
+        )
+    
+    # N.B. the vertical axis on the VTK plot with 960 spheres is so much larger
+    # than the others that it makes it hard to compare the other plots.
+    # Uncomment the following lines to force the vertical scale to match.
+    # y_limits = [ax.get_ylim()[1] for ax in axes]
+    # for ax in axes:
+    #     ax.set_ylim(0, max(y_limits) * 1.1)
+
+    fig.suptitle("The Effect of Lights", fontsize=24)
+    plt.tight_layout(rect=[0, 0.03, 1, 0.95])  # Adjust layout to fit title
+    plt.subplots_adjust(wspace=0.3)  # Adjust space between subplots
+
+
+def _print_data(dict_data):
+    """Prints the data dictionary in a human-readable format."""
+    for engine_name, data in dict_data.items():
+        print(engine_name)
+        _print_table(data)
+
+
+def _print_table(table):
+    """Prints the table with one row per row; no numpy line wrapping, commas,
+    or brackets.
+    """
+    for row in table:
+        print(" ".join([str(x) for x in row]))
+
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('file_path', type=str, help='Path to the readback profile data file.')
+    parser.add_argument('--readback_path', type=str,
+                        help='Path to the readback profile data file.')
+    parser.add_argument("--light_path", type=str,
+                        help="Path to the light profiling data file.")
     args = parser.parse_args()
 
-    # Parse the data from the file.
-    file_path = Path(args.file_path)
-    if not file_path.exists():
-        raise FileNotFoundError(f"The file {file_path} does not exist.")
+    def parse_from_file(file_path: Path, prefix: str):
+        if not file_path.exists():
+            raise FileNotFoundError(f"The file {file_path} does not exist.")
+        if not file_path.is_file():
+            raise ValueError(f"The path {file_path} is not a valid file.")
+        # Parse the data from the file.
+        return parse_data(file_path, prefix)
 
-    # Parse the data from the file.
-    if not file_path.is_file():
-        raise ValueError(f"The path {file_path} is not a valid file.")
+    have_drawn = False
+    if args.readback_path:
+        data_dict = parse_from_file(Path(args.readback_path), "Readback")
+        render_time_vs_scene_complexity(data_dict=data_dict)
+        render_phases_vis_dimensions(data_dict=data_dict)
+        have_drawn = True
+    if args.light_path:
+        data_dict = parse_from_file(Path(args.light_path), "Lighting")
+        render_time_vs_lights(data_dict=data_dict)
+        have_drawn = True
 
-    # Parse the data from the file.
-    data_dict = parse_data(file_path)
-
-    render_time_vs_scene_complexity(data_dict)
-    render_phases_vis_dimensions(data_dict=data_dict)
-
-    plt.show()
+    if have_drawn:
+        plt.show()
+    else:
+        print("No data to plot. Please provide valid file paths.")
 
 if __name__ == "__main__":
     main() 
