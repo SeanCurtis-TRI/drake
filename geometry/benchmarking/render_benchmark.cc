@@ -36,6 +36,8 @@ using systems::sensors::SaveToTiff;
 DEFINE_string(save_image_path, "",
               "Enables saving rendered images in the given location");
 DEFINE_bool(show_window, false, "Whether to display the rendered images");
+DEFINE_bool(readback, false, "Perform readback profiling");
+DEFINE_bool(lights, false, "Perform light number profiling");
 
 // Default sphere array sizes.
 const double kZSpherePosition = -4.;
