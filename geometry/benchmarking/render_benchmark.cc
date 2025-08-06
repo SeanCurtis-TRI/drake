@@ -1,8 +1,8 @@
 /* See render_benchmark_doxygen.h for discussion of this benchmark.  */
-#include <iostream>
 #include <unistd.h>
 
 #include <filesystem>
+#include <iostream>
 
 #include <benchmark/benchmark.h>
 #include <fmt/format.h>
@@ -36,8 +36,6 @@ using systems::sensors::SaveToTiff;
 DEFINE_string(save_image_path, "",
               "Enables saving rendered images in the given location");
 DEFINE_bool(show_window, false, "Whether to display the rendered images");
-DEFINE_bool(readback, false, "Perform readback profiling");
-DEFINE_bool(lights, false, "Perform light number profiling");
 
 // Default sphere array sizes.
 const double kZSpherePosition = -4.;
@@ -58,16 +56,14 @@ std::unique_ptr<RenderEngine> MakeEngine(
   // Offset the light from its default position (coincident with the camera)
   // so that shadows can be seen in the render.
   if constexpr (engine_type == EngineType::Vtk) {
-    const RenderEngineVtkParams params{
-        .default_clear_color = bg_rgb,
-        .lights = lights};
+    const RenderEngineVtkParams params{.default_clear_color = bg_rgb,
+                                       .lights = lights};
     return MakeRenderEngineVtk(params);
   }
   if constexpr (engine_type == EngineType::Gl) {
     const Rgba bg(bg_rgb[0], bg_rgb[1], bg_rgb[2]);
-    const RenderEngineGlParams params{
-        .default_clear_color = bg,
-        .lights = lights};
+    const RenderEngineGlParams params{.default_clear_color = bg,
+                                      .lights = lights};
     return MakeRenderEngineGl(params);
   }
 }
@@ -87,8 +83,7 @@ class RenderBenchmark : public benchmark::Fixture {
 
   ~RenderBenchmark() override {
     for (const auto& result : profilers_) {
-      std::cerr << result.name << "\n"
-                << result.table << "\n";
+      std::cerr << result.name << "\n" << result.table << "\n";
     }
   }
 
@@ -99,18 +94,20 @@ class RenderBenchmark : public benchmark::Fixture {
     const double kPerLightIntensity = kTotalIntensity / num_lights;
     /* Five positions distributed uniformly around a circle. The ordering jumps
     around to give them an interesting orientation. */
-    const std::vector<Vector3d> light_positions{
-      {0.5, 0.5, 0}, {-0.11062, -0.6984, 0}, {-0.32102, 0.63004, 0},
-      {0.63004, -0.32102, 0}, {-0.6984, -0.11062, 0}};
+    const std::vector<Vector3d> light_positions{{0.5, 0.5, 0},
+                                                {-0.11062, -0.6984, 0},
+                                                {-0.32102, 0.63004, 0},
+                                                {0.63004, -0.32102, 0},
+                                                {-0.6984, -0.11062, 0}};
     std::vector<LightParameter> lights;
     for (int i = 0; i < num_lights; ++i) {
-      lights.push_back(LightParameter{
-          .type = "point",
-          .position = light_positions[i] * 10,
-          .intensity = kPerLightIntensity});
+      lights.push_back(LightParameter{.type = "point",
+                                      .position = light_positions[i] * 10,
+                                      .intensity = kPerLightIntensity});
     }
     return lights;
   }
+
   template <EngineType engine_type>
   // NOLINTNEXTLINE(runtime/references)
   void ColorImage(::benchmark::State& state, const std::string& name) {
@@ -363,6 +360,12 @@ class RenderBenchmark : public benchmark::Fixture {
   std::vector<ArgProfiler> profilers_;
 };
 
+/* Inorder to reuse the same fixture and RendererFoo methods, we alias the
+fixture, so that we can use --benchmark_filter to select on the set of
+arguments by filtering in the prefix of the fixture name. */
+using LightingBenchmark = RenderBenchmark;
+using ReadbackBenchmark = RenderBenchmark;
+
 /* These macros serve the purpose of allowing compact and *consistent*
  declarations of benchmarks. The goal is to create a benchmark for each
  renderer type (e.g., Vtk, Gl) combined with each image type (Color, Depth, and
@@ -375,71 +378,39 @@ class RenderBenchmark : public benchmark::Fixture {
 
    MAKE_BENCHMARK(Foo, ImageType)
 
- such that there must be a `EngineType::Foo` enum and mageType must be one of
+ such that there must be a `EngineType::Foo` enum and ImageType must be one of
  (Color, Depth, or Label). Capitalization matters.
 
  N.B. The macro STR converts a single macro parameter into a string and we use
  it to make a string out of the concatenation of two macro parameters (i.e., we
  get FooColor out of the parameters Foo and Color).
 
- The parameters are 4-tuples of: sphere count, camera count, image width, and
- image height. */
- #if 1
-/* Cost of lighting. There is a per-fragment cost of lighting, so I should
-vary image size. There shouldn't really be a per-object cost, so I'll defer
-that. How about light type? */
+ The parameters are 5-tuples of: sphere count, camera count, image width, image
+ height, and light count. */
 #define STR(s) #s
-#define MAKE_BENCHMARK(Renderer, ImageT)                               \
-  BENCHMARK_DEFINE_F(RenderBenchmark, Renderer##ImageT)                \
-  (benchmark::State & state) {                                         \
-    ImageT##Image<EngineType::Renderer>(state, STR(Renderer##ImageT)); \
-  }                                                                    \
-  BENCHMARK_REGISTER_F(RenderBenchmark, Renderer##ImageT)              \
-      ->Unit(benchmark::kMillisecond)                                  \
-      ->Args({1, 1, 640, 480, 1})                                      \
-      ->Args({1, 1, 640, 480, 2})                                      \
-      ->Args({1, 1, 640, 480, 3})                                      \
-      ->Args({1, 1, 640, 480, 4})                                      \
-      ->Args({1, 1, 640, 480, 5})                                      \
-      ->Args({1, 1, 1280, 960, 1})                                     \
-      ->Args({1, 1, 1280, 960, 2})                                     \
-      ->Args({1, 1, 1280, 960, 3})                                     \
-      ->Args({1, 1, 1280, 960, 4})                                     \
-      ->Args({1, 1, 1280, 960, 5})                                     \
-      ->Args({1, 1, 2560, 1920, 1})                                    \
-      ->Args({1, 1, 2560, 1920, 2})                                    \
-      ->Args({1, 1, 2560, 1920, 3})                                    \
-      ->Args({1, 1, 2560, 1920, 4})                                    \
-      ->Args({1, 1, 2560, 1920, 5})                                    \
-      ->Args({960, 1, 2560, 1920, 1})                                  \
-      ->Args({960, 1, 2560, 1920, 2})                                  \
-      ->Args({960, 1, 2560, 1920, 3})                                  \
-      ->Args({960, 1, 2560, 1920, 4})                                  \
-      ->Args({960, 1, 2560, 1920, 5})
- #else 
-#define STR(s) #s
-#define MAKE_BENCHMARK(Renderer, ImageT)                               \
-  BENCHMARK_DEFINE_F(RenderBenchmark, Renderer##ImageT)                \
-  (benchmark::State & state) {                                         \
-    ImageT##Image<EngineType::Renderer>(state, STR(Renderer##ImageT)); \
-  }                                                                    \
-  BENCHMARK_REGISTER_F(RenderBenchmark, Renderer##ImageT)              \
-      ->Unit(benchmark::kMillisecond)                                  \
-      ->Args({1, 1, 640, 480, 1})                                      \
-      ->Args({60, 1, 640, 480, 1})                                     \
-      ->Args({120, 1, 640, 480, 1})                                    \
-      ->Args({240, 1, 640, 480, 1})                                    \
-      ->Args({480, 1, 640, 480, 1})                                    \
-      ->Args({960, 1, 640, 480, 1})                                    \
-      ->Args({1, 10, 640, 480, 1})                                     \
-      ->Args({960, 10, 640, 480, 1})                                   \
-      ->Args({1, 1, 320, 240, 1})                                      \
-      ->Args({1, 1, 1280, 960, 1})                                     \
-      ->Args({1, 1, 2560, 1920, 1})                                    \
-      ->Args({960, 1, 320, 240, 1})                                    \
-      ->Args({960, 1, 1280, 960, 1})                                   \
-      ->Args({960, 1, 2560, 1920, 1})
-#endif
+#define MAKE_BENCHMARK(Renderer, ImageT)                                    \
+  BENCHMARK_DEFINE_F(LightingBenchmark, Renderer##ImageT)                   \
+  (benchmark::State & state) {                                              \
+    ImageT##Image<EngineType::Renderer>(state, STR(Renderer##ImageT));      \
+  }                                                                         \
+  BENCHMARK_REGISTER_F(LightingBenchmark, Renderer##ImageT)                 \
+      ->Unit(benchmark::kMillisecond)                                       \
+      ->ArgsProduct({{1}, {1}, {640}, {480}, {1, 2, 3, 4, 5}})              \
+      ->ArgsProduct({{1}, {1}, {1280}, {960}, {1, 2, 3, 4, 5}})             \
+      ->ArgsProduct({{1}, {1}, {2560}, {1920}, {1, 2, 3, 4, 5}})            \
+      ->ArgsProduct({{960}, {1}, {2560}, {1920}, {1, 2, 3, 4, 5}});         \
+  BENCHMARK_DEFINE_F(ReadbackBenchmark, Renderer##ImageT)                   \
+  (benchmark::State & state) {                                              \
+    ImageT##Image<EngineType::Renderer>(state, STR(Renderer##ImageT));      \
+  }                                                                         \
+  BENCHMARK_REGISTER_F(ReadbackBenchmark, Renderer##ImageT)                 \
+      ->Unit(benchmark::kMillisecond)                                       \
+      ->ArgsProduct({{1, 960}, {10}, {640}, {480}, {1}})                    \
+      ->ArgsProduct({{1, 60, 120, 240, 480, 960}, {1}, {640}, {480}, {1}})  \
+      ->ArgsProduct({{1, 60, 120, 240, 480, 960}, {1}, {320}, {240}, {1}})  \
+      ->ArgsProduct({{1, 60, 120, 240, 480, 960}, {1}, {1280}, {960}, {1}}) \
+      ->ArgsProduct({{1, 60, 120, 240, 480, 960}, {1}, {2560}, {1920}, {1}})
+
 MAKE_BENCHMARK(Vtk, Color);
 // MAKE_BENCHMARK(Vtk, Depth);
 // MAKE_BENCHMARK(Vtk, Label);

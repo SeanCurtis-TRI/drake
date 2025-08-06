@@ -27,10 +27,10 @@ IMAGE_LABELS = {320 * 240: "320x240",
                 1280 * 960: "1280x960",
                 2560 * 1920: "2560x1920"}
 
-def parse_data(file_path: Path):
+def parse_data(file_path: Path, prefix: str):
     """A block of data looks like this:
 
-    benchmark/engine_name/s/c/w/h/r
+    prefixBenchmark/engine_name/s/c/w/h/r
     All registered profiles average times:
     Time (s)   Samples   Total Time (s)  Label 
     total_time       160       0.01987654  RenderEngineGl::DoRenderColorImage
@@ -55,7 +55,7 @@ def parse_data(file_path: Path):
     with open(file_path, 'r') as f:
         lines = f.readlines()
         l = 0
-        while not lines[l].startswith('RenderBenchmark'):
+        while not lines[l].startswith(prefix):
             l += 1  # Skip to the first benchmark line.
 
         while l < len(lines):
@@ -104,7 +104,8 @@ def render_time_vs_scene_complexity(data_dict):
         render_times = data[:, TOTAL_TIME] * 1000  # Convert to milliseconds
         resolutions = np.unique(data[:, IMAGE_SIZE])
         for resolution in resolutions[::-1]:
-            mask = data[:, IMAGE_SIZE] == resolution
+            mask = ((data[:, IMAGE_SIZE] == resolution) &
+                    (data[:, CAM_COUNT] == 1))
             x, y = reduce_plot_data(data[mask, SPHERE_COUNT],
                                     render_times[mask])
             ax.plot(x, y, label=f"Image Size: {IMAGE_LABELS[int(resolution)]}")
@@ -326,22 +327,22 @@ def main():
                         help="Path to the light profiling data file.")
     args = parser.parse_args()
 
-    def prase_from_file(file_path: Path):
+    def parse_from_file(file_path: Path, prefix: str):
         if not file_path.exists():
             raise FileNotFoundError(f"The file {file_path} does not exist.")
         if not file_path.is_file():
             raise ValueError(f"The path {file_path} is not a valid file.")
         # Parse the data from the file.
-        return parse_data(file_path)
+        return parse_data(file_path, prefix)
 
     have_drawn = False
     if args.readback_path:
-        data_dict = prase_from_file(Path(args.readback_path))
+        data_dict = parse_from_file(Path(args.readback_path), "Readback")
         render_time_vs_scene_complexity(data_dict=data_dict)
         render_phases_vis_dimensions(data_dict=data_dict)
         have_drawn = True
     if args.light_path:
-        data_dict = prase_from_file(Path(args.light_path))
+        data_dict = parse_from_file(Path(args.light_path), "Lighting")
         render_time_vs_lights(data_dict=data_dict)
         have_drawn = True
 
