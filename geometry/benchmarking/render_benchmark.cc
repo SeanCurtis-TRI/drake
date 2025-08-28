@@ -36,8 +36,6 @@ using systems::sensors::SaveToTiff;
 DEFINE_string(save_image_path, "",
               "Enables saving rendered images in the given location");
 DEFINE_bool(show_window, false, "Whether to display the rendered images");
-DEFINE_bool(readback, false, "Perform readback profiling");
-DEFINE_bool(lights, false, "Perform light number profiling");
 
 // Default sphere array sizes.
 const double kZSpherePosition = -4.;
@@ -79,8 +77,8 @@ class RenderBenchmark : public benchmark::Fixture {
   };
 
   RenderBenchmark() {
-    material_.AddProperty("phong", "diffuse", sphere_rgba_);
-    material_.AddProperty("label", "id", RenderLabel::kDontCare);
+    default_material_.AddProperty("phong", "diffuse", sphere_rgba_);
+    default_material_.AddProperty("label", "id", RenderLabel::kDontCare);
   }
 
   ~RenderBenchmark() override {
@@ -113,10 +111,11 @@ class RenderBenchmark : public benchmark::Fixture {
   template <EngineType engine_type>
   // NOLINTNEXTLINE(runtime/references)
   void ColorImage(::benchmark::State& state, const std::string& name) {
-    auto [sphere_count, camera_count, width, height, num_lights] =
+    auto [sphere_count, camera_count, width, height, num_lights, sphere_type] =
         ReadState(state);
     auto renderer = MakeEngine<engine_type>(bg_rgb_, CreateLights(num_lights));
-    SetupScene(sphere_count, camera_count, width, height, renderer.get());
+    SetupScene(sphere_count, sphere_type, camera_count, width, height,
+               renderer.get());
     ImageRgba8U color_image(width, height);
 
     /* To account for RenderEngine implementations that do extraordinary work
@@ -166,8 +165,10 @@ class RenderBenchmark : public benchmark::Fixture {
   // NOLINTNEXTLINE(runtime/references)
   void DepthImage(::benchmark::State& state, const std::string& name) {
     auto renderer = MakeEngine<engine_type>(bg_rgb_);
-    auto [sphere_count, camera_count, width, height, nil] = ReadState(state);
-    SetupScene(sphere_count, camera_count, width, height, renderer.get());
+    auto [sphere_count, camera_count, width, height, nil, sphere_type] =
+        ReadState(state);
+    SetupScene(sphere_count, sphere_type, camera_count, width, height,
+               renderer.get());
     ImageDepth32F depth_image(width, height);
 
     /* To account for RenderEngine implementations that do extraordinary work
@@ -195,8 +196,10 @@ class RenderBenchmark : public benchmark::Fixture {
   // NOLINTNEXTLINE(runtime/references)
   void LabelImage(::benchmark::State& state, const std::string& name) {
     auto renderer = MakeEngine<engine_type>(bg_rgb_);
-    auto [sphere_count, camera_count, width, height, nil] = ReadState(state);
-    SetupScene(sphere_count, camera_count, width, height, renderer.get());
+    auto [sphere_count, camera_count, width, height, nil, sphere_type] =
+        ReadState(state);
+    SetupScene(sphere_count, sphere_type, camera_count, width, height,
+               renderer.get());
     ImageLabel16I label_image(width, height);
 
     /* To account for RenderEngine implementations that do extraordinary work
@@ -225,12 +228,12 @@ class RenderBenchmark : public benchmark::Fixture {
   }
 
   /* Parse arguments from the benchmark state.
-   @return A tuple representing the sphere count, camera count, width, and
-           height.  */
-  static std::tuple<int, int, int, int, int> ReadState(
+   @return A tuple representing the sphere count, camera count, width, height,
+           light_cont, sphere_type. */
+  static std::tuple<int, int, int, int, int, int> ReadState(
       const benchmark::State& state) {
     return std::make_tuple(state.range(0), state.range(1), state.range(2),
-                           state.range(3), state.range(4));
+                           state.range(3), state.range(4), state.range(5));
   }
 
   /* Helper function for generating the image path name based on the benchmark
@@ -241,16 +244,17 @@ class RenderBenchmark : public benchmark::Fixture {
                                      const std::string& format) {
     DRAKE_DEMAND(!FLAGS_save_image_path.empty());
     std::filesystem::path save_path = FLAGS_save_image_path;
-    const auto [sphere_count, camera_count, width, height, num_lights] =
-        ReadState(state);
-    return save_path.append(fmt::format("{}_{}_{}_{}_{}_{}.{}", test_name,
-                                        sphere_count, camera_count, width,
-                                        height, num_lights, format));
+    const auto [sphere_count, camera_count, width, height, num_lights,
+                sphere_type] = ReadState(state);
+    const char* sphere_labels[] = {"prim", "obj", "gltf"};
+    return save_path.append(fmt::format(
+        "{}_{}_{}_{}_{}_{}_{}.{}", test_name, sphere_count, camera_count, width,
+        height, num_lights, sphere_labels[sphere_type], format));
   }
 
   /* Computes a compact array of spheres which will remain in view. */
-  void AddSphereArray(int sphere_count, const RenderCameraCore& core,
-                      RenderEngine* engine) {
+  void AddSphereArray(int sphere_count, int sphere_type,
+                      const RenderCameraCore& core, RenderEngine* engine) {
     /* We assume the camera is located at (0, 0, c.z) pointing in the -Wz
      direction. We further assume that the camera's "up" direction points in the
      +Wy direction. All spheres will be placed on a plane at z = s.z. Given the
@@ -307,10 +311,21 @@ class RenderBenchmark : public benchmark::Fixture {
     const double distance = h / (2 * rows);
     /* We make the actual radius *slightly* smaller so there's some space
      between the spheres. */
-    Sphere sphere{distance * 0.95};
-    auto add_sphere = [this, engine, &sphere](const Vector3d& p_WS) {
+    const double radius = distance * 0.95;
+    const Vector3d scale(radius, radius, radius);
+    Sphere primitive(radius);
+    const std::string root = "/home/seancurtis/code/drake/geometry/benchmarking/";
+    Mesh obj(root + "color_texture_sphere.obj", scale);
+    Mesh gltf(root + "multi_texture_sphere.gltf", scale);
+    std::array<Shape*, 3> spheres = {&primitive, &obj, &gltf};
+    auto add_sphere = [this, engine, &spheres,
+                       sphere_type](const Vector3d& p_WS) {
       GeometryId geometry_id = GeometryId::get_new_id();
-      engine->RegisterVisual(geometry_id, sphere, material_,
+      PerceptionProperties material;
+      if (sphere_type == 0) {
+        material = default_material_;
+      }
+      engine->RegisterVisual(geometry_id, *spheres[sphere_type], material,
                              RigidTransformd::Identity(),
                              true /* needs update */);
       poses_.insert({geometry_id, RigidTransformd{p_WS}});
@@ -331,8 +346,11 @@ class RenderBenchmark : public benchmark::Fixture {
     }
   }
 
-  void SetupScene(const int sphere_count, const int camera_count,
-                  const int width, const int height, RenderEngine* engine) {
+  /*
+   @param sphere_type  0: primitive, 1: obj, 2: glTF. */
+  void SetupScene(const int sphere_count, int sphere_type,
+                  const int camera_count, const int width, const int height,
+                  RenderEngine* engine) {
     // Set up the camera so that Cz = -Wz, Cx = Wx, and Cy = -Wy. The camera
     // will look down the Wz axis and have the image U direction aligned with
     // the Wx direction.
@@ -351,11 +369,11 @@ class RenderBenchmark : public benchmark::Fixture {
                                                    {}},
                                   DepthRange{kZNear, kZFar});
     }
-    AddSphereArray(sphere_count, depth_cameras_[0].core(), engine);
+    AddSphereArray(sphere_count, sphere_type, depth_cameras_[0].core(), engine);
   }
 
   std::vector<DepthRenderCamera> depth_cameras_;
-  PerceptionProperties material_;
+  PerceptionProperties default_material_;
   const Vector3d bg_rgb_{200 / 255., 0, 250 / 255.};
   const Rgba sphere_rgba_{0, 0.8, 0.5, 1};
   std::unordered_map<GeometryId, RigidTransformd> poses_;
@@ -367,6 +385,7 @@ fixture, so that we can use --benchmark_filter to select on the set of
 arguments by filtering in the prefix of the fixture name. */
 using LightingBenchmark = RenderBenchmark;
 using ReadbackBenchmark = RenderBenchmark;
+using TextureBenchmark = RenderBenchmark;
 
 /* These macros serve the purpose of allowing compact and *consistent*
  declarations of benchmarks. The goal is to create a benchmark for each
@@ -390,28 +409,44 @@ using ReadbackBenchmark = RenderBenchmark;
  The parameters are 5-tuples of: sphere count, camera count, image width, image
  height, and light count. */
 #define STR(s) #s
-#define MAKE_BENCHMARK(Renderer, ImageT)                                    \
-  BENCHMARK_DEFINE_F(LightingBenchmark, Renderer##ImageT)                   \
-  (benchmark::State & state) {                                              \
-    ImageT##Image<EngineType::Renderer>(state, STR(Renderer##ImageT));      \
-  }                                                                         \
-  BENCHMARK_REGISTER_F(LightingBenchmark, Renderer##ImageT)                 \
-      ->Unit(benchmark::kMillisecond)                                       \
-      ->ArgsProduct({{1}, {1}, {640}, {480}, {1, 2, 3, 4, 5}})              \
-      ->ArgsProduct({{1}, {1}, {1280}, {960}, {1, 2, 3, 4, 5}})             \
-      ->ArgsProduct({{1}, {1}, {2560}, {1920}, {1, 2, 3, 4, 5}})            \
-      ->ArgsProduct({{960}, {1}, {2560}, {1920}, {1, 2, 3, 4, 5}});         \
-  BENCHMARK_DEFINE_F(ReadbackBenchmark, Renderer##ImageT)                   \
-  (benchmark::State & state) {                                              \
-    ImageT##Image<EngineType::Renderer>(state, STR(Renderer##ImageT));      \
-  }                                                                         \
-  BENCHMARK_REGISTER_F(ReadbackBenchmark, Renderer##ImageT)                 \
-      ->Unit(benchmark::kMillisecond)                                       \
-      ->ArgsProduct({{1, 960}, {10}, {640}, {480}, {1}})                    \
-      ->ArgsProduct({{1, 60, 120, 240, 480, 960}, {1}, {640}, {480}, {1}})  \
-      ->ArgsProduct({{1, 60, 120, 240, 480, 960}, {1}, {320}, {240}, {1}})  \
-      ->ArgsProduct({{1, 60, 120, 240, 480, 960}, {1}, {1280}, {960}, {1}}) \
-      ->ArgsProduct({{1, 60, 120, 240, 480, 960}, {1}, {2560}, {1920}, {1}})
+
+// The boilerplate for defining a benchmark. The result can immediately have
+// configuration APIs invoked.
+#define DEFINE_BENCHMARK(Fixture, Renderer, ImageT)                     \
+  BENCHMARK_DEFINE_F(Fixture, Renderer##ImageT)                         \
+  (benchmark::State & state) {                                          \
+    ImageT##Image<EngineType::Renderer>(state, STR(Renderer##ImageT));  \
+  }                                                                     \
+  BENCHMARK_REGISTER_F(Fixture, Renderer##ImageT)
+
+#define MAKE_BENCHMARK(Renderer, ImageT)                                 \
+  DEFINE_BENCHMARK(LightingBenchmark, Renderer, ImageT)                  \
+      ->Unit(benchmark::kMillisecond)                                    \
+      ->ArgsProduct({{1}, {1}, {640}, {480}, {1, 2, 3, 4, 5}, {0}})      \
+      ->ArgsProduct({{1}, {1}, {1280}, {960}, {1, 2, 3, 4, 5}, {0}})     \
+      ->ArgsProduct({{1}, {1}, {2560}, {1920}, {1, 2, 3, 4, 5}, {0}})    \
+      ->ArgsProduct({{960}, {1}, {2560}, {1920}, {1, 2, 3, 4, 5}, {0}}); \
+                                                                         \
+  DEFINE_BENCHMARK(ReadbackBenchmark, Renderer, ImageT)                  \
+      ->Unit(benchmark::kMillisecond)                                    \
+      ->ArgsProduct({{1, 960}, {10}, {640}, {480}, {1}, {0}})            \
+      ->ArgsProduct(                                                     \
+          {{1, 60, 120, 240, 480, 960}, {1}, {640}, {480}, {1}, {0}})    \
+      ->ArgsProduct(                                                     \
+          {{1, 60, 120, 240, 480, 960}, {1}, {320}, {240}, {1}, {0}})    \
+      ->ArgsProduct(                                                     \
+          {{1, 60, 120, 240, 480, 960}, {1}, {1280}, {960}, {1}, {0}})   \
+      ->ArgsProduct(                                                     \
+          {{1, 60, 120, 240, 480, 960}, {1}, {2560}, {1920}, {1}, {0}}); \
+                                                                         \
+  DEFINE_BENCHMARK(TextureBenchmark, Renderer, ImageT)                   \
+      ->Unit(benchmark::kMillisecond)                                    \
+      ->ArgsProduct(                                                     \
+          {{1, 60, 120, 240, 480, 960}, {1}, {640}, {480}, {1}, {1}})    \
+      ->ArgsProduct(                                                     \
+          {{1, 60, 120, 240, 480, 960}, {1}, {1280}, {960}, {1}, {1}})   \
+      ->ArgsProduct(                                                     \
+          {{1, 60, 120, 240, 480, 960}, {1}, {2560}, {1920}, {1}, {1}});
 
 MAKE_BENCHMARK(Vtk, Color);
 // MAKE_BENCHMARK(Vtk, Depth);
