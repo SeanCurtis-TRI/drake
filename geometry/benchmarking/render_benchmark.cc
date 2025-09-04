@@ -477,8 +477,8 @@ class LightingBenchmark : public RenderBenchmarkBase {
   }
 };
 
-/* The benchmark sets the benchmark state as (sphere_count, width, height) with
- sphere_type hard-coded to texture obj and default values for all others. */
+/* The benchmark sets the benchmark state as (using default on all others):
+ (sphere_count, width, height, sphere_type). */
 class TextureBenchmark : public RenderBenchmarkBase {
  public:
   FixtureParameters DoGetParametersFromState(
@@ -487,7 +487,7 @@ class TextureBenchmark : public RenderBenchmarkBase {
         .sphere_count = static_cast<int>(state.range(0)),
         .width = static_cast<int>(state.range(1)),
         .height = static_cast<int>(state.range(2)),
-        .sphere_type = 1,
+        .sphere_type = static_cast<int>(state.range(3)),
     };
   }
 };
@@ -529,24 +529,24 @@ class TextureBenchmark : public RenderBenchmarkBase {
 
 // Each benchmark has its own state encoding -- see the named benchmark fixture
 // for the interpretation of each parameter group.
-#define MAKE_ALL_BENCHMARKS(Renderer, ImageT)                            \
-  DEFINE_BENCHMARK(LightingBenchmark, Renderer, ImageT)                  \
-      ->ArgsProduct({{1}, {640}, {480}, {1, 2, 3, 4, 5}})                \
-      ->ArgsProduct({{1}, {1280}, {960}, {1, 2, 3, 4, 5}})               \
-      ->ArgsProduct({{1}, {2560}, {1920}, {1, 2, 3, 4, 5}})              \
-      ->ArgsProduct({{960}, {2560}, {1920}, {1, 2, 3, 4, 5}});           \
-                                                                         \
-  DEFINE_BENCHMARK(ReadbackBenchmark, Renderer, ImageT)                  \
-      ->ArgsProduct({{1, 960}, {10}, {640}, {480}})                      \
-      ->ArgsProduct({{1, 60, 120, 240, 480, 960}, {1}, {640}, {480}})    \
-      ->ArgsProduct({{1, 60, 120, 240, 480, 960}, {1}, {320}, {240}})    \
-      ->ArgsProduct({{1, 60, 120, 240, 480, 960}, {1}, {1280}, {960}})   \
-      ->ArgsProduct({{1, 60, 120, 240, 480, 960}, {1}, {2560}, {1920}}); \
-                                                                         \
-  DEFINE_BENCHMARK(TextureBenchmark, Renderer, ImageT)                   \
-      ->ArgsProduct({{1, 60, 120, 240, 480, 960}, {640}, {480}})         \
-      ->ArgsProduct({{1, 60, 120, 240, 480, 960}, {1280}, {960}})        \
-      ->ArgsProduct({{1, 60, 120, 240, 480, 960}, {2560}, {1920}});
+#define MAKE_ALL_BENCHMARKS(Renderer, ImageT)                             \
+  DEFINE_BENCHMARK(LightingBenchmark, Renderer, ImageT)                   \
+      ->ArgsProduct({{1}, {640}, {480}, {1, 2, 3, 4, 5}})                 \
+      ->ArgsProduct({{1}, {1280}, {960}, {1, 2, 3, 4, 5}})                \
+      ->ArgsProduct({{1}, {2560}, {1920}, {1, 2, 3, 4, 5}})               \
+      ->ArgsProduct({{960}, {2560}, {1920}, {1, 2, 3, 4, 5}});            \
+                                                                          \
+  DEFINE_BENCHMARK(ReadbackBenchmark, Renderer, ImageT)                   \
+      ->ArgsProduct({{1, 960}, {10}, {640}, {480}})                       \
+      ->ArgsProduct({{1, 60, 120, 240, 480, 960}, {1}, {640}, {480}})     \
+      ->ArgsProduct({{1, 60, 120, 240, 480, 960}, {1}, {320}, {240}})     \
+      ->ArgsProduct({{1, 60, 120, 240, 480, 960}, {1}, {1280}, {960}})    \
+      ->ArgsProduct({{1, 60, 120, 240, 480, 960}, {1}, {2560}, {1920}});  \
+                                                                          \
+  DEFINE_BENCHMARK(TextureBenchmark, Renderer, ImageT)                    \
+      ->ArgsProduct({{1, 60, 120, 240, 480, 960}, {640}, {480}, {0, 1}})  \
+      ->ArgsProduct({{1, 60, 120, 240, 480, 960}, {1280}, {960}, {0, 1}}) \
+      ->ArgsProduct({{1, 60, 120, 240, 480, 960}, {2560}, {1920}, {0, 1}});
 
 MAKE_ALL_BENCHMARKS(Vtk, Color);
 // MAKE_ALL_BENCHMARKS(Vtk, Depth);

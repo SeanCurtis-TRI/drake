@@ -8,20 +8,24 @@ SPHERE_COUNT = 0
 CAM_COUNT = 1
 IMAGE_SIZE = 2
 LIGHT_COUNT = 3
-TOTAL_TIME = 4
-SETUP_TIME = 5
-RENDER_TIME = 6
-READBACK_TIME = 7
+SPHERE_TYPE = 4
+TOTAL_TIME = 5
+SETUP_TIME = 6
+RENDER_TIME = 7
+READBACK_TIME = 8
 
 
 DATA_LABELS = {SPHERE_COUNT: "Sphere Count",
                CAM_COUNT: "Camera Count",
                IMAGE_SIZE: "Image Size (pixels)",
                LIGHT_COUNT: "Light Count",
+               SPHERE_TYPE: "Sphere Type",
                TOTAL_TIME: "Total Time",
                SETUP_TIME: "Setup Time",
                RENDER_TIME: "Render Time",
-               READBACK_TIME: "Readback Time"}
+               READBACK_TIME: "Readback Time",
+               -1: "Render Engine"
+               }
 IMAGE_LABELS = {320 * 240: "320x240",
                 640 * 480: "640x480",
                 1280 * 960: "1280x960",
@@ -30,7 +34,7 @@ IMAGE_LABELS = {320 * 240: "320x240",
 def parse_data(file_path: Path, prefix: str):
     """A block of data looks like this:
 
-    prefixBenchmark/engine_name/s/c/w/h/r
+    prefixBenchmark/engine_name/s/c/w/h/n/st
     All registered profiles average times:
     Time (s)   Samples   Total Time (s)  Label 
     total_time       160       0.01987654  RenderEngineGl::DoRenderColorImage
@@ -43,12 +47,13 @@ def parse_data(file_path: Path, prefix: str):
     c is the number of cameras,
     w is the width of the image,
     h is the height of the image,
-    r is whether readback is enabled (true/false).
+    n is number of lights,
+    st is the type of sphere (0-primitive, 1-textured obj, 2-texture gltf).
     
     Creates a dictionary of 2D tables. Each entry based on the engine_name. In
     the table, each row is a data point and the columns are defined as:
 
-    (spheres, cameras, width * height, light_count, total_time,
+    (spheres, cameras, width * height, light_count, sphere_type, total_time,
      setup_time, render_time, readback_time)
     """
     benchmarks = {}
@@ -62,10 +67,10 @@ def parse_data(file_path: Path, prefix: str):
             header = lines[l].strip().replace('true', '1').replace('false', '0')
             tokens = header.split('/')
             name = tokens[1]  # Engine name
-            s, c, w, h, lc = map(int, tokens[2:])
+            s, c, w, h, lc, st = map(int, tokens[2:])
             if name not in benchmarks:
                 benchmarks[name] = []
-            line_list = [s, c, w * h, lc]
+            line_list = [s, c, w * h, lc, st]
             l += 3  # Skip "All registered profiles ..." line and the header line.
             for _ in range(4):
                 line_list.append(float(lines[l].split()[0]))
@@ -171,7 +176,7 @@ def _add_stacked_time_bars(ax, data, title, blocks, mask, x_axis, tick_maker,
     ax.set_ylabel("Render Time (ms)")
 
 def _add_grouped_time_bars(ax, data, title, group_member, x_axis, mask,
-                           tick_maker):
+                           tick_maker, label_maker=None):
     """Adds grouped bars to the given axis. The bar values are assumed to be
     time values (in seconds).
 
@@ -184,26 +189,29 @@ def _add_grouped_time_bars(ax, data, title, group_member, x_axis, mask,
         mask: A boolean mask to select which rows in the data to use.
         tick_maker: A function that takes x values and returns labels for them.
     """
+    if label_maker is None:
+        label_maker = lambda x: f"{int(x)}"
+
     COLORS = ["#000", "#d00", "#00d", "#f80", "#b0b", "#dd0"]
     width = 0.1  # Revisit this.
     ax.set_title(title, fontsize=14)
     members = np.unique(data[:, group_member])
     ticks = np.arange(len(members))
     offset = -0.5 * width * (len(members) - 1)
-    for member in members:
+    for i, member in enumerate(members):
         member_mask = data[:, group_member] == member
         x_values = data[member_mask & mask, x_axis]
         y_values = data[member_mask & mask, RENDER_TIME] * 1000
         x, y = reduce_plot_data(x_values, y_values)
         ticks = np.arange(len(x))
-        ax.bar(ticks + offset, y, width, label=f"{int(member)}",
-               color=COLORS[int(member)])
+        ax.bar(ticks + offset, y, width, label=label_maker(member),
+               color=COLORS[i % len(COLORS)])
         offset += width
     ax.set_xticks(ticks)
     ax.set_xticklabels(tick_maker(x))
-    ax.legend(title="Light Count")
-    ax.set_xlabel(DATA_LABELS[x_axis], fontsize=14)
-    ax.set_ylabel("Render Time (ms)", fontsize=14)
+    ax.legend(title=DATA_LABELS[group_member])
+    ax.set_xlabel(DATA_LABELS[x_axis], fontsize=12)
+    ax.set_ylabel("Render Time (ms)", fontsize=12)
 
 def render_phases_vis_dimensions(data_dict):
     fig, axes = plt.subplots(1, len(data_dict), figsize=(10, 5))
@@ -305,6 +313,88 @@ def render_time_vs_lights(data_dict):
     plt.subplots_adjust(wspace=0.3)  # Adjust space between subplots
 
 
+def render_time_vs_textures(data_dict):
+    """Produces a number of plots exploring the cost of textures."""
+    # Notes:
+    #  Hypotheses:
+    #    - There is a discernible cost in doing texture look ups over not.
+    #      - Fix image size and sphere count (large image, single sphere).
+    #      - Single plot with two paired bars.
+    #        - The pair consists of a (primitive, textured) times.
+    #        - One pair per render engine.
+    #      - "Cost of texture lookup"
+    #    - There is a per-fragment cost so, as image size grows, rendering
+    #      cost increases.
+    #      - Fix sphere count (1). Vary image size.
+    #      - Single plot with two triples of bars.
+    #        - Each triple contains the increasing image sizes.
+    #        - One triple per render engine.
+    #      - "Per fragment cost"
+    #    - VTK incurs an additional cost per texture (i.e., the cost grows
+    #      per sphere).
+    #      -what plot?
+
+    accum_data = []
+    tick_labels = []
+    for i, (engine_name, data) in enumerate(data_dict.items()):
+        accum_data.append(np.column_stack((data, np.zeros(data.shape[0]) + i)))
+        tick_labels.append('VTK' if 'vtk' in engine_name.lower() else 'GL')
+    data = np.row_stack(accum_data)
+
+    fig_size = (6, 4)
+    _, axes = plt.subplots(1, 1, figsize=fig_size)
+
+    _add_grouped_time_bars(
+        ax=axes,
+        data=data,
+        title=f"Cost of Texture Lookups",
+        group_member=SPHERE_TYPE,
+        x_axis=-1,  # The added render engine column.
+        mask=(data[:, SPHERE_COUNT] == 1) & (data[:, IMAGE_SIZE] == 2560 * 1920),
+        tick_maker=lambda x: [tick_labels[int(x_i)] for x_i in x],
+        label_maker=lambda x: "Textured" if x == 1 else "Primitive"
+    )
+
+    _, axes = plt.subplots(1, 1, figsize=fig_size)
+
+    _add_grouped_time_bars(
+        ax=axes,
+        data=data,
+        title=f"Per-fragment Cost of textures",
+        group_member=IMAGE_SIZE,
+        x_axis=-1,
+        mask=(data[:, SPHERE_COUNT] == 1) & (data[:, SPHERE_TYPE] == 1),
+        tick_maker=lambda x: [tick_labels[int(x_i)] for x_i in x],
+        label_maker=lambda x: IMAGE_LABELS[int(x)],
+    )
+
+    _, axes = plt.subplots(1, 1, figsize=fig_size)
+
+    def plot_line(sphere_type, render_type):
+        mask = ((data[:, IMAGE_SIZE] == 2560 * 1920) &
+                (data[:, SPHERE_TYPE] == sphere_type) &
+                (data[:, -1] == render_type))
+        x_values = data[mask, SPHERE_COUNT]
+        y_values = data[mask, RENDER_TIME] * 1000
+        x, y = reduce_plot_data(x_values, y_values)
+        sphere_label = "Textured" if sphere_type == 1 else "Primitive"
+        axes.plot(
+            x, y, label=f"{tick_labels[render_type]} - {sphere_label}",
+                  linewidth=2
+        )
+        axes.set_xticks(x)
+        axes.set_xticklabels([f"{int(x_i)}" for x_i in x])
+
+    for render_type in (0, 1):
+        for sphere_type in (0, 1):
+            plot_line(sphere_type=sphere_type, render_type=render_type)
+
+    axes.legend()
+    axes.set_xlabel("Sphere Count", fontsize=12)
+    axes.set_ylabel("Render Time (ms)", fontsize=12)
+    axes.set_title("VTK Texture Penalty", fontsize=14)
+
+
 def _print_data(dict_data):
     """Prints the data dictionary in a human-readable format."""
     for engine_name, data in dict_data.items():
@@ -326,6 +416,8 @@ def main():
                         help='Path to the readback profile data file.')
     parser.add_argument("--light_path", type=str,
                         help="Path to the light profiling data file.")
+    parser.add_argument("--texture_path", type=str,
+                        help="Path to the texture profiling data file.")
     args = parser.parse_args()
 
     def parse_from_file(file_path: Path, prefix: str):
@@ -345,6 +437,10 @@ def main():
     if args.light_path:
         data_dict = parse_from_file(Path(args.light_path), "Lighting")
         render_time_vs_lights(data_dict=data_dict)
+        have_drawn = True
+    if args.texture_path:
+        data_dict = parse_from_file(Path(args.texture_path), "Texture")
+        render_time_vs_textures(data_dict=data_dict)
         have_drawn = True
 
     if have_drawn:
