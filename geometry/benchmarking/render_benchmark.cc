@@ -11,6 +11,8 @@
 
 #include "drake/common/find_resource.h"
 #include "drake/common/profiler.h"
+#include "drake/common/string_map.h"
+#include "drake/geometry/geometry_instance.h"
 #include "drake/geometry/render_gl/factory.h"
 #include "drake/geometry/render_vtk/factory.h"
 #include "drake/systems/sensors/image_io.h"
@@ -39,6 +41,8 @@ using systems::sensors::ImageRgba8U;
 DEFINE_string(save_image_path, "",
               "Enables saving rendered images in the given location");
 DEFINE_bool(show_window, false, "Whether to display the rendered images");
+DEFINE_bool(force_duplication, false,
+            "If true, force GL to duplicate resources");
 
 // Default sphere array sizes.
 const double kZSpherePosition = -4.;
@@ -285,6 +289,91 @@ class RenderBenchmarkBase : public benchmark::Fixture {
     return save_path / name;
   }
 
+  /* Reads the obj located at `path` and creates an in-memory version with
+   unique mesh and texture names. */
+  Mesh ForceObjDuplication(const fs::path& path, int index, double scale) {
+    // RenderEngineGl uses geometry resource management to prevent redundantly
+    // loading the same data over and over. That management is based on
+    // computing the sha of the file contents. So, to create apparently
+    // different files, we need apparently different contents.
+    //
+    //  For both the obj and the .png file, we can simply append some bytes
+    //  (commented out for the .obj). The png file will simply ignore extra
+    //  bytes beyond its final chunk marker.
+
+    const auto source_png =
+        MemoryFile::Make(path.parent_path() / "base_color.png");
+    const auto source_obj = MemoryFile::Make(path);
+
+    string_map<FileSource> supporting_files{
+        {"color_texture_sphere.mtl",
+         MemoryFile(
+             fmt::format(
+                 "newmtl diffuse_map_only\nNs 250\nKa 1 1 1\nKs 0.5 0.5 0.5\n"
+                 "Ke 0 0 0\nNi 1.5\nd 1\nillum 2\nmap_Kd color_{}.png\n",
+                 index),
+             ".mtl", "color_texture_sphere.mtl")},
+        {fmt::format("color_{}.png", index),
+         MemoryFile(source_png.contents() + fmt::to_string(index), ".png",
+                    fmt::format("color_{}.png", index))},
+    };
+    std::string new_contents =
+        source_obj.contents() + fmt::format("\n// {}\n", index);
+    return Mesh(InMemoryMesh(MemoryFile(std::move(new_contents), ".obj",
+                                        fmt::format("sphere_{}.obj", index)),
+                             supporting_files),
+                scale);
+  }
+
+  Mesh ForceGltfDuplication(const fs::path& path, int index, double scale) {
+    throw std::runtime_error(
+        fmt::format("Not duplicating gltf for {} yet.", index));
+    return Mesh(path, scale);
+  }
+
+  GeometryInstance MakeSphereInstance(int sphere_type, int index,
+                                      double radius) {
+    DRAKE_DEMAND(sphere_type >= 0 && sphere_type <= 2);
+
+    auto make_instance = [index](const auto& shape,
+                                 PerceptionProperties material = {}) {
+      GeometryInstance instance(RigidTransformd::Identity(), shape,
+                                fmt::format("sphere_{}", index));
+      instance.set_perception_properties(material);
+      return instance;
+    };
+
+    if (sphere_type == 0) {
+      return make_instance(Sphere(radius), default_material_);
+    } else {
+      const fs::path test_path =
+          FindResourceOrThrow("drake/geometry/benchmarking/omr.png");
+      const fs::path mesh_path = test_path.parent_path();
+      if (FLAGS_force_duplication) {
+        // When we force duplication, we need to trick the resource management
+        // into thinking that every mesh and texture is unique. We can do this
+        // simply by renaming the files.
+        if (sphere_type == 1) {
+          return make_instance(ForceObjDuplication(
+              mesh_path / "color_texture_sphere.obj", index, radius));
+        } else {
+          return make_instance(
+              ForceGltfDuplication(mesh_path / "multi_texture_sphere.gltf",
+                                   index, radius));
+        }
+      } else {
+        // If we're not forcing duplication, we can simply name the mesh file.
+        if (sphere_type == 1) {
+          return make_instance(
+              Mesh(mesh_path / "color_texture_sphere.obj", radius));
+        } else {
+          return make_instance(
+              Mesh(mesh_path / "multi_texture_sphere.gltf", radius));
+        }
+      }
+    }
+  }
+
   /* Computes a compact array of spheres which will remain in view. */
   void AddSphereArray(const FixtureParameters& params,
                       const RenderCameraCore& core, RenderEngine* engine) {
@@ -345,33 +434,19 @@ class RenderBenchmarkBase : public benchmark::Fixture {
     /* We make the actual radius *slightly* smaller so there's some space
      between the spheres. */
     const double radius = distance * 0.95;
-    const Vector3d scale(radius, radius, radius);
-    Sphere primitive(radius);
-    const fs::path test_path =
-        FindResourceOrThrow("drake/geometry/benchmarking/omr.png");
-    const fs::path mesh_path = test_path.parent_path();
-    Mesh obj(mesh_path / "color_texture_sphere.obj", scale);
-    Mesh gltf(mesh_path / "multi_texture_sphere.gltf", scale);
-    std::array<Shape*, 3> spheres = {&primitive, &obj, &gltf};
-    auto add_sphere = [this, engine, &spheres,
-                       sphere_type = params.sphere_type](const Vector3d& p_WS) {
-      GeometryId geometry_id = GeometryId::get_new_id();
-      PerceptionProperties material;
-      if (sphere_type == 0) {
-        material = default_material_;
-      }
-      engine->RegisterVisual(geometry_id, *spheres[sphere_type], material,
-                             RigidTransformd::Identity(),
-                             true /* needs update */);
-      poses_.insert({geometry_id, RigidTransformd{p_WS}});
-    };
 
     int count = 0;
     double y = -(rows - 1) * distance;
     for (int r = 0; r < rows; ++r) {
       double x = -(cols - 1) * distance;
       for (int c = 0; c < cols; ++c) {
-        add_sphere(Vector3d{x, y, kZSpherePosition});
+        const GeometryInstance instance =
+            MakeSphereInstance(params.sphere_type, count, radius);
+        engine->RegisterVisual(
+            instance.id(), instance.shape(), *instance.perception_properties(),
+            RigidTransformd::Identity(), true /* needs update */);
+        poses_[instance.id()] =
+            RigidTransformd(Vector3d(x, y, kZSpherePosition));
         ++count;
         if (count >= params.sphere_count) break;
         x += 2 * distance;

@@ -105,6 +105,7 @@ drake_cc_googlebench_binary(
     deps = [
         "//common:add_text_logging_gflags",
         "//common:find_resource",
+        "//geometry:geometry_instance",
         "//geometry/render",
         "//geometry/render_gl",
         "//geometry/render_vtk",
