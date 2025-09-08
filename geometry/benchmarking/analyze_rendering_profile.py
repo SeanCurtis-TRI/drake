@@ -342,8 +342,8 @@ def render_time_vs_textures(data_dict):
     data = np.row_stack(accum_data)
 
     fig_size = (6, 4)
-    _, axes = plt.subplots(1, 1, figsize=fig_size)
 
+    _, axes = plt.subplots(1, 1, figsize=fig_size)
     _add_grouped_time_bars(
         ax=axes,
         data=data,
@@ -356,20 +356,6 @@ def render_time_vs_textures(data_dict):
     )
 
     _, axes = plt.subplots(1, 1, figsize=fig_size)
-
-    _add_grouped_time_bars(
-        ax=axes,
-        data=data,
-        title=f"Per-fragment Cost of textures",
-        group_member=IMAGE_SIZE,
-        x_axis=-1,
-        mask=(data[:, SPHERE_COUNT] == 1) & (data[:, SPHERE_TYPE] == 1),
-        tick_maker=lambda x: [tick_labels[int(x_i)] for x_i in x],
-        label_maker=lambda x: IMAGE_LABELS[int(x)],
-    )
-
-    _, axes = plt.subplots(1, 1, figsize=fig_size)
-
     def plot_line(sphere_type, render_type):
         mask = ((data[:, IMAGE_SIZE] == 2560 * 1920) &
                 (data[:, SPHERE_TYPE] == sphere_type) &
@@ -380,7 +366,7 @@ def render_time_vs_textures(data_dict):
         sphere_label = "Textured" if sphere_type == 1 else "Primitive"
         axes.plot(
             x, y, label=f"{tick_labels[render_type]} - {sphere_label}",
-                  linewidth=2
+            linewidth=2
         )
         axes.set_xticks(x)
         axes.set_xticklabels([f"{int(x_i)}" for x_i in x])
