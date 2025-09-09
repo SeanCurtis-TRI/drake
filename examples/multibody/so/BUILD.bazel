@@ -1,0 +1,29 @@
+load("//tools/lint:lint.bzl", "add_lint_tests")
+load(
+    "//tools/skylark:drake_cc.bzl",
+    "drake_cc_binary",
+    "drake_cc_googletest",
+    "drake_cc_library",
+)
+
+package(default_visibility = ["//visibility:private"])
+
+filegroup(
+    name = "models",
+    srcs = [
+        "TwoLinkRobot.sdf",
+    ],
+)
+drake_cc_binary(
+    name = "drake_collision_check",
+    srcs = ["drake_collision_check.cc"],
+    deps = [
+        "//common:find_resource",
+        "//multibody/parsing",
+    ],
+    data = [
+        ":models",
+    ],
+)
+
+add_lint_tests()
