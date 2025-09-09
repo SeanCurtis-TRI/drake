@@ -1,6 +1,8 @@
 #include <drake/common/find_resource.h>
 #include <drake/multibody/parsing/parser.h>
 
+#include <fmt/format.h>
+
 namespace {
 constexpr char kModel[] = "drake/examples/multibody/so/TwoLinkRobot.sdf";
 
@@ -8,10 +10,9 @@ void PrintCollisionCandidates(
     const drake::geometry::QueryObject<double>& query_object) {
   const auto &inspector = query_object.inspector();
   const auto collision_candidates = inspector.GetCollisionCandidates();
-  fprintf(stdout, "Collision Candidates:\n");
-  for (const auto &cc : collision_candidates) {
-    fprintf(stdout, "  %s vs %s\n", inspector.GetName(cc.first).c_str(),
-            inspector.GetName(cc.second).c_str());
+  fmt::print("Collision Candidates:\n");
+  for (const auto& [a, b] : collision_candidates) {
+    fmt::print("({}) - {} vs ({}) - {}\n", a, inspector.GetName(a), b, inspector.GetName(b));
   }
 }
 }  // namespace
@@ -65,6 +66,12 @@ int main(int argc, char **argv) {
   plant.Finalize();
   auto diagram = builder.Build();
   auto diagram_context = diagram->CreateDefaultContext();
+
+  fmt::print("All registered geometries\n");
+  for (const auto& geometry : scene_graph.model_inspector().GetAllGeometryIds()) {
+    fmt::print("Geometry ID: {}: {}\n", geometry, scene_graph.model_inspector().GetName(geometry));
+  }
+  fmt::print("\n");
 
 
   // check collision

@@ -2,6 +2,8 @@
 
 #include "drake/geometry/proximity/proximity_utilities.h"
 
+#include <fmt/format.h>
+
 namespace drake {
 namespace geometry {
 namespace internal {
@@ -24,12 +26,15 @@ CallbackData::CallbackData(const CollisionFilter* collision_filter_in)
 bool Callback(fcl::CollisionObjectd* object_A_ptr,
               fcl::CollisionObjectd* object_B_ptr, void* callback_data) {
   auto& data = *static_cast<CallbackData*>(callback_data);
+  // if (data.collisions_exist) return true;
 
   const EncodedData encoding_a(*object_A_ptr);
   const EncodedData encoding_b(*object_B_ptr);
+  fmt::print("has_collisions::Callback({}, {})\n", encoding_a.id(), encoding_b.id());
 
   const bool can_collide =
       data.collision_filter.CanCollideWith(encoding_a.id(), encoding_b.id());
+  fmt::print("   unfiltered: {}\n", can_collide);
   if (!can_collide) return false;
 
   // Unpack the callback data.
@@ -44,6 +49,7 @@ bool Callback(fcl::CollisionObjectd* object_A_ptr,
   fcl::collide(object_A_ptr, object_B_ptr, request, result);
 
   data.collisions_exist = result.isCollision();
+  fmt::print("   collision exist: {}\n", data.collisions_exist);
   return data.collisions_exist;
 }
 
