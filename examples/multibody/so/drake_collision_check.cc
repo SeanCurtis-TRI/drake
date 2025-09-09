@@ -5,8 +5,8 @@ namespace {
 constexpr char kModel[] = "drake/examples/multibody/so/TwoLinkRobot.sdf";
 
 void PrintCollisionCandidates(
-    const drake::geometry::SceneGraph<double> *scene_graph) {
-  const auto &inspector = scene_graph->model_inspector();
+    const drake::geometry::QueryObject<double>& query_object) {
+  const auto &inspector = query_object.inspector();
   const auto collision_candidates = inspector.GetCollisionCandidates();
   fprintf(stdout, "Collision Candidates:\n");
   for (const auto &cc : collision_candidates) {
@@ -66,8 +66,6 @@ int main(int argc, char **argv) {
   auto diagram = builder.Build();
   auto diagram_context = diagram->CreateDefaultContext();
 
-  // debug
-  PrintCollisionCandidates(&scene_graph);
 
   // check collision
   const auto &scene_graph_context =
@@ -75,6 +73,8 @@ int main(int argc, char **argv) {
   const auto &query_object =
       scene_graph.get_query_output_port()
           .Eval<drake::geometry::QueryObject<double>>(scene_graph_context);
+  // debug
+  PrintCollisionCandidates(query_object);
   if (query_object.HasCollisions()) {
     printf("Collision\n");
   } else {
