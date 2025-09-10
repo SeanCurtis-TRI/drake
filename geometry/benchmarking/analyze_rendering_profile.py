@@ -34,7 +34,7 @@ IMAGE_LABELS = {320 * 240: "320x240",
 def parse_data(file_path: Path, prefix: str):
     """A block of data looks like this:
 
-    prefixBenchmark/engine_name/s/c/w/h/n/st
+    prefixBenchmark/engine_name/s/c/w/h/n/st/?/?
     All registered profiles average times:
     Time (s)   Samples   Total Time (s)  Label 
     total_time       160       0.01987654  RenderEngineGl::DoRenderColorImage
@@ -49,12 +49,15 @@ def parse_data(file_path: Path, prefix: str):
     h is the height of the image,
     n is number of lights,
     st is the type of sphere (0-primitive, 1-textured obj, 2-texture gltf).
+    ? indicates that there may be *other* values for particular benchmarks
+      that are not shared across all benchmarks. These will be captured and
+      appended to the full, concatenated list.
     
     Creates a dictionary of 2D tables. Each entry based on the engine_name. In
     the table, each row is a data point and the columns are defined as:
 
     (spheres, cameras, width * height, light_count, sphere_type, total_time,
-     setup_time, render_time, readback_time)
+     setup_time, render_time, readback_time, ?1, ?2, etc.)
     """
     benchmarks = {}
     with open(file_path, 'r') as f:
@@ -67,14 +70,20 @@ def parse_data(file_path: Path, prefix: str):
             header = lines[l].strip().replace('true', '1').replace('false', '0')
             tokens = header.split('/')
             name = tokens[1]  # Engine name
-            s, c, w, h, lc, st = map(int, tokens[2:])
+            param_tokens = list(map(int, tokens[2:]))
+            # Extract the common parameters; they'll need to be transformed.
+            s, c, w, h, lc, st = param_tokens[:6]
             if name not in benchmarks:
                 benchmarks[name] = []
             line_list = [s, c, w * h, lc, st]
-            l += 3  # Skip "All registered profiles ..." line and the header line.
+            # Skip the lines: "All registered profiles ...", header line, and
+            # the aggregate time.
+            l += 3
             for _ in range(4):
                 line_list.append(float(lines[l].split()[0]))
                 l += 1
+            # Append any of the extra ? benchmark params.
+            line_list += param_tokens[6:]
             benchmarks[name].append(line_list)
     return dict((name, np.array(data)) for name, data in benchmarks.items())
 
@@ -311,7 +320,6 @@ def render_time_vs_lights(data_dict):
     plt.tight_layout(rect=[0, 0.03, 1, 0.95])  # Adjust layout to fit title
     plt.subplots_adjust(wspace=0.3)  # Adjust space between subplots
 
-
 def render_time_vs_pbr(data_dict):
     """Illustrates the difference between phong and PBR shading models for
     comparable models.
@@ -370,6 +378,43 @@ def render_time_vs_pbr(data_dict):
     ax.set_xticklabels([IMAGE_LABELS[int(x_i)] for x_i in x])
     ax.legend()
 
+def render_time_vs_shadow(data_dict):
+    """Illustrates the difference in render time based on the size and number
+    of shadow maps.
+    """
+    assert len(data_dict) == 1, "We should only have one engine's data"
+    fig, ax = plt.subplots(1, 1, figsize=(6, 6))
+
+    data = data_dict["VtkColor"]
+    # The index of the shadow map size. Each shadow map size should be a unique
+    # plot in the graph.
+    SHADOW_SIZE = data.shape[1] - 1
+    render_times = data[:, RENDER_TIME] * 1000
+    sphere_types = np.unique(data[:, SPHERE_TYPE])
+    shadow_sizes = np.unique(data[:, SHADOW_SIZE])
+
+    ax.set_title("Cost of Shadows")
+    ax.set_xlabel("Number of Lights")
+    ax.set_ylabel("Render Time (ms)")
+    ys = []
+    # One line for each shadow map size.
+    for shadow_size in shadow_sizes:
+        mask = (data[:, SHADOW_SIZE] == shadow_size)
+        x_data = data[mask, LIGHT_COUNT]
+        y_data = render_times[mask]
+        x, y = reduce_plot_data(x_data, y_data)
+        ys.append(y)
+    ax.set_xticks(range(1, 6))  # We know there are lights 1, 2, ..., 5.
+    def plot_label(x):
+        if x == 0:
+            return "No Shadows"
+        else:
+            return str(x)
+    ax.plot(x, np.column_stack(ys),
+            label=[plot_label(int(ss)) for ss in shadow_sizes])
+    ax.legend()
+
+
 def render_time_vs_textures(data_dict):
     """Produces a number of plots exploring the cost of textures."""
     accum_data = []
@@ -418,7 +463,6 @@ def render_time_vs_textures(data_dict):
     axes.set_ylabel("Render Time (ms)", fontsize=12)
     axes.set_title("VTK Texture Penalty", fontsize=14)
 
-
 def _print_data(dict_data):
     """Prints the data dictionary in a human-readable format."""
     for engine_name, data in dict_data.items():
@@ -444,6 +488,8 @@ def main():
                         help="Path to the texture profiling data file.")
     parser.add_argument("--pbr_path", type=str,
                         help="Path to the PBR profiling data file.")
+    parser.add_argument("--shadow_path", type=str,
+                        help="Path to the shadow profiling data file.")
     args = parser.parse_args()
 
     def parse_from_file(file_path: Path, prefix: str):
@@ -471,6 +517,10 @@ def main():
     if args.pbr_path:
         data_dict = parse_from_file(Path(args.pbr_path), "PbrVsPhong")
         render_time_vs_pbr(data_dict=data_dict)
+        have_drawn = True
+    if args.shadow_path:
+        data_dict = parse_from_file(Path(args.shadow_path), "Shadow")
+        render_time_vs_shadow(data_dict=data_dict)
         have_drawn = True
 
     if have_drawn:

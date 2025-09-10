@@ -72,16 +72,23 @@ struct FixtureParameters {
   int num_lights = 1;
   // 0: primitive, 1: obj, 2: single-texture gltf, 3: multi-texture gltf.
   int sphere_type = 0;
+  // A 0 is interpreted as disabled shadows.
+  int shadow_map_size = 512;
 };
 
 /* Creates a render engine of the given type with the given background color and
  light set. */
 template <EngineType engine_type>
 std::unique_ptr<RenderEngine> MakeEngine(
-    const Vector3d& bg_rgb, const std::vector<LightParameter>& lights = {}) {
+    const Vector3d& bg_rgb, const std::vector<LightParameter>& lights = {},
+    const FixtureParameters& fixture_params = {}) {
   if constexpr (engine_type == EngineType::Vtk) {
-    const RenderEngineVtkParams params{.default_clear_color = bg_rgb,
-                                       .lights = lights};
+    const bool enable_shadows = fixture_params.shadow_map_size > 0;
+    const RenderEngineVtkParams params{
+        .default_clear_color = bg_rgb,
+        .lights = lights,
+        .cast_shadows = enable_shadows,
+        .shadow_map_size = fixture_params.shadow_map_size};
     return MakeRenderEngineVtk(params);
   }
   if constexpr (engine_type == EngineType::Gl) {
@@ -103,7 +110,7 @@ struct NameFormat {
  running the requested renderings against that engine. */
 class RenderBenchmarkBase : public benchmark::Fixture {
  public:
-  RenderBenchmarkBase() {
+  RenderBenchmarkBase(bool note_shadows = false) : note_shadows_(note_shadows) {
     default_material_.AddProperty("phong", "diffuse", sphere_rgba_);
     default_material_.AddProperty("label", "id", RenderLabel::kDontCare);
   }
@@ -120,7 +127,8 @@ class RenderBenchmarkBase : public benchmark::Fixture {
   // NOLINTNEXTLINE(runtime/references)
   void ColorImage(::benchmark::State& state, const std::string& name) {
     const FixtureParameters params = GetParametersFromState(state);
-    auto renderer = MakeEngine<engine_type>(bg_rgb_, CreateLights(params));
+    auto renderer = MakeEngine<engine_type>(
+        bg_rgb_, CreateLights(params), params);
     SetupScene(params, renderer.get());
     ImageRgba8U color_image(params.width, params.height);
 
@@ -230,16 +238,18 @@ class RenderBenchmarkBase : public benchmark::Fixture {
     /* Five positions distributed uniformly around a circle. The positions are
      *not* ordered around the circle, but jump from position to position so that
      two lights in sequence are not adjacent. */
-    const std::vector<Vector3d> light_positions{{0.5, 0.5, 0},
-                                                {-0.11062, -0.6984, 0},
-                                                {-0.32102, 0.63004, 0},
-                                                {0.63004, -0.32102, 0},
-                                                {-0.6984, -0.11062, 0}};
+    const std::vector<Vector3d> light_positions{{0.5, 0.5, -0.2},
+                                                {-0.11062, -0.6984, -0.2},
+                                                {-0.32102, 0.63004, -0.2},
+                                                {0.63004, -0.32102, -0.2},
+                                                {-0.6984, -0.11062, -0.2}};
     std::vector<LightParameter> lights;
     for (int i = 0; i < params.num_lights; ++i) {
-      lights.push_back(LightParameter{.type = "point",
-                                      .position = light_positions[i] * 10,
-                                      .intensity = kPerLightIntensity});
+      lights.push_back(LightParameter{
+          .type = "directional",
+          .intensity = kPerLightIntensity,
+          .direction = -light_positions[i],
+      });
     }
     return lights;
   }
@@ -258,8 +268,8 @@ class RenderBenchmarkBase : public benchmark::Fixture {
 
   // Returns a string of the form Name/#/#/#.../# based on the state name and
   // state argument values.
-  static std::string GetBenchmarkName(const FixtureParameters& params,
-                                      NameFormat format = {}) {
+  std::string GetBenchmarkName(const FixtureParameters& params,
+                               NameFormat format = {}) const {
     std::string result = format.alt_name.empty() ? params.benchmark_name
                                                  : std::string(format.alt_name);
 
@@ -269,6 +279,9 @@ class RenderBenchmarkBase : public benchmark::Fixture {
     result += fmt::format("{}{}", format.delimiter, params.height);
     result += fmt::format("{}{}", format.delimiter, params.num_lights);
     result += fmt::format("{}{}", format.delimiter, params.sphere_type);
+    if (note_shadows_) {
+      result += fmt::format("{}{}", format.delimiter, params.shadow_map_size);
+    }
 
     return result;
   }
@@ -276,9 +289,9 @@ class RenderBenchmarkBase : public benchmark::Fixture {
   /* Helper function for generating the image path name based on the benchmark
    arguments and file format. The benchmark state is assumed to have 4 arguments
    representing the sphere count, camera count, width, and height.  */
-  static std::string image_path_name(std::string_view test_name,
-                                     const FixtureParameters& params,
-                                     std::string_view format) {
+  std::string image_path_name(std::string_view test_name,
+                              const FixtureParameters& params,
+                              std::string_view format) const {
     DRAKE_DEMAND(!FLAGS_save_image_path.empty());
     fs::path save_path = FLAGS_save_image_path;
     const std::string name = fmt::format(
@@ -527,6 +540,8 @@ class RenderBenchmarkBase : public benchmark::Fixture {
   std::vector<ArgProfiler> profilers_;
   const Vector3d bg_rgb_{200 / 255., 0, 250 / 255.};
   std::unordered_map<GeometryId, RigidTransformd> poses_;
+  /* If true, shadow parameters will be included in benchmark names. */
+  const bool note_shadows_{false};
 };
 
 /* The benchmark sets the benchmark state as (using default or all others):
@@ -546,8 +561,7 @@ class ReadbackBenchmark : public RenderBenchmarkBase {
 };
 
 /* The benchmark sets the benchmark state as (using default or all others):
-  (sphere_count, width, height, num_lights).
-*/
+  (sphere_count, width, height, num_lights). */
 class LightingBenchmark : public RenderBenchmarkBase {
  public:
   FixtureParameters DoGetParametersFromState(
@@ -591,6 +605,24 @@ class PbrVsPhongBenchmark : public RenderBenchmarkBase {
   }
 };
 
+/* The benchmark sets the benchmark state as (using default or all others):
+  (sphere_count, width, height, num_lights, shadows_enabled, shadow_map_size). */
+class ShadowBenchmark : public RenderBenchmarkBase {
+ public:
+  ShadowBenchmark() : RenderBenchmarkBase(true) {}
+
+  FixtureParameters DoGetParametersFromState(
+      const ::benchmark::State& state) override {
+    return FixtureParameters{
+        .sphere_count = static_cast<int>(state.range(0)),
+        .width = static_cast<int>(state.range(1)),
+        .height = static_cast<int>(state.range(2)),
+        .num_lights = static_cast<int>(state.range(3)),
+        .sphere_type = 3,
+        .shadow_map_size = static_cast<int>(state.range(4)),
+    };
+  }
+};
 /* These macros serve the purpose of allowing compact and *consistent*
  declarations of benchmarks. The goal is to create a benchmark for each
  renderer type (e.g., Vtk, Gl) combined with each image type (Color, Depth, and
@@ -651,11 +683,14 @@ class PbrVsPhongBenchmark : public RenderBenchmarkBase {
 // with *a lot* of textures. So, I'm not just measuring PBR shader complexity,
 // but also model complexity. I need to simplify the glTF for this comparison
 // and defer the model complexity to a different benchmark.
-#define MAKE_VTK_ONLY_BENCHMARKS                                     \
-  DEFINE_BENCHMARK(PbrVsPhongBenchmark, Vtk, Color)                  \
-      ->ArgsProduct({{1, 10, 20, 40, 80}, {640}, {480}, {1, 2, 3}})  \
-      ->ArgsProduct({{1, 10, 20, 40, 80}, {1280}, {960}, {1, 2, 3}}) \
-      ->ArgsProduct({{1, 10, 20, 40, 80}, {2560}, {1920}, {1, 2, 3}});
+#define MAKE_VTK_ONLY_BENCHMARKS                                       \
+  DEFINE_BENCHMARK(PbrVsPhongBenchmark, Vtk, Color)                    \
+      ->ArgsProduct({{1, 10, 20, 40, 80}, {640}, {480}, {1, 2, 3}})    \
+      ->ArgsProduct({{1, 10, 20, 40, 80}, {1280}, {960}, {1, 2, 3}})   \
+      ->ArgsProduct({{1, 10, 20, 40, 80}, {2560}, {1920}, {1, 2, 3}}); \
+  DEFINE_BENCHMARK(ShadowBenchmark, Vtk, Color)                        \
+      ->ArgsProduct(                                                   \
+          {{60}, {2560}, {1920}, {1, 2, 3, 4, 5}, {0, 1, 512, 1024, 2048, 4096}});
 
 MAKE_ALL_BENCHMARKS(Vtk, Color);
 MAKE_VTK_ONLY_BENCHMARKS;
