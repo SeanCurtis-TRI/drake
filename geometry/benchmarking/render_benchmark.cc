@@ -70,7 +70,7 @@ struct FixtureParameters {
   int width = 640;
   int height = 480;
   int num_lights = 1;
-  // 0: primitive, 1: obj, 2: gltf.
+  // 0: primitive, 1: obj, 2: single-texture gltf, 3: multi-texture gltf.
   int sphere_type = 0;
 };
 
@@ -331,9 +331,15 @@ class RenderBenchmarkBase : public benchmark::Fixture {
     return Mesh(path, scale);
   }
 
+  /* @pre FLAGS_force_duplication == false. */
   GeometryInstance MakeSphereInstance(int sphere_type, int index,
                                       double radius) {
-    DRAKE_DEMAND(sphere_type >= 0 && sphere_type <= 2);
+    DRAKE_DEMAND(sphere_type >= 0 && sphere_type <= 3);
+    if (FLAGS_force_duplication && sphere_type == 3) {
+      throw std::runtime_error(
+          "Don't pass the --force_duplication flag for benchmark fixtures that "
+          "use sphere_type > 2.");
+    }
 
     auto make_instance = [index](const auto& shape,
                                  PerceptionProperties material = {}) {
@@ -356,16 +362,19 @@ class RenderBenchmarkBase : public benchmark::Fixture {
         if (sphere_type == 1) {
           return make_instance(ForceObjDuplication(
               mesh_path / "color_texture_sphere.obj", index, radius));
-        } else {
-          return make_instance(
-              ForceGltfDuplication(mesh_path / "multi_texture_sphere.gltf",
-                                   index, radius));
+        } else if (sphere_type == 2) {
+          return make_instance(ForceGltfDuplication(
+              mesh_path / "color_texture_sphere.gltf", index, radius));
         }
+        DRAKE_UNREACHABLE();
       } else {
         // If we're not forcing duplication, we can simply name the mesh file.
         if (sphere_type == 1) {
           return make_instance(
               Mesh(mesh_path / "color_texture_sphere.obj", radius));
+        } else if (sphere_type == 2) {
+          return make_instance(
+              Mesh(mesh_path / "color_texture_sphere.gltf", radius));
         } else {
           return make_instance(
               Mesh(mesh_path / "multi_texture_sphere.gltf", radius));
@@ -567,6 +576,21 @@ class TextureBenchmark : public RenderBenchmarkBase {
   }
 };
 
+/* The benchmark sets the benchmark state as (using default on all others):
+ (sphere_count, width, height, sphere_type). */
+class PbrVsPhongBenchmark : public RenderBenchmarkBase {
+ public:
+  FixtureParameters DoGetParametersFromState(
+      const ::benchmark::State& state) override {
+    return FixtureParameters{
+        .sphere_count = static_cast<int>(state.range(0)),
+        .width = static_cast<int>(state.range(1)),
+        .height = static_cast<int>(state.range(2)),
+        .sphere_type = static_cast<int>(state.range(3)),
+    };
+  }
+};
+
 /* These macros serve the purpose of allowing compact and *consistent*
  declarations of benchmarks. The goal is to create a benchmark for each
  renderer type (e.g., Vtk, Gl) combined with each image type (Color, Depth, and
@@ -623,7 +647,18 @@ class TextureBenchmark : public RenderBenchmarkBase {
       ->ArgsProduct({{1, 60, 120, 240, 480, 960}, {1280}, {960}, {0, 1}}) \
       ->ArgsProduct({{1, 60, 120, 240, 480, 960}, {2560}, {1920}, {0, 1}});
 
+// TODO(SeanCurtis-TRI): This compares the obj with a single texture with a glTF
+// with *a lot* of textures. So, I'm not just measuring PBR shader complexity,
+// but also model complexity. I need to simplify the glTF for this comparison
+// and defer the model complexity to a different benchmark.
+#define MAKE_VTK_ONLY_BENCHMARKS                                     \
+  DEFINE_BENCHMARK(PbrVsPhongBenchmark, Vtk, Color)                  \
+      ->ArgsProduct({{1, 10, 20, 40, 80}, {640}, {480}, {1, 2, 3}})  \
+      ->ArgsProduct({{1, 10, 20, 40, 80}, {1280}, {960}, {1, 2, 3}}) \
+      ->ArgsProduct({{1, 10, 20, 40, 80}, {2560}, {1920}, {1, 2, 3}});
+
 MAKE_ALL_BENCHMARKS(Vtk, Color);
+MAKE_VTK_ONLY_BENCHMARKS;
 // MAKE_ALL_BENCHMARKS(Vtk, Depth);
 // MAKE_ALL_BENCHMARKS(Vtk, Label);
 

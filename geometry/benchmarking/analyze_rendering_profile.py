@@ -126,7 +126,6 @@ def render_time_vs_scene_complexity(data_dict):
     plt.tight_layout(rect=[0, 0.03, 1, 0.95])  # Adjust layout to fit title
     plt.subplots_adjust(wspace=0.3)  # Adjust space between subplots
 
-
 def _add_stacked_time_bars(ax, data, title, blocks, mask, x_axis, tick_maker,
                            offset, name, add_bar_label):
     """Adds stacked bars to the given axis. The bar values are assumed to be
@@ -313,27 +312,66 @@ def render_time_vs_lights(data_dict):
     plt.subplots_adjust(wspace=0.3)  # Adjust space between subplots
 
 
+def render_time_vs_pbr(data_dict):
+    """Illustrates the difference between phong and PBR shading models for
+    comparable models.
+    """
+    assert len(data_dict) == 1, "We should only have one engine's data"
+    fig, axes = plt.subplots(1, 2, figsize=(12, 6))
+    axes = axes.flatten()
+
+    data = data_dict["VtkColor"]
+    render_times = data[:, RENDER_TIME] * 1000
+    SPHERE_TYPES = {
+        0: "PRIMITIVE",
+        1: "PHONG",
+        2: "PBR",
+        3: "FULL PBR",
+    }
+    sphere_types = np.unique(data[:, SPHERE_TYPE])
+    # Two plots:
+    # 1. Line graph
+    #   - Each line represents a shading model
+    #   - x-axis number of spheres.
+    #   - Fix image size: 2560x1920
+    ax = axes[0]
+    ax.set_title("Shader Cost vs Scene Complexity")
+    ax.set_xlabel("Sphere Count")
+    ax.set_ylabel("Render Time (ms)")
+    size_mask = data[:, IMAGE_SIZE] == 2560 * 1920
+    ys = []
+    for sphere_type in sphere_types:
+        mask_by_type = size_mask & (data[:, SPHERE_TYPE] == sphere_type)
+        x_data = data[mask_by_type, SPHERE_COUNT]
+        y_data = render_times[mask_by_type]
+        x, y = reduce_plot_data(x_data, y_data)
+        ys.append(y)
+    ax.plot(x, np.column_stack(ys),
+            label=[SPHERE_TYPES[int(st)] for st in sphere_types])
+    ax.legend()
+
+    # 2. same, except y-axis is image size.
+    ax = axes[1]
+    ax.set_title("Shader Cost vs Image Size")
+    ax.set_xlabel("Image Size")
+    ax.set_ylabel("Render Time (ms)")
+    count_mask = data[:, SPHERE_COUNT] == 80
+    ys = []
+    for sphere_type in sphere_types:
+        mask_by_type = count_mask & (data[:, SPHERE_TYPE] == sphere_type)
+        x_data = data[mask_by_type, IMAGE_SIZE]
+        y_data = render_times[mask_by_type]
+        x, y = reduce_plot_data(x_data, y_data)
+        ys.append(y)
+    x_ticks = np.arange(len(x))
+    ax.plot(x_ticks, np.column_stack(ys),
+            label=[SPHERE_TYPES[int(st)] for st in sphere_types])
+    ax.set_xticks(x_ticks)
+    ax.set_xticklabels([IMAGE_LABELS[int(x_i)] for x_i in x])
+    ax.legend()
+
 def render_time_vs_textures(data_dict):
     """Produces a number of plots exploring the cost of textures."""
-    # Notes:
-    #  Hypotheses:
-    #    - There is a discernible cost in doing texture look ups over not.
-    #      - Fix image size and sphere count (large image, single sphere).
-    #      - Single plot with two paired bars.
-    #        - The pair consists of a (primitive, textured) times.
-    #        - One pair per render engine.
-    #      - "Cost of texture lookup"
-    #    - There is a per-fragment cost so, as image size grows, rendering
-    #      cost increases.
-    #      - Fix sphere count (1). Vary image size.
-    #      - Single plot with two triples of bars.
-    #        - Each triple contains the increasing image sizes.
-    #        - One triple per render engine.
-    #      - "Per fragment cost"
-    #    - VTK incurs an additional cost per texture (i.e., the cost grows
-    #      per sphere).
-    #      -what plot?
-
     accum_data = []
     tick_labels = []
     for i, (engine_name, data) in enumerate(data_dict.items()):
@@ -404,6 +442,8 @@ def main():
                         help="Path to the light profiling data file.")
     parser.add_argument("--texture_path", type=str,
                         help="Path to the texture profiling data file.")
+    parser.add_argument("--pbr_path", type=str,
+                        help="Path to the PBR profiling data file.")
     args = parser.parse_args()
 
     def parse_from_file(file_path: Path, prefix: str):
@@ -427,6 +467,10 @@ def main():
     if args.texture_path:
         data_dict = parse_from_file(Path(args.texture_path), "Texture")
         render_time_vs_textures(data_dict=data_dict)
+        have_drawn = True
+    if args.pbr_path:
+        data_dict = parse_from_file(Path(args.pbr_path), "PbrVsPhong")
+        render_time_vs_pbr(data_dict=data_dict)
         have_drawn = True
 
     if have_drawn:

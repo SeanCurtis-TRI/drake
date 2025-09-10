@@ -78,6 +78,7 @@ filegroup(
     name = "render_files",
     srcs = [
         "base_color.png",
+        "color_texture_sphere.gltf",
         "color_texture_sphere.mtl",
         "color_texture_sphere.obj",
         "multi_texture_sphere.bin",
