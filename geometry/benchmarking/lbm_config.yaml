@@ -1,0 +1,111 @@
+# Note: These cameras were taken from lbm_eval/scenarios/0_cabot_box/cabot_box_scenario.yaml.
+# The details of the specification has been modified as follows:
+#    - renderer_class field has been removed.
+#      - it will be set at runtime by scenario_render_benchmark.cc.
+#    - random distributions have been removed
+#    - fisheye distortion has been removed.
+#      - four cameras *had* fisheye distortion, by removing it we've made
+#        those cameras cheaper.
+#    - removed the camera bus in favor of the default.
+
+cameras:
+    # Cameras as defined in package://lbm_eval_models/stations/cabot/add_cabot_without_grippers.dmd.yaml.
+    # Intrinsics were taken from the IRL Salem station, and recorded in:
+    # https://github.shared-services.aws.tri.global/robotics/anzu/issues/14465#issuecomment-58991
+    # https://github.shared-services.aws.tri.global/robotics/anzu/issues/14460#issuecomment-59117
+    - &CabotSceneCameraRight
+      name: "6CD146030E99"
+      focal: !FocalLength
+        x: 616.129
+        y: 615.758
+      center_x: 321.269
+      center_y: 247.864
+      width: 640
+      height: 480
+      rgb: true
+      depth: true
+      label: true
+      X_PB:
+        base_frame: camera_6CD146030E99
+        translation: [0, 0, 0]
+        rotation: !AngleAxis
+          angle_deg: 0
+          axis: [0.0, 0.0, 0.0]
+      fps: 20
+      renderer_name: "renderer_1"
+    - &CabotSceneCameraLeft
+      <<: *CabotSceneCameraRight
+      name: "6CD146031C25"
+      focal: !FocalLength
+        x: 612.720
+        y: 612.25
+      center_x: 322.050
+      center_y: 238.161
+      width: 640
+      height: 480
+      X_PB:
+        base_frame: camera_6CD146031C25
+        translation: [0, 0, 0]
+        rotation: !AngleAxis
+          angle_deg: 0
+          axis: [0, 0, 0]
+    - &CabotWistCameraLeftMinus
+      <<: *CabotSceneCameraRight
+      name: "BFS_23595718"
+      focal: !FocalLength
+        x: 231.778
+        y: 231.252
+      center_x: 486.614
+      center_y: 303.9256
+      width: 960
+      height: 600
+      X_PB:
+        base_frame: camera_BFS_23595718
+        translation: [0, 0, 0]
+        rotation: !Rpy
+          deg: [0, 0, 0]
+    - &CabotWistCameraLeftPlus
+      <<: *CabotSceneCameraRight
+      name: "BFS_23595721"
+      focal: !FocalLength
+        x: 222.245
+        y: 221.878
+      center_x: 486.036
+      center_y: 299.461
+      width: 960
+      height: 600
+      X_PB:
+        base_frame: camera_BFS_23595721
+        translation: [0, 0, 0]
+        rotation: !Rpy
+          deg: [0, 0, 0]
+    - &CabotWistCameraRightMinus
+      <<: *CabotSceneCameraRight
+      name: "BFS_23595722"
+      focal: !FocalLength
+        x: 178.822
+        y: 178.504
+      center_x: 436.410
+      center_y: 301.674
+      width: 960
+      height: 600
+      X_PB:
+        base_frame: camera_BFS_23595722
+        translation: [0, 0, 0]
+        rotation: !Rpy
+          deg: [0, 0, 0]
+    - &CabotWistCameraRightPlus
+      <<: *CabotSceneCameraRight
+      name: "BFS_23595725"
+      focal: !FocalLength
+        x: 212.426
+        y: 212.992
+      center_x: 470.830
+      center_y: 279.669
+      width: 960
+      height: 600
+      X_PB:
+        base_frame: camera_BFS_23595725
+        translation: [0, 0, 0]
+        rotation: !Rpy
+          deg: [0, 0, 0]

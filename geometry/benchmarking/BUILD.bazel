@@ -117,6 +117,51 @@ drake_cc_googlebench_binary(
     ],
 )
 
+drake_cc_googlebench_binary(
+    name = "scenario_render_benchmark",
+    srcs = ["scenario_render_benchmark.cc"],
+    add_test_rule = False,
+    test_tags = vtk_test_tags(),
+    deps = [
+        "//common:add_text_logging_gflags",
+        "//common:find_resource",
+        "//geometry:geometry_instance",
+        "//geometry/render",
+        "//geometry/render_gl",
+        "//geometry/render_vtk",
+        "//systems/sensors:image_io",
+        "//tools/performance:gflags_main",
+        "@fmt",
+        "@gflags",
+    ],
+)
+
+drake_cc_binary(
+    name = "lbm_example",
+    srcs = ["scenario_render_benchmark.cc"],
+    defines = ["RUN_AS_BINARY"],
+    data = [
+        "@drake_models",
+        ":lbm_config.yaml",
+        ":manipulands.dmd.yaml",
+    ],
+    deps = [
+        "//common:find_resource",
+        "//common/yaml",
+        "//geometry:scene_graph_config",
+        "//lcm",
+        "//multibody/parsing",
+        "//multibody/plant",
+        "//systems/framework:diagram_builder",
+        "//systems/sensors:camera_config_functions",
+        "//systems/sensors:image_io",
+        "//systems/sensors:rgbd_sensor",
+        "//visualization:visualization_config_functions",
+        "@fmt",
+        "@gflags",
+    ],
+)
+
 drake_py_experiment_binary(
     name = "render_experiment",
     googlebench_binary = ":render_benchmark",

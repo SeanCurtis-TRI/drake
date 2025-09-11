@@ -1,0 +1,30 @@
+directives:
+  - add_model:
+      name: orange
+      file: package://lbm_eval_models/groceries/oranges/fake_ripe_ycb_orange.sdf
+      default_free_body_pose:
+        fake_ycb_orange:
+          base_frame: manipuland_table::station_table_top
+          translation: [0.15, -0.0, 0.038]
+  - add_model:
+      name: green_apple
+      file: package://lbm_eval_models/groceries/apples/fake_green_sweet_crispin_apple.sdf
+      default_free_body_pose:
+        fake_sweet_crispin_apple:
+          base_frame: manipuland_table::station_table_top
+          translation: [0.05, -0.1, 0.037]
+  - add_model:
+      name: kiwi
+      file: package://lbm_eval_models/groceries/berries/fake_ripe_kiwi.sdf
+      default_free_body_pose:
+        fake_kiwi:
+          base_frame: manipuland_table::station_table_top
+          translation: [0.00, 0.1, 0.027]
+  - add_model:
+      file: package://lbm_eval_models/kitchen_accessories/bins/container_amuse_body_small_white.sdf
+      name: smaller_container
+      default_free_body_pose:
+        at_rest_right_side_up:
+          base_frame: manipuland_table::station_table_top
+          translation: [-0.15, 0.1, 0.01]
+          rotation: !Rpy { deg: [0, 0, 45] }
