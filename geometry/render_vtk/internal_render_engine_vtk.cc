@@ -485,19 +485,11 @@ void ExtractImage(const ColorRenderCamera& vtk_camera, vtkImageExport* exporter,
   }
 }
 
-/* This is a hack for the benchmark program. It runs all the VTK and then all
-the GL and I don't want to mix VTK measurements with GL measurements in my
-output. So, I simply clear the timers the first time I call vtk rendering. */
-TimerIndex resetAndAddTimer(const std::string& name) {
-  clearAllTimers();
-  return addTimer(name);
-}
-
 }  // namespace
 
 void RenderEngineVtk::DoRenderColorImage(const ColorRenderCamera& camera,
                                          ImageRgba8U* color_image_out) const {
-  static const TimerIndex timer = resetAndAddTimer("RenderEngineVtk::DoRenderColorImage");
+  static const TimerIndex timer = addTimer("RenderEngineVtk::DoRenderColorImage");
   static const TimerIndex setup = addTimer("RenderEngineVtk::DoRenderColorImage - setup");
   static const TimerIndex render = addTimer("RenderEngineVtk::DoRenderColorImage - render");
   static const TimerIndex readback = addTimer("RenderEngineVtk::DoRenderColorImage - readback");

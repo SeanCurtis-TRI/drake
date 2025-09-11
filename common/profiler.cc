@@ -196,6 +196,7 @@ std::string TableOfAverages() {
   ss << fmt::format("{:>15}{:>10}{:>17}  {}", "Time (s)", "Samples",
                     "Total Time (s)", "Label") << "\n";
   for (TimerIndex i(0); i < count; ++i) {
+    if (profiler.laps(i) == 0) continue;
     double time = profiler.average<Seconds>(i);
     ss << fmt::format("{:>15.7g}{:>10}{:>17.7g}  {}", time, profiler.laps(i),
                       profiler.total<Seconds>(i), profiler.displayString(i));

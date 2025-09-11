@@ -1127,20 +1127,9 @@ void RenderEngineGl::RenderAt(const ShaderProgram& shader_program,
   glBindVertexArray(0);
 }
 
-namespace {
-
-/* This is a hack for the benchmark program. It runs all the VTK and then all
-the GL and I don't want to mix VTK measurements with GL measurements in my
-output. So, I simply clear the timers the first time I call gl rendering. */
-TimerIndex resetAndAddTimer(const std::string& name) {
-  clearAllTimers();
-  return addTimer(name);
-}
-}
-
 void RenderEngineGl::DoRenderColorImage(const ColorRenderCamera& camera,
                                         ImageRgba8U* color_image_out) const {
-  static const TimerIndex timer = resetAndAddTimer("RenderEngineGl::DoRenderColorImage");
+  static const TimerIndex timer = addTimer("RenderEngineGl::DoRenderColorImage");
   static const TimerIndex setup = addTimer("RenderEngineGl::DoRenderColorImage - setup");
   static const TimerIndex render = addTimer("RenderEngineGl::DoRenderColorImage - render");
   static const TimerIndex readback = addTimer("RenderEngineGl::DoRenderColorImage - readback");
