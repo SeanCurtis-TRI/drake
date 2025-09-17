@@ -691,6 +691,7 @@ class ShadowBenchmark : public RenderBenchmarkBase {
   DEFINE_BENCHMARK(ShadowBenchmark, Vtk, Color)                        \
       ->ArgsProduct(                                                   \
           {{60}, {2560}, {1920}, {1, 2, 3, 4, 5}, {0, 1, 512, 1024, 2048, 4096}});
+          // {{40}, {960}, {600}, {1}, {1024}});  // Reproduce lbm eval case.
 
 MAKE_ALL_BENCHMARKS(Vtk, Color);
 MAKE_VTK_ONLY_BENCHMARKS;

@@ -1,7 +1,10 @@
 #include <filesystem>
+#include <iostream>
 #include <string>
 
-// #include <benchmark/benchmark.h>
+#ifndef RUN_AS_BINARY
+#include <benchmark/benchmark.h>
+#endif
 #include <fmt/format.h>
 #include <gflags/gflags.h>
 
@@ -39,15 +42,16 @@ using geometry::EnvironmentMap;
 using geometry::EquirectangularMap;
 using geometry::RenderEngineGlParams;
 using geometry::RenderEngineVtkParams;
-using geometry::render::LightParameter;
 using geometry::Rgba;
 using geometry::SceneGraphConfig;
+using geometry::render::LightParameter;
 using multibody::AddMultibodyPlant;
 using multibody::MultibodyPlant;
 using multibody::MultibodyPlantConfig;
 using multibody::PackageMap;
 using multibody::Parser;
 using systems::Context;
+using systems::Diagram;
 using systems::DiagramBuilder;
 using systems::sensors::ApplyCameraConfig;
 using systems::sensors::CameraConfig;
@@ -62,25 +66,11 @@ DEFINE_int32(N, 500, "The number of rendering iterations to perform.");
 DEFINE_string(save_image_path, "",
               "Enables saving rendered images in the given location");
 DEFINE_string(engine, "vtk", "'vtk' or 'gl'");
+DEFINE_bool(visualize, false, "If true, meshcat visualization is enabled.");
 
 std::string_view robot_sdf =
     "package://lbm_eval_models/stations/cabot/add_cabot_simulation.dmd.yaml";
 
-// class ScenarioRenderBenchmark : public benchmark::Fixture {
-//  public:
-// 	void SetUp(const ::benchmark::State& state) override {
-// 		// Setup code (if needed)
-// 	}
-// 	void TearDown(const ::benchmark::State& state) override {
-// 		// Teardown code (if needed)
-// 	}
-// };
-
-// BENCHMARK_F(ScenarioRenderBenchmark, Foo)(benchmark::State& state) {
-// 	for (auto _ : state) {
-// 		// Benchmark code goes here
-// 	}
-// }
 
 /* A convenient struct for parsing a slice of lbm_eval's scenario yaml. */
 struct SceneConfig {
@@ -90,6 +80,14 @@ struct SceneConfig {
   }
 
   std::vector<CameraConfig> cameras;
+};
+
+/* The data necessary to run a benchmark test. */
+struct BenchmarkData {
+  std::unique_ptr<Diagram<double>> diagram;
+  std::vector<const RgbdSensor*> cameras;
+  int num_geometries = 0;
+  std::unique_ptr<Context<double>> context{};
 };
 
 /* Return a set of render engine parameters of the requested type.
@@ -156,7 +154,8 @@ void ConfigureCameras(SceneConfig* config, const PackageMap& package_map) {
   }
 }
 
-void ConfigureSimulation(std::string_view lbm_package_dir) {
+BenchmarkData ConfigureSimulation(std::string_view lbm_package_dir,
+                                  const std::string& engine) {
   if (lbm_package_dir.empty()) {
     throw std::runtime_error(
         "The --lbm_package_dir flag must be set to the path of the "
@@ -175,72 +174,203 @@ void ConfigureSimulation(std::string_view lbm_package_dir) {
 
   plant.Finalize();
 
-  // Note: we're opting-out of LCM by passing lcm_buses = nullptr and a
-  // throw-away DrakeLcm instance.
   lcm::DrakeLcm lcm(systems::lcm::LcmBuses::kLcmUrlMemqNull);
-  ApplyVisualizationConfig({}, &builder, nullptr, nullptr, nullptr, nullptr,
-                           &lcm);
+  if (FLAGS_visualize) {
+    // Note: we're opting-out of LCM by passing lcm_buses = nullptr and a
+    // throw-away DrakeLcm instance.
+    ApplyVisualizationConfig({}, &builder, nullptr, nullptr, nullptr, nullptr,
+                             &lcm);
+  }
 
   const std::string config_path = "drake/geometry/benchmarking/lbm_config.yaml";
   auto config = LoadYamlFile<SceneConfig>(FindResourceOrThrow(config_path),
                                           std::nullopt, SceneConfig{});
-  if (FLAGS_engine == "vtk") {
+  if (engine == "vtk") {
     ConfigureCameras<RenderEngineVtkParams>(&config, parser.package_map());
-  } else if (FLAGS_engine == "gl") {
+  } else if (engine == "gl") {
     ConfigureCameras<RenderEngineGlParams>(&config, parser.package_map());
   } else {
     throw std::runtime_error(
         "The --engine flag must be set to either 'vtk' or 'gl'.");
   }
-  std::vector<const RgbdSensor*> cameras;
+  BenchmarkData data{
+    .num_geometries = scene_graph.model_inspector().NumGeometriesWithRole(
+        geometry::Role::kPerception),
+  };
   for (const auto& camera_config : config.cameras) {
     ApplyCameraConfig(camera_config, &builder, nullptr, nullptr, nullptr, &lcm);
-    cameras.push_back(&builder.GetDowncastSubsystemByName<RgbdSensor>(
+    data.cameras.push_back(&builder.GetDowncastSubsystemByName<RgbdSensor>(
         fmt::format("rgbd_sensor_{}", camera_config.name)));
   }
-  auto diagram = builder.Build();
-  auto context = diagram->CreateDefaultContext();
-  diagram->ForcedPublish(*context);
 
-  fs::path out_path = FLAGS_save_image_path;
-  auto request_timer = addTimer("Image Request");
-  for (const auto* camera : cameras) {
-    // Let VTK render engine get through a couple of iterations to prime itself.
-    for (int i = 0; i < 3; ++i) {
-      context->SetTime(i * 0.01);
-      const auto& cam_context = camera->GetMyContextFromRoot(*context);
-      (void)camera->color_image_output_port().Eval<ImageRgba8U>(cam_context);
-    }
-    reset();
-    const auto& cam_context = camera->GetMyContextFromRoot(*context);
-    ImageRgba8U color_image;
-    for (int i = 0; i < FLAGS_N; ++i) {
-      context->SetTime(i);
-      startTimer(request_timer);
-      color_image =
-          camera->color_image_output_port().Eval<ImageRgba8U>(cam_context);
-      stopTimer(request_timer);
-    }
-    fmt::print("Camera {}: ", camera->get_name());
-    fmt::print("{}\n", TableOfAverages());
-    if (FLAGS_save_image_path.empty()) continue;
-    ImageIo().Save(
-        color_image,
-        out_path / fmt::format("{}_{}.png", FLAGS_engine, camera->get_name()));
+  data.diagram = builder.Build();
+  data.context = data.diagram->CreateDefaultContext();
+  data.context->DisableCaching();
+  return data;
+}
+
+BenchmarkData& GetVtkData() {
+  // Note: all benchmarks use the same diagram. We only want to build the
+  // diagram once and use it for all benchmarks.
+  static BenchmarkData data = ConfigureSimulation(
+      FLAGS_lbm_package_dir, "vtk");
+  return data;
+}
+
+BenchmarkData& GetGlData() {
+  // Note: all benchmarks use the same diagram. We only want to build the
+  // diagram once and use it for all benchmarks.
+  static BenchmarkData data = ConfigureSimulation(
+      FLAGS_lbm_package_dir, "gl");
+  return data;
+}
+
+BenchmarkData* GetSimulationData(int engine_id) {
+  if (engine_id == 0) {
+    return &GetVtkData();
+  } else {
+    return &GetGlData();
+  }
+}
+
+/* With a newly built diagram and its allocated context, do some preliminary
+ work to prime the context -- warm starting any render engine that requires it.
+ Return the context for the sensor being evaluated. */
+const Context<double>& WarmUpSensor(const Diagram<double>& diagram,
+                                    Context<double>* context,
+                                    const RgbdSensor& sensor) {
+  if (FLAGS_visualize) {
+    diagram.ForcedPublish(*context);
   }
 
-  fmt::print("There are {} perception geometries in the scene\n",
-             scene_graph.model_inspector().NumGeometriesWithRole(
-                 geometry::Role::kPerception));
+  const auto& sensor_context = sensor.GetMyContextFromRoot(*context);
+
+  // Cycle through a couple renderings untimed just in case the underlying
+  // engine needs to be warm started.
+  for (int i = 0; i < 3; ++i) {
+    sensor.color_image_output_port().Eval<ImageRgba8U>(sensor_context);
+  }
+  reset();  // The timers.
+  return sensor_context;
 }
 
 #ifdef RUN_AS_BINARY
 
+/* This function would serve as the benchmark core test. Instead of FLAGS_N,
+ we simply iterate through the states. */
+void RunBenchmarkOnCamera(BenchmarkData* data, const RgbdSensor& sensor) {
+  auto& context = *data->context;
+  const auto& diagram = *data->diagram;
+  const auto& sensor_context = WarmUpSensor(diagram, &context, sensor);
+
+  // Now do the work. In the benchmark, this'll be in the benchmark loop.
+  auto request_timer = addTimer("Image Request");
+  ImageRgba8U color_image;
+  for (int i = 0; i < FLAGS_N; ++i) {
+    startTimer(request_timer);
+    color_image =
+        sensor.color_image_output_port().Eval<ImageRgba8U>(sensor_context);
+    stopTimer(request_timer);
+  }
+  fmt::print("Camera {}: ", sensor.get_name());
+  fmt::print("{}\n", TableOfAverages());
+  if (!FLAGS_save_image_path.empty()) {
+    fs::path out_path = FLAGS_save_image_path;
+    ImageIo().Save(color_image,
+                    out_path / fmt::format("{}_{}.png", FLAGS_engine,
+                                          sensor.get_name()));
+  }
+}
+
+void RunAllCameras() {
+  int engine = -1;
+  if (FLAGS_engine == "vtk") {
+    engine = 0;
+  } else if (FLAGS_engine == "gl") {
+    engine = 1;
+  } else {
+    throw std::runtime_error(
+        "The --engine flag must be set to either 'vtk' or 'gl'.");
+  }
+  BenchmarkData* data = GetSimulationData(engine);
+  for (const RgbdSensor* camera : data->cameras) {
+    RunBenchmarkOnCamera(data, *camera);
+  }
+
+  fmt::print("There are {} perception geometries in the scene\n",
+             data->num_geometries);
+}
+
 int do_main(int argc, char* argv[]) {
   gflags::ParseCommandLineFlags(&argc, &argv, true);
-  ConfigureSimulation(FLAGS_lbm_package_dir);
+  RunAllCameras();
   return 0;
 }
+#else
+
+class LbmBenchmark : public benchmark::Fixture {
+ public:
+  LbmBenchmark() {
+    request_timer_ = addTimer("Image Request");
+  }
+  ~LbmBenchmark() override {}
+
+  void SetUp(::benchmark::State& state) {
+    data_ = GetSimulationData(state.range(0));
+    if (data_->cameras.empty()) {
+      throw std::runtime_error("No cameras were configured.");
+    }
+    const int sensor_index = state.range(1);
+    if (sensor_index < 0 || sensor_index >= ssize(data_->cameras)) {
+      throw std::runtime_error(
+          fmt::format("The camera index ({}) is out of range [0, {}).",
+                      sensor_index, data_->cameras.size()));
+    }
+    sensor_ = data_->cameras[sensor_index];
+    sensor_context_ =
+        &WarmUpSensor(*data_->diagram, data_->context.get(), *sensor_);
+
+    const auto& camera = sensor_->GetColorRenderCamera(*sensor_context_);
+
+    image_.resize(camera.core().intrinsics().width(),
+                  camera.core().intrinsics().height());
+  }
+
+ protected:
+  void RenderImage(::benchmark::State& state) {
+    reset();  // The timers.
+    for (auto _ : state) {
+      startTimer(request_timer_);
+      image_ = sensor_->color_image_output_port().Eval<ImageRgba8U>(
+          *sensor_context_);
+      stopTimer(request_timer_);
+    }
+  }
+
+  struct ArgProfiler {
+    std::string name;
+    benchmark::IterationCount iterations;
+    std::string table;
+  };
+
+  const BenchmarkData* data_;
+  const RgbdSensor* sensor_{nullptr};
+  const Context<double>* sensor_context_{nullptr};
+  ImageRgba8U image_;
+  common::TimerIndex request_timer_{};
+  std::vector<ArgProfiler> profilers_;
+};
+
+BENCHMARK_DEFINE_F(LbmBenchmark, RenderTest)(benchmark::State& state) {
+  RenderImage(state);
+}
+BENCHMARK_REGISTER_F(LbmBenchmark, RenderTest)
+    ->Unit(benchmark::kMillisecond)
+    ->ArgsProduct({
+        {0 /*, 1*/},    // 0: vtk, 1: gl
+        {0, 1, 2, 3, 4, 5}, // camera index
+    });
+
 #endif
 
 }  // namespace
