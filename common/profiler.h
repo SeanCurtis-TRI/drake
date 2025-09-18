@@ -38,6 +38,8 @@ class Timer {
    @tparam Units  the units in which the elapsed time will be reported.  */
   template <typename Units>
   double elapsed() const {
+    static_assert(std::chrono::high_resolution_clock::is_steady,
+                  "Timer relies on a steady clock");
     auto end = std::chrono::high_resolution_clock::now();
     return std::chrono::duration<double, Units>(end - start_).count();
   }
