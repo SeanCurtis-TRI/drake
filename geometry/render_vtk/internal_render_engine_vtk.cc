@@ -501,7 +501,7 @@ void RenderEngineVtk::DoRenderColorImage(const ColorRenderCamera& camera,
   UpdateWindow(shadow_camera.core(), shadow_camera.show_window(),
                *pipelines_[ImageType::kColor], "Color Image");
   stopTimer(setup);
-  // The actual "render" timing is happening inside PerformVtkUpdate.
+  // To facilitate timing breakdown, we've copy-pastad PerformVtkUpdate here.
   // PerformVtkUpdate(*pipelines_[ImageType::kColor]);
 
   {
@@ -1220,11 +1220,8 @@ void RenderEngineVtk::SetDepthShader(vtkActor* actor) {
 }
 
 void RenderEngineVtk::PerformVtkUpdate(const RenderingPipeline& p) {
-  static const TimerIndex render = addTimer("RenderEngineVtk::DoRenderColorImage - render");
-  startTimer(render);
   p.window->Render();
   p.window->WaitForCompletion();
-  stopTimer(render);
   p.filter->Modified();
   p.filter->Update();
 }
