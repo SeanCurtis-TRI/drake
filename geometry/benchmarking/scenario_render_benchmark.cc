@@ -45,11 +45,14 @@ using geometry::RenderEngineVtkParams;
 using geometry::Rgba;
 using geometry::SceneGraphConfig;
 using geometry::render::LightParameter;
+using math::RigidTransformd;
 using multibody::AddMultibodyPlant;
+using multibody::ModelInstanceIndex;
 using multibody::MultibodyPlant;
 using multibody::MultibodyPlantConfig;
 using multibody::PackageMap;
 using multibody::Parser;
+using multibody::RigidBody;
 using systems::Context;
 using systems::Diagram;
 using systems::DiagramBuilder;
@@ -88,6 +91,9 @@ struct BenchmarkData {
   std::vector<const RgbdSensor*> cameras;
   int num_geometries = 0;
   std::unique_ptr<Context<double>> context{};
+  const RigidBody<double>* manipuland{};
+  RigidTransformd X_PB_reference;
+  MultibodyPlant<double>* plant{};
 };
 
 /* Return a set of render engine parameters of the requested type.
@@ -169,10 +175,23 @@ BenchmarkData ConfigureSimulation(std::string_view lbm_package_dir,
   parser.package_map().Add("lbm_eval_models", lbm_package_dir);
   parser.AddModelsFromUrl(std::string(robot_sdf));
   // TODO: Load manipulands on table.
-  parser.AddModels(FindResourceOrThrow(
-      "drake/geometry/benchmarking/manipulands.dmd.yaml"));
+  parser.AddModels(
+      FindResourceOrThrow("drake/geometry/benchmarking/manipulands.dmd.yaml"));
 
   plant.Finalize();
+
+  // We'll use the first manipuland for benchmarking.
+  ModelInstanceIndex model_instance = plant.GetModelInstanceByName("orange");
+  const auto& body =
+      plant.GetRigidBodyByName("fake_ycb_orange", model_instance);
+  const auto X_PB = plant.GetDefaultFreeBodyPose(body);
+  BenchmarkData data{
+    .num_geometries = scene_graph.model_inspector().NumGeometriesWithRole(
+        geometry::Role::kPerception),
+    .manipuland = &body,
+    .X_PB_reference = X_PB,
+    .plant = &plant,
+  };
 
   lcm::DrakeLcm lcm(systems::lcm::LcmBuses::kLcmUrlMemqNull);
   if (FLAGS_visualize) {
@@ -193,10 +212,6 @@ BenchmarkData ConfigureSimulation(std::string_view lbm_package_dir,
     throw std::runtime_error(
         "The --engine flag must be set to either 'vtk' or 'gl'.");
   }
-  BenchmarkData data{
-    .num_geometries = scene_graph.model_inspector().NumGeometriesWithRole(
-        geometry::Role::kPerception),
-  };
   for (const auto& camera_config : config.cameras) {
     ApplyCameraConfig(camera_config, &builder, nullptr, nullptr, nullptr, &lcm);
     data.cameras.push_back(&builder.GetDowncastSubsystemByName<RgbdSensor>(
@@ -262,12 +277,17 @@ void RunBenchmarkOnCamera(BenchmarkData* data, const RgbdSensor& sensor) {
   auto& context = *data->context;
   const auto& diagram = *data->diagram;
   const auto& sensor_context = WarmUpSensor(diagram, &context, sensor);
+  auto& plant_context =
+      data->plant->GetMyMutableContextFromRoot(&context);
 
   // Now do the work. In the benchmark, this'll be in the benchmark loop.
   auto request_timer = addTimer("Image Request");
   ImageRgba8U color_image;
   for (int i = 0; i < FLAGS_N; ++i) {
     startTimer(request_timer);
+    RigidTransformd X_PB =
+        data->X_PB_reference * RigidTransformd(Vector3d(0.001 * i, 0, 0));
+    data->plant->SetFreeBodyPose(&plant_context, *data->manipuland, X_PB);
     color_image =
         sensor.color_image_output_port().Eval<ImageRgba8U>(sensor_context);
     stopTimer(request_timer);
