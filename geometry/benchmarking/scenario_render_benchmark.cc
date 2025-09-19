@@ -70,6 +70,7 @@ DEFINE_string(save_image_path, "",
               "Enables saving rendered images in the given location");
 DEFINE_string(engine, "vtk", "'vtk' or 'gl'");
 DEFINE_bool(visualize, false, "If true, meshcat visualization is enabled.");
+DEFINE_bool(shadows_off, false, "If true, shadows are disabled.");
 
 std::string_view robot_sdf =
     "package://lbm_eval_models/stations/cabot/add_cabot_simulation.dmd.yaml";
@@ -126,7 +127,7 @@ RenderEngineParams GetRenderEngineParams(const PackageMap& package_map) {
             EnvironmentMap{.skybox = true,
                            .texture = EquirectangularMap{.path = env_map_path}},
         .exposure = 0.4,
-        .cast_shadows = true,
+        .cast_shadows = !FLAGS_shadows_off,
         .shadow_map_size = 1024,
     };
   } else {
