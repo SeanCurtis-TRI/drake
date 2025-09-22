@@ -88,7 +88,9 @@ std::unique_ptr<RenderEngine> MakeEngine(
         .default_clear_color = bg_rgb,
         .lights = lights,
         .cast_shadows = enable_shadows,
-        .shadow_map_size = fixture_params.shadow_map_size};
+        .shadow_map_size = fixture_params.shadow_map_size,
+        .backend = "GLX",
+      };
     return MakeRenderEngineVtk(params);
   }
   if constexpr (engine_type == EngineType::Gl) {
