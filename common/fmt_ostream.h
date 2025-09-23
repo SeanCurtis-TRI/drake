@@ -28,6 +28,12 @@ namespace internal {
 template <typename T>
 struct streamed_ref {
   const T& ref;
+
+  // This gives DRAKE_THROW_UNLESS(..., fmt_streamed(x), ...) the ability to
+  // handle fmt_streamed(x) as a value expression.
+  std::string to_string() const {
+    return fmt::to_string(ref);
+  }
 };
 }  // namespace internal
 template <typename T>

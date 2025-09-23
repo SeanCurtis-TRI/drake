@@ -16,6 +16,12 @@ template <typename Scalar>
 struct fmt_eigen_ref {
   Eigen::Ref<const Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic>>
       matrix;
+
+  // This gives DRAKE_THROW_UNLESS(..., fmt_eigen(x), ...) the ability to
+  // handle fmt_eigen(x) as a value expression.
+  std::string to_string() const {
+    return fmt::to_string(*this);
+  }
 };
 
 /* Returns the string formatting of the given matrix.
