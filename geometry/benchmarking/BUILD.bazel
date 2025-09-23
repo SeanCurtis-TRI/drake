@@ -126,6 +126,7 @@ drake_cc_googlebench_binary(
         "@drake_models",
         ":lbm_config.yaml",
         ":manipulands.dmd.yaml",
+        ":render_files",
     ],
     deps = [
         "//common:find_resource",
@@ -153,6 +154,7 @@ drake_cc_binary(
         "@drake_models",
         ":lbm_config.yaml",
         ":manipulands.dmd.yaml",
+        ":render_files",
     ],
     deps = [
         "//common:find_resource",

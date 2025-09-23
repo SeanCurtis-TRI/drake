@@ -1,5 +1,6 @@
 #include <filesystem>
 #include <iostream>
+#include <optional>
 #include <string>
 
 #ifndef RUN_AS_BINARY
@@ -40,9 +41,11 @@ namespace fs = std::filesystem;
 using Eigen::Vector3d;
 using geometry::EnvironmentMap;
 using geometry::EquirectangularMap;
+using geometry::Obb;
 using geometry::RenderEngineGlParams;
 using geometry::RenderEngineVtkParams;
 using geometry::Rgba;
+using geometry::Role;
 using geometry::SceneGraphConfig;
 using geometry::render::LightParameter;
 using math::RigidTransformd;
@@ -71,6 +74,7 @@ DEFINE_string(save_image_path, "",
 DEFINE_string(engine, "vtk", "'vtk' or 'gl'");
 DEFINE_bool(visualize, false, "If true, meshcat visualization is enabled.");
 DEFINE_bool(shadows_off, false, "If true, shadows are disabled.");
+DEFINE_bool(all_spheres, false, "If true, replaces *all* geometries with spheres.");
 
 std::string_view robot_sdf =
     "package://lbm_eval_models/stations/cabot/add_cabot_simulation.dmd.yaml";
@@ -180,6 +184,20 @@ BenchmarkData ConfigureSimulation(std::string_view lbm_package_dir,
       FindResourceOrThrow("drake/geometry/benchmarking/manipulands.dmd.yaml"));
 
   plant.Finalize();
+
+  if (FLAGS_all_spheres) {
+    const fs::path sphere_path = FindResourceOrThrow(
+        "drake/geometry/benchmarking/multi_texture_sphere.gltf");
+    const auto& inspector = scene_graph.model_inspector();
+    for (const auto& id : inspector.GetAllGeometryIds(Role::kPerception)) {
+      const std::optional<Obb> maybe_obb = inspector.GetObbInGeometryFrame(id);
+      DRAKE_DEMAND(maybe_obb.has_value());
+      RigidTransformd X_PG = inspector.GetPoseInFrame(id) * maybe_obb->pose();
+      scene_graph.ChangeShape(
+          *plant.get_source_id(), id,
+          geometry::Mesh(sphere_path, maybe_obb->half_width()), X_PG);
+    }
+  }
 
   // We'll use the first manipuland for benchmarking.
   ModelInstanceIndex model_instance = plant.GetModelInstanceByName("orange");
