@@ -1,6 +1,7 @@
 #include "drake/visualization/inertia_visualizer.h"
 
 #include <algorithm>
+#include <functional>
 #include <limits>
 #include <memory>
 
@@ -16,18 +17,43 @@ using geometry::IllustrationProperties;
 using geometry::Rgba;
 using geometry::SceneGraph;
 using math::RigidTransform;
+using multibody::MultibodyPlant;
+using multibody::RigidBody;
 using multibody::SpatialInertia;
 using systems::Context;
 using systems::DiagramBuilder;
 
-template <typename T>
-InertiaVisualizer<T>::InertiaVisualizer(
-    const multibody::MultibodyPlant<T>& plant, SceneGraph<T>* scene_graph) {
-  DRAKE_THROW_UNLESS(scene_graph != nullptr);
-  source_id_ = scene_graph->RegisterSource("inertia_visualizer");
+namespace {
+// Maps a value x in [minimum, maximum] to a color in the plasma colormap.
+Rgba MapPlasmaColor(double minimum, double maximum, double x) {
+  // Clamp and normalize x to [0, 1]
+  double t = (maximum > minimum) ? (x - minimum) / (maximum - minimum) : 0.0;
+  t = std::min(std::max(t, 0.0), 1.0);
+  // Plasma colormap approximation (from matplotlib's plasma)
+  // See: https://github.com/BIDS/colormap/blob/master/colormaps.py
+  double r = std::clamp(2.0 * t - 1.5 * t * t, 0.0, 1.0);
+  double g = std::clamp(0.5 * t + 0.5 * t * t, 0.0, 1.0);
+  double b = std::clamp(1.0 - t + 0.5 * t * t, 0.0, 1.0);
+  // These are not exact, but provide a reasonable plasma-like gradient.
+  return Rgba{r, g, b, 1.0};
+}
 
-  // For all MbP bodies, except for those welded to the world ...
-  const std::vector<const multibody::RigidBody<T>*> world_bodies =
+IllustrationProperties MakeProperties(const Rgba& rgba = Rgba(0, 0, 1)) {
+  IllustrationProperties props;
+  props.AddProperty("meshcat", "accepting", "inertia");
+  // We set inherent opacity (alpha) to 1. This means if InertiaVisualizer is
+  // used in a viewer without a slider control for opacity, the inertia
+  // geometry will be permanently visible (but does allow us to use
+  props.AddProperty("phong", "diffuse", rgba);
+  return props;
+}
+
+// Iterates through the bodies in a consistent way, skipping those welded to the
+// world body. For all other bodies, the functor is invoked.
+template <typename T>
+void ProcessBodies(const MultibodyPlant<T>& plant,
+                   std::function<void(const RigidBody<T>&)> f) {
+  const std::vector<const RigidBody<T>*> world_bodies =
       plant.GetBodiesWeldedTo(plant.world_body());
   const int num_bodies = plant.num_bodies();
   for (multibody::BodyIndex i{0}; i < num_bodies; ++i) {
@@ -41,12 +67,39 @@ InertiaVisualizer<T>::InertiaVisualizer(
     if (welded) {
       continue;
     }
-    const multibody::RigidBody<T>& body = plant.get_body(i);
+    f(plant.get_body(i));
+  }
+}
 
+}  // namespace
+
+template <typename T>
+InertiaVisualizer<T>::InertiaVisualizer(
+    const MultibodyPlant<T>& plant, SceneGraph<T>* scene_graph) {
+  DRAKE_THROW_UNLESS(scene_graph != nullptr);
+  source_id_ = scene_graph->RegisterSource("inertia_visualizer");
+
+  double min_mass = std::numeric_limits<double>::infinity();
+  double max_mass = -std::numeric_limits<double>::infinity();
+  auto plant_context = plant.CreateDefaultContext();
+  auto get_mass = [&plant, &plant_context](const RigidBody<T>& body) {
+    const SpatialInertia<T> M_BBo_B =
+        body.CalcSpatialInertiaInBodyFrame(*plant_context);
+    return ExtractDoubleOrThrow(M_BBo_B.get_mass());
+  };
+  ProcessBodies<T>(plant,
+                [&min_mass, &max_mass, &get_mass](const RigidBody<T>& body) {
+                  const double mass = get_mass(body);
+                  if (mass < min_mass) min_mass = mass;
+                  if (mass > max_mass) max_mass = mass;
+                });
+
+  auto make_item = [this, &plant, &scene_graph, min_mass, max_mass,
+                    &get_mass](const RigidBody<T>& body) {
     // Add a Bcm geometry frame.
     Item item;
-    item.body = i;
-    item.Bo_frame = plant.GetBodyFrameIdIfExists(i).value();
+    item.body = body.index();
+    item.Bo_frame = plant.GetBodyFrameIdIfExists(body.index()).value();
     item.Bcm_frame = scene_graph->RegisterFrame(
         source_id_, SceneGraph<T>::world_frame_id(),
         GeometryFrame{fmt::format(
@@ -59,26 +112,18 @@ InertiaVisualizer<T>::InertiaVisualizer(
     auto ellipsoid = std::make_unique<Ellipsoid>(0.001, 0.001, 0.001);
     auto geom = std::make_unique<GeometryInstance>(
         RigidTransform<double>(), std::move(ellipsoid),
-        fmt::format("$inertia({})", i));
-    IllustrationProperties props;
-    props.AddProperty("meshcat", "accepting", "inertia");
-    // TODO(trowell-tri) This color is a placeholder until texturing is added.
-
-    // We set inherent opacity (alpha) to 1. This means if InertiaVisualizer is
-    // used in a viewer without a slider control for opacity, the inertia
-    // geometry will be permanently visible (but does allow us to use
-    // meshcat.js's "modulated_opacity" property to manage its opacity
-    // in a manner consistent with MeshcatVisualizer).
-    props.AddProperty("phong", "diffuse", Rgba{0.0, 0.0, 1.0, 1.0});
-    geom->set_illustration_properties(std::move(props));
+        fmt::format("$inertia({})", body.index()));
+    geom->set_illustration_properties(MakeProperties(
+        MapPlasmaColor(min_mass, max_mass, get_mass(body))));
     item.geometry = scene_graph->RegisterGeometry(source_id_, item.Bcm_frame,
                                                   std::move(geom));
     items_.push_back(std::move(item));
-  }
+  };
+  ProcessBodies<T>(plant, make_item);
 
   // Update the geometry information to reflect the initial inertia values
   // from the plant.
-  UpdateItems(plant, *plant.CreateDefaultContext(), scene_graph);
+  UpdateItems(plant, *plant_context, scene_graph);
 
   this->DeclareAbstractInputPort("plant_geometry_pose",
                                  Value<FramePoseVector<T>>());
@@ -93,7 +138,7 @@ InertiaVisualizer<T>::InertiaVisualizer(const InertiaVisualizer<U>& other)
 
 template <typename T>
 const InertiaVisualizer<T>& InertiaVisualizer<T>::AddToBuilder(
-    DiagramBuilder<T>* builder, const multibody::MultibodyPlant<T>& plant,
+    DiagramBuilder<T>* builder, const MultibodyPlant<T>& plant,
     SceneGraph<T>* scene_graph) {
   DRAKE_THROW_UNLESS(builder != nullptr);
   DRAKE_THROW_UNLESS(scene_graph != nullptr);
@@ -114,10 +159,10 @@ InertiaVisualizer<T>::~InertiaVisualizer() = default;
 // changes in the plant.
 template <typename T>
 void InertiaVisualizer<T>::UpdateItems(
-    const multibody::MultibodyPlant<T>& plant, const Context<T>& plant_context,
+    const MultibodyPlant<T>& plant, const Context<T>& plant_context,
     SceneGraph<T>* scene_graph) {
   for (auto& item : items_) {
-    const multibody::RigidBody<T>& body = plant.get_body(item.body);
+    const RigidBody<T>& body = plant.get_body(item.body);
 
     auto [ellipsoid, X_BBcm] =
         internal::CalculateInertiaGeometry(body, plant_context);
@@ -147,59 +192,35 @@ namespace internal {
 // to match the body's mass.
 template <typename T>
 std::pair<Ellipsoid, RigidTransform<double>> CalculateInertiaGeometry(
-    const multibody::RigidBody<T>& body, const Context<T>& plant_context) {
+    const RigidBody<T>& body, const Context<T>& plant_context) {
   // Interrogate the plant context for the spatial inertia of body B about its
   // origin Bo, expressed in body frame B.
   const SpatialInertia<T> M_BBo_B =
       body.CalcSpatialInertiaInBodyFrame(plant_context);
 
-  // For a massless body, use a very tiny sphere (though expressed as an
-  // ellipsoid for consistency).
-  const double mass = ExtractDoubleOrThrow(M_BBo_B.get_mass());
-  if (mass == 0) {
-    const double radius = 0.001;
-    return std::make_pair(
-        Ellipsoid(radius, radius, radius),
-        RigidTransform<double>(ExtractDoubleOrThrow(M_BBo_B.get_com())));
-  }
-
-  // Find the equivalent solid ellipsoid E for M_BBo_B, as described by an
-  // assumed density, a computed pose X_BE, and computed semi-major axes
-  // (a, b, c). Note that Eo is the same point as Bcm.
   RigidTransform<double> X_BE;
   Vector3<double> radii;
   std::tie(radii, X_BE) =
       M_BBo_B.CalcPrincipalSemiDiametersAndPoseForSolidEllipsoid();
-  const double max_radius = radii.maxCoeff();
-  Vector3d abc;
-  if (max_radius == 0.0) {
-    // A point mass has no volume, so all radii will be zero. We still need to
-    // visualize it with *something*. So, we'll pick a sphere whose radius is
-    // proportional to its mass; specifically, with the constraint that a 1-kg
-    // mass gets a 6.2-cm radius. 6.2 cm is the radius of a 1-kg sphere of
-    // water.
-    abc = Vector3d::Constant(std::cbrt(mass) * 0.062);
+  // Everything must be visualized; so we need a 3D shape from what may possible
+  // be a 2D, 1D, or 0D inertia. So, we'll enforce that all measures are a
+  // minimum size.
+  radii = radii.array().max(0.001);
+
+  // For a massless body, use a very tiny sphere (though expressed as an
+  // ellipsoid for consistency).
+  const double mass = ExtractDoubleOrThrow(M_BBo_B.get_mass());
+  if (mass == 0) {
     return std::make_pair(
-        Ellipsoid(abc),
+        Ellipsoid(radii),
         RigidTransform<double>(ExtractDoubleOrThrow(M_BBo_B.get_com())));
   }
 
-  // At least one measure is non-zero. An ellipsoid that has one of its
-  // diameters >100x greater than another one does not render well on the
-  // screen, so we'll make sure no dimension of this unit inertia's ellipsoid
-  // is smaller than 1/100 of its maximum dimension.
+  // An ellipsoid that has one of its diameters >100x greater than another one
+  // does not render well on the screen, so we'll make sure no dimension of this
+  // unit inertia's ellipsoid is smaller than 1/100 of its maximum dimension.
   radii = radii.array().max(1e-2 * radii.maxCoeff());
-
-  // Assuming the ~density of water for the visualization ellipsoid, scale up
-  // the ellipsoid representation of the unit inertia to have a volume that
-  // matches the body's actual mass, so that our ellipsoid actually has the
-  // same inertia as M_BBo_B. (We're illustrating M_BBo, not G_BBo.)
-  const double density = 1000.0;
-  const double unit_inertia_ellipsoid_mass =
-      density * (4.0 / 3.0) * M_PI * radii(0) * radii(1) * radii(2);
-  const double volume_scale = mass / unit_inertia_ellipsoid_mass;
-  abc = radii * std::cbrt(volume_scale);
-  return std::make_pair(Ellipsoid(abc), X_BE);
+  return std::make_pair(Ellipsoid(radii), X_BE);
 }
 
 DRAKE_DEFINE_FUNCTION_TEMPLATE_INSTANTIATIONS_ON_DEFAULT_SCALARS(
