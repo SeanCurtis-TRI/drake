@@ -179,7 +179,7 @@ def _resolve_drake_abbreviation(name, label_str):
 
 def vtk_internal_repository(
         name,
-        local_repository_override = None,
+        local_repository_override = "/home/seancurtis/code/VTK",
         repository = "Kitware/VTK",
         commit = "23daad7b687725f22b1b5e24e3ac5f1042658c92",
         sha256 = "bfd3f93e11bd3bb7f4780c33ecf632a9df9db7b05cd9be8e91dbf3ed9653c238",  # noqa

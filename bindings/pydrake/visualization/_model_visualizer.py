@@ -430,6 +430,7 @@ class ModelVisualizer:
                 # Pop up a local window.
                 camera_config.show_rgb = True
                 camera_config.renderer_class = RenderEngineVtkParams()
+                camera_config.renderer_class.exposure = 1
                 if self._environment_map.is_file():
                     camera_config.renderer_class.environment_map = EnvironmentMap(
                         skybox=True,

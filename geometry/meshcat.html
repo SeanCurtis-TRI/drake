@@ -245,6 +245,69 @@
     }
     <!-- CONNECTION BLOCK END -->
 
+    viewer.renderer.toneMapping = 0; // 2;
+
+    function tail(s) {
+      const allLines = s.split(`\n`);
+        return allLines.slice(-20).join('\n');
+    };
+
+    function print_fs() {
+      mesh = viewer.scene.children[6].children[0].children[0].children[0].children[0].children[0].children[0].children[0];
+      renderer = viewer.renderer;
+      const gl = renderer.getContext();
+      const materialProperties = renderer.properties.get(mesh.material);
+      if (materialProperties && materialProperties.programs) {
+        for (const programInfo of materialProperties.programs) {
+            const program = programInfo[0]; // The actual WebGLProgram
+            const fragmentShader = programInfo[1].fragmentShader;
+
+            console.log("--- Fragment Shader Source ---");
+            console.log(tail(gl.getShaderSource(fragmentShader)));
+            // We'll stop at the first. 
+            // break;
+        }
+      } else {
+        console.warn("Could not find shader programs for this material.");
+      }
+    };
+
+    function tweak(color = undefined) {
+      // TODO: I want to isolate the multiscattering effects. I should swap out
+      // the definition of `computeMultiScattering to simply return .... what?
+      if (color === undefined) {
+        color = "iblIrradiance * RECIPROCAL_PI";
+      }
+      for (let i = 0; i < 4; ++i) {
+      mesh = viewer.scene.children[6].children[0].children[0].children[0].children[0].children[0].children[0].children[i];
+      mesh.material.onBeforeCompile = (shader) => {
+        console.log("Before modification");
+        console.log(tail(shader.fragmentShader));
+        const suffix = ' // TRI_MOD';
+        let new_color = 'gl_FragColor = vec4(' + color + ', 1);' + suffix;
+        const lines = shader.fragmentShader.split('\n');
+        for (let i = 0; i < lines.length; ++i) {
+          if (lines[i].includes('#include <dithering_fragment>')  ||
+              lines[1].endsWith(suffix)) {
+                lines[i] = new_color;
+                break;
+              }
+        }
+        shader.fragmentShader = lines.join('\n');
+        // Note: There are still a number of includes that haven't been replaced when this gets called.
+        // TODO: Change this so that I'm either swapping the dithering or I'm looking for a line with a special suffix and replacing that.
+        // shader.fragmentShader = shader.fragmentShader.replace(
+        //     '#include <dithering_fragment>', new_color);
+        // shader.fragmentShader = shader.fragmentShader.replace(
+        //     'gl_FragColor = linearToOutputTexel( gl_FragColor );', new_color);
+        console.log("After modification");
+        console.log(tail(shader.fragmentShader));
+      };
+      mesh.material.needsUpdate = true;
+    }
+    };
+
+
   </script>
 
   <style>
