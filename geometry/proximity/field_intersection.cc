@@ -215,6 +215,61 @@ bool IsPlaneNormalAlongPressureGradient(
   return cos_theta > kCosAlpha;
 }
 
+namespace {
+
+// An accumulator for tet candidate pairs. This facilitates the logic for
+// identifying unique pairs and further validates the pairs (beyond the AABB
+// overlap test) before accepting them as candidates for intersection testing.
+template <bool DistinguishUniquePairs>
+class CandidateAccumulator {
+ public:
+  // Provide access to the fields for validation; they will be aliased.
+  CandidateAccumulator(const VolumeMeshFieldLinear<double, double>* field0,
+                       const VolumeMeshFieldLinear<double, double>* field1)
+      : field0_(*field0), field1_(*field1) {
+    DRAKE_DEMAND(field0 != nullptr);
+    DRAKE_DEMAND(field1 != nullptr);
+  }
+
+  void RegisterCandidate(int tet0, int tet1) {
+    std::pair<int, int> tet_pair(tet0, tet1);
+    if constexpr (DistinguishUniquePairs) {
+      if (visited_.contains(tet_pair)) {
+        return;
+      }
+      visited_.insert(tet_pair);
+    }
+    // Confirm the pressure ranges overlap within the domains of the tets.
+    if ((field0_.min_values()[tet0] <= field1_.max_values()[tet1]) &&
+        (field1_.min_values()[tet1] <= field0_.max_values()[tet0])) {
+      candidates_.emplace_back(tet_pair);
+    }
+  }
+
+  const std::vector<std::pair<int, int>>& candidates() const {
+    return candidates_;
+  }
+
+  // Returns true if there is no candidate stored.
+  bool empty() const { return candidates_.empty(); }
+
+  // Removes a candidate from the set and returns it..
+  std::pair<int, int> pop_candidate() {
+    const std::pair<int, int> pair = candidates_.back();
+    candidates_.pop_back();
+    return pair;
+  }
+
+ private:
+  const VolumeMeshFieldLinear<double, double>& field0_;
+  const VolumeMeshFieldLinear<double, double>& field1_;
+
+  std::vector<std::pair<int, int>> candidates_;
+  std::unordered_set<std::pair<int, int>, TetPairHasher> visited_;
+};
+
+}  // namespace
+
 template <class MeshBuilder, class BvType>
 void VolumeIntersector<MeshBuilder, BvType>::IntersectFields(
     const VolumeMeshFieldLinear<double, double>& field0_M,
@@ -231,10 +286,10 @@ void VolumeIntersector<MeshBuilder, BvType>::IntersectFields(
   tet0_of_contact_polygon_.clear();
   tet1_of_contact_polygon_.clear();
 
-  std::vector<std::pair<int, int>> candidate_tetrahedra;
-  auto callback = [&candidate_tetrahedra](int tet0,
-                                          int tet1) -> BvttCallbackResult {
-    candidate_tetrahedra.emplace_back(tet0, tet1);
+  // False template param; we don't need to test for unique tet pairs.
+  CandidateAccumulator<false> accumulator(&field0_M, &field1_N);
+  auto callback = [&accumulator](int tet0, int tet1) -> BvttCallbackResult {
+    accumulator.RegisterCandidate(tet0, tet1);
     return BvttCallbackResult::Continue;
   };
 
@@ -242,7 +297,7 @@ void VolumeIntersector<MeshBuilder, BvType>::IntersectFields(
 
   MeshBuilder builder_M;
   const math::RotationMatrix<T> R_NM = X_MN.rotation().inverse();
-  for (const auto& [tet0, tet1] : candidate_tetrahedra) {
+  for (const auto& [tet0, tet1] : accumulator.candidates()) {
     CalcContactPolygon(field0_M, field1_N, X_MN, R_NM, tet0, tet1, &builder_M);
   }
 
@@ -273,21 +328,16 @@ void VolumeIntersector<MeshBuilder, BvType>::IntersectFields(
 
   const math::RigidTransform<double> X_MNd = convert_to_double(X_MN);
 
-  // Keep track of pairs of tet indices that have already been inserted into the
-  // queue.
-  std::unordered_set<std::pair<int, int>, TetPairHasher> visited_pairs;
-
-  std::queue<std::pair<int, int>> candidate_tetrahedra;
-  auto callback = [&candidate_tetrahedra, &visited_pairs, &tri_to_tet_M,
+  // True template param; we _do_ need to test for unique tet pairs.
+  CandidateAccumulator<true> accumulator(&field0_M, &field1_N);
+  auto callback = [&accumulator, &tri_to_tet_M,
                    &tri_to_tet_N](int tri0, int tri1) -> BvttCallbackResult {
     DRAKE_ASSERT(0 <= tri0 && tri0 < ssize(tri_to_tet_M));
     DRAKE_ASSERT(0 <= tri1 && tri1 < ssize(tri_to_tet_N));
     std::pair<int, int> tet_pair(tri_to_tet_M[tri0].tet_index,
                                  tri_to_tet_N[tri1].tet_index);
-    if (!visited_pairs.contains(tet_pair)) {
-      candidate_tetrahedra.push(tet_pair);
-      visited_pairs.insert(tet_pair);
-    }
+
+    accumulator.RegisterCandidate(tet_pair.first, tet_pair.second);
     return BvttCallbackResult::Continue;
   };
 
@@ -298,7 +348,7 @@ void VolumeIntersector<MeshBuilder, BvType>::IntersectFields(
   // a non-empty contact polygon.
   bvh0_M.Collide(bvh1_N, X_MNd, callback);
 
-  if (candidate_tetrahedra.empty()) return;
+  if (accumulator.empty()) return;
 
   MeshBuilder builder_M;
   const math::RotationMatrix<T> R_NM = X_MN.rotation().inverse();
@@ -307,17 +357,12 @@ void VolumeIntersector<MeshBuilder, BvType>::IntersectFields(
   std::vector<int> faces;
 
   // Traverse all overlapping tet pairs and generate contact polygons.
-  while (!candidate_tetrahedra.empty()) {
-    const std::pair<int, int> pair = candidate_tetrahedra.front();
-    candidate_tetrahedra.pop();
+  while (!accumulator.empty()) {
+    const auto& [tetM, tetN]= accumulator.pop_candidate();
 
-    const auto& [tetM, tetN] = pair;
     // If a pair makes it into the queue, their pressure ranges intersect. But,
     // they may or may not overlap. If they do not overlap and produce a contact
-    // surface, we do not have to process any neighbors. Note: the initial set
-    // of candidate tets are all boundary tets, so their pressure ranges
-    // necessarily intersect because they all contain 0 and are thus inserted
-    // without checking range intersection.
+    // surface, we do not have to process any neighbors.
     faces = CalcContactPolygon(field0_M, field1_N, X_MN, R_NM, tetM, tetN,
                                &builder_M);
 
@@ -337,16 +382,7 @@ void VolumeIntersector<MeshBuilder, BvType>::IntersectFields(
         // neighbor and tetN's pressure ranges intersect necessarily (the equal
         // pressure plane intersects a face of neighbor). They may overlap
         // spatially as well, so try to insert them into the queue.
-        std::pair<int, int> neighbor_pair(neighborM, tetN);
-
-        // If this candidate pair has already been checked, continue.
-        if (visited_pairs.contains(neighbor_pair)) {
-          continue;
-        }
-
-        candidate_tetrahedra.push(neighbor_pair);
-        visited_pairs.insert(neighbor_pair);
-
+        accumulator.RegisterCandidate(neighborM, tetN);
       } else {
         // face ∈ [4, 7], thus face - 4 is a face of tetN.
         int neighborN = mesh_topology_N.neighbor(tetN, face - 4);
@@ -356,15 +392,7 @@ void VolumeIntersector<MeshBuilder, BvType>::IntersectFields(
         // neighbor and tetM's pressure ranges intersect necessarily (the equal
         // pressure plane intersects a face of neighbor). They may overlap
         // spatially as well, so try to insert them into the queue.
-        std::pair<int, int> neighbor_pair(tetM, neighborN);
-
-        // If this candidate pair has already been checked, continue.
-        if (visited_pairs.contains(neighbor_pair)) {
-          continue;
-        }
-
-        candidate_tetrahedra.push(neighbor_pair);
-        visited_pairs.insert(neighbor_pair);
+        accumulator.RegisterCandidate(tetM, neighborN);
       }
     }
   }
