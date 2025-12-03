@@ -11,6 +11,7 @@
 #include <utility>
 #include <vector>
 
+#include "drake/common/drake_assert.h"
 #include "drake/geometry/proximity/polygon_surface_mesh.h"
 #include "drake/geometry/proximity/polygon_surface_mesh_field.h"
 #include "drake/geometry/proximity/triangle_surface_mesh.h"
@@ -57,7 +58,87 @@ class TriMeshBuilder {
   using MeshType = TriangleSurfaceMesh<T>;
   using FieldType = TriangleSurfaceMeshFieldLinear<T, T>;
 
+  // Represents a viable intersection between two tets. In this case, it is a
+  // set of of triangles (with somewhere from 0 to 7 triangles).
+  class Intersection {
+   public:
+    Intersection() = default;
+
+    void AddVertex(const Vector3<T>& p_BV, const T& pressure) {
+      vertices_[vertex_count_] = p_BV;
+      pressures_[vertex_count_] = pressure;
+      ++vertex_count_;
+    }
+
+    int vertex_count() const { return vertex_count_; }
+
+    const Vector3<T>& vertex(int i) const { return vertices_[i]; }
+
+    const T& pressure(int i) const { return pressures_[i]; }
+
+    int face_count() const { return face_index_ / 3; }
+
+    SurfaceTriangle face(int f, int vertex_offset) const {
+      DRAKE_DEMAND(f >= 0 && f < face_count());
+      const int i = f * 3;
+      return SurfaceTriangle(faces_[i] + vertex_offset,
+                             faces_[i + 1] + vertex_offset,
+                             faces_[i + 2] + vertex_offset);
+    }
+
+    void AddTriangle(int v0, int v1, int v2) {
+      DRAKE_DEMAND(v0 >= 0 && v0 < vertex_count_);
+      DRAKE_DEMAND(v1 >= 0 && v1 < vertex_count_);
+      DRAKE_THROW_UNLESS(v2 >= 0 && v2 < vertex_count_, v2, vertex_count_);
+      faces_[face_index_] = v0;
+      faces_[++face_index_] = v1;
+      faces_[++face_index_] = v2;
+      ++face_index_;
+    }
+
+    void SetTetIndices(int tet0, int tet1) {
+      tet0_ = tet0;
+      tet1_ = tet1;
+    }
+
+    int tet0() const { return tet0_; }
+    int tet1() const { return tet1_; }
+
+   private:
+    // The polygon itself can have up to 7 vertices, but then we add the
+    // centroid when we convert it to triangles.
+    static constexpr int kMaxVertices = 8;
+    // One triangle per edge (up to 7) of the intersection polygon.
+    static constexpr int kMaxFaces = 7;
+
+    // TODO(WIP): Change the algorithms so that we don't pass one vertex or one
+    // triangle at a time. Pass them all in a single call, and let this do the
+    // accumulation all at once. Better yet, write them directly into the
+    // memory so they don't have to be copied.
+
+    // The total number of set vertices. It can be less than kMaxVertices.
+    int vertex_count_{};
+    std::array<Vector3<T>, kMaxVertices> vertices_;
+    std::array<T, kMaxVertices> pressures_;
+
+    // Index to the next valid index to insert face data (triples of vertex
+    // indices). This is bookkeeping for calling AddTriangle() multiple times.
+    // Each triangle adds three entries and the final value can be less than
+    // kMaxFaces * 3.
+    int face_index_{};
+    std::array<int, kMaxFaces * 3> faces_;
+
+    int tet0_{-1};
+    int tet1_{-1};
+  };
+
   TriMeshBuilder() = default;
+
+  /* Initializes the mesh builder for parallel execution.
+   @param num_candidate_pairs  The total number of candidate pairs to consider.
+                               We'll reserve space for each candidate pair
+                               upon construction. */
+  explicit TriMeshBuilder(int num_candidate_pairs);
 
   /* Adds a vertex V (and its corresponding field value) to the mesh.
 
@@ -69,6 +150,10 @@ class TriMeshBuilder {
     vertices_B_.push_back(p_BV);
     pressures_.push_back(field_value);
     return static_cast<int>(vertices_B_.size() - 1);
+  }
+
+  void AddVertex(int i, const Vector3<T>& p_BV, const T& field_value) {
+    results_[i].AddVertex(p_BV, field_value);
   }
 
   /* Adds the polygon to the in-progress mesh. The polygon is defined by
@@ -89,15 +174,30 @@ class TriMeshBuilder {
   int AddPolygon(const std::vector<int>& polygon_vertices,
                  const Vector3<T>& nhat_B, const Vector3<T>& grad_e_MN_B);
 
+  Intersection& AddPolygon(int i, const Vector3<T>& nhat_B,
+                           const Vector3<T>& grad_e_MN_B);
+
   /* Returns the total number of vertices accumulated so far. */
   int num_vertices() const { return static_cast<int>(vertices_B_.size()); }
+
+  /* Reports if any faces have been defined. */
+  bool has_faces() const {
+    for (const auto& result : results_) {
+      if (result.face_count() > 0) {
+        return true;
+      }
+    }
+
+    return false;
+  }
 
   /* Returns the total number of faces added by calls to AddPolygon(). */
   int num_faces() const { return static_cast<int>(faces_.size()); }
 
   /* Create a mesh and field from the mesh data that has been aggregated by
    this builder. */
-  std::pair<std::unique_ptr<MeshType>, std::unique_ptr<FieldType>>
+  std::tuple<std::unique_ptr<MeshType>, std::unique_ptr<FieldType>,
+             std::vector<std::pair<int, int>>>
   MakeMeshAndField();
 
  private:
@@ -107,6 +207,8 @@ class TriMeshBuilder {
   std::vector<Vector3<T>> vertices_B_;
   /* The pressure values (e) of the surface being built. */
   std::vector<T> pressures_;
+
+  std::vector<Intersection> results_;
 };
 
 /* A MeshBuilder type to build a polygon surface mesh. The mesh is built
@@ -122,7 +224,68 @@ class PolyMeshBuilder {
   using MeshType = PolygonSurfaceMesh<T>;
   using FieldType = PolygonSurfaceMeshFieldLinear<T, T>;
 
+  class Intersection {
+   public:
+    Intersection() = default;
+
+    int vertex_count() const { return vertex_count_; }
+
+    const Vector3<T>& vertex(int i) const { return vertices_[i]; }
+
+    const T& pressure(int i) const { return pressures_[i]; }
+
+    void AddVertex(const Vector3<T>& p_BV, const T& pressure) {
+      vertices_[vertex_count_] = p_BV;
+      pressures_[vertex_count_] = pressure;
+      ++vertex_count_;
+    }
+
+    void AddPolygonToPolygonMeshData(std::vector<int>* face_data,
+                                     int vertex_offset) const {
+      DRAKE_DEMAND(face_data != nullptr);
+      DRAKE_DEMAND(vertex_offset >= 0);
+
+      const int vert_count = vertex_count();
+      face_data->push_back(vert_count);
+      for (int i = 0; i < vert_count; ++i) {
+        face_data->push_back(vertex_offset + i);
+      }
+    }
+
+    void SetGradient(const Vector3<T>& grad_e_MN_B) {
+      grad_e_MN_B_ = grad_e_MN_B;
+    }
+
+    const Vector3<T>& gradient() const { return grad_e_MN_B_; }
+
+    void SetTetIndices(int tet0, int tet1) {
+      tet0_ = tet0;
+      tet1_ = tet1;
+    }
+
+    int tet0() const { return tet0_; }
+    int tet1() const { return tet1_; }
+
+   private:
+    static constexpr int kMaxVertices = 7;
+    // The total number of set vertices. It can be less than kMaxVertices.
+    int vertex_count_{};
+    std::array<Vector3<T>, kMaxVertices> vertices_;
+    std::array<T, kMaxVertices> pressures_;
+
+    Vector3<T> grad_e_MN_B_;
+
+    int tet0_{-1};
+    int tet1_{-1};
+  };
+
   PolyMeshBuilder();
+
+  /* Initializes the mesh builder for parallel execution.
+   @param num_candidate_pairs  The total number of candidate pairs to consider.
+                               We'll reserve space for each candidate pair
+                               upon construction. */
+  explicit PolyMeshBuilder(int num_candidate_pairs);
 
   /* Adds a vertex V (and its corresponding field value) to the mesh.
 
@@ -134,6 +297,10 @@ class PolyMeshBuilder {
     vertices_B_.push_back(p_BV);
     pressures_.push_back(field_value);
     return static_cast<int>(vertices_B_.size() - 1);
+  }
+
+  void AddVertex(int i, const Vector3<T>& p_BV, const T& field_value) {
+    results_[i].AddVertex(p_BV, field_value);
   }
 
   /* Adds the polygon to the in-progress mesh. The polygon is defined by
@@ -154,15 +321,31 @@ class PolyMeshBuilder {
   int AddPolygon(const std::vector<int>& polygon_vertices,
                  const Vector3<T>& nhat_B, const Vector3<T>& grad_e_MN_B);
 
+  Intersection& AddPolygon(int i, const Vector3<T>& nhat_B,
+                           const Vector3<T>& grad_e_MN_B);
+
   /* Returns the total number of vertices accumulated so far. */
   int num_vertices() const { return static_cast<int>(vertices_B_.size()); }
 
   /* Returns the total number of faces added by calls to AddPolygon(). */
   int num_faces() const { return polygon_count_; }
 
+  /* Reports if any faces have been defined. */
+  bool has_faces() const {
+    for (const auto& result : results_) {
+      // A face is defined iff there are non-zero vertices.
+      if (result.vertex_count() > 0) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   /* Create a mesh and field from the mesh data that has been aggregated by
    this builder. */
-  std::pair<std::unique_ptr<MeshType>, std::unique_ptr<FieldType>>
+  std::tuple<std::unique_ptr<MeshType>, std::unique_ptr<FieldType>,
+             std::vector<std::pair<int, int>>>
   MakeMeshAndField();
 
   /* Expose the accumulated, per-face gradients for testing. */
@@ -175,6 +358,8 @@ class PolyMeshBuilder {
   const std::vector<Vector3<T>>& vertices() const { return vertices_B_; }
 
  private:
+  std::vector<Intersection> results_;
+
   /* The number of polygons that have been added. It can't simply be inferred
    from face_data_.size() because of the face encoding. */
   int polygon_count_{0};

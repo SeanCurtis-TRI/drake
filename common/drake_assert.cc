@@ -96,7 +96,8 @@ std::string StringifyErrorDetailValue(const T& value)
            std::is_same_v<T, int> || std::is_same_v<T, std::size_t> ||
            std::is_same_v<T, std::string> ||
            std::is_same_v<T, std::string_view> ||
-           std::is_same_v<T, const char*>)
+           std::is_same_v<T, const char*>||
+           std::is_same_v<T, int>)
 {
   if constexpr (std::is_floating_point_v<T>) {
     return fmt_floating_point(value);

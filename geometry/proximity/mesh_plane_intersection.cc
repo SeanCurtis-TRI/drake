@@ -290,7 +290,7 @@ ComputeContactSurface(
   // Construct the contact surface from the components.
   if (builder_W.num_faces() == 0) return nullptr;
 
-  auto [mesh_W, field_W] = builder_W.MakeMeshAndField();
+  auto [mesh_W, field_W, _] = builder_W.MakeMeshAndField();
 
   // SliceTetWithPlane promises to make the surface normals point in the plane
   // normal direction (i.e., out of the plane and into the mesh).

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -112,6 +113,63 @@ template <typename T>
 bool IsPlaneNormalAlongPressureGradient(
     const Vector3<T>& nhat_M, int tetrahedron,
     const VolumeMeshFieldLinear<double, double>& field0_M);
+
+struct TetPairHasher final {
+  std::size_t operator()(const std::pair<int, int>& p) const {
+    return std::hash<int>()(p.first) ^ std::hash<int>()(p.second);
+  }
+};
+
+// An accumulator for tet candidate pairs. This facilitates the logic for
+// identifying unique pairs and further validates the pairs (beyond the AABB
+// overlap test) before accepting them as candidates for intersection testing.
+template <bool DistinguishUniquePairs>
+class CandidateAccumulator {
+ public:
+  // Provide access to the fields for validation; they will be aliased.
+  CandidateAccumulator(const VolumeMeshFieldLinear<double, double>* field0,
+                       const VolumeMeshFieldLinear<double, double>* field1)
+      : field0_(*field0), field1_(*field1) {
+    DRAKE_DEMAND(field0 != nullptr);
+    DRAKE_DEMAND(field1 != nullptr);
+  }
+
+  void RegisterCandidate(int tet0, int tet1) {
+    std::pair<int, int> tet_pair(tet0, tet1);
+    if constexpr (DistinguishUniquePairs) {
+      if (visited_.contains(tet_pair)) {
+        return;
+      }
+      visited_.insert(tet_pair);
+    }
+    // Confirm the pressure ranges overlap within the domains of the tets.
+    if ((field0_.min_values()[tet0] <= field1_.max_values()[tet1]) &&
+        (field1_.min_values()[tet1] <= field0_.max_values()[tet0])) {
+      candidates_.emplace_back(tet_pair);
+    }
+  }
+
+  const std::vector<std::pair<int, int>>& candidates() const {
+    return candidates_;
+  }
+
+  // Returns true if there is no candidate stored.
+  bool empty() const { return candidates_.empty(); }
+
+  // Removes a candidate from the set and returns it..
+  std::pair<int, int> pop_candidate() {
+    const std::pair<int, int> pair = candidates_.back();
+    candidates_.pop_back();
+    return pair;
+  }
+
+ private:
+  const VolumeMeshFieldLinear<double, double>& field0_;
+  const VolumeMeshFieldLinear<double, double>& field1_;
+
+  std::vector<std::pair<int, int>> candidates_;
+  std::unordered_set<std::pair<int, int>, TetPairHasher> visited_;
+};
 
 /* %VolumeIntersector performs an intersection algorithm between two
  tetrahedral meshes with scalar fields to get a contact surface, on which
@@ -237,11 +295,15 @@ class VolumeIntersector {
   /* Returns the index of tetrahedron in the first mesh containing the
    i-th contact polygon.
    @pre IntersectFields() was called already.  */
-  int tet0_of_polygon(int i) const { return tet0_of_contact_polygon_[i]; }
+  int tet0_of_polygon(int i) const {
+    return contact_polygon_tet_indices_[i].first;
+  }
   /* Returns the index of tetrahedron in the second mesh containing the
    i-th contact polygon.
    @pre IntersectFields() was called already.  */
-  int tet1_of_polygon(int i) const { return tet1_of_contact_polygon_[i]; }
+  int tet1_of_polygon(int i) const {
+    return contact_polygon_tet_indices_[i].second;
+  }
 
  private:
   /* Internal function to process a possible contact between two tetrahedra
@@ -272,11 +334,16 @@ class VolumeIntersector {
       const VolumeMeshFieldLinear<double, double>& field1_N,
       const math::RigidTransform<T>& X_MN, const math::RotationMatrix<T>& R_NM,
       int tet0, int tet1, MeshBuilder* builder_M);
+  void CalcContactPolygon(const VolumeMeshFieldLinear<double, double>& field0_M,
+                          const VolumeMeshFieldLinear<double, double>& field1_N,
+                          const math::RigidTransform<T>& X_MN,
+                          const math::RotationMatrix<T>& R_NM,
+                          const CandidateAccumulator<false>& accumulator,
+                          const int pair_index, MeshBuilder* builder_M);
 
   // List of tetrahedron indices in the meshes of field0 and field1. One
   // index per contact polygon;
-  std::vector<int> tet0_of_contact_polygon_{};
-  std::vector<int> tet1_of_contact_polygon_{};
+  std::vector<std::pair<int, int>> contact_polygon_tet_indices_;
 };
 
 /* %HydroelasticVolumeIntersector performs an intersection algorithm between
