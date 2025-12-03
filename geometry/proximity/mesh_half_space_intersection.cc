@@ -343,7 +343,7 @@ ComputeContactSurface(
 
   if (builder_W.num_faces() == 0) return nullptr;
 
-  auto [mesh_W, field_W] = builder_W.MakeMeshAndField();
+  auto [mesh_W, field_W, _] = builder_W.MakeMeshAndField();
 
   // TODO(SeanCurtis-TRI) In this case, the gradient across the contact surface
   //  is a constant. It would be good if we could exploit this and *not* copy

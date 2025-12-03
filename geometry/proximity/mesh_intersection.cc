@@ -315,7 +315,9 @@ void SurfaceVolumeIntersector<MeshBuilder, TetBvType, TriBvType>::
   }
 
   if (builder_M.num_faces() == 0) return;
-  std::tie(mesh_M_, field_M_) = builder_M.MakeMeshAndField();
+  std::vector<std::pair<int, int>> unused_tet_indices;
+  std::tie(mesh_M_, field_M_, unused_tet_indices) =
+      builder_M.MakeMeshAndField();
 }
 
 template <typename MeshBuilder, typename TetBvType, typename TriBvType>

@@ -3,7 +3,10 @@
 #include <array>
 #include <queue>
 #include <unordered_map>
-#include <unordered_set>
+
+#if defined(_OPENMP)
+#include <omp.h>
+#endif
 
 #include "drake/common/default_scalars.h"
 #include "drake/common/profiler.h"
@@ -18,16 +21,6 @@ namespace geometry {
 namespace internal {
 
 using Eigen::Vector3d;
-
-namespace {
-
-struct TetPairHasher final {
-  std::size_t operator()(const std::pair<int, int>& p) const {
-    return std::hash<int>()(p.first) ^ std::hash<int>()(p.second);
-  }
-};
-
-}  // namespace
 
 template <typename T>
 bool CalcEquilibriumPlane(int element0,
@@ -217,61 +210,6 @@ bool IsPlaneNormalAlongPressureGradient(
   return cos_theta > kCosAlpha;
 }
 
-namespace {
-
-// An accumulator for tet candidate pairs. This facilitates the logic for
-// identifying unique pairs and further validates the pairs (beyond the AABB
-// overlap test) before accepting them as candidates for intersection testing.
-template <bool DistinguishUniquePairs>
-class CandidateAccumulator {
- public:
-  // Provide access to the fields for validation; they will be aliased.
-  CandidateAccumulator(const VolumeMeshFieldLinear<double, double>* field0,
-                       const VolumeMeshFieldLinear<double, double>* field1)
-      : field0_(*field0), field1_(*field1) {
-    DRAKE_DEMAND(field0 != nullptr);
-    DRAKE_DEMAND(field1 != nullptr);
-  }
-
-  void RegisterCandidate(int tet0, int tet1) {
-    std::pair<int, int> tet_pair(tet0, tet1);
-    if constexpr (DistinguishUniquePairs) {
-      if (visited_.contains(tet_pair)) {
-        return;
-      }
-      visited_.insert(tet_pair);
-    }
-    // Confirm the pressure ranges overlap within the domains of the tets.
-    if ((field0_.min_values()[tet0] <= field1_.max_values()[tet1]) &&
-        (field1_.min_values()[tet1] <= field0_.max_values()[tet0])) {
-      candidates_.emplace_back(tet_pair);
-    }
-  }
-
-  const std::vector<std::pair<int, int>>& candidates() const {
-    return candidates_;
-  }
-
-  // Returns true if there is no candidate stored.
-  bool empty() const { return candidates_.empty(); }
-
-  // Removes a candidate from the set and returns it..
-  std::pair<int, int> pop_candidate() {
-    const std::pair<int, int> pair = candidates_.back();
-    candidates_.pop_back();
-    return pair;
-  }
-
- private:
-  const VolumeMeshFieldLinear<double, double>& field0_;
-  const VolumeMeshFieldLinear<double, double>& field1_;
-
-  std::vector<std::pair<int, int>> candidates_;
-  std::unordered_set<std::pair<int, int>, TetPairHasher> visited_;
-};
-
-}  // namespace
-
 template <class MeshBuilder, class BvType>
 void VolumeIntersector<MeshBuilder, BvType>::IntersectFields(
     const VolumeMeshFieldLinear<double, double>& field0_M,
@@ -291,8 +229,7 @@ void VolumeIntersector<MeshBuilder, BvType>::IntersectFields(
   DRAKE_DEMAND(e_01_M != nullptr);
   surface_01_M->reset();
   e_01_M->reset();
-  tet0_of_contact_polygon_.clear();
-  tet1_of_contact_polygon_.clear();
+  contact_polygon_tet_indices_.clear();
   stopTimer(overhead_timer);
 
   static const common::TimerIndex bvh_timer = addTimer("BVH Collide - Volume");
@@ -310,17 +247,29 @@ void VolumeIntersector<MeshBuilder, BvType>::IntersectFields(
   static const common::TimerIndex contact_timer =
       addTimer("Contact Surface - Volume");
   startTimer(contact_timer);
-  MeshBuilder builder_M;
+  const int num_candidates = ssize(accumulator.candidates());
+  MeshBuilder builder_M(num_candidates);
   const math::RotationMatrix<T> R_NM = X_MN.rotation().inverse();
-  for (const auto& [tet0, tet1] : accumulator.candidates()) {
-    CalcContactPolygon(field0_M, field1_N, X_MN, R_NM, tet0, tet1, &builder_M);
+#if defined(_OPENMP)
+// int num_threads = std::max(1, omp_get_max_threads());
+const int num_threads = 1;
+// Note: setting the schdule to a non-unit chunk size causes significant slow
+// downs. Not sure why.
+// int chunk_size = num_candidates / num_threads;
+// #pragma omp parallel for num_threads(num_threads) schedule(static, chunk_size)
+#pragma omp parallel for num_threads(num_threads) schedule(dynamic)
+#endif
+  for (int i = 0; i < num_candidates; ++i) {
+    CalcContactPolygon(field0_M, field1_N, X_MN, R_NM, accumulator, i,
+                       &builder_M);
   }
 
   // if (builder_M.num_faces() == 0) return;
 
   // std::tie(*surface_01_M, *e_01_M) = builder_M.MakeMeshAndField();
-  if (builder_M.num_faces() > 0) {
-    std::tie(*surface_01_M, *e_01_M) = builder_M.MakeMeshAndField();
+  if (builder_M.has_faces()) {
+    std::tie(*surface_01_M, *e_01_M, contact_polygon_tet_indices_) =
+        builder_M.MakeMeshAndField();
   }
 
   stopTimer(contact_timer);
@@ -344,15 +293,14 @@ void VolumeIntersector<MeshBuilder, BvType>::IntersectFields(
   DRAKE_DEMAND(e_01_M != nullptr);
   surface_01_M->reset();
   e_01_M->reset();
-  tet0_of_contact_polygon_.clear();
-  tet1_of_contact_polygon_.clear();
+  contact_polygon_tet_indices_.clear();
 
   const math::RigidTransform<double> X_MNd = convert_to_double(X_MN);
 
   // True template param; we _do_ need to test for unique tet pairs.
   CandidateAccumulator<true> accumulator(&field0_M, &field1_N);
-  auto callback = [&accumulator, &tri_to_tet_M,
-                   &tri_to_tet_N](int tri0, int tri1) -> BvttCallbackResult {
+  auto callback = [&accumulator, &tri_to_tet_M, &tri_to_tet_N](
+                      int tri0, int tri1) -> BvttCallbackResult {
     DRAKE_ASSERT(0 <= tri0 && tri0 < ssize(tri_to_tet_M));
     DRAKE_ASSERT(0 <= tri1 && tri1 < ssize(tri_to_tet_N));
     std::pair<int, int> tet_pair(tri_to_tet_M[tri0].tet_index,
@@ -379,7 +327,7 @@ void VolumeIntersector<MeshBuilder, BvType>::IntersectFields(
 
   // Traverse all overlapping tet pairs and generate contact polygons.
   while (!accumulator.empty()) {
-    const auto& [tetM, tetN]= accumulator.pop_candidate();
+    const auto& [tetM, tetN] = accumulator.pop_candidate();
 
     // If a pair makes it into the queue, their pressure ranges intersect. But,
     // they may or may not overlap. If they do not overlap and produce a contact
@@ -420,7 +368,55 @@ void VolumeIntersector<MeshBuilder, BvType>::IntersectFields(
 
   if (builder_M.num_faces() == 0) return;
 
-  std::tie(*surface_01_M, *e_01_M) = builder_M.MakeMeshAndField();
+
+  std::tie(*surface_01_M, *e_01_M, contact_polygon_tet_indices_) =
+      builder_M.MakeMeshAndField();
+}
+
+// The new one.
+template <class MeshBuilder, class BvType>
+void VolumeIntersector<MeshBuilder, BvType>::CalcContactPolygon(
+    const VolumeMeshFieldLinear<double, double>& field0_M,
+    const VolumeMeshFieldLinear<double, double>& field1_N,
+    const math::RigidTransform<T>& X_MN, const math::RotationMatrix<T>& R_NM,
+    const CandidateAccumulator<false>& accumulator, const int pair_index,
+    MeshBuilder* builder_M) {
+  const auto& [tet0, tet1] = accumulator.candidates()[pair_index];
+  // Initialize the plane with a non-zero-length normal vector
+  // and an arbitrary point.
+  Plane<T> equilibrium_plane_M{Vector3d::UnitZ(), Vector3d::Zero()};
+  if (!CalcEquilibriumPlane(tet0, field0_M, tet1, field1_N, X_MN,
+                            &equilibrium_plane_M)) {
+    return;
+  }
+  // The normal points in the direction of increasing field_0 and decreasing
+  // field_1.
+  Vector3<T> polygon_nhat_M = equilibrium_plane_M.normal();
+  if (!IsPlaneNormalAlongPressureGradient(polygon_nhat_M, tet0, field0_M)) {
+    return;
+  }
+  Vector3<T> reverse_polygon_nhat_N = R_NM * (-polygon_nhat_M);
+  if (!IsPlaneNormalAlongPressureGradient(reverse_polygon_nhat_N, tet1,
+                                          field1_N)) {
+    return;
+  }
+  const auto [polygon_vertices_M, faces] = IntersectTetrahedra(
+      tet0, field0_M.mesh(), tet1, field1_N.mesh(), X_MN, equilibrium_plane_M);
+
+  if (polygon_vertices_M.size() < 3) return;
+
+  // Add the vertices to the builder_M (with corresponding pressure values)
+  // and construct index-based polygon representation.
+  for (const auto& p_MV : polygon_vertices_M) {
+    builder_M->AddVertex(pair_index, p_MV,
+                         field0_M.EvaluateCartesian(tet0, p_MV));
+  }
+  // TODO(DamrongGuoy): Right now we pass the gradient of the volumetric
+  //  field for the gradient tangent to the polygon. Consider passing only
+  //  the tangential component without the normal component.
+  auto& result = builder_M->AddPolygon(pair_index, polygon_nhat_M,
+                                       field0_M.EvaluateGradient(tet0));
+  result.SetTetIndices(tet0, tet1);
 }
 
 template <class MeshBuilder, class BvType>
@@ -473,8 +469,7 @@ std::vector<int> VolumeIntersector<MeshBuilder, BvType>::CalcContactPolygon(
   // PolyMeshBuilder makes one new polygonal face. TriMeshBuilder makes multiple
   // new triangular faces.
   for (int i = 0; i < num_new_faces; ++i) {
-    tet0_of_contact_polygon_.push_back(tet0);
-    tet1_of_contact_polygon_.push_back(tet1);
+    contact_polygon_tet_indices_.emplace_back(tet0, tet1);
   }
 
   return faces;

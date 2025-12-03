@@ -196,7 +196,8 @@ std::string StringifyErrorDetailValue(const T& value)
   requires(std::is_same_v<T, float> || std::is_same_v<T, double> ||
            std::is_same_v<T, std::string> ||
            std::is_same_v<T, std::string_view> ||
-           std::is_same_v<T, const char*>);
+           std::is_same_v<T, const char*> ||
+           std::is_same_v<T, int>);
 
 // The collection of optional name-value pairs passed to DRAKE_THROW_UNLESS.
 // The values are stored as their `std::string` representations.
