@@ -11,6 +11,7 @@
 #include <utility>
 #include <vector>
 
+#include "drake/common/drake_assert.h"
 #include "drake/geometry/proximity/polygon_surface_mesh.h"
 #include "drake/geometry/proximity/polygon_surface_mesh_field.h"
 #include "drake/geometry/proximity/triangle_surface_mesh.h"
@@ -88,7 +89,7 @@ class TriMeshBuilder {
     void AddTriangle(int v0, int v1, int v2) {
       DRAKE_DEMAND(v0 >= 0 && v0 < vertex_count_);
       DRAKE_DEMAND(v1 >= 0 && v1 < vertex_count_);
-      DRAKE_DEMAND(v2 >= 0 && v2 < vertex_count_);
+      DRAKE_THROW_UNLESS(v2 >= 0 && v2 < vertex_count_, v2, vertex_count_);
       faces_[face_index_] = v0;
       faces_[++face_index_] = v1;
       faces_[++face_index_] = v2;
