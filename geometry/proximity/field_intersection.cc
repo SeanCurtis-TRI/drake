@@ -246,7 +246,10 @@ void VolumeIntersector<MeshBuilder, BvType>::IntersectFields(
 
   static const common::TimerIndex contact_timer =
       addTimer("Contact Surface - Volume");
+  static const common::TimerIndex parallel_timer =
+      addTimer("   Contact Surface - Parallel - Volume");
   startTimer(contact_timer);
+  startTimer(parallel_timer);
   const int num_candidates = ssize(accumulator.candidates());
   MeshBuilder builder_M(num_candidates);
   const math::RotationMatrix<T> R_NM = X_MN.rotation().inverse();
@@ -263,15 +266,18 @@ const int num_threads = 1;
     CalcContactPolygon(field0_M, field1_N, X_MN, R_NM, accumulator, i,
                        &builder_M);
   }
-
+  stopTimer(parallel_timer);
   // if (builder_M.num_faces() == 0) return;
 
   // std::tie(*surface_01_M, *e_01_M) = builder_M.MakeMeshAndField();
+  static const common::TimerIndex serial_timer =
+      addTimer("   Contact Surface - Serial Clean up - Volume");
+  startTimer(serial_timer);
   if (builder_M.has_faces()) {
     std::tie(*surface_01_M, *e_01_M, contact_polygon_tet_indices_) =
         builder_M.MakeMeshAndField();
   }
-
+  stopTimer(serial_timer);
   stopTimer(contact_timer);
   stopTimer(full_timer);
 }

@@ -206,9 +206,16 @@ std::tuple<std::unique_ptr<TriangleSurfaceMesh<T>>,
            std::unique_ptr<TriangleSurfaceMeshFieldLinear<T, T>>,
            std::vector<std::pair<int, int>>>
 TriMeshBuilder<T>::MakeMeshAndField() {
+  static const common::TimerIndex candidate_counter =
+      addTimer("CandidateCounter - TriMeshBuilder");
+  startTimer(candidate_counter);
+  static const common::TimerIndex tri_counter =
+      addTimer("TriCounter - TriMeshBuilder");
+  startTimer(tri_counter);
   std::vector<std::pair<int, int>> contact_polygon_tet_indices;
   // Translate the per-result data into the structures for mesh and field.
   for (const auto& result : results_) {
+    lapTimer(candidate_counter);
     // They're both zero, or both non-zero.
     DRAKE_ASSERT((result.vertex_count() == 0) == (result.face_count() == 0));
     const int vertex_offset = static_cast<int>(vertices_B_.size());
@@ -219,6 +226,7 @@ TriMeshBuilder<T>::MakeMeshAndField() {
     }
     // Copy faces with index offset.
     for (int f = 0; f < result.face_count(); ++f) {
+      lapTimer(tri_counter);
       faces_.push_back(result.face(f, vertex_offset));
       contact_polygon_tet_indices.push_back(
           {result.tet0(), result.tet1()});
@@ -299,10 +307,17 @@ std::tuple<std::unique_ptr<PolygonSurfaceMesh<T>>,
            std::unique_ptr<PolygonSurfaceMeshFieldLinear<T, T>>,
            std::vector<std::pair<int, int>>>
 PolyMeshBuilder<T>::MakeMeshAndField() {
+  static const common::TimerIndex candidate_counter =
+      addTimer("CandidateCounter - PolyMeshBuilder");
+  startTimer(candidate_counter);
+  static const common::TimerIndex poly_counter =
+      addTimer("PolyCounter - PolyMeshBuilder");
+  startTimer(poly_counter);
   grad_e_MN_B_per_face_.clear();
   std::vector<std::pair<int, int>> contact_polygon_tet_indices;
   // Translate the per-result data into the structures for mesh and field.
   for (const auto& result : results_) {
+    lapTimer(candidate_counter);
     if (result.vertex_count() == 0) {
       continue;
     }
@@ -317,6 +332,7 @@ PolyMeshBuilder<T>::MakeMeshAndField() {
     result.AddPolygonToPolygonMeshData(&face_data_, vertex_offset);
     contact_polygon_tet_indices.push_back({result.tet0(), result.tet1()});
     grad_e_MN_B_per_face_.push_back(result.gradient());
+    lapTimer(poly_counter);
   }
 
   auto mesh = std::make_unique<PolygonSurfaceMesh<T>>(std::move(face_data_),
