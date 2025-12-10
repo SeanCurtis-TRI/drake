@@ -5,6 +5,7 @@
 #include <benchmark/benchmark.h>
 #include <fmt/format.h>
 
+#include "drake/common/profiler.h"
 #include "drake/geometry/proximity/hydroelastic_calculator.h"
 #include "drake/geometry/proximity/hydroelastic_internal.h"
 #include "drake/geometry/proximity/make_ellipsoid_field.h"
@@ -121,10 +122,23 @@ const Vector3d kContactOverlapTranslation[4] = {
 
 class CompliantMeshIntersectionBenchmark : public benchmark::Fixture {
  public:
+  struct ArgProfiler {
+    std::string name;
+    benchmark::IterationCount iterations;
+    std::string table;
+  };
+
   CompliantMeshIntersectionBenchmark()
       : ellipsoid_{kEllipsoidDimension[0], kEllipsoidDimension[1],
                    kEllipsoidDimension[2]},
         sphere_{kSphereDimension} {}
+
+  ~CompliantMeshIntersectionBenchmark() override {
+    for (const auto& result : profilers_) {
+      std::cerr << result.name << "\n"
+                << result.table << "\n";
+    }
+  }
 
   /* Parse arguments from the benchmark state.
   @return A tuple representing the resolution and the contact overlap.  */
@@ -159,6 +173,7 @@ class CompliantMeshIntersectionBenchmark : public benchmark::Fixture {
   std::unique_ptr<VolumeMesh<double>> mesh_R_;
   std::unique_ptr<VolumeMeshFieldLinear<double, double>> field_R_;
   RigidTransformd X_SR_;
+  std::vector<ArgProfiler> profilers_;
 };
 
 BENCHMARK_DEFINE_F(CompliantMeshIntersectionBenchmark, CompliantCompliantMesh)
@@ -172,11 +187,24 @@ BENCHMARK_DEFINE_F(CompliantMeshIntersectionBenchmark, CompliantCompliantMesh)
   hydroelastic::SoftGeometry geo_R(
       hydroelastic::SoftMesh(std::move(mesh_R_), std::move(field_R_)));
 
+  resetAllTimers();
   std::unique_ptr<ContactSurface<double>> surface_SR;
   for (auto _ : state) {
     surface_SR = CalcCompliantCompliant(
         geo_S, RigidTransformd::Identity(), id_S, geo_R, X_SR_, id_R,
         HydroelasticContactRepresentation::kPolygon);
+  }
+  const auto [resolution, contact_overlap] = ReadState(state);
+  const std::string profile_name =
+      fmt::format("{}/{}/{}", state.name(), resolution, contact_overlap);
+
+  if (profilers_.size() == 0 || profilers_.back().name != profile_name) {
+    profilers_.push_back({.name = profile_name,
+                          .iterations = state.iterations(),
+                          .table = TableOfAverages()});
+  } else if (profilers_.back().iterations < state.iterations()) {
+    profilers_.back().iterations += state.iterations();
+    profilers_.back().table = TableOfAverages();
   }
 }
 // clang-format off
