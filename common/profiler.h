@@ -6,6 +6,8 @@
 
 #include "drake/common/type_safe_index.h"
 
+#define ENABLE_TIMERS
+
 namespace drake {
 namespace common {
 

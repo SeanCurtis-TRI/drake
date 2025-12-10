@@ -6,6 +6,8 @@
 #include <unordered_set>
 
 #include "drake/common/default_scalars.h"
+#include "drake/common/profiler.h"
+#include "drake/common/scope_exit.h"
 #include "drake/geometry/proximity/contact_surface_utility.h"
 #include "drake/geometry/proximity/mesh_intersection.h"
 #include "drake/geometry/proximity/mesh_plane_intersection.h"
@@ -279,13 +281,22 @@ void VolumeIntersector<MeshBuilder, BvType>::IntersectFields(
     const math::RigidTransform<T>& X_MN,
     std::unique_ptr<MeshType>* surface_01_M,
     std::unique_ptr<FieldType>* e_01_M) {
+  static const common::TimerIndex full_timer =
+      addTimer("IntersectFields - Volume");
+  startTimer(full_timer);
+  static const common::TimerIndex overhead_timer =
+      addTimer("IntersectFields Overhead - Volume");
+  startTimer(overhead_timer);
   DRAKE_DEMAND(surface_01_M != nullptr);
   DRAKE_DEMAND(e_01_M != nullptr);
   surface_01_M->reset();
   e_01_M->reset();
   tet0_of_contact_polygon_.clear();
   tet1_of_contact_polygon_.clear();
+  stopTimer(overhead_timer);
 
+  static const common::TimerIndex bvh_timer = addTimer("BVH Collide - Volume");
+  startTimer(bvh_timer);
   // False template param; we don't need to test for unique tet pairs.
   CandidateAccumulator<false> accumulator(&field0_M, &field1_N);
   auto callback = [&accumulator](int tet0, int tet1) -> BvttCallbackResult {
@@ -294,16 +305,26 @@ void VolumeIntersector<MeshBuilder, BvType>::IntersectFields(
   };
 
   bvh0_M.Collide(bvh1_N, convert_to_double(X_MN), callback);
+  stopTimer(bvh_timer);
 
+  static const common::TimerIndex contact_timer =
+      addTimer("Contact Surface - Volume");
+  startTimer(contact_timer);
   MeshBuilder builder_M;
   const math::RotationMatrix<T> R_NM = X_MN.rotation().inverse();
   for (const auto& [tet0, tet1] : accumulator.candidates()) {
     CalcContactPolygon(field0_M, field1_N, X_MN, R_NM, tet0, tet1, &builder_M);
   }
 
-  if (builder_M.num_faces() == 0) return;
+  // if (builder_M.num_faces() == 0) return;
 
-  std::tie(*surface_01_M, *e_01_M) = builder_M.MakeMeshAndField();
+  // std::tie(*surface_01_M, *e_01_M) = builder_M.MakeMeshAndField();
+  if (builder_M.num_faces() > 0) {
+    std::tie(*surface_01_M, *e_01_M) = builder_M.MakeMeshAndField();
+  }
+
+  stopTimer(contact_timer);
+  stopTimer(full_timer);
 }
 
 template <class MeshBuilder, class BvType>
@@ -408,6 +429,10 @@ std::vector<int> VolumeIntersector<MeshBuilder, BvType>::CalcContactPolygon(
     const VolumeMeshFieldLinear<double, double>& field1_N,
     const math::RigidTransform<T>& X_MN, const math::RotationMatrix<T>& R_NM,
     const int tet0, const int tet1, MeshBuilder* builder_M) {
+  static const common::TimerIndex timer =
+      addTimer("CalcContactPolygon - tet-tet");
+  startTimer(timer);
+  ScopeExit full_guard([t = timer]() { stopTimer(t); });
   // Initialize the plane with a non-zero-length normal vector
   // and an arbitrary point.
   Plane<T> equilibrium_plane_M{Vector3d::UnitZ(), Vector3d::Zero()};

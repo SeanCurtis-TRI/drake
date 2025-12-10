@@ -6,6 +6,7 @@
 
 #include "drake/common/default_scalars.h"
 #include "drake/common/fmt_eigen.h"
+#include "drake/common/profiler.h"
 #include "drake/math/autodiff.h"
 
 namespace drake {
@@ -138,6 +139,10 @@ template <typename T>
 int TriMeshBuilder<T>::AddPolygon(const std::vector<int>& polygon_vertices,
                                   const Vector3<T>& nhat_B,
                                   const Vector3<T>& grad_e_MN_B) {
+  static const common::TimerIndex add_polygon_timer =
+      addTimer("AddPolygon - TriMeshBuilder");
+  startTimer(add_polygon_timer);
+
   // Vertices and pressure values at vertex positions must already have been
   // explicitly added to use this method.
   DRAKE_ASSERT_VOID(
@@ -160,6 +165,7 @@ int TriMeshBuilder<T>::AddPolygon(const std::vector<int>& polygon_vertices,
   const Vector3<T>& p_BN = vertices_B_[polygon_vertices[0]];
   const T& pressure_at_N = pressures_[polygon_vertices[0]];
   pressures_.emplace_back(grad_e_MN_B.dot(p_BC - p_BN) + pressure_at_N);
+  stopTimer(add_polygon_timer);
   return faces_.size() - initial_face_count;
 }
 
@@ -187,6 +193,9 @@ template <typename T>
 int PolyMeshBuilder<T>::AddPolygon(const std::vector<int>& polygon_vertices,
                                    const Vector3<T>& /* nhat_B */,
                                    const Vector3<T>& grad_e_MN_B) {
+  static const common::TimerIndex add_polygon_timer =
+      addTimer("AddPolygon - PolyMeshBuilder");
+  startTimer(add_polygon_timer);
   // Vertices and pressure values at vertex positions must already have been
   // explicitly added to use this method.
   DRAKE_ASSERT_VOID(
@@ -201,6 +210,7 @@ int PolyMeshBuilder<T>::AddPolygon(const std::vector<int>& polygon_vertices,
   //  constructor.
   AddPolygonToPolygonMeshData(polygon_vertices, &face_data_);
   grad_e_MN_B_per_face_.push_back(grad_e_MN_B);
+  stopTimer(add_polygon_timer);
   return 1;
 }
 

@@ -188,17 +188,18 @@ void clearAllTimers() {
 }
 
 std::string TableOfAverages() {
-  using Seconds = std::ratio<1, 1>;
+  // using Seconds = std::ratio<1, 1>;
+  using Micro = std::micro;
   const Profiler& profiler = Profiler::getMutableInstance();
   const int count = profiler.timerCount();
   std::stringstream ss;
   ss << "All registered profiles average times:\n";
-  ss << fmt::format("{:>15}{:>10}{:>17}  {}", "Time (s)", "Samples",
-                    "Total Time (s)", "Label") << "\n";
+  ss << fmt::format("{:>15}{:>10}{:>17}  {}", "Time (μs)", "Samples",
+                    "Total Time (μs)", "Label") << "\n";
   for (TimerIndex i(0); i < count; ++i) {
-    double time = profiler.average<Seconds>(i);
-    ss << fmt::format("{:>15.7g}{:>10}{:>17.7g}  {}", time, profiler.laps(i),
-                      profiler.total<Seconds>(i), profiler.displayString(i));
+    double time = profiler.average<Micro>(i);
+    ss << fmt::format("{:>15.3f}{:>10}{:>17.3f}  {}", time, profiler.laps(i),
+                      profiler.total<Micro>(i), profiler.displayString(i));
     if (i < count - 1) ss << "\n";
   }
   return ss.str();
