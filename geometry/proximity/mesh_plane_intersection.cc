@@ -303,7 +303,7 @@ template <typename T>
 std::unique_ptr<ContactSurface<T>>
 ComputeContactSurfaceFromSoftVolumeRigidHalfSpace(
     const GeometryId id_S, const VolumeMeshFieldLinear<double, double>& field_S,
-    const Bvh<Obb, VolumeMesh<double>>& bvh_S,
+    const Bvh<hydroelastic::SoftMesh::BvType, VolumeMesh<double>>& bvh_S,
     const math::RigidTransform<T>& X_WS, const GeometryId id_R,
     const math::RigidTransform<T>& X_WR,
     HydroelasticContactRepresentation representation) {

@@ -291,7 +291,7 @@ template <typename MeshBuilder, typename TetBvType, typename TriBvType>
 void SurfaceVolumeIntersector<MeshBuilder, TetBvType, TriBvType>::
     SampleVolumeFieldOnSurface(
         const VolumeMeshFieldLinear<double, double>& volume_field_M,
-        const Bvh<TetBvType, VolumeMesh<double>>& bvh_M,
+        const Bvh<hydroelastic::SoftMesh::BvType, VolumeMesh<double>>& bvh_M,
         const TriangleSurfaceMesh<double>& surface_N,
         const Bvh<TriBvType, TriangleSurfaceMesh<double>>& bvh_N,
         const math::RigidTransform<T>& X_MN,
@@ -387,7 +387,7 @@ template <typename T>
 std::unique_ptr<ContactSurface<T>>
 ComputeContactSurfaceFromSoftVolumeRigidSurface(
     const GeometryId id_S, const VolumeMeshFieldLinear<double, double>& field_S,
-    const Bvh<Obb, VolumeMesh<double>>& bvh_S,
+    const Bvh<hydroelastic::SoftMesh::BvType, VolumeMesh<double>>& bvh_S,
     const math::RigidTransform<T>& X_WS, const GeometryId id_R,
     const TriangleSurfaceMesh<double>& mesh_R,
     const Bvh<Obb, TriangleSurfaceMesh<double>>& bvh_R,

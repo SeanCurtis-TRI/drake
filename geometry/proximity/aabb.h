@@ -5,6 +5,8 @@
 #include "drake/common/drake_assert.h"
 #include "drake/common/drake_copyable.h"
 #include "drake/common/eigen_types.h"
+#include "drake/geometry/proximity/plane.h"
+#include "drake/geometry/shape_specification.h"
 #include "drake/geometry/utilities.h"
 #include "drake/math/rigid_transform.h"
 
@@ -125,6 +127,12 @@ class Aabb {
    @pydrake_mkdoc_identifier{aabb_obb} */
   static bool HasOverlap(const Aabb& aabb_G, const Obb& obb_H,
                          const math::RigidTransformd& X_GH);
+
+  static bool HasOverlap(const Aabb& aabb_H,
+                         const internal::Plane<double>& plane_P,
+                         const math::RigidTransformd& X_PH);
+  static bool HasOverlap(const Aabb& aabb_H, const HalfSpace& hs_C,
+                         const math::RigidTransformd& X_CH);
 
   // TODO(SeanCurtis-TRI): Support collision with primitives as appropriate
   //  (see obb.h for an example).

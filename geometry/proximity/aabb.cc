@@ -49,6 +49,15 @@ bool Aabb::HasOverlap(const Aabb& aabb_G, const Obb& obb_H,
   return internal::BoxesOverlap(aabb_G.half_width(), obb_H.half_width(), X_AO);
 }
 
+bool Aabb::HasOverlap(const Aabb&, const internal::Plane<double>&,
+                     const RigidTransformd&) {
+  return false;
+}
+
+bool Aabb::HasOverlap(const Aabb&, const HalfSpace&, const RigidTransformd&) {
+  return false;
+}
+
 template <typename MeshType>
 Aabb AabbMaker<MeshType>::Compute() const {
   auto itr = vertices_.begin();

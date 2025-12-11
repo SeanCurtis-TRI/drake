@@ -255,7 +255,7 @@ void VolumeIntersector<MeshBuilder, BvType>::IntersectFields(
   const math::RotationMatrix<T> R_NM = X_MN.rotation().inverse();
 #if defined(_OPENMP)
 // int num_threads = std::max(1, omp_get_max_threads());
-const int num_threads = 1;
+const int num_threads = 2;
 // Note: setting the schdule to a non-unit chunk size causes significant slow
 // downs. Not sure why.
 // int chunk_size = num_candidates / num_threads;
@@ -494,7 +494,8 @@ void HydroelasticVolumeIntersector<MeshBuilder>::IntersectCompliantVolumes(
   // The computation will be in Frame M and then transformed to the world frame.
   std::unique_ptr<typename MeshBuilder::MeshType> surface01_M;
   std::unique_ptr<typename MeshBuilder::FieldType> field01_M;
-  VolumeIntersector<MeshBuilder, Obb> volume_intersector;
+  VolumeIntersector<MeshBuilder, hydroelastic::SoftMesh::BvType>
+      volume_intersector;
 
   if (use_surfaces) {
     volume_intersector.IntersectFields(
