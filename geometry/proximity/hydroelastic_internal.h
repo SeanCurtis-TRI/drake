@@ -37,6 +37,8 @@ and derived objects:
 */
 class SoftMesh {
  public:
+  using BvType = Aabb;
+
   SoftMesh() = default;
 
   SoftMesh(std::unique_ptr<VolumeMesh<double>> mesh,
@@ -66,7 +68,7 @@ class SoftMesh {
   }
 
   /* The BVH of the mesh provided by mesh(). */
-  const Bvh<Obb, VolumeMesh<double>>& bvh() const {
+  const Bvh<BvType, VolumeMesh<double>>& bvh() const {
     DRAKE_DEMAND(bvh_ != nullptr);
     return *bvh_;
   }
@@ -93,7 +95,7 @@ class SoftMesh {
   // unique_ptr and remove the indirection if not necessary.
   std::unique_ptr<VolumeMesh<double>> mesh_;
   std::unique_ptr<VolumeMeshFieldLinear<double, double>> pressure_;
-  std::unique_ptr<Bvh<Obb, VolumeMesh<double>>> bvh_;
+  std::unique_ptr<Bvh<BvType, VolumeMesh<double>>> bvh_;
   std::unique_ptr<TriangleSurfaceMesh<double>> surface_mesh_;
   std::unique_ptr<Bvh<Obb, TriangleSurfaceMesh<double>>> surface_mesh_bvh_;
   std::unique_ptr<VolumeMeshTopology> mesh_topology_;
@@ -211,7 +213,7 @@ class SoftGeometry {
 
   /* Returns a reference to the bounding volume hierarchy -- calling this will
    throw if is_half_space() returns `true`.  */
-  const Bvh<Obb, VolumeMesh<double>>& bvh() const {
+  const Bvh<SoftMesh::BvType, VolumeMesh<double>>& bvh() const {
     if (is_half_space()) {
       throw std::runtime_error(
           "SoftGeometry::bvh() cannot be invoked for soft half space");
