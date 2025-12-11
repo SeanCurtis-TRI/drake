@@ -53,7 +53,7 @@ bool Obb::HasOverlap(const Obb& obb_G, const Aabb& aabb_H,
   return internal::BoxesOverlap(aabb_H.half_width(), obb_G.half_width(), X_AO);
 }
 
-bool Obb::HasOverlap(const Obb& bv, const internal::Plane<double>& plane_P,
+bool Obb::HasOverlap(const Obb& bv, const Plane<double>& plane_P,
                      const math::RigidTransformd& X_PH) {
   // We want the two corners of the box that lie at the most extreme extents in
   // the plane's normal direction. Then we can determine their heights

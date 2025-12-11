@@ -174,6 +174,26 @@ Parameter ``X_GH``:
 
 Returns:
     ``True`` if the boxes intersect.)""";
+          // Source: drake/geometry/proximity/aabb.h
+          const char* doc =
+R"""((Internal use only) Checks whether bounding volume ``aabb_H``
+intersects the given plane. The bounding volume is posed in hierarchy
+frame H and the plane is defined in frame P.
+
+Parameter ``aabb_H``:
+    The bounding box to test.
+
+Parameter ``plane_P``:
+    The plane to test against the ``bv``. The plane is expressed in
+    frame P, therefore, to evaluate the height of a point with respect
+    to it, that point must be measured and expressed in P.
+
+Parameter ``X_PH``:
+    The relative pose between the hierarchy frame H and the plane
+    frame P.
+
+Returns:
+    ``True`` if the plane intersects the box.)""";
         } HasOverlap;
         // Symbol: drake::geometry::Aabb::center
         struct /* center */ {
@@ -737,11 +757,11 @@ Parameter ``X_GH``:
 Returns:
     ``True`` if the boxes intersect.)""";
           // Source: drake/geometry/proximity/obb.h
-          const char* doc =
-R"""((Internal use only) Checks whether bounding volume ``bv`` intersects
-the given plane. The bounding volume is centered on its canonical
-frame B, and B is posed in the corresponding hierarchy frame H. The
-plane is defined in frame P.
+          const char* doc_obb_plane =
+R"""(Checks whether bounding volume ``bv`` intersects the given plane. The
+bounding volume is centered on its canonical frame B, and B is posed
+in the corresponding hierarchy frame H. The plane is defined in frame
+P.
 
 The box and plane intersect if *any* point within the bounding volume
 has zero height (see CalcHeight()).
@@ -861,6 +881,86 @@ Precondition:
     [0, V), where V is mesh_M.num_vertices().)""";
         } ctor;
       } ObbMaker;
+      // Symbol: drake::geometry::Plane
+      struct /* Plane */ {
+        // Source: drake/geometry/proximity/plane.h
+        const char* doc =
+R"""(The definition of a plane in ℜ³, posed in an arbitrary frame. The
+plane normal implicitly defines "above" and "below" directions
+relative to the plane. The "height" of a point relative to the plane
+can be queried.
+
+It is defined with the implicit equation: ``P(x⃗) = n̂⋅x⃗ - d = 0``. A
+particular instance is measured and expressed in a particular frame,
+such that only points measured and expressed in that same frame can be
+meaningfully compared to the plane. E.g.,
+
+
+.. raw:: html
+
+    <details><summary>Click to expand C++ code...</summary>
+
+.. code-block:: c++
+
+    {c++}
+    const Vector3<T> nhat_F = ...;
+    const Vector3<T> p_FP = ...;  // P is a point on the plane.
+    const Plane<T> plane_F(nhat_F, p_FP);  // Plane in frame F.
+    const double distance_Q = plane_F.CalcHeight(p_FQ);  // valid!
+    const double distance_R = plane_F.CalcHeight(p_GR);  // invalid!
+
+.. raw:: html
+
+    </details>)""";
+        // Symbol: drake::geometry::Plane::BoxOverlaps
+        struct /* BoxOverlaps */ {
+          // Source: drake/geometry/proximity/plane.h
+          const char* doc = R"""()""";
+        } BoxOverlaps;
+        // Symbol: drake::geometry::Plane::CalcHeight
+        struct /* CalcHeight */ {
+          // Source: drake/geometry/proximity/plane.h
+          const char* doc = R"""()""";
+        } CalcHeight;
+        // Symbol: drake::geometry::Plane::Plane<T>
+        struct /* ctor */ {
+          // Source: drake/geometry/proximity/plane.h
+          const char* doc =
+R"""(Constructs a Plane in frame F which is normal to ``normal`` and passes
+through the point ``point_on_plane``.
+
+Parameter ``normal``:
+    A (possibly unit-length) vector perpendicular to the plane
+    expressed in Frame F (the ``n̂`` in the implicit equation). By
+    default, the vector will be normalized before being stored (see
+    below).
+
+Parameter ``point_on_plane``:
+    A point on the plane measured and expressed in Frame F, p_FP. The
+    ``d`` in the implicit equation is derived from this quantity.
+
+Parameter ``already_normalized``:
+    (Advanced) If ``True``, the ``normal`` will be treated as if it
+    has already been normalized by the caller. It should still have
+    unit length. This function reserves the right to validate this
+    property in debug build up to an arbitrary tolerance. When in
+    doubt, allow the plane to normalize the normal vector.
+
+Precondition:
+    If ``already_normalized`` is ``False``, `normal` must have
+    ``magnitude ≥ 1e-10``.)""";
+        } ctor;
+        // Symbol: drake::geometry::Plane::normal
+        struct /* normal */ {
+          // Source: drake/geometry/proximity/plane.h
+          const char* doc = R"""()""";
+        } normal;
+        // Symbol: drake::geometry::Plane::point_on_plane
+        struct /* point_on_plane */ {
+          // Source: drake/geometry/proximity/plane.h
+          const char* doc = R"""()""";
+        } point_on_plane;
+      } Plane;
       // Symbol: drake::geometry::PolygonSurfaceMesh
       struct /* PolygonSurfaceMesh */ {
         // Source: drake/geometry/proximity/polygon_surface_mesh.h

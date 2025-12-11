@@ -18,9 +18,13 @@ void DefineGeometryBoundingBox(py::module m);
  geometry_py_common.cc. */
 void DefineGeometryCommon(py::module m);
 
-/** Defines all of the hydroelastic-specific entities. See geometry_py_hydro.cc
+/** Defines all of the hydroelastic-specific entities. See geometry_py_hydro.cc.
  */
 void DefineGeometryHydro(py::module m);
+
+/** Defines various geometric constructs for performing math operations. See
+ geometry_py_math_primitives.cc. */
+void DefineGeometryMathPrimitives(py::module m);
 
 /** Defines the basic mesh types (and some parsing operations) on those types.
  See geometry_py_meshes.cc. */

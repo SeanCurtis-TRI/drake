@@ -60,6 +60,7 @@ drake_pybind_library(
         "geometry_py_bounding_box.cc",
         "geometry_py_common.cc",
         "geometry_py_hydro.cc",
+        "geometry_py_math_primitives.cc",
         "geometry_py_meshes.cc",
         "geometry_py_optimization.cc",
         "geometry_py_render.cc",
@@ -116,6 +117,14 @@ drake_py_unittest(
     data = [
         "//geometry:test_obj_files",
     ],
+    deps = [
+        ":geometry",
+        "//bindings/pydrake/common/test_utilities",
+    ],
+)
+
+drake_py_unittest(
+    name = "math_primitives_test",
     deps = [
         ":geometry",
         "//bindings/pydrake/common/test_utilities",

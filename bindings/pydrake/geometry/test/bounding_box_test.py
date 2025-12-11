@@ -124,6 +124,9 @@ class TestGeometryBoundingBox(unittest.TestCase):
         identity_transform = RigidTransform()
         self.assertFalse(mut.Obb.HasOverlap(obb1, obb2, identity_transform))
 
+        plane = mut.Plane(normal=[0, 0, 1], point_on_plane=[0, 0, 0.5])
+        self.assertTrue(mut.Obb.HasOverlap(obb1, plane, identity_transform))
+
         # Test Obb-HalfSpace overlap.
         half_space = mut.HalfSpace()
         # Default half space has normal [0,0,1] and passes through origin.

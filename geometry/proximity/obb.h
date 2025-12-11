@@ -98,12 +98,9 @@ class Obb {
   static bool HasOverlap(const Obb& obb_G, const Aabb& aabb_H,
                          const math::RigidTransformd& X_GH);
 
-  // TODO(xuchenhan-tri): Move Plane out of internal namespace and make this
-  //  non-internal only.
-  /** (Internal use only) Checks whether bounding volume `bv` intersects the
-   given plane. The bounding volume is centered on its canonical frame B, and B
-   is posed in the corresponding hierarchy frame H. The plane is defined in
-   frame P.
+  /** Checks whether bounding volume `bv` intersects the given plane. The
+   bounding volume is centered on its canonical frame B, and B is posed in the
+   corresponding hierarchy frame H. The plane is defined in frame P.
 
    The box and plane intersect if _any_ point within the bounding volume has
    zero height (see CalcHeight()).
@@ -115,9 +112,9 @@ class Obb {
                     expressed in P.
    @param X_PH      The relative pose between the hierarchy frame H and the
                     plane frame P.
-   @returns `true` if the plane intersects the box.   */
-  static bool HasOverlap(const Obb& bv_H,
-                         const internal::Plane<double>& plane_P,
+   @returns `true` if the plane intersects the box.
+   @pydrake_mkdoc_identifier{obb_plane} */
+  static bool HasOverlap(const Obb& bv_H, const Plane<double>& plane_P,
                          const math::RigidTransformd& X_PH);
 
   /** Checks whether bounding volume `bv` intersects the given half space. The

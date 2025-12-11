@@ -14,7 +14,6 @@
 
 namespace drake {
 namespace geometry {
-namespace internal {
 namespace {
 
 using Eigen::Vector3d;
@@ -32,12 +31,16 @@ GTEST_TEST(PlaneTest, Construction) {
     // Case: unnormalized vector produces normalized results.
     const Planed plane_F{0.5 * nhat_F, p_FP};
     EXPECT_TRUE(CompareMatrices(plane_F.normal(), nhat_F, kEps));
+    // point_on_plane() will *not* necessarily be equal to p_FP.
+    EXPECT_NEAR(plane_F.CalcHeight(plane_F.point_on_plane()), 0.0, kEps);
   }
 
   {
     // Case: normalized vector comes through untouched.
     const Planed plane_F{nhat_F, p_FP};
     EXPECT_TRUE(CompareMatrices(plane_F.normal(), nhat_F));
+    // point_on_plane() will *not* necessarily be equal to p_FP.
+    EXPECT_NEAR(plane_F.CalcHeight(plane_F.point_on_plane()), 0.0, kEps);
   }
 
   {
@@ -148,6 +151,5 @@ GTEST_TEST(PlaneTest, MixedScalar) {
 }
 
 }  // namespace
-}  // namespace internal
 }  // namespace geometry
 }  // namespace drake
