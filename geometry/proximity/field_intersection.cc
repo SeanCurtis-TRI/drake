@@ -210,6 +210,22 @@ bool IsPlaneNormalAlongPressureGradient(
   return cos_theta > kCosAlpha;
 }
 
+namespace {
+  int GetNumThreads() {
+    #if defined(_OPENMP)
+    // This will report the configured threads. The simplest way to manipulate
+    // this is to execute the binary with the prefix OMP_NUM_THREADS=N and
+    // you should see N printed.
+    int thread_count = omp_get_max_threads();
+    fmt::print("Using {} threads for parallel volume-volume field intersection\n",
+               thread_count);
+    return thread_count > 0 ? thread_count : 1;
+    #else
+    return 1;
+    #endif
+  }
+}
+
 template <class MeshBuilder, class BvType>
 void VolumeIntersector<MeshBuilder, BvType>::IntersectFields(
     const VolumeMeshFieldLinear<double, double>& field0_M,
@@ -254,13 +270,13 @@ void VolumeIntersector<MeshBuilder, BvType>::IntersectFields(
   MeshBuilder builder_M(num_candidates);
   const math::RotationMatrix<T> R_NM = X_MN.rotation().inverse();
 #if defined(_OPENMP)
-// int num_threads = std::max(1, omp_get_max_threads());
-const int num_threads = 2;
+static const int num_threads = GetNumThreads();
+const int chunk_size = 1; // num_candidates / num_threads / 2;
 // Note: setting the schdule to a non-unit chunk size causes significant slow
 // downs. Not sure why.
 // int chunk_size = num_candidates / num_threads;
 // #pragma omp parallel for num_threads(num_threads) schedule(static, chunk_size)
-#pragma omp parallel for num_threads(num_threads) schedule(dynamic)
+#pragma omp parallel for num_threads(num_threads) schedule(static, chunk_size)
 #endif
   for (int i = 0; i < num_candidates; ++i) {
     CalcContactPolygon(field0_M, field1_N, X_MN, R_NM, accumulator, i,
