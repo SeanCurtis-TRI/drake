@@ -324,16 +324,18 @@ GTEST_TEST(VolumeIntersectionTest, FullyPenetrated) {
   std::array<std::unique_ptr<PolygonSurfaceMeshFieldLinear<double, double>>, 2>
       e_MN_M;
 
-  VolumeIntersector<PolyMeshBuilder<double>, Obb>().IntersectFields(
-      big_sphere_M.pressure(), big_sphere_M.bvh(), small_sphere_N.pressure(),
-      small_sphere_N.bvh(), X_MN, &surface_01_M[0], &e_MN_M[0]);
+  VolumeIntersector<PolyMeshBuilder<double>, hydroelastic::SoftMesh::BvType>()
+      .IntersectFields(big_sphere_M.pressure(), big_sphere_M.bvh(),
+                       small_sphere_N.pressure(), small_sphere_N.bvh(), X_MN,
+                       &surface_01_M[0], &e_MN_M[0]);
 
-  VolumeIntersector<PolyMeshBuilder<double>, Obb>().IntersectFields(
-      big_sphere_M.pressure(), big_sphere_M.surface_mesh_bvh(),
-      big_sphere_M.tri_to_tet(), big_sphere_M.mesh_topology(),
-      small_sphere_N.pressure(), small_sphere_N.surface_mesh_bvh(),
-      small_sphere_N.tri_to_tet(), small_sphere_N.mesh_topology(), X_MN,
-      &surface_01_M[1], &e_MN_M[1]);
+  VolumeIntersector<PolyMeshBuilder<double>, hydroelastic::SoftMesh::BvType>()
+      .IntersectFields(
+          big_sphere_M.pressure(), big_sphere_M.surface_mesh_bvh(),
+          big_sphere_M.tri_to_tet(), big_sphere_M.mesh_topology(),
+          small_sphere_N.pressure(), small_sphere_N.surface_mesh_bvh(),
+          small_sphere_N.tri_to_tet(), small_sphere_N.mesh_topology(), X_MN,
+          &surface_01_M[1], &e_MN_M[1]);
 
   // Index 0 only uses tets.
   EXPECT_NE(surface_01_M[0].get(), nullptr);
@@ -396,9 +398,11 @@ class VolumeIntersectorTest : public ::testing::Test {
 // safely assume that they would produce the same surface).
 template <class MeshBuilder>
 bool ContactSurfacesAreEqual(
-    const VolumeIntersector<MeshBuilder, Obb>& intersector_A,
+    const VolumeIntersector<MeshBuilder, hydroelastic::SoftMesh::BvType>&
+        intersector_A,
     const typename MeshBuilder::MeshType& surface_A,
-    const VolumeIntersector<MeshBuilder, Obb>& intersector_B,
+    const VolumeIntersector<MeshBuilder, hydroelastic::SoftMesh::BvType>&
+        intersector_B,
     const typename MeshBuilder::MeshType& surface_B) {
   if (surface_A.num_elements() != surface_B.num_elements()) {
     return false;
@@ -431,7 +435,10 @@ TEST_F(VolumeIntersectorTest, IntersectFields) {
     std::array<std::unique_ptr<TriangleSurfaceMeshFieldLinear<double, double>>,
                2>
         e_MN_M;
-    std::array<VolumeIntersector<TriMeshBuilder<double>, Obb>, 2> intersector;
+    std::array<VolumeIntersector<TriMeshBuilder<double>,
+                                 hydroelastic::SoftMesh::BvType>,
+               2>
+        intersector;
 
     intersector[0].IntersectFields(
         box_M_.pressure(), box_M_.bvh(), octahedron_N_.pressure(),
@@ -454,7 +461,10 @@ TEST_F(VolumeIntersectorTest, IntersectFields) {
     std::array<std::unique_ptr<PolygonSurfaceMeshFieldLinear<double, double>>,
                2>
         e_MN_M;
-    std::array<VolumeIntersector<PolyMeshBuilder<double>, Obb>, 2> intersector;
+    std::array<VolumeIntersector<PolyMeshBuilder<double>,
+                                 hydroelastic::SoftMesh::BvType>,
+               2>
+        intersector;
 
     intersector[0].IntersectFields(
         box_M_.pressure(), box_M_.bvh(), octahedron_N_.pressure(),
@@ -486,7 +496,9 @@ TEST_F(VolumeIntersectorTest, IntersectFieldsAutoDiffXd) {
         std::unique_ptr<TriangleSurfaceMeshFieldLinear<AutoDiffXd, AutoDiffXd>>,
         2>
         e_MN_M;
-    std::array<VolumeIntersector<TriMeshBuilder<AutoDiffXd>, Obb>, 2>
+    std::array<VolumeIntersector<TriMeshBuilder<AutoDiffXd>,
+                                 hydroelastic::SoftMesh::BvType>,
+               2>
         intersector;
 
     intersector[0].IntersectFields(
@@ -509,7 +521,9 @@ TEST_F(VolumeIntersectorTest, IntersectFieldsAutoDiffXd) {
         std::unique_ptr<PolygonSurfaceMeshFieldLinear<AutoDiffXd, AutoDiffXd>>,
         2>
         e_MN_M;
-    std::array<VolumeIntersector<PolyMeshBuilder<AutoDiffXd>, Obb>, 2>
+    std::array<VolumeIntersector<PolyMeshBuilder<AutoDiffXd>,
+                                 hydroelastic::SoftMesh::BvType>,
+               2>
         intersector;
 
     intersector[0].IntersectFields(
@@ -536,9 +550,10 @@ TEST_F(VolumeIntersectorTest, IntersectFieldsNoIntersection) {
     const RigidTransformd X_MN(Vector3d::UnitX());
     std::unique_ptr<PolygonSurfaceMesh<double>> surface_01_M;
     std::unique_ptr<PolygonSurfaceMeshFieldLinear<double, double>> e_MN_M;
-    VolumeIntersector<PolyMeshBuilder<double>, Obb>().IntersectFields(
-        box_M_.pressure(), box_M_.bvh(), octahedron_N_.pressure(),
-        octahedron_N_.bvh(), X_MN, &surface_01_M, &e_MN_M);
+    VolumeIntersector<PolyMeshBuilder<double>, hydroelastic::SoftMesh::BvType>()
+        .IntersectFields(box_M_.pressure(), box_M_.bvh(),
+                         octahedron_N_.pressure(), octahedron_N_.bvh(), X_MN,
+                         &surface_01_M, &e_MN_M);
 
     EXPECT_EQ(surface_01_M.get(), nullptr);
     EXPECT_EQ(e_MN_M.get(), nullptr);
@@ -548,11 +563,12 @@ TEST_F(VolumeIntersectorTest, IntersectFieldsNoIntersection) {
     const RigidTransformd X_MN(Vector3d::UnitX());
     std::unique_ptr<PolygonSurfaceMesh<double>> surface_01_M;
     std::unique_ptr<PolygonSurfaceMeshFieldLinear<double, double>> e_MN_M;
-    VolumeIntersector<PolyMeshBuilder<double>, Obb>().IntersectFields(
-        box_M_.pressure(), box_M_.surface_mesh_bvh(), box_M_.tri_to_tet(),
-        box_M_.mesh_topology(), octahedron_N_.pressure(),
-        octahedron_N_.surface_mesh_bvh(), octahedron_N_.tri_to_tet(),
-        octahedron_N_.mesh_topology(), X_MN, &surface_01_M, &e_MN_M);
+    VolumeIntersector<PolyMeshBuilder<double>, hydroelastic::SoftMesh::BvType>()
+        .IntersectFields(
+            box_M_.pressure(), box_M_.surface_mesh_bvh(), box_M_.tri_to_tet(),
+            box_M_.mesh_topology(), octahedron_N_.pressure(),
+            octahedron_N_.surface_mesh_bvh(), octahedron_N_.tri_to_tet(),
+            octahedron_N_.mesh_topology(), X_MN, &surface_01_M, &e_MN_M);
 
     EXPECT_EQ(surface_01_M.get(), nullptr);
     EXPECT_EQ(e_MN_M.get(), nullptr);

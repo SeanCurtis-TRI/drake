@@ -53,7 +53,8 @@ class SurfaceVolumeIntersectorTester {
   }
 
  private:
-  SurfaceVolumeIntersector<MeshBuilder, Obb> intersect_;
+  SurfaceVolumeIntersector<MeshBuilder, hydroelastic::SoftMesh::BvType>
+      intersect_;
 };
 
 namespace {
@@ -806,7 +807,9 @@ class MeshIntersectionFixture : public testing::Test {
   void SetUp() override {
     // The soft volume mesh is expressed in frame S.
     mesh_S_ = TrivialVolumeMesh<double>();
-    bvh_mesh_S_ = make_unique<Bvh<Obb, VolumeMesh<double>>>(*mesh_S_);
+    bvh_mesh_S_ =
+        make_unique<Bvh<hydroelastic::SoftMesh::BvType, VolumeMesh<double>>>(
+            *mesh_S_);
     field_S_ = TrivialVolumeMeshField<double>(mesh_S_.get());
     // The rigid surface mesh is expressed in frame R.
     surface_R_ = TrivialSurfaceMesh<double>();
@@ -958,7 +961,8 @@ class MeshIntersectionFixture : public testing::Test {
 
   // Soft volume mesh with pressure field.
   unique_ptr<VolumeMesh<double>> mesh_S_;
-  unique_ptr<Bvh<Obb, VolumeMesh<double>>> bvh_mesh_S_;
+  unique_ptr<Bvh<hydroelastic::SoftMesh::BvType, VolumeMesh<double>>>
+      bvh_mesh_S_;
   unique_ptr<VolumeMeshFieldLinear<double, double>> field_S_;
 
   // Rigid surface mesh.
@@ -980,7 +984,8 @@ TYPED_TEST_SUITE(MeshIntersectionFixture, MeshBuilders);
 TYPED_TEST(MeshIntersectionFixture, SampleVolumeFieldOnSurface) {
   using MeshBuilder = TypeParam;
 
-  SurfaceVolumeIntersector<MeshBuilder, Obb> intersector;
+  SurfaceVolumeIntersector<MeshBuilder, hydroelastic::SoftMesh::BvType>
+      intersector;
   intersector.SampleVolumeFieldOnSurface(*this->field_S_, *this->bvh_mesh_S_,
                                          *this->surface_R_,
                                          *this->bvh_surface_R_, this->X_SR_);
@@ -1119,7 +1124,8 @@ class MeshMeshDerivativesTest : public ::testing::Test {
                                                   std::move(vertices_S));
     field_S_ = make_unique<VolumeMeshFieldLinear<double, double>>(
         vector<double>{0.25, 0.5, 0.75, 1}, tet_mesh_S_.get());
-    bvh_S_ = std::make_unique<Bvh<Obb, VolumeMesh<double>>>(*tet_mesh_S_);
+    bvh_S_ = std::make_unique<
+        Bvh<hydroelastic::SoftMesh::BvType, VolumeMesh<double>>>(*tet_mesh_S_);
 
     /* Rigid triangle mesh; tilt and offset the triangle's plane so things are
      interesting. */
@@ -1299,7 +1305,7 @@ class MeshMeshDerivativesTest : public ::testing::Test {
   GeometryId id_S_;
   unique_ptr<VolumeMesh<double>> tet_mesh_S_;
   unique_ptr<VolumeMeshFieldLinear<double, double>> field_S_;
-  unique_ptr<Bvh<Obb, VolumeMesh<double>>> bvh_S_;
+  unique_ptr<Bvh<hydroelastic::SoftMesh::BvType, VolumeMesh<double>>> bvh_S_;
 
   /* Rigid triangle mesh. */
   RigidTransform<AutoDiffXd> X_WR_;

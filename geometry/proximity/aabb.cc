@@ -49,6 +49,53 @@ bool Aabb::HasOverlap(const Aabb& aabb_G, const Obb& obb_H,
   return internal::BoxesOverlap(aabb_G.half_width(), obb_H.half_width(), X_AO);
 }
 
+bool Aabb::HasOverlap(const Aabb& bv_H, const Plane<double>& plane_P,
+                      const RigidTransformd& X_PH) {
+  return plane_P.BoxOverlaps(bv_H.half_width(), X_PH * bv_H.center(),
+                             X_PH.rotation());
+}
+
+bool Aabb::HasOverlap(const Aabb& bv, const HalfSpace&,
+                      const RigidTransformd& X_CB) {
+  /*
+                        By  ╱╲       Bx
+                          ╲╱  ╲    ╱
+                          ╱╲   ╲  ╱
+                         ╱  ╲   ╲╱
+                         ╲   ╲  ╱╲   bv
+                          ╲   ╲╱  ╲
+                           ╲   Bo  ╲
+                            ╲       ╲
+                             ╲      ╱
+                              ╲    ╱
+                               ╲  ╱        Cz
+                                ╲╱         ^
+                                L          ┃  Cx
+              ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┺━━━>┄┄┄┄┄┄┄┄┄┄┄┄┄
+              ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  Half space
+              ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+    In the picture above, L is the point of the box that is "lowest" (in the
+    opposite direction of the normal. We can project the vector from v_BoL onto
+    the half space normal Cz to get the _minimum distance_ between the box
+    center and the half space boundary for the box to be outside the half space.
+
+    So, |v_BoL·Cz| is the clearance distance. The signed distance of the box
+    center to the half space boundary is p_CB·Cz. The box doesn't overlap the
+    half space iff p_CB·Cz > |v_BoL·Cz|.
+
+    Given we're dotting everything with Cz, we only need the z-components of
+    the quantities in question.
+   */
+
+  const RotationMatrixd& R_CB = X_CB.rotation();
+  // Just taking the bottom row of R_CB operates on just the z-components.
+  const double clearance =
+      R_CB.row(2).cwiseAbs().cwiseProduct(bv.half_width().transpose()).sum();
+
+  return X_CB.translation()(2) <= clearance;
+}
+
 template <typename MeshType>
 Aabb AabbMaker<MeshType>::Compute() const {
   auto itr = vertices_.begin();

@@ -63,7 +63,7 @@ void AddDeformableRigidContactSurface(
     const std::vector<int>& surface_tri_to_volume_tet, GeometryId deformable_id,
     GeometryId rigid_id,
     const VolumeMeshFieldLinear<double, double>& pressure_field_R,
-    const Bvh<Obb, VolumeMesh<double>>& rigid_bvh_R,
+    const Bvh<hydroelastic::SoftMesh::BvType, VolumeMesh<double>>& rigid_bvh_R,
     const math::RigidTransform<double>& X_RD,
     DeformableContact<double>* deformable_contact);
 

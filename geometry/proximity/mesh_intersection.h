@@ -9,6 +9,7 @@
 #include "drake/geometry/geometry_ids.h"
 #include "drake/geometry/proximity/bvh.h"
 #include "drake/geometry/proximity/contact_surface_utility.h"
+#include "drake/geometry/proximity/hydroelastic_internal.h"
 #include "drake/geometry/proximity/polygon_surface_mesh.h"
 #include "drake/geometry/proximity/polygon_surface_mesh_field.h"
 #include "drake/geometry/proximity/posed_half_space.h"
@@ -162,7 +163,7 @@ class SurfaceVolumeIntersector {
    */
   void SampleVolumeFieldOnSurface(
       const VolumeMeshFieldLinear<double, double>& volume_field_M,
-      const Bvh<TetBvType, VolumeMesh<double>>& bvh_M,
+      const Bvh<hydroelastic::SoftMesh::BvType, VolumeMesh<double>>& bvh_M,
       const TriangleSurfaceMesh<double>& surface_N,
       const Bvh<TriBvType, TriangleSurfaceMesh<double>>& bvh_N,
       const math::RigidTransform<T>& X_MN,
@@ -446,7 +447,7 @@ template <typename T>
 std::unique_ptr<ContactSurface<T>>
 ComputeContactSurfaceFromSoftVolumeRigidSurface(
     const GeometryId id_S, const VolumeMeshFieldLinear<double, double>& field_S,
-    const Bvh<Obb, VolumeMesh<double>>& bvh_S,
+    const Bvh<hydroelastic::SoftMesh::BvType, VolumeMesh<double>>& bvh_S,
     const math::RigidTransform<T>& X_WS, const GeometryId id_R,
     const TriangleSurfaceMesh<double>& mesh_R,
     const Bvh<Obb, TriangleSurfaceMesh<double>>& bvh_R,

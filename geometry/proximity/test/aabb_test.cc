@@ -149,6 +149,58 @@ GTEST_TEST(AabbTest, BoxOverlap) {
   }
 }
 
+// Tests AABB-plane intersection. The vast majority of the work is done by
+// the Plane class (tested elsewhere). We just need to confirm that the AABB
+// describes itself in the Plane's frame correctly. To that end, we make sure
+// that the AABB has non-trivial values for position and relative transform
+// between plane and hierarchy.
+GTEST_TEST(AabbTest, PlaneOverlap) {
+  const Vector3d half_width(0.25, 2.0, 1.5);
+
+  const Vector3d p_HB(-1, 2, 0.5);
+
+  // The "interesting" relative pose between plane and hierarchy frames.
+  // The relative orientation is an arbitrary non-identity value but the
+  // relative position of the frames is selected carefully. Specifically, we
+  // want to make sure that the center of the box is above the plane exactly
+  // a distance sufficient so that the box's lowest corner (L) is just touching
+  // the plane.
+  //
+  // The distance between L and Bo is simply p_LBo_P·Pz_P. We'll call this
+  // value "clearance".
+  //
+  // So, p_PBo = [x, y, clearance] (for arbitrary x- and y-values) satisfies the
+  // requirement and we can solve for p_PH:
+  //
+  //                  p_PBo = X_PH * p_HBo
+  //                  p_PBo = R_PH * p_HBo + p_PH
+  //   p_PBo - R_PH * p_HBo = p_PH
+
+  // Pick an arbitrary R_PH.
+  const auto R_PH = RotationMatrixd::MakeFromOneVector(Vector3d(-1, 2, -2), 2);
+  // Now we can figure out the clearance by projecting p_LBo_P onto Pz.
+  const double clearance =
+      R_PH.row(2).cwiseAbs().cwiseProduct(half_width.transpose()).sum();
+
+  // Pick a compatible p_PB and solve for p_PH.
+  const Vector3d p_PB_P(1.5, -0.5, clearance);
+  const Vector3d p_PH = p_PB_P - R_PH * p_HB;
+  const RigidTransformd X_PH(R_PH, p_PH);
+
+  // We're using a boring frame (Pz = [0, 0, 1] and center = [0, 0, 0]). The
+  // plane tests already exercise the *plane's* members thoroughly.
+  const Plane<double> plane_W(Vector3d::UnitZ(), Vector3d::Zero());
+
+  // We'll confirm the expected clearance by perturbing the hierarchy frame
+  // to be slightly inside and outside of contact.
+  const Aabb aabb_H(p_HB, half_width);
+  const Vector3d delta_P(0, 0, 1e-10);
+  EXPECT_FALSE(
+      Aabb::HasOverlap(aabb_H, plane_W, RigidTransformd(delta_P) * X_PH));
+  EXPECT_TRUE(
+      Aabb::HasOverlap(aabb_H, plane_W, RigidTransformd(-delta_P) * X_PH));
+}
+
 GTEST_TEST(AabbTest, TestEqual) {
   const Vector3d p_HB{0.5, 0.25, -0.75};
   const Vector3d half_size{1, 2, 3};

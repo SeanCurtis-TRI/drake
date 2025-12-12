@@ -4,6 +4,7 @@
 #include "drake/common/drake_copyable.h"
 #include "drake/common/eigen_types.h"
 #include "drake/geometry/proximity/mesh_traits.h"
+#include "drake/math/rotation_matrix.h"
 
 namespace drake {
 namespace geometry {
@@ -71,6 +72,23 @@ class Plane {
   /* Returns a point on the plane in frame F. Generally, this will _not_ be the
    same point as the one used to construct the plane. */
   Vector3<T> point_on_plane() const { return nhat_F_ * displacement_; }
+
+  /* Reports if the given box intersects this plane. The box is specified in
+   generic terms; the box has half measures aligned with a frame B and is
+   centered on Bo. For this plane measured and expressed in frame P, the box's
+   frame B is related to P by X_PB.
+
+   @param half_width                The half-width extents of the box along its
+                                    local axes.
+   @param box_center_in_plane       The center of the box measured and expressed
+                                    in the plane's frame: p_PBo.
+   @param box_orientation_in_plane  The orientation of the box expressed in the
+                                    plane's frame: R_PB. The ith column goes
+                                    with the ith half width.
+   */
+  bool BoxOverlaps(const Eigen::Vector3d& half_width,
+                   const Eigen::Vector3d& box_center_in_plane,
+                   const math::RotationMatrixd& box_orientation_in_plane) const;
 
  private:
   // Used to validate the "already normalized" plane normal in debug mode.

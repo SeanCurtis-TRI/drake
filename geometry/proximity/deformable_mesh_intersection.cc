@@ -16,7 +16,8 @@ namespace internal {
 //  file to test it directly and for future code re-use.
 
 class DeformableSurfaceVolumeIntersector
-    : public SurfaceVolumeIntersector<PolyMeshBuilder<double>, Obb, Aabb> {
+    : public SurfaceVolumeIntersector<PolyMeshBuilder<double>,
+                                      hydroelastic::SoftMesh::BvType, Aabb> {
  public:
   // N.B. If this class declaration moves to the header, don't inline this dtor.
   ~DeformableSurfaceVolumeIntersector() = default;
@@ -48,10 +49,12 @@ class DeformableSurfaceVolumeIntersector
     const int num_vertices_before = builder_R->num_vertices();
     // N.B. we must invoke the base implementation before recording any new
     // data.
-    SurfaceVolumeIntersector<PolyMeshBuilder<double>, Obb, Aabb>::
-        CalcContactPolygon(volume_field_R, surface_D, X_RD, X_RD_d, builder_R,
-                           filter_face_normal_along_field_gradient, tet_index,
-                           tri_index);
+    SurfaceVolumeIntersector<
+        PolyMeshBuilder<double>, hydroelastic::SoftMesh::BvType,
+        Aabb>::CalcContactPolygon(volume_field_R, surface_D, X_RD, X_RD_d,
+                                  builder_R,
+                                  filter_face_normal_along_field_gradient,
+                                  tet_index, tri_index);
     const int num_vertices_after = builder_R->num_vertices();
     const int num_new_vertices = num_vertices_after - num_vertices_before;
     if (num_new_vertices == 0) {
@@ -92,7 +95,7 @@ void AddDeformableRigidContactSurface(
     const std::vector<int>& surface_tri_to_volume_tet,
     const GeometryId deformable_id, const GeometryId rigid_id,
     const VolumeMeshFieldLinear<double, double>& pressure_field_R,
-    const Bvh<Obb, VolumeMesh<double>>& rigid_bvh_R,
+    const Bvh<hydroelastic::SoftMesh::BvType, VolumeMesh<double>>& rigid_bvh_R,
     const math::RigidTransform<double>& X_RD,
     DeformableContact<double>* deformable_contact) {
   DRAKE_DEMAND(deformable_contact != nullptr);

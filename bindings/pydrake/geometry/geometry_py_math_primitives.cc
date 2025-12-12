@@ -44,6 +44,7 @@ void DefinePlane(py::module m, T) {
             cls_doc.normal.doc)
         .def("point_on_plane", &Class::point_on_plane,
             cls_doc.point_on_plane.doc)
+        .def("BoxOverlaps", &Class::normal, cls_doc.BoxOverlaps.doc)
         .def(py::pickle(
             [](const Class& self) {
               return std::make_tuple(self.normal(), self.point_on_plane());

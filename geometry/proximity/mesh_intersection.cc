@@ -291,7 +291,7 @@ template <typename MeshBuilder, typename TetBvType, typename TriBvType>
 void SurfaceVolumeIntersector<MeshBuilder, TetBvType, TriBvType>::
     SampleVolumeFieldOnSurface(
         const VolumeMeshFieldLinear<double, double>& volume_field_M,
-        const Bvh<TetBvType, VolumeMesh<double>>& bvh_M,
+        const Bvh<hydroelastic::SoftMesh::BvType, VolumeMesh<double>>& bvh_M,
         const TriangleSurfaceMesh<double>& surface_N,
         const Bvh<TriBvType, TriangleSurfaceMesh<double>>& bvh_N,
         const math::RigidTransform<T>& X_MN,
@@ -385,7 +385,7 @@ template <typename T>
 std::unique_ptr<ContactSurface<T>>
 ComputeContactSurfaceFromSoftVolumeRigidSurface(
     const GeometryId id_S, const VolumeMeshFieldLinear<double, double>& field_S,
-    const Bvh<Obb, VolumeMesh<double>>& bvh_S,
+    const Bvh<hydroelastic::SoftMesh::BvType, VolumeMesh<double>>& bvh_S,
     const math::RigidTransform<T>& X_WS, const GeometryId id_R,
     const TriangleSurfaceMesh<double>& mesh_R,
     const Bvh<Obb, TriangleSurfaceMesh<double>>& bvh_R,
@@ -444,6 +444,15 @@ template class SurfaceVolumeIntersector<TriMeshBuilder<double>, Obb>;
 template class SurfaceVolumeIntersector<TriMeshBuilder<AutoDiffXd>, Obb>;
 template class SurfaceVolumeIntersector<PolyMeshBuilder<double>, Obb>;
 template class SurfaceVolumeIntersector<PolyMeshBuilder<AutoDiffXd>, Obb>;
+template class SurfaceVolumeIntersector<TriMeshBuilder<double>, Aabb>;
+template class SurfaceVolumeIntersector<TriMeshBuilder<AutoDiffXd>, Aabb>;
+template class SurfaceVolumeIntersector<PolyMeshBuilder<double>, Aabb>;
+template class SurfaceVolumeIntersector<PolyMeshBuilder<AutoDiffXd>, Aabb>;
+template class SurfaceVolumeIntersector<TriMeshBuilder<double>, Aabb, Aabb>;
+template class SurfaceVolumeIntersector<TriMeshBuilder<AutoDiffXd>, Aabb, Aabb>;
+template class SurfaceVolumeIntersector<PolyMeshBuilder<double>, Aabb, Aabb>;
+template class SurfaceVolumeIntersector<PolyMeshBuilder<AutoDiffXd>, Aabb,
+                                        Aabb>;
 
 // TODO(xuchenhan-tri): Allow for AutoDiffXd when deformable simulation
 //  supports it in general.

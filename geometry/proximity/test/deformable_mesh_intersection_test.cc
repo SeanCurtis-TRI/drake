@@ -42,7 +42,8 @@ GTEST_TEST(ComputeContactSurfaceDeformableRigid, NoContact) {
   // The cube of edge length 2.0 occupies the space [-1,1]x[-1,1]x[-1,1].
   const VolumeMesh<double> rigid_mesh_R =
       MakeBoxVolumeMeshWithMa<double>(Box::MakeCube(2.0));
-  const Bvh<Obb, VolumeMesh<double>> rigid_bvh_R(rigid_mesh_R);
+  const Bvh<hydroelastic::SoftMesh::BvType, VolumeMesh<double>> rigid_bvh_R(
+      rigid_mesh_R);
   const VolumeMeshFieldLinear<double, double> pressure_field_R =
       MakeBoxPressureField<double>(Box::MakeCube(2.0), &rigid_mesh_R, 1e5);
 
@@ -107,7 +108,8 @@ GTEST_TEST(ComputeContactSurfaceDeformableRigid, OnePolygon) {
   const VolumeMesh<double> rigid_mesh_R(
       {{0, 1, 2, 3}}, {Vector3<double>::Zero(), Vector3<double>::UnitX(),
                        Vector3<double>::UnitY(), Vector3<double>::UnitZ()});
-  const Bvh<Obb, VolumeMesh<double>> rigid_bvh_R(rigid_mesh_R);
+  const Bvh<hydroelastic::SoftMesh::BvType, VolumeMesh<double>> rigid_bvh_R(
+      rigid_mesh_R);
   const double dummy_pressure = 123.0;
   std::vector<double> pressure_values{dummy_pressure, dummy_pressure,
                                       dummy_pressure, dummy_pressure};
@@ -184,7 +186,8 @@ GTEST_TEST(ComputeContactSurfaceDeformableRigid, OnlyRelativePoseMatters) {
   // The cube of edge length 2.0 occupies the space [-1,1]x[-1,1]x[-1,1].
   const VolumeMesh<double> rigid_mesh_R =
       MakeBoxVolumeMeshWithMa<double>(Box::MakeCube(2.0));
-  const Bvh<Obb, VolumeMesh<double>> rigid_bvh_R(rigid_mesh_R);
+  const Bvh<hydroelastic::SoftMesh::BvType, VolumeMesh<double>> rigid_bvh_R(
+      rigid_mesh_R);
   const VolumeMeshFieldLinear<double, double> pressure_field_R =
       MakeBoxPressureField<double>(Box::MakeCube(2.0), &rigid_mesh_R, 1e5);
   math::RigidTransform<double> X_WR(Vector3<double>{1.5, 0.0, 0.0});
@@ -268,7 +271,8 @@ GTEST_TEST(ComputeContactSurfaceDeformableRigid, InvertedElements) {
   // The cube of edge length 2.0 occupies the space [-1,1]x[-1,1]x[-1,1].
   const VolumeMesh<double> rigid_mesh_R =
       MakeBoxVolumeMeshWithMa<double>(Box::MakeCube(2.0));
-  const Bvh<Obb, VolumeMesh<double>> rigid_bvh_R(rigid_mesh_R);
+  const Bvh<hydroelastic::SoftMesh::BvType, VolumeMesh<double>> rigid_bvh_R(
+      rigid_mesh_R);
   const VolumeMeshFieldLinear<double, double> pressure_field_R =
       MakeBoxPressureField<double>(Box::MakeCube(2.0), &rigid_mesh_R, 1e5);
   math::RigidTransform<double> X_WR(Vector3<double>{1.5, 0.0, 0.0});

@@ -121,7 +121,8 @@ GTEST_TEST(SoftMeshTest, TestCopyMoveAssignConstruct) {
     const VolumeMesh<double>* const mesh_ptr = &start.mesh();
     const VolumeMeshFieldLinear<double, double>* const pressure_ptr =
         &start.pressure();
-    const Bvh<Obb, VolumeMesh<double>>* const bvh_ptr = &start.bvh();
+    const Bvh<hydroelastic::SoftMesh::BvType, VolumeMesh<double>>* const
+        bvh_ptr = &start.bvh();
     const TriangleSurfaceMesh<double>* const surface_mesh_ptr =
         &start.surface_mesh();
     const Bvh<Obb, TriangleSurfaceMesh<double>>* const surface_mesh_bvh_ptr =
@@ -233,7 +234,8 @@ GTEST_TEST(SoftGeometryTest, TestCopyMoveAssignConstruct) {
     const VolumeMesh<double>* const mesh_ptr = &start.mesh();
     const VolumeMeshFieldLinear<double, double>* const pressure_ptr =
         &start.pressure_field();
-    const Bvh<Obb, VolumeMesh<double>>* const bvh_ptr = &start.bvh();
+    const Bvh<hydroelastic::SoftMesh::BvType, VolumeMesh<double>>* const
+        bvh_ptr = &start.bvh();
 
     // Test move constructor.
     SoftGeometry move_constructed(std::move(start));

@@ -766,6 +766,7 @@ drake_cc_library(
     deps = [
         ":bvh",
         ":contact_surface_utility",
+        ":hydroelastic_internal",
         ":mesh_field",
         ":posed_half_space",
         ":triangle_surface_mesh",
@@ -784,6 +785,7 @@ drake_cc_library(
     deps = [
         ":bvh",
         ":contact_surface_utility",
+        ":hydroelastic_internal",
         ":mesh_field",
         ":plane",
         ":volume_mesh",
@@ -864,6 +866,7 @@ drake_cc_library(
         ":mesh_traits",
         "//common:default_scalars",
         "//common:essential",
+        "//math:geometric_transform",
     ],
 )
 

@@ -7,6 +7,7 @@ namespace drake {
 namespace geometry {
 
 using Eigen::Vector3d;
+using math::RotationMatrixd;
 
 template <typename T>
 Plane<T>::Plane(const Vector3<T>& normal, const Vector3<T>& point_on_plane,
@@ -33,6 +34,49 @@ Plane<T>::Plane(const Vector3<T>& normal, const Vector3<T>& point_on_plane,
     nhat_F_ = n_F;
   }
   displacement_ = nhat_F_.dot(p_FP);
+}
+
+template <typename T>
+bool Plane<T>::BoxOverlaps(
+    const Vector3d& half_width, const Vector3d& box_center_in_plane,
+    const RotationMatrixd& box_orientation_in_plane) const {
+  /* We'll simply project the box onto the plane normal and see if the interval
+   overlaps the plane's zero height.
+
+   The box's projection is centered on the box's center projected onto the plane
+   normal. It extends in both directions from the center by the box's half
+   extent in the direction of the normal. */
+
+  const RotationMatrixd& R_PB = box_orientation_in_plane;
+  double half_extent_along_normal = 0.0;
+  const Vector3d& n_P = ExtractDoubleOrThrow(normal());
+  for (int i = 0; i < 3; ++i) {
+    const Vector3d& Bi_P = R_PB.col(i);
+    double extent = std::abs(Bi_P.dot(n_P)) * half_width(i);
+    fmt::print("Axis {}: has extent {}\n", i, extent);
+    half_extent_along_normal += extent;
+  }
+
+  const Vector3d& p_PoBo_P = box_center_in_plane;
+  const double box_center_height = ExtractDoubleOrThrow(CalcHeight(p_PoBo_P));
+  fmt::print("Box center height: {}, half extent along normal: {}\n",
+             box_center_height, half_extent_along_normal);
+  return std::abs(box_center_height) <= half_extent_along_normal;
+}
+
+template <typename T>
+void Plane<T>::ThrowIfInsufficientlyNormal(const Vector3<T>& n) {
+  using std::abs;
+  const T delta = abs(n.norm() - 1);
+  // We pick a threshold that should easily contain typical precision loss
+  // in the columns/rows of a rotation matrix -- a likely source for plane
+  // normals.
+  if (delta > 1e-13) {
+    throw std::runtime_error(fmt::format(
+        "Plane constructed with a normal vector that was declared normalized;"
+        " the vector is not unit length. Vector [{}] with length {}",
+        fmt_eigen(n.transpose()), T{n.norm()}));
+  }
 }
 
 DRAKE_DEFINE_CLASS_TEMPLATE_INSTANTIATIONS_ON_DEFAULT_NONSYMBOLIC_SCALARS(

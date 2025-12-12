@@ -440,7 +440,8 @@ void HydroelasticVolumeIntersector<MeshBuilder>::IntersectCompliantVolumes(
   // The computation will be in Frame M and then transformed to the world frame.
   std::unique_ptr<typename MeshBuilder::MeshType> surface01_M;
   std::unique_ptr<typename MeshBuilder::FieldType> field01_M;
-  VolumeIntersector<MeshBuilder, Obb> volume_intersector;
+  VolumeIntersector<MeshBuilder, hydroelastic::SoftMesh::BvType>
+      volume_intersector;
 
   if (use_surfaces) {
     volume_intersector.IntersectFields(

@@ -35,7 +35,7 @@ std::unique_ptr<ContactSurface<T>> CalcRigidCompliant(
       // Soft volume vs rigid half space.
       const VolumeMeshFieldLinear<double, double>& field_S =
           soft.pressure_field();
-      const Bvh<Obb, VolumeMesh<double>>& bvh_S = soft.bvh();
+      const Bvh<SoftMesh::BvType, VolumeMesh<double>>& bvh_S = soft.bvh();
       return ComputeContactSurfaceFromSoftVolumeRigidHalfSpace(
           id_S, field_S, bvh_S, X_WS, id_R, X_WR, representation);
     }
@@ -43,7 +43,7 @@ std::unique_ptr<ContactSurface<T>> CalcRigidCompliant(
     // soft cannot be a half space; so this must be mesh-mesh.
     const VolumeMeshFieldLinear<double, double>& field_S =
         soft.pressure_field();
-    const Bvh<Obb, VolumeMesh<double>>& bvh_S = soft.bvh();
+    const Bvh<SoftMesh::BvType, VolumeMesh<double>>& bvh_S = soft.bvh();
     const TriangleSurfaceMesh<double>& mesh_R = rigid.mesh();
     const Bvh<Obb, TriangleSurfaceMesh<double>>& bvh_R = rigid.bvh();
 
