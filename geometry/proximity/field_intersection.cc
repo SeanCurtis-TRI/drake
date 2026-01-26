@@ -209,7 +209,7 @@ bool IsPlaneNormalAlongPressureGradient(
   // cos(θ) > cos(α) → θ < α → condition met.
   return cos_theta > kCosAlpha;
 }
-
+#if defined(_OPENMP)
 namespace {
   int GetNumThreads() {
     #if defined(_OPENMP)
@@ -225,7 +225,7 @@ namespace {
     #endif
   }
 }
-
+#endif
 template <class MeshBuilder, class BvType>
 void VolumeIntersector<MeshBuilder, BvType>::IntersectFields(
     const VolumeMeshFieldLinear<double, double>& field0_M,
