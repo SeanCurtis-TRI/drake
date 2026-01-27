@@ -35,6 +35,17 @@ drake_cc_library(
 )
 
 drake_cc_binary(
+    name = "dummy",
+    srcs = ["dummy.cc"],
+    testonly = 1,
+    deps = [
+        "//common:essential",
+        "//common:unused",
+        "//common/test_utilities:limit_malloc",
+    ],
+)
+
+drake_cc_binary(
     name = "bouncing_ball_run_dynamics",
     srcs = ["bouncing_ball_run_dynamics.cc"],
     add_test_rule = 1,
