@@ -1,0 +1,17 @@
+# -*- bazel -*-
+
+load("//tools/skylark:py.bzl", "py_library")
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files(
+    ["package.BUILD.bazel"],
+    visibility = ["@filament_internal//:__pkg__"],
+)
+
+py_library(
+    name = "module_py",
+    srcs = ["__init__.py"],
+    visibility = ["//tools/workspace:__pkg__"],
+    deps = ["//tools/workspace:module_py"],
+)

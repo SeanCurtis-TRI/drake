@@ -15,6 +15,7 @@ load("//tools/workspace/dm_control_internal:repository.bzl", "dm_control_interna
 load("//tools/workspace/doxygen_internal:repository.bzl", "doxygen_internal_repository")  # noqa
 load("//tools/workspace/drake_models:repository.bzl", "drake_models_repository")
 load("//tools/workspace/fcl_internal:repository.bzl", "fcl_internal_repository")
+load("//tools/workspace/filament_internal:repository.bzl", "filament_internal_repository")  # noqa
 load("//tools/workspace/gfortran_internal:repository.bzl", "gfortran_internal_repository")  # noqa
 load("//tools/workspace/github3_py_internal:repository.bzl", "github3_py_internal_repository")  # noqa
 load("//tools/workspace/gklib_internal:repository.bzl", "gklib_internal_repository")  # noqa
@@ -95,6 +96,7 @@ def _add_internal_repositories():
     doxygen_internal_repository(name = "doxygen_internal", mirrors = mirrors)
     dm_control_internal_repository(name = "dm_control_internal", mirrors = mirrors)  # noqa
     fcl_internal_repository(name = "fcl_internal", mirrors = mirrors)
+    filament_internal_repository(name = "filament_internal", mirrors = mirrors)  # noqa
     gfortran_internal_repository(name = "gfortran_internal")
     github3_py_internal_repository(name = "github3_py_internal", mirrors = mirrors)  # noqa
     gklib_internal_repository(name = "gklib_internal", mirrors = mirrors)

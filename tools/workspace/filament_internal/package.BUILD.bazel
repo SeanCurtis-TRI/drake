@@ -1,0 +1,117 @@
+# -*- bazel -*-
+
+load("@drake//tools/install:install.bzl", "install")
+load("@drake//tools/skylark:cc.bzl", "cc_library")
+
+licenses(["notice"])  # Apache-2.0
+
+package(default_visibility = ["//visibility:public"])
+
+# Filament is a PBR rendering engine that uses CMake. Since we're integrating
+# it into Bazel, we expose its header-only interfaces and note that full
+# integration would require either:
+# 1. Using prebuilt binaries from Filament releases
+# 2. Creating a custom Bazel build that wraps CMake (e.g., with rules_foreign_cc)
+# 3. Manually porting the CMake build to Bazel
+#
+# For now, we provide a header-only target to allow Drake code to compile
+# against Filament's public API. Actual linking would require one of the
+# approaches above.
+
+# Main Filament headers
+cc_library(
+    name = "filament_headers",
+    hdrs = glob([
+        "filament/include/**/*.h",
+        "filament/backend/include/**/*.h",
+    ]),
+    includes = [
+        "filament/include",
+        "filament/backend/include",
+    ],
+    deps = [
+        ":math",
+        ":utils_headers",
+    ],
+)
+
+# Math library headers
+cc_library(
+    name = "math",
+    hdrs = glob(["libs/math/include/**/*.h"]),
+    includes = ["libs/math/include"],
+    strip_include_prefix = "libs/math/include",
+)
+
+# Utils library headers
+cc_library(
+    name = "utils_headers",
+    hdrs = glob([
+        "libs/utils/include/**/*.h",
+        "third_party/robin-map/include/**/*.h",
+    ]),
+    includes = [
+        "libs/utils/include",
+        "third_party/robin-map/include",
+    ],
+    strip_include_prefix = "libs/utils/include",
+)
+
+# Filamat (material builder) headers
+cc_library(
+    name = "filamat_headers",
+    hdrs = glob(["libs/filamat/include/**/*.h"]),
+    includes = ["libs/filamat/include"],
+    strip_include_prefix = "libs/filamat/include",
+    deps = [":filament_headers"],
+)
+
+# GLTF I/O library headers  
+cc_library(
+    name = "gltfio_headers",
+    hdrs = glob(["libs/gltfio/include/**/*.h"]),
+    includes = ["libs/gltfio/include"],
+    strip_include_prefix = "libs/gltfio/include",
+    deps = [":filament_headers"],
+)
+
+# Geometry utilities headers
+cc_library(
+    name = "geometry_headers",
+    hdrs = glob(["libs/geometry/include/**/*.h"]),
+    includes = ["libs/geometry/include"],
+    strip_include_prefix = "libs/geometry/include",
+    deps = [
+        ":filament_headers",
+        ":math",
+    ],
+)
+
+# Image utilities headers
+cc_library(
+    name = "image_headers",
+    hdrs = glob(["libs/image/include/**/*.h"]),
+    includes = ["libs/image/include"],
+    strip_include_prefix = "libs/image/include",
+    deps = [":filament_headers"],
+)
+
+# Viewer library headers
+cc_library(
+    name = "viewer_headers",
+    hdrs = glob(["libs/viewer/include/**/*.h"]),
+    includes = ["libs/viewer/include"],
+    strip_include_prefix = "libs/viewer/include",
+    deps = [
+        ":filament_headers",
+        ":gltfio_headers",
+    ],
+)
+
+# Install the license file
+install(
+    name = "install",
+    docs = ["LICENSE"],
+)
+
+exports_files(["drake_repository_metadata.json"])
