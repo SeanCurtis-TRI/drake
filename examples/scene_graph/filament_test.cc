@@ -25,30 +25,11 @@
 #include <gltfio/ResourceLoader.h>
 #include <gltfio/MaterialProvider.h>
 #include <gltfio/TextureProvider.h>
+#include <imageio/ImageEncoder.h>
 #include <math/vec3.h>
 #include <math/mat4.h>
 
 namespace gltfio = filament::gltfio;
-
-// Simple function to save RGBA data as PPM (since we can't use Drake's I/O due to ABI issues)
-void SaveImageAsPPM(const std::string& filename, 
-                    const uint8_t* rgba_data, uint32_t width, uint32_t height) {
-    std::ofstream file(filename, std::ios::binary);
-    if (!file.is_open()) {
-        std::cerr << "Failed to open file for writing: " << filename << std::endl;
-        return;
-    }
-    
-    // Write PPM header (P6 format for binary RGB)
-    file << "P6\n" << width << " " << height << "\n255\n";
-    
-    // Write RGB data (strip alpha channel)
-    for (uint32_t i = 0; i < width * height; ++i) {
-        file.write(reinterpret_cast<const char*>(&rgba_data[i * 4]), 3);
-    }
-    
-    file.close();
-}
 
 int main(int argc, char* argv[]) {
     if (argc < 3) {
@@ -307,10 +288,34 @@ int main(int argc, char* argv[]) {
             }
         }
         
-        // Save as PPM format (simple format, no library needed)
-        SaveImageAsPPM(output_path, flipped_data.data(), width, height);
-        std::cout << "Image saved successfully!" << std::endl;
-        std::cout << "Note: Image saved as PPM format. Use .ppm extension or convert with imagemagick." << std::endl;
+        // Encode and save as PNG using imageio
+        std::ofstream output_file(output_path, std::ios::binary | std::ios::trunc);
+        if (!output_file.is_open()) {
+            std::cerr << "Failed to open output file: " << output_path << std::endl;
+        } else {
+            image::LinearImage linear_image(width, height, 4);
+            
+            // Convert from uint8 RGBA to float RGBA for LinearImage
+            for (uint32_t i = 0; i < width * height * 4; ++i) {
+                reinterpret_cast<float*>(linear_image.getPixelRef())[i] = 
+                    flipped_data[i] / 255.0f;
+            }
+            
+            // Encode to PNG
+            bool success = image::ImageEncoder::encode(
+                output_file,
+                image::ImageEncoder::Format::PNG,
+                linear_image,
+                "",  // compression (empty for default)
+                output_path.string());
+            
+            output_file.close();
+            if (success) {
+                std::cout << "Image saved successfully as PNG!" << std::endl;
+            } else {
+                std::cerr << "Failed to encode image as PNG" << std::endl;
+            }
+        }
     }
     
     std::cout << "glTF test completed successfully!" << std::endl;

@@ -61,6 +61,9 @@ genrule(
         "lib/libz.a",
         "lib/libstb.a",
         "lib/libbasis_transcoder.a",
+        "lib/libbasis_encoder.a",
+        "lib/libpng.a",
+        "lib/libtinyexr.a",
         "lib/libbluegl.a",
         "lib/libmikktspace.a",
         "lib/libzstd.a",
@@ -110,7 +113,7 @@ genrule(
         
         # Build required targets using make
         make -C "$$BUILD_DIR" \
-            filament backend filabridge filaflat utils math smol-v ibl-lite geometry image imageio basis_transcoder ktxreader gltfio viewer filamat \
+            filament backend filabridge filaflat utils math smol-v ibl-lite geometry image imageio basis_transcoder basis_encoder ktxreader gltfio viewer filamat png tinyexr \
             -j$$(nproc)
         
         echo "Build completed. Copying libraries..."
@@ -185,6 +188,15 @@ genrule(
         
         echo "Copying libbasis_transcoder.a..."
         cp -v "$$BUILD_DIR/third_party/basisu/tnt/libbasis_transcoder.a" "$(location lib/libbasis_transcoder.a)"
+        
+        echo "Copying libbasis_encoder.a..."
+        cp -v "$$BUILD_DIR/third_party/basisu/tnt/libbasis_encoder.a" "$(location lib/libbasis_encoder.a)"
+        
+        echo "Copying libpng.a..."
+        cp -v "$$BUILD_DIR/third_party/libpng/tnt/libpng.a" "$(location lib/libpng.a)"
+        
+        echo "Copying libtinyexr.a..."
+        cp -v "$$BUILD_DIR/third_party/tinyexr/tnt/libtinyexr.a" "$(location lib/libtinyexr.a)"
         
         echo "Copying libbluegl.a..."
         cp -v "$$BUILD_DIR/libs/bluegl/libbluegl.a" "$(location lib/libbluegl.a)"
@@ -385,6 +397,9 @@ cc_library(
         ":image",
         ":stb",
         ":zlib",
+        ":png",
+        ":tinyexr",
+        ":basis_encoder",
     ],
     linkstatic = True,
 )
@@ -431,6 +446,29 @@ cc_library(
 cc_library(
     name = "basis_transcoder",
     srcs = ["lib/libbasis_transcoder.a"],
+    linkstatic = True,
+)
+
+# Basis encoder (for encoding basis universal textures)
+cc_library(
+    name = "basis_encoder",
+    srcs = ["lib/libbasis_encoder.a"],
+    linkstatic = True,
+)
+
+# libpng (for PNG encoding/decoding)
+cc_library(
+    name = "png",
+    srcs = ["lib/libpng.a"],
+    deps = [":zlib"],
+    linkstatic = True,
+)
+
+# tinyexr (for EXR encoding/decoding)
+cc_library(
+    name = "tinyexr",
+    srcs = ["lib/libtinyexr.a"],
+    deps = [":zlib"],
     linkstatic = True,
 )
 
