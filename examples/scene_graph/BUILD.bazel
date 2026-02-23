@@ -9,6 +9,15 @@ load("//tools/skylark:test_tags.bzl", "vtk_test_tags")
 
 package(default_visibility = ["//visibility:private"])
 
+drake_cc_binary(
+    name = "filament_test",
+    srcs = ["filament_test.cc"],
+    deps = [
+        "@filament_internal//:filament",
+        "@filament_internal//:gltfio",
+    ],
+)
+
 drake_cc_library(
     name = "bouncing_ball_vector",
     srcs = ["bouncing_ball_vector.cc"],

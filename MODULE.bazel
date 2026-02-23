@@ -300,6 +300,7 @@ use_repo(
     "csdp_internal",
     "curl_internal",
     "fcl_internal",
+    "filament_internal",
     "gfortran_internal",
     "gklib_internal",
     "gz_math_internal",
