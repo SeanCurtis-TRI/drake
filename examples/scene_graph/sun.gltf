@@ -50,6 +50,11 @@
 		{
 			"sampler":0,
 			"source":0,
+			"extensions":{
+				"KHR_texture_basisu":{
+					"source":1
+				}
+			}
 		}
 	],
 	"images":[
@@ -58,6 +63,10 @@
 			"name":"sun",
 			"uri":"sun.png"
 		},
+		{
+			"mimeType":"image/ktx2",
+			"uri":"sun.ktx2"
+		}
 	],
 	"accessors":[
 		{

@@ -190,7 +190,9 @@ int main(int argc, char* argv[]) {
     gltfio::TextureProvider* stb_provider = gltfio::createStbProvider(engine);
     resource_loader->addTextureProvider("image/png", stb_provider);
     resource_loader->addTextureProvider("image/jpeg", stb_provider);
-    std::cout << "ResourceLoader created with texture providers for PNG and JPEG" << std::endl;
+    gltfio::TextureProvider* ktx2_provider = gltfio::createKtx2Provider(engine);
+    resource_loader->addTextureProvider("image/ktx2", ktx2_provider);
+    std::cout << "ResourceLoader created with texture providers for PNG, JPEG, and KTX2" << std::endl;
     
     // Load resources (textures, buffers, etc.) - use async loading but wait for completion
     std::cout << "Loading resources asynchronously..." << std::endl;

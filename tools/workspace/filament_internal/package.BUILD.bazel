@@ -51,6 +51,7 @@ genrule(
         "lib/libgeometry.a",
         "lib/libimage.a",
         "lib/libimageio.a",
+        "lib/libktxreader.a",
         "lib/libgltfio_core.a",
         "lib/libgltfio.a",
         "lib/libviewer.a",
@@ -59,6 +60,7 @@ genrule(
         "lib/libmeshoptimizer.a",
         "lib/libz.a",
         "lib/libstb.a",
+        "lib/libbasis_transcoder.a",
         "lib/libbluegl.a",
         "lib/libmikktspace.a",
         "lib/libzstd.a",
@@ -108,7 +110,7 @@ genrule(
         
         # Build required targets using make
         make -C "$$BUILD_DIR" \
-            filament backend filabridge filaflat utils math smol-v ibl-lite geometry image imageio gltfio viewer filamat \
+            filament backend filabridge filaflat utils math smol-v ibl-lite geometry image imageio basis_transcoder ktxreader gltfio viewer filamat \
             -j$$(nproc)
         
         echo "Build completed. Copying libraries..."
@@ -154,6 +156,9 @@ genrule(
         echo "Copying libimageio.a..."
         cp -v "$$BUILD_DIR/libs/imageio/libimageio.a" "$(location lib/libimageio.a)"
         
+        echo "Copying libktxreader.a..."
+        cp -v "$$BUILD_DIR/libs/ktxreader/libktxreader.a" "$(location lib/libktxreader.a)"
+        
         echo "Copying libgltfio_core.a..."
         cp -v "$$BUILD_DIR/libs/gltfio/libgltfio_core.a" "$(location lib/libgltfio_core.a)"
         
@@ -177,6 +182,9 @@ genrule(
         
         echo "Copying libstb.a..."
         cp -v "$$BUILD_DIR/third_party/stb/tnt/libstb.a" "$(location lib/libstb.a)"
+        
+        echo "Copying libbasis_transcoder.a..."
+        cp -v "$$BUILD_DIR/third_party/basisu/tnt/libbasis_transcoder.a" "$(location lib/libbasis_transcoder.a)"
         
         echo "Copying libbluegl.a..."
         cp -v "$$BUILD_DIR/libs/bluegl/libbluegl.a" "$(location lib/libbluegl.a)"
@@ -381,6 +389,20 @@ cc_library(
     linkstatic = True,
 )
 
+# KTX reader library (for KTX2 texture support)
+cc_library(
+    name = "ktxreader",
+    hdrs = glob(["libs/ktxreader/include/**/*.h"]),
+    includes = ["libs/ktxreader/include"],
+    srcs = ["lib/libktxreader.a"],
+    deps = [
+        ":utils",
+        ":basis_transcoder",
+        ":zstd",
+    ],
+    linkstatic = True,
+)
+
 # Third-party dependencies
 cc_library(
     name = "draco",
@@ -403,6 +425,12 @@ cc_library(
 cc_library(
     name = "stb",
     srcs = ["lib/libstb.a"],
+    linkstatic = True,
+)
+
+cc_library(
+    name = "basis_transcoder",
+    srcs = ["lib/libbasis_transcoder.a"],
     linkstatic = True,
 )
 
@@ -523,6 +551,7 @@ cc_library(
         ":geometry",
         ":image",
         ":imageio",
+        ":ktxreader",
         ":math",
         ":utils",
         ":draco",
