@@ -12,6 +12,20 @@ package(default_visibility = ["//visibility:private"])
 drake_cc_binary(
     name = "filament_test",
     srcs = ["filament_test.cc"],
+    copts = [
+        "-stdlib=libc++",
+        "-Wno-old-style-cast",
+        "-Wno-shadow",
+        "-Wno-deprecated-declarations",
+    ],
+    linkopts = [
+        "-stdlib=libc++",
+        "-lc++",
+        "-lc++abi",
+    ],
+    tags = [
+        "clang-only",
+    ],
     deps = [
         "@filament_internal//:filament",
         "@filament_internal//:gltfio",

@@ -52,6 +52,13 @@ genrule(
         "lib/libimage.a",
         "lib/libgltfio_core.a",
         "lib/libviewer.a",
+        "lib/libdracodec.a",
+        "lib/libmeshoptimizer.a",
+        "lib/libz.a",
+        "lib/libstb.a",
+        "lib/libbluegl.a",
+        "lib/libmikktspace.a",
+        "lib/libzstd.a",
     ],
     cmd = """
         set -euxo pipefail
@@ -137,6 +144,27 @@ genrule(
         echo "Copying libviewer.a..."
         cp -v "$$BUILD_DIR/libs/viewer/libviewer.a" "$(location lib/libviewer.a)"
         
+        echo "Copying libdracodec.a..."
+        cp -v "$$BUILD_DIR/third_party/draco/tnt/libdracodec.a" "$(location lib/libdracodec.a)"
+        
+        echo "Copying libmeshoptimizer.a..."
+        cp -v "$$BUILD_DIR/third_party/meshoptimizer/tnt/libmeshoptimizer.a" "$(location lib/libmeshoptimizer.a)"
+        
+        echo "Copying libz.a..."
+        cp -v "$$BUILD_DIR/third_party/libz/tnt/libz.a" "$(location lib/libz.a)"
+        
+        echo "Copying libstb.a..."
+        cp -v "$$BUILD_DIR/third_party/stb/tnt/libstb.a" "$(location lib/libstb.a)"
+        
+        echo "Copying libbluegl.a..."
+        cp -v "$$BUILD_DIR/libs/bluegl/libbluegl.a" "$(location lib/libbluegl.a)"
+        
+        echo "Copying libmikktspace.a..."
+        cp -v "$$BUILD_DIR/third_party/mikktspace/libmikktspace.a" "$(location lib/libmikktspace.a)"
+        
+        echo "Copying libzstd.a..."
+        cp -v "$$BUILD_DIR/third_party/zstd/tnt/libzstd.a" "$(location lib/libzstd.a)"
+        
         echo "Successfully built and copied all Filament libraries"
     """,
     local = True,  # Run on host system with access to cmake and ninja
@@ -208,6 +236,13 @@ cc_library(
     linkstatic = True,
 )
 
+# BlueGL library (OpenGL loader)
+cc_library(
+    name = "bluegl",
+    srcs = ["lib/libbluegl.a"],
+    linkstatic = True,
+)
+
 # Backend library
 cc_library(
     name = "backend",
@@ -217,6 +252,7 @@ cc_library(
     deps = [
         ":math",
         ":utils",
+        ":bluegl",
     ],
     linkopts = select({
         ":linux": ["-lGL", "-lEGL"],
@@ -245,6 +281,7 @@ cc_library(
         ":filaflat",
         ":math",
         ":utils",
+        ":zstd",
     ],
     linkstatic = True,
 )
@@ -258,6 +295,7 @@ cc_library(
     deps = [
         ":filament",
         ":math",
+        ":mikktspace",
     ],
     linkstatic = True,
 )
@@ -269,6 +307,43 @@ cc_library(
     includes = ["libs/image/include"],
     srcs = ["lib/libimage.a"],
     deps = [":filament"],
+    linkstatic = True,
+)
+
+# Third-party dependencies
+cc_library(
+    name = "draco",
+    srcs = ["lib/libdracodec.a"],
+    linkstatic = True,
+)
+
+cc_library(
+    name = "meshoptimizer",
+    srcs = ["lib/libmeshoptimizer.a"],
+    linkstatic = True,
+)
+
+cc_library(
+    name = "zlib",
+    srcs = ["lib/libz.a"],
+    linkstatic = True,
+)
+
+cc_library(
+    name = "stb",
+    srcs = ["lib/libstb.a"],
+    linkstatic = True,
+)
+
+cc_library(
+    name = "mikktspace",
+    srcs = ["lib/libmikktspace.a"],
+    linkstatic = True,
+)
+
+cc_library(
+    name = "zstd",
+    srcs = ["lib/libzstd.a"],
     linkstatic = True,
 )
 
@@ -284,6 +359,10 @@ cc_library(
         ":image",
         ":math",
         ":utils",
+        ":draco",
+        ":meshoptimizer",
+        ":zlib",
+        ":stb",
     ],
     linkstatic = True,
 )

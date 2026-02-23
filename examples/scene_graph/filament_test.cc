@@ -1,6 +1,8 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <fstream>
+#include <vector>
 
 #include <filament/Engine.h>
 #include <filament/Renderer.h>
@@ -12,6 +14,8 @@
 #include <gltfio/AssetLoader.h>
 #include <gltfio/FilamentAsset.h>
 #include <gltfio/ResourceLoader.h>
+
+namespace gltfio = filament::gltfio;
 
 int main(int argc, char* argv[]) {
     if (argc < 2) {
@@ -58,8 +62,25 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    // Load the glTF asset
-    gltfio::FilamentAsset* asset = asset_loader->createAssetFromFile(gltf_path.c_str());
+    // Load the glTF asset - read file into memory first
+    std::ifstream file(gltf_path, std::ios::binary);
+    if (!file.is_open()) {
+        std::cerr << "Failed to open glTF file: " << gltf_path << std::endl;
+        gltfio::AssetLoader::destroy(&asset_loader);
+        engine->destroy(renderer);
+        engine->destroy(scene);
+        engine->destroy(view);
+        engine->destroyCameraComponent(camera_entity);
+        utils::EntityManager::get().destroy(camera_entity);
+        filament::Engine::destroy(&engine);
+        return 1;
+    }
+    
+    std::vector<uint8_t> buffer((std::istreambuf_iterator<char>(file)), {});
+    file.close();
+    
+    gltfio::FilamentAsset* asset = asset_loader->createAsset(
+        buffer.data(), buffer.size());
     if (!asset) {
         std::cerr << "Failed to load glTF file: " << gltf_path << std::endl;
         gltfio::AssetLoader::destroy(&asset_loader);
