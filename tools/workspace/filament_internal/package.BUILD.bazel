@@ -54,25 +54,28 @@ genrule(
         "lib/libviewer.a",
     ],
     cmd = """
-        set -euo pipefail
+        set -euxo pipefail
         
-        # Find source root (directory containing CMakeLists.txt)
-        SRC_ROOT=$$(dirname $$(echo $(SRCS) | tr ' ' '\\n' | grep -m1 'CMakeLists.txt$$'))
+        # Save original working directory for output paths
+        ORIGINAL_DIR=$$(pwd)
+        
+        # Get source root from CMakeLists.txt location
+        REPO_ROOT=$$(dirname $(location CMakeLists.txt))
         BUILD_DIR=$$(mktemp -d)
-        OUT_DIR=$$(dirname $(location lib/libfilament.a))
         
-        # Ensure ninja is available
-        if ! command -v ninja &> /dev/null; then
-            echo "ERROR: ninja build system not found. Please install ninja."
-            exit 1
-        fi
+        echo "Original directory: $$ORIGINAL_DIR"
+        echo "Building Filament from: $$REPO_ROOT"
+        echo "Build directory: $$BUILD_DIR"
         
-        # Configure with CMake
-        cd "$$SRC_ROOT"
+        # Filament requires clang - set explicitly
+        export CC=clang
+        export CXX=clang++
+        
+        # Configure with CMake using Unix Makefiles
+        cd "$$REPO_ROOT"
         cmake \
-            -G Ninja \
+            -G "Unix Makefiles" \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_INSTALL_PREFIX="$$OUT_DIR" \
             -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
             -DCMAKE_CXX_STANDARD=20 \
             -DFILAMENT_SUPPORTS_OPENGL=ON \
@@ -83,29 +86,60 @@ genrule(
             -B "$$BUILD_DIR" \
             -S .
         
-        # Build required targets
-        cmake --build "$$BUILD_DIR" \
-            --target filament backend filabridge filaflat utils math smol-v ibl-lite geometry image gltfio_core viewer \
-            --parallel
+        # Build required targets using make
+        make -C "$$BUILD_DIR" \
+            filament backend filabridge filaflat utils math smol-v ibl-lite geometry image gltfio_core viewer \
+            -j$$(nproc)
         
-        # Copy built libraries to output
-        mkdir -p "$$OUT_DIR"
-        cp "$$BUILD_DIR/filament/libfilament.a" $(location lib/libfilament.a)
-        cp "$$BUILD_DIR/filament/backend/libbackend.a" $(location lib/libbackend.a)
-        cp "$$BUILD_DIR/libs/filabridge/libfilabridge.a" $(location lib/libfilabridge.a)
-        cp "$$BUILD_DIR/libs/filaflat/libfilaflat.a" $(location lib/libfilaflat.a)
-        cp "$$BUILD_DIR/libs/utils/libutils.a" $(location lib/libutils.a)
-        cp "$$BUILD_DIR/libs/math/libmath.a" $(location lib/libmath.a)
-        cp "$$BUILD_DIR/third_party/smol-v/libsmol-v.a" $(location lib/libsmol-v.a)
-        cp "$$BUILD_DIR/libs/ibl/libibl-lite.a" $(location lib/libibl-lite.a)
-        cp "$$BUILD_DIR/libs/geometry/libgeometry.a" $(location lib/libgeometry.a)
-        cp "$$BUILD_DIR/libs/image/libimage.a" $(location lib/libimage.a)
-        cp "$$BUILD_DIR/libs/gltfio/libgltfio_core.a" $(location lib/libgltfio_core.a)
-        cp "$$BUILD_DIR/libs/viewer/libviewer.a" $(location lib/libviewer.a)
+        echo "Build completed. Copying libraries..."
         
-        # Cleanup
-        rm -rf "$$BUILD_DIR"
+        # Return to original directory for correct output paths
+        cd "$$ORIGINAL_DIR"
+        
+        # List what was actually built
+        echo "Contents of BUILD_DIR:"
+        find "$$BUILD_DIR" -name "*.a" -type f
+        
+        # Copy built libraries to Bazel output locations
+        echo "Copying libfilament.a..."
+        cp -v "$$BUILD_DIR/filament/libfilament.a" "$(location lib/libfilament.a)"
+        
+        echo "Copying libbackend.a..."
+        cp -v "$$BUILD_DIR/filament/backend/libbackend.a" "$(location lib/libbackend.a)"
+        
+        echo "Copying libfilabridge.a..."
+        cp -v "$$BUILD_DIR/libs/filabridge/libfilabridge.a" "$(location lib/libfilabridge.a)"
+        
+        echo "Copying libfilaflat.a..."
+        cp -v "$$BUILD_DIR/libs/filaflat/libfilaflat.a" "$(location lib/libfilaflat.a)"
+        
+        echo "Copying libutils.a..."
+        cp -v "$$BUILD_DIR/libs/utils/libutils.a" "$(location lib/libutils.a)"
+        
+        echo "Copying libmath.a..."
+        cp -v "$$BUILD_DIR/libs/math/libmath.a" "$(location lib/libmath.a)"
+        
+        echo "Copying libsmol-v.a..."
+        cp -v "$$BUILD_DIR/third_party/smol-v/tnt/libsmol-v.a" "$(location lib/libsmol-v.a)"
+        
+        echo "Copying libibl-lite.a..."
+        cp -v "$$BUILD_DIR/libs/ibl/libibl-lite.a" "$(location lib/libibl-lite.a)"
+        
+        echo "Copying libgeometry.a..."
+        cp -v "$$BUILD_DIR/libs/geometry/libgeometry.a" "$(location lib/libgeometry.a)"
+        
+        echo "Copying libimage.a..."
+        cp -v "$$BUILD_DIR/libs/image/libimage.a" "$(location lib/libimage.a)"
+        
+        echo "Copying libgltfio_core.a..."
+        cp -v "$$BUILD_DIR/libs/gltfio/libgltfio_core.a" "$(location lib/libgltfio_core.a)"
+        
+        echo "Copying libviewer.a..."
+        cp -v "$$BUILD_DIR/libs/viewer/libviewer.a" "$(location lib/libviewer.a)"
+        
+        echo "Successfully built and copied all Filament libraries"
     """,
+    local = True,  # Run on host system with access to cmake and ninja
     tags = ["manual"],  # Don't build unless explicitly requested or needed
     visibility = ["//visibility:private"],
 )
@@ -115,7 +149,6 @@ cc_library(
     name = "math",
     hdrs = glob(["libs/math/include/**/*.h"]),
     includes = ["libs/math/include"],
-    strip_include_prefix = "libs/math/include",
     srcs = ["lib/libmath.a"],
     linkopts = select({
         ":linux": ["-lm", "-lpthread"],
@@ -136,7 +169,6 @@ cc_library(
         "libs/utils/include",
         "third_party/robin-map/include",
     ],
-    strip_include_prefix = "libs/utils/include",
     srcs = ["lib/libutils.a"],
     deps = [":math"],
     linkopts = select({
@@ -152,7 +184,6 @@ cc_library(
     name = "filabridge",
     hdrs = glob(["libs/filabridge/include/**/*.h"]),
     includes = ["libs/filabridge/include"],
-    strip_include_prefix = "libs/filabridge/include",
     srcs = ["lib/libfilabridge.a"],
     deps = [
         ":math",
@@ -166,7 +197,6 @@ cc_library(
     name = "filaflat",
     hdrs = glob(["libs/filaflat/include/**/*.h"]),
     includes = ["libs/filaflat/include"],
-    strip_include_prefix = "libs/filaflat/include",
     srcs = [
         "lib/libfilaflat.a",
         "lib/libsmol-v.a",
@@ -183,7 +213,6 @@ cc_library(
     name = "backend",
     hdrs = glob(["filament/backend/include/**/*.h"]),
     includes = ["filament/backend/include"],
-    strip_include_prefix = "filament/backend/include",
     srcs = ["lib/libbackend.a"],
     deps = [
         ":math",
@@ -206,7 +235,6 @@ cc_library(
     name = "filament",
     hdrs = glob(["filament/include/**/*.h"]),
     includes = ["filament/include"],
-    strip_include_prefix = "filament/include",
     srcs = [
         "lib/libfilament.a",
         "lib/libibl-lite.a",
@@ -226,7 +254,6 @@ cc_library(
     name = "geometry",
     hdrs = glob(["libs/geometry/include/**/*.h"]),
     includes = ["libs/geometry/include"],
-    strip_include_prefix = "libs/geometry/include",
     srcs = ["lib/libgeometry.a"],
     deps = [
         ":filament",
@@ -240,7 +267,6 @@ cc_library(
     name = "image",
     hdrs = glob(["libs/image/include/**/*.h"]),
     includes = ["libs/image/include"],
-    strip_include_prefix = "libs/image/include",
     srcs = ["lib/libimage.a"],
     deps = [":filament"],
     linkstatic = True,
@@ -251,7 +277,6 @@ cc_library(
     name = "gltfio",
     hdrs = glob(["libs/gltfio/include/**/*.h"]),
     includes = ["libs/gltfio/include"],
-    strip_include_prefix = "libs/gltfio/include",
     srcs = ["lib/libgltfio_core.a"],
     deps = [
         ":filament",
@@ -268,7 +293,6 @@ cc_library(
     name = "viewer",
     hdrs = glob(["libs/viewer/include/**/*.h"]),
     includes = ["libs/viewer/include"],
-    strip_include_prefix = "libs/viewer/include",
     srcs = ["lib/libviewer.a"],
     deps = [
         ":filament",

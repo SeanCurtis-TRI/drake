@@ -48,13 +48,18 @@ Filament is built with:
 
 To build Filament, your system needs:
 - CMake 3.22.1 or newer
-- Ninja build system
-- C++20 compiler (clang recommended)
+- Make build system
+- **Clang/Clang++ compiler with libc++ standard library** (required - Filament will not build with GCC)
 - OpenGL development libraries (Linux: libGL, libEGL; macOS: built-in)
+
+**Important:** Filament requires clang++ with libc++ installed. Without libc++, CMake 
+configuration will fail with an error message stating that the compiler doesn't support 
+C++17 or C++20. The build is configured to always use clang regardless of your system 
+default or Bazel's compiler settings.
 
 On Ubuntu/Debian:
 ```bash
-sudo apt-get install cmake ninja-build clang libglu1-mesa-dev libxi-dev
+sudo apt-get install cmake make clang libc++-dev libc++abi-dev libglu1-mesa-dev libxi-dev
 ```
 
 On macOS:

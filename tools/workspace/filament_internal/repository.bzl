@@ -7,7 +7,7 @@ def filament_internal_repository(
         name = name,
         repository = "google/filament",
         commit = "v1.69.3",
-        sha256 = "8b5e1a8d68bb4bc84e076cdeaf0e07a4e2cb4f28b97a825ea9b5036b1088dd9f",  # noqa
+        sha256 = "a65696e7acc9f5c272aae5a730853febef63f328a863021fd3bb2caf2594fa5b",  # noqa
         build_file = ":package.BUILD.bazel",
         mirrors = mirrors,
     )
