@@ -50,8 +50,11 @@ genrule(
         "lib/libibl-lite.a",
         "lib/libgeometry.a",
         "lib/libimage.a",
+        "lib/libimageio.a",
         "lib/libgltfio_core.a",
+        "lib/libgltfio.a",
         "lib/libviewer.a",
+        "lib/libfilamat.a",
         "lib/libdracodec.a",
         "lib/libmeshoptimizer.a",
         "lib/libz.a",
@@ -59,6 +62,16 @@ genrule(
         "lib/libbluegl.a",
         "lib/libmikktspace.a",
         "lib/libzstd.a",
+        "lib/libuberzlib.a",
+        "lib/libglslang.a",
+        "lib/libOSDependent.a",
+        "lib/libSPIRV.a",
+        "lib/libSPIRV-Tools.a",
+        "lib/libSPIRV-Tools-opt.a",
+        "lib/libspirv-cross-core.a",
+        "lib/libspirv-cross-glsl.a",
+        "lib/libspirv-cross-msl.a",
+        "lib/libshaders.a",
     ],
     cmd = """
         set -euxo pipefail
@@ -89,13 +102,13 @@ genrule(
             -DFILAMENT_SUPPORTS_METAL=OFF \
             -DFILAMENT_SUPPORTS_VULKAN=OFF \
             -DFILAMENT_SKIP_SAMPLES=ON \
-            -DFILAMENT_BUILD_FILAMAT=OFF \
+            -DFILAMENT_BUILD_FILAMAT=ON \
             -B "$$BUILD_DIR" \
             -S .
         
         # Build required targets using make
         make -C "$$BUILD_DIR" \
-            filament backend filabridge filaflat utils math smol-v ibl-lite geometry image gltfio_core viewer \
+            filament backend filabridge filaflat utils math smol-v ibl-lite geometry image imageio gltfio viewer filamat \
             -j$$(nproc)
         
         echo "Build completed. Copying libraries..."
@@ -138,11 +151,20 @@ genrule(
         echo "Copying libimage.a..."
         cp -v "$$BUILD_DIR/libs/image/libimage.a" "$(location lib/libimage.a)"
         
+        echo "Copying libimageio.a..."
+        cp -v "$$BUILD_DIR/libs/imageio/libimageio.a" "$(location lib/libimageio.a)"
+        
         echo "Copying libgltfio_core.a..."
         cp -v "$$BUILD_DIR/libs/gltfio/libgltfio_core.a" "$(location lib/libgltfio_core.a)"
         
+        echo "Copying libgltfio.a..."
+        cp -v "$$BUILD_DIR/libs/gltfio/libgltfio.a" "$(location lib/libgltfio.a)"
+        
         echo "Copying libviewer.a..."
         cp -v "$$BUILD_DIR/libs/viewer/libviewer.a" "$(location lib/libviewer.a)"
+        
+        echo "Copying libfilamat.a..."
+        cp -v "$$BUILD_DIR/libs/filamat/libfilamat.a" "$(location lib/libfilamat.a)"
         
         echo "Copying libdracodec.a..."
         cp -v "$$BUILD_DIR/third_party/draco/tnt/libdracodec.a" "$(location lib/libdracodec.a)"
@@ -164,6 +186,36 @@ genrule(
         
         echo "Copying libzstd.a..."
         cp -v "$$BUILD_DIR/third_party/zstd/tnt/libzstd.a" "$(location lib/libzstd.a)"
+        
+        echo "Copying libuberzlib.a..."
+        cp -v "$$BUILD_DIR/libs/uberz/libuberzlib.a" "$(location lib/libuberzlib.a)"
+        
+        echo "Copying libglslang.a..."
+        cp -v "$$BUILD_DIR/third_party/glslang/tnt/glslang/libglslang.a" "$(location lib/libglslang.a)"
+        
+        echo "Copying libOSDependent.a..."
+        cp -v "$$BUILD_DIR/third_party/glslang/tnt/glslang/OSDependent/Unix/libOSDependent.a" "$(location lib/libOSDependent.a)"
+        
+        echo "Copying libSPIRV.a..."
+        cp -v "$$BUILD_DIR/third_party/glslang/tnt/SPIRV/libSPIRV.a" "$(location lib/libSPIRV.a)"
+        
+        echo "Copying libSPIRV-Tools.a..."
+        cp -v "$$BUILD_DIR/third_party/spirv-tools/source/libSPIRV-Tools.a" "$(location lib/libSPIRV-Tools.a)"
+        
+        echo "Copying libSPIRV-Tools-opt.a..."
+        cp -v "$$BUILD_DIR/third_party/spirv-tools/source/opt/libSPIRV-Tools-opt.a" "$(location lib/libSPIRV-Tools-opt.a)"
+        
+        echo "Copying libspirv-cross-core.a..."
+        cp -v "$$BUILD_DIR/third_party/spirv-cross/tnt/libspirv-cross-core.a" "$(location lib/libspirv-cross-core.a)"
+        
+        echo "Copying libspirv-cross-glsl.a..."
+        cp -v "$$BUILD_DIR/third_party/spirv-cross/tnt/libspirv-cross-glsl.a" "$(location lib/libspirv-cross-glsl.a)"
+        
+        echo "Copying libspirv-cross-msl.a..."
+        cp -v "$$BUILD_DIR/third_party/spirv-cross/tnt/libspirv-cross-msl.a" "$(location lib/libspirv-cross-msl.a)"
+        
+        echo "Copying libshaders.a..."
+        cp -v "$$BUILD_DIR/shaders/libshaders.a" "$(location lib/libshaders.a)"
         
         echo "Successfully built and copied all Filament libraries"
     """,
@@ -225,14 +277,19 @@ cc_library(
     name = "filaflat",
     hdrs = glob(["libs/filaflat/include/**/*.h"]),
     includes = ["libs/filaflat/include"],
-    srcs = [
-        "lib/libfilaflat.a",
-        "lib/libsmol-v.a",
-    ],
+    srcs = ["lib/libfilaflat.a"],
     deps = [
         ":filabridge",
         ":utils",
+        ":smol_v",
     ],
+    linkstatic = True,
+)
+
+# Smol-v (SPIRV compression) as separate library
+cc_library(
+    name = "smol_v",
+    srcs = ["lib/libsmol-v.a"],
     linkstatic = True,
 )
 
@@ -310,6 +367,20 @@ cc_library(
     linkstatic = True,
 )
 
+# ImageIO library (for loading PNG, JPEG, etc.)
+cc_library(
+    name = "imageio",
+    hdrs = glob(["libs/imageio/include/**/*.h"]),
+    includes = ["libs/imageio/include"],
+    srcs = ["lib/libimageio.a"],
+    deps = [
+        ":image",
+        ":stb",
+        ":zlib",
+    ],
+    linkstatic = True,
+)
+
 # Third-party dependencies
 cc_library(
     name = "draco",
@@ -347,24 +418,122 @@ cc_library(
     linkstatic = True,
 )
 
+cc_library(
+    name = "uberz",
+    srcs = ["lib/libuberzlib.a"],
+    linkstatic = True,
+)
+
+cc_library(
+    name = "glslang",
+    srcs = ["lib/libglslang.a"],
+    linkstatic = True,
+)
+
+cc_library(
+    name = "osdependent",
+    srcs = ["lib/libOSDependent.a"],
+    linkstatic = True,
+)
+
+cc_library(
+    name = "spirv",
+    srcs = ["lib/libSPIRV.a"],
+    linkstatic = True,
+)
+
+cc_library(
+    name = "spirv_tools",
+    srcs = ["lib/libSPIRV-Tools.a"],
+    linkstatic = True,
+)
+
+cc_library(
+    name = "spirv_tools_opt",
+    srcs = ["lib/libSPIRV-Tools-opt.a"],
+    deps = [":spirv_tools"],
+    linkstatic = True,
+)
+
+cc_library(
+    name = "spirv_cross_core",
+    srcs = ["lib/libspirv-cross-core.a"],
+    linkstatic = True,
+)
+
+cc_library(
+    name = "spirv_cross",
+    srcs = ["lib/libspirv-cross-glsl.a"],
+    deps = [":spirv_cross_core"],
+    linkstatic = True,
+)
+
+cc_library(
+    name = "spirv_cross_msl",
+    srcs = ["lib/libspirv-cross-msl.a"],
+    deps = [":spirv_cross_core"],
+    linkstatic = True,
+)
+
+cc_library(
+    name = "shaders",
+    srcs = ["lib/libshaders.a"],
+    linkstatic = True,
+)
+
+# Filamat library (material compiler)
+cc_library(
+    name = "filamat",
+    hdrs = glob(["libs/filamat/include/**/*.h"]),
+    includes = ["libs/filamat/include"],
+    srcs = [
+        "lib/libfilamat.a",
+    ],
+    data = ["lib/libsmol-v.a"],
+    deps = [
+        ":filabridge",
+        ":utils",
+        ":backend",
+        ":glslang",
+        ":osdependent",
+        ":spirv",
+        ":spirv_tools",
+        ":spirv_tools_opt",
+        ":spirv_cross",
+        ":spirv_cross_msl",
+        ":shaders",
+        ":zstd",
+        ":smol_v",
+    ],
+    linkstatic = True,
+    alwayslink = True,
+)
+
 # GLTF I/O library
 cc_library(
     name = "gltfio",
     hdrs = glob(["libs/gltfio/include/**/*.h"]),
     includes = ["libs/gltfio/include"],
-    srcs = ["lib/libgltfio_core.a"],
+    srcs = [
+        "lib/libgltfio.a",
+        "lib/libgltfio_core.a",
+    ],
     deps = [
         ":filament",
         ":geometry",
         ":image",
+        ":imageio",
         ":math",
         ":utils",
         ":draco",
         ":meshoptimizer",
         ":zlib",
         ":stb",
+        ":uberz",
+        ":filamat",
     ],
     linkstatic = True,
+    alwayslink = True,
 )
 
 # Viewer library

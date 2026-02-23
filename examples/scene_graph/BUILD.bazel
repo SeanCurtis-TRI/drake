@@ -29,6 +29,8 @@ drake_cc_binary(
     deps = [
         "@filament_internal//:filament",
         "@filament_internal//:gltfio",
+        "@filament_internal//:imageio",
+        "@filament_internal//:filamat",
     ],
 )
 
