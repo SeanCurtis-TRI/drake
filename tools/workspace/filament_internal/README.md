@@ -17,23 +17,50 @@ efficient rendering solution with support for:
 
 ## Integration Notes
 
-Filament uses CMake as its build system. This Bazel integration provides
-header-only targets that expose Filament's public API. To use Filament's
-actual libraries, you would need to either:
+Filament uses CMake as its build system. This Bazel integration builds Filament
+from source using a genrule that invokes CMake, then creates cc_library targets
+that link against the built static libraries.
 
-1. Use prebuilt binaries from Filament's releases
-2. Integrate via rules_foreign_cc to build with CMake
-3. Manually port the CMake build to Bazel
+The integration provides full linking support for:
+- `@filament_internal//:filament` - Core rendering engine with all dependencies
+- `@filament_internal//:backend` - Rendering backend (OpenGL/Vulkan/Metal)
+- `@filament_internal//:math` - Math utilities  
+- `@filament_internal//:utils` - Utility library
+- `@filament_internal//:filabridge` - Bridge library
+- `@filament_internal//:filaflat` - Material serialization
+- `@filament_internal//:gltfio` - glTF loading API
+- `@filament_internal//:geometry` - Geometry utilities
+- `@filament_internal//:image` - Image utilities
+- `@filament_internal//:viewer` - High-level viewer library
+- `@filament_internal//:filament_headers` - Headers only (no linking)
 
-The current integration provides access to headers for:
-- `@filament_internal//:filament_headers` - Core Filament API
-- `@filament_internal//:math` - Math utilities
-- `@filament_internal//:utils_headers` - Utility library headers
-- `@filament_internal//:filamat_headers` - Material builder API
-- `@filament_internal//:gltfio_headers` - glTF loading API
-- `@filament_internal//:geometry_headers` - Geometry utilities
-- `@filament_internal//:image_headers` - Image utilities
-- `@filament_internal//:viewer_headers` - Viewer library
+### Build Configuration
+
+Filament is built with:
+- CMake in Release mode
+- Position Independent Code (PIC) enabled for Bazel compatibility
+- OpenGL backend enabled
+- Metal and Vulkan backends disabled (can be enabled if needed)
+- Static linking for all libraries
+- Sample applications skipped
+
+### System Requirements
+
+To build Filament, your system needs:
+- CMake 3.22.1 or newer
+- Ninja build system
+- C++20 compiler (clang recommended)
+- OpenGL development libraries (Linux: libGL, libEGL; macOS: built-in)
+
+On Ubuntu/Debian:
+```bash
+sudo apt-get install cmake ninja-build clang libglu1-mesa-dev libxi-dev
+```
+
+On macOS:
+```bash
+brew install cmake ninja
+```
 
 ## Upstream
 
@@ -44,5 +71,10 @@ The current integration provides access to headers for:
 
 ## Drake Modifications
 
-None. This is a vanilla checkout of the upstream repository with a custom
-BUILD file to expose headers.
+The package.BUILD.bazel file is a Drake-specific addition that:
+1. Builds Filament from source using CMake via genrule
+2. Creates Bazel cc_library targets for each Filament component
+3. Configures linkopts for platform-specific system libraries (OpenGL, pthread, etc.)
+4. Enables static linking and position-independent code for Bazel compatibility
+
+No source code modifications were made to Filament itself.

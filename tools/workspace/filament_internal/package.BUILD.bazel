@@ -7,18 +7,278 @@ licenses(["notice"])  # Apache-2.0
 
 package(default_visibility = ["//visibility:public"])
 
-# Filament is a PBR rendering engine that uses CMake. Since we're integrating
-# it into Bazel, we expose its header-only interfaces and note that full
-# integration would require either:
-# 1. Using prebuilt binaries from Filament releases
-# 2. Creating a custom Bazel build that wraps CMake (e.g., with rules_foreign_cc)
-# 3. Manually porting the CMake build to Bazel
-#
-# For now, we provide a header-only target to allow Drake code to compile
-# against Filament's public API. Actual linking would require one of the
-# approaches above.
+# Filament is a PBR rendering engine that uses CMake. This BUILD file builds
+# Filament from source using genrule to invoke CMake, then creates cc_library
+# targets that link against the built static libraries.
 
-# Main Filament headers
+config_setting(
+    name = "linux",
+    constraint_values = ["@platforms//os:linux"],
+)
+
+config_setting(
+    name = "osx",
+    constraint_values = ["@platforms//os:osx"],
+)
+
+config_setting(
+    name = "windows",
+    constraint_values = ["@platforms//os:windows"],
+)
+
+# Build Filament libraries using CMake
+# Note: This genrule invokes CMake to build Filament from source.
+# The build can take several minutes on first execution.
+genrule(
+    name = "build_filament",
+    srcs = glob(
+        ["**/*"],
+        exclude = [
+            "bazel-*/**",
+            ".git/**",
+            "*.md",
+        ],
+    ),
+    outs = [
+        "lib/libfilament.a",
+        "lib/libbackend.a",
+        "lib/libfilabridge.a",
+        "lib/libfilaflat.a",
+        "lib/libutils.a",
+        "lib/libmath.a",
+        "lib/libsmol-v.a",
+        "lib/libibl-lite.a",
+        "lib/libgeometry.a",
+        "lib/libimage.a",
+        "lib/libgltfio_core.a",
+        "lib/libviewer.a",
+    ],
+    cmd = """
+        set -euo pipefail
+        
+        # Find source root (directory containing CMakeLists.txt)
+        SRC_ROOT=$$(dirname $$(echo $(SRCS) | tr ' ' '\\n' | grep -m1 'CMakeLists.txt$$'))
+        BUILD_DIR=$$(mktemp -d)
+        OUT_DIR=$$(dirname $(location lib/libfilament.a))
+        
+        # Ensure ninja is available
+        if ! command -v ninja &> /dev/null; then
+            echo "ERROR: ninja build system not found. Please install ninja."
+            exit 1
+        fi
+        
+        # Configure with CMake
+        cd "$$SRC_ROOT"
+        cmake \
+            -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="$$OUT_DIR" \
+            -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+            -DCMAKE_CXX_STANDARD=20 \
+            -DFILAMENT_SUPPORTS_OPENGL=ON \
+            -DFILAMENT_SUPPORTS_METAL=OFF \
+            -DFILAMENT_SUPPORTS_VULKAN=OFF \
+            -DFILAMENT_SKIP_SAMPLES=ON \
+            -DFILAMENT_BUILD_FILAMAT=OFF \
+            -B "$$BUILD_DIR" \
+            -S .
+        
+        # Build required targets
+        cmake --build "$$BUILD_DIR" \
+            --target filament backend filabridge filaflat utils math smol-v ibl-lite geometry image gltfio_core viewer \
+            --parallel
+        
+        # Copy built libraries to output
+        mkdir -p "$$OUT_DIR"
+        cp "$$BUILD_DIR/filament/libfilament.a" $(location lib/libfilament.a)
+        cp "$$BUILD_DIR/filament/backend/libbackend.a" $(location lib/libbackend.a)
+        cp "$$BUILD_DIR/libs/filabridge/libfilabridge.a" $(location lib/libfilabridge.a)
+        cp "$$BUILD_DIR/libs/filaflat/libfilaflat.a" $(location lib/libfilaflat.a)
+        cp "$$BUILD_DIR/libs/utils/libutils.a" $(location lib/libutils.a)
+        cp "$$BUILD_DIR/libs/math/libmath.a" $(location lib/libmath.a)
+        cp "$$BUILD_DIR/third_party/smol-v/libsmol-v.a" $(location lib/libsmol-v.a)
+        cp "$$BUILD_DIR/libs/ibl/libibl-lite.a" $(location lib/libibl-lite.a)
+        cp "$$BUILD_DIR/libs/geometry/libgeometry.a" $(location lib/libgeometry.a)
+        cp "$$BUILD_DIR/libs/image/libimage.a" $(location lib/libimage.a)
+        cp "$$BUILD_DIR/libs/gltfio/libgltfio_core.a" $(location lib/libgltfio_core.a)
+        cp "$$BUILD_DIR/libs/viewer/libviewer.a" $(location lib/libviewer.a)
+        
+        # Cleanup
+        rm -rf "$$BUILD_DIR"
+    """,
+    tags = ["manual"],  # Don't build unless explicitly requested or needed
+    visibility = ["//visibility:private"],
+)
+
+# Math library
+cc_library(
+    name = "math",
+    hdrs = glob(["libs/math/include/**/*.h"]),
+    includes = ["libs/math/include"],
+    strip_include_prefix = "libs/math/include",
+    srcs = ["lib/libmath.a"],
+    linkopts = select({
+        ":linux": ["-lm", "-lpthread"],
+        ":osx": ["-lm", "-lpthread"],
+        "//conditions:default": [],
+    }),
+    linkstatic = True,
+)
+
+# Utils library
+cc_library(
+    name = "utils",
+    hdrs = glob([
+        "libs/utils/include/**/*.h",
+        "third_party/robin-map/include/**/*.h",
+    ]),
+    includes = [
+        "libs/utils/include",
+        "third_party/robin-map/include",
+    ],
+    strip_include_prefix = "libs/utils/include",
+    srcs = ["lib/libutils.a"],
+    deps = [":math"],
+    linkopts = select({
+        ":linux": ["-ldl", "-lpthread"],
+        ":osx": ["-ldl", "-lpthread"],
+        "//conditions:default": [],
+    }),
+    linkstatic = True,
+)
+
+# Filabridge library
+cc_library(
+    name = "filabridge",
+    hdrs = glob(["libs/filabridge/include/**/*.h"]),
+    includes = ["libs/filabridge/include"],
+    strip_include_prefix = "libs/filabridge/include",
+    srcs = ["lib/libfilabridge.a"],
+    deps = [
+        ":math",
+        ":utils",
+    ],
+    linkstatic = True,
+)
+
+# Filaflat library
+cc_library(
+    name = "filaflat",
+    hdrs = glob(["libs/filaflat/include/**/*.h"]),
+    includes = ["libs/filaflat/include"],
+    strip_include_prefix = "libs/filaflat/include",
+    srcs = [
+        "lib/libfilaflat.a",
+        "lib/libsmol-v.a",
+    ],
+    deps = [
+        ":filabridge",
+        ":utils",
+    ],
+    linkstatic = True,
+)
+
+# Backend library
+cc_library(
+    name = "backend",
+    hdrs = glob(["filament/backend/include/**/*.h"]),
+    includes = ["filament/backend/include"],
+    strip_include_prefix = "filament/backend/include",
+    srcs = ["lib/libbackend.a"],
+    deps = [
+        ":math",
+        ":utils",
+    ],
+    linkopts = select({
+        ":linux": ["-lGL", "-lEGL"],
+        ":osx": [
+            "-framework OpenGL",
+            "-framework Cocoa",
+            "-framework QuartzCore",
+        ],
+        "//conditions:default": [],
+    }),
+    linkstatic = True,
+)
+
+# Main Filament library
+cc_library(
+    name = "filament",
+    hdrs = glob(["filament/include/**/*.h"]),
+    includes = ["filament/include"],
+    strip_include_prefix = "filament/include",
+    srcs = [
+        "lib/libfilament.a",
+        "lib/libibl-lite.a",
+    ],
+    deps = [
+        ":backend",
+        ":filabridge",
+        ":filaflat",
+        ":math",
+        ":utils",
+    ],
+    linkstatic = True,
+)
+
+# Geometry utilities library
+cc_library(
+    name = "geometry",
+    hdrs = glob(["libs/geometry/include/**/*.h"]),
+    includes = ["libs/geometry/include"],
+    strip_include_prefix = "libs/geometry/include",
+    srcs = ["lib/libgeometry.a"],
+    deps = [
+        ":filament",
+        ":math",
+    ],
+    linkstatic = True,
+)
+
+# Image utilities library
+cc_library(
+    name = "image",
+    hdrs = glob(["libs/image/include/**/*.h"]),
+    includes = ["libs/image/include"],
+    strip_include_prefix = "libs/image/include",
+    srcs = ["lib/libimage.a"],
+    deps = [":filament"],
+    linkstatic = True,
+)
+
+# GLTF I/O library
+cc_library(
+    name = "gltfio",
+    hdrs = glob(["libs/gltfio/include/**/*.h"]),
+    includes = ["libs/gltfio/include"],
+    strip_include_prefix = "libs/gltfio/include",
+    srcs = ["lib/libgltfio_core.a"],
+    deps = [
+        ":filament",
+        ":geometry",
+        ":image",
+        ":math",
+        ":utils",
+    ],
+    linkstatic = True,
+)
+
+# Viewer library
+cc_library(
+    name = "viewer",
+    hdrs = glob(["libs/viewer/include/**/*.h"]),
+    includes = ["libs/viewer/include"],
+    strip_include_prefix = "libs/viewer/include",
+    srcs = ["lib/libviewer.a"],
+    deps = [
+        ":filament",
+        ":gltfio",
+        ":image",
+    ],
+    linkstatic = True,
+)
+
+# Convenience target with headers only (for when you just need to compile against the API)
 cc_library(
     name = "filament_headers",
     hdrs = glob([
@@ -31,80 +291,7 @@ cc_library(
     ],
     deps = [
         ":math",
-        ":utils_headers",
-    ],
-)
-
-# Math library headers
-cc_library(
-    name = "math",
-    hdrs = glob(["libs/math/include/**/*.h"]),
-    includes = ["libs/math/include"],
-    strip_include_prefix = "libs/math/include",
-)
-
-# Utils library headers
-cc_library(
-    name = "utils_headers",
-    hdrs = glob([
-        "libs/utils/include/**/*.h",
-        "third_party/robin-map/include/**/*.h",
-    ]),
-    includes = [
-        "libs/utils/include",
-        "third_party/robin-map/include",
-    ],
-    strip_include_prefix = "libs/utils/include",
-)
-
-# Filamat (material builder) headers
-cc_library(
-    name = "filamat_headers",
-    hdrs = glob(["libs/filamat/include/**/*.h"]),
-    includes = ["libs/filamat/include"],
-    strip_include_prefix = "libs/filamat/include",
-    deps = [":filament_headers"],
-)
-
-# GLTF I/O library headers  
-cc_library(
-    name = "gltfio_headers",
-    hdrs = glob(["libs/gltfio/include/**/*.h"]),
-    includes = ["libs/gltfio/include"],
-    strip_include_prefix = "libs/gltfio/include",
-    deps = [":filament_headers"],
-)
-
-# Geometry utilities headers
-cc_library(
-    name = "geometry_headers",
-    hdrs = glob(["libs/geometry/include/**/*.h"]),
-    includes = ["libs/geometry/include"],
-    strip_include_prefix = "libs/geometry/include",
-    deps = [
-        ":filament_headers",
-        ":math",
-    ],
-)
-
-# Image utilities headers
-cc_library(
-    name = "image_headers",
-    hdrs = glob(["libs/image/include/**/*.h"]),
-    includes = ["libs/image/include"],
-    strip_include_prefix = "libs/image/include",
-    deps = [":filament_headers"],
-)
-
-# Viewer library headers
-cc_library(
-    name = "viewer_headers",
-    hdrs = glob(["libs/viewer/include/**/*.h"]),
-    includes = ["libs/viewer/include"],
-    strip_include_prefix = "libs/viewer/include",
-    deps = [
-        ":filament_headers",
-        ":gltfio_headers",
+        ":utils",
     ],
 )
 

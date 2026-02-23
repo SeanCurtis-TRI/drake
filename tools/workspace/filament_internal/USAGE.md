@@ -1,7 +1,7 @@
 # Example: Using Filament in a Drake BUILD file
 
-To use Filament headers in your Drake code, add a dependency on the appropriate
-Filament target. For example:
+To use Filament in your Drake code with full linking support, add a dependency 
+on the appropriate Filament target. For example:
 
 ```python
 cc_library(
@@ -9,8 +9,8 @@ cc_library(
     srcs = ["my_renderer.cc"],
     hdrs = ["my_renderer.h"],
     deps = [
-        "@filament_internal//:filament_headers",
-        "@filament_internal//:math",
+        "@filament_internal//:filament",
+        "@filament_internal//:gltfio",
         # other dependencies...
     ],
 )
@@ -18,22 +18,74 @@ cc_library(
 
 ## Available Targets
 
-- `@filament_internal//:filament_headers` - Core Filament rendering API
-- `@filament_internal//:math` - Filament math library (vectors, matrices)
-- `@filament_internal//:utils_headers` - Utility library
-- `@filament_internal//:filamat_headers` - Material builder
-- `@filament_internal//:gltfio_headers` - glTF 2.0 loader
-- `@filament_internal//:geometry_headers` - Geometry utilities
-- `@filament_internal//:image_headers` - Image processing
-- `@filament_internal//:viewer_headers` - Viewer library
+### Full Libraries (with linking support)
+- `@filament_internal//:filament` - Core Filament rendering engine (includes all dependencies)
+- `@filament_internal//:backend` - Rendering backend (OpenGL/Vulkan/Metal)
+- `@filament_internal//:math` - Math library (vectors, matrices)
+- `@filament_internal//:utils` - Utility library
+- `@filament_internal//:filabridge` - Bridge library between Filament components
+- `@filament_internal//:filaflat` - Material serialization library
+- `@filament_internal//:geometry` - Geometry utilities
+- `@filament_internal//:image` - Image processing
+- `@filament_internal//:gltfio` - glTF 2.0 loader
+- `@filament_internal//:viewer` - Viewer library (high-level glTF viewer)
 
-## Important Note
+### Header-Only Target
+- `@filament_internal//:filament_headers` - Headers only (for compilation without linking)
 
-The current integration provides header-only access to Filament's API. To link
-against Filament's actual implementation libraries, additional work is required:
+## Build Configuration
 
-1. **Prebuilt binaries**: Download from https://github.com/google/filament/releases
-2. **CMake integration**: Use rules_foreign_cc to build Filament with CMake
-3. **Manual Bazel build**: Port Filament's CMake build to Bazel (significant effort)
+The Filament libraries are built from source using CMake via a Bazel genrule.
+The build is configured with:
+- Release mode
+- Position Independent Code (PIC) enabled
+- OpenGL support enabled
+- Vulkan and Metal support disabled (can be enabled if needed)
+- Sample apps disabled
+- Static linking
 
-For most use cases, option #2 (rules_foreign_cc) is recommended.
+## Platform Support
+
+Filament is built for:
+- Linux (with OpenGL support)
+- macOS (with OpenGL support)
+- Windows (experimental)
+
+## Example Usage
+
+```cpp
+#include <filament/Engine.h>
+#include <filament/View.h>
+#include <filament/Scene.h>
+#include <filament/Renderer.h>
+
+using namespace filament;
+
+int main() {
+    Engine* engine = Engine::create();
+    
+    // Create rendering resources
+    Renderer* renderer = engine->createRenderer();
+    View* view = engine->createView();
+    Scene* scene = engine->createScene();
+    
+    // Setup and render...
+    
+    // Cleanup
+    engine->destroy(&renderer);
+    engine->destroy(&view);
+    engine->destroy(&scene);
+    Engine::destroy(&engine);
+    
+    return 0;
+}
+```
+
+## Dependencies
+
+When using `@filament_internal//:filament`, you automatically get all required
+dependencies. However, you may need system libraries:
+- **Linux**: OpenGL, EGL, pthread, dl
+- **macOS**: OpenGL framework, Cocoa framework, QuartzCore framework
+
+These are automatically linked via linkopts in the BUILD file.
