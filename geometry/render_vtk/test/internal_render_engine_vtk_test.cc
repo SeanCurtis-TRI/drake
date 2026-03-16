@@ -107,6 +107,24 @@ class RenderEngineVtkTester {
   static int GetMeshCacheSize(const RenderEngineVtk& renderer) {
     return static_cast<int>(renderer.mesh_cache_.size());
   }
+
+  // Returns the number of entries currently in the texture cache.
+  static int GetTextureCacheSize(const RenderEngineVtk& renderer) {
+    return static_cast<int>(renderer.texture_cache_.size());
+  }
+
+  // Returns the vtkTexture from the first color-pipeline part of `id` that
+  // actually has a texture attached.  Useful for multi-material meshes where
+  // not every part carries a texture (e.g. rainbow_box.obj).
+  static vtkTexture* GetFirstTexturedColorActor(const RenderEngineVtk& renderer,
+                                                GeometryId id) {
+    for (const auto& part : renderer.props_.at(id).at(0).parts) {
+      if (vtkTexture* tex = part.actor.Get()->GetTexture(); tex != nullptr) {
+        return tex;
+      }
+    }
+    return nullptr;
+  }
 };
 
 namespace {
@@ -3463,6 +3481,155 @@ TEST_F(RenderEngineVtkTest, DifferentObjsDontShare) {
   ASSERT_NE(src_a, nullptr);
   ASSERT_NE(src_b, nullptr);
   EXPECT_NE(src_a, src_b);
+}
+
+// ---------------------------------------------------------------------------
+// Texture-cache source-sharing tests
+//
+// These tests verify that registering the same image file multiple times
+// results in exactly one cache entry and that all registrations share the same
+// underlying vtkTexture object (i.e. the image is decoded and uploaded to the
+// GPU only once).
+// ---------------------------------------------------------------------------
+
+// Registers the same on-disk PNG as a diffuse_map on three separate
+// geometries.  Confirms that exactly one texture-cache entry exists and that
+// every color actor holds the same vtkTexture pointer.
+TEST_F(RenderEngineVtkTest, TextureSharingPathBased) {
+  const RenderEngineVtkParams params{.backend = FLAGS_backend};
+  RenderEngineVtk engine(params);
+
+  const std::string png_path =
+      FindResourceOrThrow("drake/geometry/render/test/meshes/box.png");
+
+  auto make_props = [&png_path]() {
+    PerceptionProperties props;
+    props.AddProperty("label", "id", RenderLabel::kDontCare);
+    props.AddProperty("phong", "diffuse_map", png_path);
+    return props;
+  };
+
+  const GeometryId id1 = GeometryId::get_new_id();
+  const GeometryId id2 = GeometryId::get_new_id();
+  const GeometryId id3 = GeometryId::get_new_id();
+  engine.RegisterVisual(id1, Sphere(0.5), make_props(),
+                        RigidTransformd::Identity());
+  engine.RegisterVisual(id2, Sphere(0.5), make_props(),
+                        RigidTransformd::Identity());
+  engine.RegisterVisual(id3, Sphere(0.5), make_props(),
+                        RigidTransformd::Identity());
+
+  EXPECT_EQ(RenderEngineVtkTester::GetTextureCacheSize(engine), 1);
+
+  vtkTexture* tex1 =
+      RenderEngineVtkTester::GetFirstTexturedColorActor(engine, id1);
+  vtkTexture* tex2 =
+      RenderEngineVtkTester::GetFirstTexturedColorActor(engine, id2);
+  vtkTexture* tex3 =
+      RenderEngineVtkTester::GetFirstTexturedColorActor(engine, id3);
+  ASSERT_NE(tex1, nullptr);
+  EXPECT_EQ(tex1, tex2);
+  EXPECT_EQ(tex2, tex3);
+}
+
+// Registers two distinct on-disk PNGs as diffuse maps and confirms that they
+// produce independent cache entries and different vtkTexture pointers.
+TEST_F(RenderEngineVtkTest, DifferentTexturesDontShare) {
+  const RenderEngineVtkParams params{.backend = FLAGS_backend};
+  RenderEngineVtk engine(params);
+
+  const std::string png_a =
+      FindResourceOrThrow("drake/geometry/render/test/meshes/box.png");
+  const std::string png_b =
+      FindResourceOrThrow("drake/geometry/render/test/meshes/checker.png");
+
+  auto make_props = [](const std::string& path) {
+    PerceptionProperties props;
+    props.AddProperty("label", "id", RenderLabel::kDontCare);
+    props.AddProperty("phong", "diffuse_map", path);
+    return props;
+  };
+
+  const GeometryId id_a = GeometryId::get_new_id();
+  const GeometryId id_b = GeometryId::get_new_id();
+  engine.RegisterVisual(id_a, Sphere(0.5), make_props(png_a),
+                        RigidTransformd::Identity());
+  engine.RegisterVisual(id_b, Sphere(0.5), make_props(png_b),
+                        RigidTransformd::Identity());
+
+  // Two distinct files → two distinct cache entries.
+  EXPECT_EQ(RenderEngineVtkTester::GetTextureCacheSize(engine), 2);
+
+  vtkTexture* tex_a =
+      RenderEngineVtkTester::GetFirstTexturedColorActor(engine, id_a);
+  vtkTexture* tex_b =
+      RenderEngineVtkTester::GetFirstTexturedColorActor(engine, id_b);
+  ASSERT_NE(tex_a, nullptr);
+  ASSERT_NE(tex_b, nullptr);
+  EXPECT_NE(tex_a, tex_b);
+}
+
+// Packs the same PNG bytes into a MemoryFile. We want to make sure where the
+// sha matches, we get one entry, but where it differs we get a unique
+// entry.
+TEST_F(RenderEngineVtkTest, TextureSharingWithMemoryFile) {
+  const RenderEngineVtkParams params{.backend = FLAGS_backend};
+  RenderEngineVtk engine(params);
+
+  const auto obj_data = MemoryFile::Make(
+      FindResourceOrThrow("drake/geometry/render/test/meshes/rainbow_box.obj"));
+  const auto mtl_data = MemoryFile::Make(FindResourceOrThrow(
+      "drake/geometry/render/test/meshes/rainbow_box.mtl"));
+  const auto png_data_a = MemoryFile::Make(FindResourceOrThrow(
+      "drake/geometry/render/test/meshes/rainbow_stripes.png"));
+  const auto png_data_b = MemoryFile::Make(FindResourceOrThrow(
+      "drake/geometry/render/test/meshes/checker.png"));
+
+  // Build a fresh InMemoryMesh each time; the SHA-256 of rainbow_box.obj's
+  // bytes is the same for all three calls, so they map to a single mesh-cache
+  // entry and the Rainbow_Stripes texture maps to a single texture-cache entry.
+  int i = 0;
+  auto make_mesh = [&](const MemoryFile& png_data) {
+    // To avoid artifacts from caching the root .obj file, we'll perturb the
+    // file contents of the obj_data so each obj is considered unique. Note:
+    // this is necessary because, as documented, the cache key for meshes only
+    // considers the root file contents and can't distinguish two models that
+    // differ in supporting files. (See mesh_source_cache_key.cc.)
+    return Mesh(InMemoryMesh{
+        MemoryFile(fmt::format("# {}\n", ++i) + obj_data.contents(),
+                   obj_data.extension(), obj_data.filename_hint()),
+        {{"rainbow_box.mtl", mtl_data}, {"rainbow_stripes.png", png_data}}});
+  };
+
+  PerceptionProperties props;
+  props.AddProperty("label", "id", RenderLabel::kDontCare);
+
+  const GeometryId id1 = GeometryId::get_new_id();
+  const GeometryId id2 = GeometryId::get_new_id();
+  const GeometryId id3 = GeometryId::get_new_id();
+  engine.RegisterVisual(id1, make_mesh(png_data_a), props,
+                        RigidTransformd::Identity());
+  engine.RegisterVisual(id2, make_mesh(png_data_a), props,
+                        RigidTransformd::Identity());
+  engine.RegisterVisual(id3, make_mesh(png_data_b), props,
+                        RigidTransformd::Identity());
+
+  // One mesh-cache entry (keyed by SHA-256 of rainbow_box.obj bytes) and one
+  // texture-cache entry (keyed by SHA-256 of rainbow_stripes.png bytes).
+  EXPECT_EQ(RenderEngineVtkTester::GetTextureCacheSize(engine), 2);
+
+  // rainbow_box.obj has multiple sub-meshes; only the Rainbow_Stripes material
+  // carries a texture.  GetFirstTexturedColorActor() finds that part.
+  vtkTexture* tex1 =
+      RenderEngineVtkTester::GetFirstTexturedColorActor(engine, id1);
+  vtkTexture* tex2 =
+      RenderEngineVtkTester::GetFirstTexturedColorActor(engine, id2);
+  vtkTexture* tex3 =
+      RenderEngineVtkTester::GetFirstTexturedColorActor(engine, id3);
+  ASSERT_NE(tex1, nullptr);
+  EXPECT_EQ(tex1, tex2);
+  ASSERT_NE(tex3, nullptr);
+  EXPECT_NE(tex2, tex3);
 }
 
 }  // namespace
