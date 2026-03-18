@@ -9,7 +9,19 @@ namespace internal {
 
 using std::unordered_set;
 
+#ifndef ENABLE_FILTERS
+  // If we haven't explicitly defined whether filters are enabled, they are.
+  #define ENABLE_FILTERS 1
+#endif
+
+#if ENABLE_FILTERS > 0
+  #define MAYBE_EXIT_EARLY(x)
+#else
+  #define MAYBE_EXIT_EARLY(x) return x
+#endif
+
 CollisionFilter::CollisionFilter() {
+  MAYBE_EXIT_EARLY();
   /* The filter history always has at least one entry -- entry[0] is the
    persistent base. We associate it with a filter id that can never be
    accessed via ApplyTransient() so that it can't accidentally be removed. */
@@ -23,6 +35,7 @@ CollisionFilter::CollisionFilter() {
 void CollisionFilter::Apply(const CollisionFilterDeclaration& declaration,
                             const CollisionFilter::ExtractIds& extract_ids,
                             bool is_invariant) {
+  MAYBE_EXIT_EARLY();
   if (has_transient_history()) {
     throw std::runtime_error(
         "You cannot attempt to modify the persistent collision filter "
@@ -44,6 +57,7 @@ void CollisionFilter::Apply(const CollisionFilterDeclaration& declaration,
 FilterId CollisionFilter::ApplyTransient(
     const CollisionFilterDeclaration& declaration,
     const CollisionFilter::ExtractIds& extract_ids) {
+  MAYBE_EXIT_EARLY(FilterId::get_new_id());
   /* By its very definition, transient declarations *cannot* be invariant. They
    are never used by the system to implement invariants and users cannot declare
    a filter to be invariant. */
@@ -72,6 +86,7 @@ FilterId CollisionFilter::ApplyTransient(
 }
 
 bool CollisionFilter::IsActive(FilterId id) const {
+  MAYBE_EXIT_EARLY(false);
   for (const auto& delta : filter_history_) {
     if (id == delta.id) return true;
   }
@@ -79,6 +94,7 @@ bool CollisionFilter::IsActive(FilterId id) const {
 }
 
 bool CollisionFilter::RemoveDeclaration(FilterId id) {
+  MAYBE_EXIT_EARLY(true);
   /* We skip the first entry, that is always the persistent base and can't be
    removed. */
   for (auto it = filter_history_.begin() + 1; it != filter_history_.end();
@@ -113,6 +129,7 @@ bool CollisionFilter::RemoveDeclaration(FilterId id) {
 }
 
 void CollisionFilter::Flatten() {
+  MAYBE_EXIT_EARLY();
   if (filter_history_.size() > 1) {
     filter_history_.resize(1);
     filter_history_[0].filter_state = filter_state_;
@@ -120,6 +137,7 @@ void CollisionFilter::Flatten() {
 }
 
 void CollisionFilter::AddGeometry(GeometryId new_id) {
+  MAYBE_EXIT_EARLY();
   /* Current and persistent configurations should simply add the id with
    unfiltered status. */
   AddGeometry(new_id, &filter_state_, kUnfiltered);
@@ -134,6 +152,7 @@ void CollisionFilter::AddGeometry(GeometryId new_id) {
 }
 
 void CollisionFilter::RemoveGeometry(GeometryId remove_id) {
+  MAYBE_EXIT_EARLY();
   /* Simply remove the geometry from everything. */
   RemoveGeometry(remove_id, &filter_state_);
   for (auto& delta : filter_history_) {
@@ -142,6 +161,7 @@ void CollisionFilter::RemoveGeometry(GeometryId remove_id) {
 }
 
 bool CollisionFilter::CanCollideWith(GeometryId id_A, GeometryId id_B) const {
+  MAYBE_EXIT_EARLY(true);
   if (id_A == id_B) return false;
   if (id_A < id_B) {
     return filter_state_.at(id_A).at(id_B) == kUnfiltered;
@@ -154,6 +174,7 @@ void CollisionFilter::AddFiltersBetween(
     const GeometrySet& set_A, const GeometrySet& set_B,
     const CollisionFilter::ExtractIds& extract_ids, CollisionFilterScope scope,
     bool is_invariant, FilterState* state_out) {
+  MAYBE_EXIT_EARLY();
   const std::unordered_set<GeometryId> ids_A = extract_ids(set_A, scope);
   const std::unordered_set<GeometryId>& ids_B =
       &set_A == &set_B ? ids_A : extract_ids(set_B, scope);
@@ -168,6 +189,7 @@ void CollisionFilter::RemoveFiltersBetween(
     const GeometrySet& set_A, const GeometrySet& set_B,
     const CollisionFilter::ExtractIds& extract_ids, CollisionFilterScope scope,
     FilterState* state_out) {
+  MAYBE_EXIT_EARLY();
   const std::unordered_set<GeometryId> ids_A = extract_ids(set_A, scope);
   const std::unordered_set<GeometryId>& ids_B =
       &set_A == &set_B ? ids_A : extract_ids(set_B, scope);
@@ -181,6 +203,7 @@ void CollisionFilter::RemoveFiltersBetween(
 void CollisionFilter::AddFilteredPair(GeometryId id_A, GeometryId id_B,
                                       bool is_invariant,
                                       FilterState* state_out) {
+  MAYBE_EXIT_EARLY();
   FilterState& filter_state = *state_out;
   DRAKE_DEMAND(filter_state.contains(id_A) && filter_state.contains(id_B));
 
@@ -193,6 +216,7 @@ void CollisionFilter::AddFilteredPair(GeometryId id_A, GeometryId id_B,
 
 void CollisionFilter::RemoveFilteredPair(GeometryId id_A, GeometryId id_B,
                                          FilterState* state_out) {
+  MAYBE_EXIT_EARLY();
   FilterState& filter_state = *state_out;
   DRAKE_DEMAND(filter_state.contains(id_A) && filter_state.contains(id_B));
   if (id_A == id_B) return;
@@ -203,6 +227,7 @@ void CollisionFilter::RemoveFilteredPair(GeometryId id_A, GeometryId id_B,
 }
 
 bool CollisionFilter::operator==(const CollisionFilter& other) const {
+  MAYBE_EXIT_EARLY(true);
   if (this == &other) return true;
   if (filter_state_.size() != other.filter_state_.size()) return false;
   for (const auto& [this_id, this_map] : filter_state_) {
@@ -231,6 +256,7 @@ CollisionFilter CollisionFilter::MakeClearCopy() const {
 void CollisionFilter::Apply(const CollisionFilterDeclaration& declaration,
                             const CollisionFilter::ExtractIds& extract_ids,
                             bool is_invariant, FilterState* filter_state) {
+  MAYBE_EXIT_EARLY();
   using Operation = CollisionFilterDeclaration::StatementOp;
   const CollisionFilterScope scope = declaration.scope();
   for (const auto& statement : declaration.statements()) {
@@ -262,6 +288,7 @@ void CollisionFilter::Apply(const CollisionFilterDeclaration& declaration,
 void CollisionFilter::AddGeometry(GeometryId new_id,
                                   FilterState* filter_state_out,
                                   PairRelationship relationship) {
+  MAYBE_EXIT_EARLY();
   FilterState& filter_state = *filter_state_out;
   DRAKE_DEMAND(!filter_state.contains(new_id));
   GeometryMap& new_map = filter_state[new_id] = {};
@@ -284,6 +311,7 @@ void CollisionFilter::AddGeometry(GeometryId new_id,
 
 void CollisionFilter::RemoveGeometry(GeometryId remove_id,
                                      FilterState* filter_state_out) {
+  MAYBE_EXIT_EARLY();
   FilterState& filter_state = *filter_state_out;
   DRAKE_DEMAND(filter_state.contains(remove_id));
   filter_state.erase(remove_id);
@@ -300,6 +328,7 @@ void CollisionFilter::RemoveGeometry(GeometryId remove_id,
 CollisionFilter::FilterState CollisionFilter::InitializeTransientState(
     const FilterState& reference, PairRelationship default_relationship) {
   FilterState new_state;
+  MAYBE_EXIT_EARLY(new_state);
   for (const auto& [id, _] : reference) {
     unused(_);
     AddGeometry(id, &new_state, default_relationship);
