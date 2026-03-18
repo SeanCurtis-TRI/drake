@@ -1150,6 +1150,9 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
   // from its convex hull (rather than from the actual mesh data).
   template <typename MeshType>
   void ImplementFromConvexHull(const MeshType& mesh, void* user_data) {
+    static int count = 0;
+    static int total_verts = 0;
+    static int total_faces = 0;
     // Create fcl::Convex for the fcl bounding volume hierarchy.
     const PolygonSurfaceMesh<double>& hull = mesh.GetConvexHull();
     auto shared_verts = make_shared<std::vector<Vector3d>>();
@@ -1157,6 +1160,13 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
       shared_verts->push_back(hull.vertex(vi));
     }
     auto shared_faces = make_shared<std::vector<int>>(hull.face_data());
+    ++count;
+    total_verts += hull.num_vertices();
+    total_faces += hull.num_elements();
+    if (count % 1000 == 0) {
+      fmt::print("{} convex hulls with {} total verts and {} total faces\n",
+                 count, total_verts, total_faces);
+    }
     auto fcl_convex = make_shared<fcl::Convexd>(
         std::move(shared_verts), hull.num_elements(), std::move(shared_faces));
 
