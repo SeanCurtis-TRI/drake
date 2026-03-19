@@ -61,6 +61,8 @@ class FclDynamicAABBTreeCollisionManager
     : public fcl::DynamicAABBTreeCollisionManager<double> {};
 class MapGeometryIdToFclCollisionObject
     : public unordered_map<GeometryId, unique_ptr<CollisionObjectd>> {};
+class MapStringToFclConvex
+    : public unordered_map<std::string, shared_ptr<fcl::Convexd>> {};
 
 // Returns a copy of the given fcl collision geometry; throws an exception for
 // unsupported collision geometry types. This supplements the *missing* cloning
@@ -284,6 +286,7 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
     geometries_for_deformable_contact_ =
         other.geometries_for_deformable_contact_;
     mesh_sdf_data_ = other.mesh_sdf_data_;
+    convex_hull_cache_ = other.convex_hull_cache_;
     dynamic_tree_.clear();
     dynamic_objects_.clear();
     anchored_tree_.clear();
@@ -333,6 +336,7 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
     engine->geometries_for_deformable_contact_ =
         this->geometries_for_deformable_contact_;
     engine->mesh_sdf_data_ = this->mesh_sdf_data_;
+    engine->convex_hull_cache_ = this->convex_hull_cache_;
     engine->distance_tolerance_ = this->distance_tolerance_;
 
     return engine;
@@ -1150,17 +1154,27 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
   // from its convex hull (rather than from the actual mesh data).
   template <typename MeshType>
   void ImplementFromConvexHull(const MeshType& mesh, void* user_data) {
-    // Create fcl::Convex for the fcl bounding volume hierarchy.
-    const PolygonSurfaceMesh<double>& hull = mesh.GetConvexHull();
-    auto shared_verts = make_shared<std::vector<Vector3d>>();
-    for (int vi = 0; vi < hull.num_vertices(); ++vi) {
-      shared_verts->push_back(hull.vertex(vi));
+    // Look up (or build and cache) the fcl::Convex for this mesh source so
+    // that registering the same mesh file multiple times shares a single
+    // fcl::Convex object rather than allocating a duplicate.
+    const std::string cache_key =
+        mesh.source().GetCacheKey(/* is_convex= */ true);
+    auto iter = convex_hull_cache_.find(cache_key);
+    if (iter == convex_hull_cache_.end()) {
+      // Create fcl::Convex for the fcl bounding volume hierarchy.
+      const PolygonSurfaceMesh<double>& hull = mesh.GetConvexHull();
+      auto shared_verts = make_shared<std::vector<Vector3d>>();
+      for (int vi = 0; vi < hull.num_vertices(); ++vi) {
+        shared_verts->push_back(hull.vertex(vi));
+      }
+      auto shared_faces = make_shared<std::vector<int>>(hull.face_data());
+      auto fcl_convex = make_shared<fcl::Convexd>(std::move(shared_verts),
+                                                  hull.num_elements(),
+                                                  std::move(shared_faces));
+      iter = convex_hull_cache_.emplace(cache_key, std::move(fcl_convex)).first;
     }
-    auto shared_faces = make_shared<std::vector<int>>(hull.face_data());
-    auto fcl_convex = make_shared<fcl::Convexd>(
-        std::move(shared_verts), hull.num_elements(), std::move(shared_faces));
 
-    TakeShapeOwnership(fcl_convex, user_data);
+    TakeShapeOwnership(iter->second, user_data);
     ProcessHydroelastic(mesh, user_data);
     // TODO(DamrongGuoy):  Right now ProcessGeometriesForDeformableContact()
     //  will call deformable::Geometries::MaybeAddRigidGeometry(), which will
@@ -1293,6 +1307,11 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
 
   // Data for ComputeSignedDistanceToPoint from meshes (Mesh and Convex).
   std::unordered_map<GeometryId, MeshDistanceBoundary> mesh_sdf_data_{};
+
+  // Cache mapping mesh-source cache keys to their fcl::Convex collision
+  // geometry. ImplementFromConvexHull() populates this so that registering
+  // the same mesh file multiple times shares a single fcl::Convex object.
+  MapStringToFclConvex convex_hull_cache_{};
 };
 
 template <typename T>

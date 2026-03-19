@@ -545,6 +545,59 @@ GTEST_TEST(ProximityEngineTests, ProcessVtkConvexUndefHydro) {
   }
 }
 
+// Tests that registering the same mesh source multiple times reuses the same
+// underlying fcl::Convex collision geometry object (i.e. the convex hull cache
+// is working).
+GTEST_TEST(ProximityEngineTests, ConvexHullCacheDuplicatesShareGeometry) {
+  ProximityEngine<double> engine;
+  const std::string path_a =
+      FindResourceOrThrow("drake/geometry/test/quad_cube.obj");
+  const std::string path_b =
+      FindResourceOrThrow("drake/geometry/test/non_convex_mesh.obj");
+
+  // Add the shape (dynamic vs anchored as indicated). Returns a pointer to the
+  // underlying collision geometry -- the cached quantity.
+  auto add_geometry = [&engine](const Shape& shape, bool is_dynamic = true) {
+    const GeometryId id = GeometryId::get_new_id();
+    if (is_dynamic) {
+      engine.AddDynamicGeometry(shape, {}, id);
+    } else {
+      engine.AddAnchoredGeometry(shape, {}, id);
+    }
+    const fcl::CollisionObjectd* obj =
+        ProximityEngineTester::GetCollisionObject(engine, id);
+    DRAKE_DEMAND(obj != nullptr);
+    return obj->collisionGeometry().get();
+  };
+
+  // We'll register one path as multiple geometry (some Mesh, some Convex).
+  const fcl::CollisionGeometryd* convex_a1 = add_geometry(Convex(path_a));
+  const fcl::CollisionGeometryd* convex_a2 = add_geometry(Convex(path_a));
+  const fcl::CollisionGeometryd* mesh_a1 = add_geometry(Mesh(path_a));
+  const fcl::CollisionGeometryd* mesh_a2 = add_geometry(Mesh(path_a));
+
+  // Start by confirming our reference geometry isn't null.
+  ASSERT_NE(convex_a1, nullptr);
+
+  // All of the collision objects instantiated by path_a (whether Mesh or
+  // Convex) should all share the same collision geometry.
+  EXPECT_EQ(convex_a1, convex_a2);
+  EXPECT_EQ(convex_a1, mesh_a1);
+  EXPECT_EQ(convex_a1, mesh_a2);
+
+  // We'll use a second mesh to show that not all meshes get cached the same.
+  // We'll also use the second mesh to show that anchored/dynamic doesn't
+  // matter.
+  const fcl::CollisionGeometryd* convex_b = add_geometry(Convex(path_b));
+  const fcl::CollisionGeometryd* mesh_b =
+      add_geometry(Mesh(path_b), /* is_dynamic= */ false);
+
+  // From a different path, we should get a different geometry.
+  EXPECT_NE(convex_b, nullptr);
+  EXPECT_NE(convex_a1, convex_b);
+  EXPECT_EQ(convex_b, mesh_b);
+}
+
 // TODO(SeanCurtis-TRI): Confirm that SDF data gets computed for Mesh(vtk) and
 // all Convex().
 
