@@ -80,8 +80,8 @@ struct ConvexHullCacheEntry {
   std::map<std::array<double, 3>, shared_ptr<fcl::Convexd>> scaled_hulls;
 };
 
-class MapStringToConvexHullCache
-    : public unordered_map<std::string, ConvexHullCacheEntry> {};
+using MapStringToConvexHullCache =
+    unordered_map<std::string, ConvexHullCacheEntry>;
 
 // Cache entry for a single mesh source file (independent of scale). Stores the
 // (stripped) source once and maps each encountered scale factor to a lazily
@@ -89,7 +89,8 @@ class MapStringToConvexHullCache
 // ownership of the stored MeshSource via shared_ptr (so the in-memory payload
 // is never duplicated), and the LazyShared per scale is copy-shared into every
 // MeshSdfEntry that references the same (source, scale) pair.
-struct DistanceBoundaryCacheEntry {
+struct PerSourceDistanceBoundaryCacheEntry {
+  // TODO: PICK UP READING HERE!
   // Stripped copy of the mesh source (supporting files removed since they are
   // not needed for signed-distance computations). Shared across all factory
   // closures that reference this source, ensuring the in-memory payload is
@@ -103,8 +104,8 @@ struct DistanceBoundaryCacheEntry {
       scaled_boundaries;
 };
 
-class MapStringToDistanceBoundaryCache
-    : public unordered_map<std::string, DistanceBoundaryCacheEntry> {};
+using MapStringToDistanceBoundaryCache =
+    unordered_map<std::string, PerSourceDistanceBoundaryCacheEntry>;
 
 // Returns a copy of `source` with supporting files stripped out. OBJ and VTK
 // parsing for signed-distance queries only requires the primary mesh file;
@@ -1285,7 +1286,7 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
 
     const std::string cache_key =
         mesh.source().GetCacheKey(/* is_convex= */ false);
-    DistanceBoundaryCacheEntry& entry = mesh_boundary_cache_[cache_key];
+    PerSourceDistanceBoundaryCacheEntry& entry = mesh_boundary_cache_[cache_key];
     if (!entry.source) {
       entry.source =
           make_shared<const MeshSource>(StripSupportingFiles(mesh.source()));
@@ -1324,7 +1325,7 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
 
     const std::string cache_key =
         convex.source().GetCacheKey(/* is_convex= */ true);
-    DistanceBoundaryCacheEntry& entry = mesh_boundary_cache_[cache_key];
+    PerSourceDistanceBoundaryCacheEntry& entry = mesh_boundary_cache_[cache_key];
     if (!entry.source) {
       entry.source =
           make_shared<const MeshSource>(StripSupportingFiles(convex.source()));
@@ -1439,10 +1440,10 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
   MapGeometryIdToMeshSdfEntry mesh_sdf_data_{};
 
   // Two-level cache used by ImplementMeshSdfData().
-  //   Level 1: mesh-source cache key  →  DistanceBoundaryCacheEntry
+  //   Level 1: mesh-source cache key  →  PerSourceDistanceBoundaryCacheEntry
   //     Stores the stripped MeshSource (supporting files removed) once per
   //     unique source, so in-memory payloads are never duplicated.
-  //   Level 2 (inside DistanceBoundaryCacheEntry): scale factor  →
+  //   Level 2 (inside PerSourceDistanceBoundaryCacheEntry): scale factor  →
   //     LazyShared<MeshDistanceBoundary>
   //     The LazyShared is copy-shared into every MeshSdfEntry for the same
   //     (source, scale), ensuring construction happens at most once.
