@@ -38,12 +38,14 @@ class PointDistanceCallback : public DistanceCallback<T> {
     DRAKE_DEMAND(obj_A->collisionGeometry()->getNodeType() == fcl::GEOM_SPHERE);
     const GeometryId point_id = EncodedData(*obj_A).id();
     const Vector3<T> p_WQ = X_WGs->at(point_id).translation();
-    std::unordered_map<GeometryId, MeshDistanceBoundary> mesh_data;
+    std::unordered_map<GeometryId, MeshSdfEntry> mesh_data;
     // Both drake::Convex and drake::Mesh are represented as fcl::GEOM_CONVEX.
     if (obj_B->collisionGeometry().get()->getNodeType() == fcl::GEOM_CONVEX) {
-      mesh_data.emplace(EncodedData(*obj_B).id(),
-                        MeshDistanceBoundary(MakeBoxVolumeMeshWithMa<double>(
-                            CharacterizeResultTest<T>::box())));
+      auto mdb_ptr = std::make_shared<const MeshDistanceBoundary>(
+          MakeBoxVolumeMeshWithMa<double>(CharacterizeResultTest<T>::box()));
+      mesh_data.emplace(EncodedData(*obj_B).id(), MeshSdfEntry{{}, [mdb_ptr]() {
+                                                                 return mdb_ptr;
+                                                               }});
     }
     CallbackData<T> data(obj_A, std::numeric_limits<double>::infinity(), p_WQ,
                          X_WGs, &mesh_data, &results_);

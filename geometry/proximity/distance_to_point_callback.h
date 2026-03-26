@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <functional>
 #include <limits>
 #include <tuple>
 #include <unordered_map>
@@ -12,6 +13,7 @@
 #include "drake/common/drake_export.h"
 #include "drake/common/eigen_types.h"
 #include "drake/geometry/geometry_ids.h"
+#include "drake/geometry/lazy_shared.h"
 #include "drake/geometry/proximity/mesh_distance_boundary.h"
 #include "drake/geometry/proximity/proximity_utilities.h"
 #include "drake/geometry/query_results/signed_distance_to_point.h"
@@ -22,6 +24,23 @@ namespace geometry {
 namespace internal {
 namespace point_distance DRAKE_NO_EXPORT {
 
+/* Placeholder for a lazily-constructed MeshDistanceBoundary. This is the
+ boundary for a particular Mesh/Convex at a particular scale. For each unique
+ (mesh, scale) pair, we will only have one MeshSdfEntry.
+
+ On the first call to GetOrMake(), the boundary is built and cached inside
+ `boundary`. Copies of this struct share ownership of the underlying
+ MeshDistanceBoundary (via LazyShared's copy semantics), so construction happens
+ at most once across all copies derived from the same original. */
+struct MeshSdfEntry {
+  LazyShared<MeshDistanceBoundary> boundary;
+  std::function<std::shared_ptr<const MeshDistanceBoundary>()> factory;
+
+  const MeshDistanceBoundary& GetOrMake() const {
+    return boundary.GetOrMake(factory);
+  }
+};
+
 /* Supporting data for the distance-to-point callback (see Callback below).
  It includes:
     - The fcl collision object representing the query point, Q.
@@ -29,8 +48,8 @@ namespace point_distance DRAKE_NO_EXPORT {
     - The query point Q, measured and expressed in the world frame, `p_WQ_W`.
     - The T-valued poses of _all_ geometries in the corresponding SceneGraph
       keyed on their GeometryId.
-    - The mesh data for calculating signed distances of _all_ mesh geometries
-      in the corresponding SceneGraph keyed on their GeometryId.
+    - The mesh entry data for calculating signed distances of _all_ mesh
+      geometries in the corresponding SceneGraph keyed on their GeometryId.
     - A vector of distance results -- one instance of SignedDistanceToPoint for
       every supported geometry which lies within the threshold.
  */
@@ -45,16 +64,15 @@ struct CallbackData {
    @param threshold_in        The query threshold.
    @param p_WQ_W_in           The T-valued position of the query point.
    @param X_WGs_in            The T-valued poses. Aliased.
-   @param mesh_boundaries_in  The mesh data for calculating signed distances.
-                              Aliased.
+   @param mesh_boundaries_in  The mesh entry data for calculating signed
+                              distances. Aliased.
    @param distances_in[out]   The output results. Aliased.
    */
   CallbackData(
       fcl::CollisionObjectd* query_in, const double threshold_in,
       const Vector3<T>& p_WQ_W_in,
       const std::unordered_map<GeometryId, math::RigidTransform<T>>* X_WGs_in,
-      const std::unordered_map<GeometryId, MeshDistanceBoundary>*
-          mesh_boundaries_in,
+      const std::unordered_map<GeometryId, MeshSdfEntry>* mesh_boundaries_in,
       std::vector<SignedDistanceToPoint<T>>* distances_in)
       : query_point(*query_in),
         threshold(threshold_in),
@@ -80,8 +98,8 @@ struct CallbackData {
   /* The T-valued pose of every geometry.  */
   const std::unordered_map<GeometryId, math::RigidTransform<T>>& X_WGs;
 
-  /* Data for calculating signed distances of every mesh geometry.  */
-  const std::unordered_map<GeometryId, MeshDistanceBoundary>& mesh_boundaries;
+  /* Entry data for calculating signed distances of every mesh geometry.  */
+  const std::unordered_map<GeometryId, MeshSdfEntry>& mesh_boundaries;
 
   /* The accumulator for results.  */
   std::vector<SignedDistanceToPoint<T>>& distances;

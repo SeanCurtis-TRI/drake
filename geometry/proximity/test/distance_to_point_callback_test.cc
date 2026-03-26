@@ -702,11 +702,14 @@ void TestScalarShapeSupport() {
   const GeometryId other_id = GeometryId::get_new_id();
   std::unordered_map<GeometryId, RigidTransform<T>> X_WGs{
       {point_id, X_WQ}, {other_id, RigidTransform<T>::Identity()}};
-  std::unordered_map<GeometryId, MeshDistanceBoundary> mesh_data{
-      {other_id, MeshDistanceBoundary(VolumeMesh<double>(
-                     std::vector<VolumeElement>{{0, 1, 2, 3}},
-                     std::vector<Vector3d>{
-                         {0, 0, 0}, {1, 0, 0}, {0, 1, 0}, {0, 0, 1}}))}};
+  auto mdb_ptr =
+      std::make_shared<const MeshDistanceBoundary>(VolumeMesh<double>(
+          std::vector<VolumeElement>{{0, 1, 2, 3}},
+          std::vector<Vector3d>{{0, 0, 0}, {1, 0, 0}, {0, 1, 0}, {0, 0, 1}}));
+  std::unordered_map<GeometryId, MeshSdfEntry> mesh_data{
+      {other_id, MeshSdfEntry{{}, [mdb_ptr]() {
+                                return mdb_ptr;
+                              }}}};
   CallbackData<T> data{&query_point, threshold,  p_WQ,
                        &X_WGs,       &mesh_data, &distances};
 
@@ -819,13 +822,16 @@ GTEST_TEST(Callback, MeshAndConvex) {
   const double kThreshold100Meters = 100;
   const std::unordered_map<GeometryId, RigidTransformd> X_WGs{{mesh_id, X_WM}};
 
-  // There is MeshDistanceBoundary.
+  // There is MeshSdfEntry.
   {
-    const std::unordered_map<GeometryId, MeshDistanceBoundary> mesh_boundaries{
-        {mesh_id, MeshDistanceBoundary(VolumeMesh<double>(
-                      {VolumeElement{0, 1, 2, 3}},
-                      {Vector3d::Zero(), Vector3d::UnitX(), Vector3d::UnitY(),
-                       Vector3d::UnitZ()}))}};
+    auto mdb_ptr = std::make_shared<const MeshDistanceBoundary>(
+        VolumeMesh<double>({VolumeElement{0, 1, 2, 3}},
+                           {Vector3d::Zero(), Vector3d::UnitX(),
+                            Vector3d::UnitY(), Vector3d::UnitZ()}));
+    const std::unordered_map<GeometryId, MeshSdfEntry> mesh_boundaries{
+        {mesh_id, MeshSdfEntry{{}, [mdb_ptr]() {
+                                 return mdb_ptr;
+                               }}}};
     std::vector<SignedDistanceToPoint<double>> distances;
     CallbackData<double> callback_data{
         &query_point, kThreshold100Meters, p_WQ,
@@ -840,10 +846,9 @@ GTEST_TEST(Callback, MeshAndConvex) {
     EXPECT_EQ(threshold_out, kThreshold100Meters);
   }
 
-  // No MeshDistanceBoundary.
+  // No MeshSdfEntry.
   {
-    const std::unordered_map<GeometryId, MeshDistanceBoundary>
-        no_mesh_boundaries;
+    const std::unordered_map<GeometryId, MeshSdfEntry> no_mesh_boundaries;
     std::vector<SignedDistanceToPoint<double>> distances;
     CallbackData<double> callback_data{
         &query_point, kThreshold100Meters, p_WQ,

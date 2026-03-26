@@ -63,6 +63,8 @@ class FclDynamicAABBTreeCollisionManager
     : public fcl::DynamicAABBTreeCollisionManager<double> {};
 class MapGeometryIdToFclCollisionObject
     : public unordered_map<GeometryId, unique_ptr<CollisionObjectd>> {};
+class MapGeometryIdToMeshSdfEntry
+    : public unordered_map<GeometryId, point_distance::MeshSdfEntry> {};
 
 // Cache entry for a single mesh source file (independent of scale). Stores the
 // convex hull topology and unit-scale vertex positions once, then maps each
@@ -78,26 +80,41 @@ struct ConvexHullCacheEntry {
   std::map<std::array<double, 3>, shared_ptr<fcl::Convexd>> scaled_hulls;
 };
 
-// Cache entry for a single mesh source associated with distance queries. It
-// stores a unit-sized instance (computed with a scale of (1, 1, 1)) and scaled
-// variants.
-struct DistanceBoundaryCacheEntry {
-  shared_ptr<MeshDistanceBoundary> unit_boundary;
-  std::map<std::array<double, 3>, shared_ptr<MeshDistanceBoundary>> scale;
-};
-
-// When a mesh is registered with the proximity engine, we build various
-// quantities form the mesh specification (e.g., convex hulls, surface meshes,
-// etc.) It is not uncommon to load multiple instances of the same object and
-// therefore specify the same mesh file multiple times. ProximityEngine
-// maintains a cache of those mesh-derived quantities, keyed by the mesh source.
-struct MeshCacheEntry {
-  ConvexHullCacheEntry convex_hull_cache_entry;
-  DistanceBoundaryCacheEntry distance_boundary_cache_entry;
-};
-
 class MapStringToConvexHullCache
     : public unordered_map<std::string, ConvexHullCacheEntry> {};
+
+// Cache entry for a single mesh source file (independent of scale). Stores the
+// (stripped) source once and maps each encountered scale factor to a lazily
+// initialized MeshDistanceBoundary. All factory closures for this source share
+// ownership of the stored MeshSource via shared_ptr (so the in-memory payload
+// is never duplicated), and the LazyShared per scale is copy-shared into every
+// MeshSdfEntry that references the same (source, scale) pair.
+struct DistanceBoundaryCacheEntry {
+  // Stripped copy of the mesh source (supporting files removed since they are
+  // not needed for signed-distance computations). Shared across all factory
+  // closures that reference this source, ensuring the in-memory payload is
+  // stored at most once per unique source regardless of how many geometry
+  // instances reference it.
+  shared_ptr<const MeshSource> source;
+  // Per-scale lazy results. The LazyShared is copy-shared into every
+  // MeshSdfEntry for the same (source, scale), so construction of the boundary
+  // object happens at most once per distinct scale factor.
+  std::map<std::array<double, 3>, LazyShared<MeshDistanceBoundary>>
+      scaled_boundaries;
+};
+
+class MapStringToDistanceBoundaryCache
+    : public unordered_map<std::string, DistanceBoundaryCacheEntry> {};
+
+// Returns a copy of `source` with supporting files stripped out. OBJ and VTK
+// parsing for signed-distance queries only requires the primary mesh file;
+// auxiliary files (e.g., .mtl, textures) are only relevant for rendering.
+MeshSource StripSupportingFiles(const MeshSource& source) {
+  if (source.is_in_memory()) {
+    return MeshSource(InMemoryMesh{source.in_memory().mesh_file});
+  }
+  return source;  // File path: nothing to strip.
+}
 
 // Returns a copy of the given fcl collision geometry; throws an exception for
 // unsupported collision geometry types. This supplements the *missing* cloning
@@ -321,6 +338,7 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
     geometries_for_deformable_contact_ =
         other.geometries_for_deformable_contact_;
     mesh_sdf_data_ = other.mesh_sdf_data_;
+    mesh_boundary_cache_ = other.mesh_boundary_cache_;
     convex_hull_cache_ = other.convex_hull_cache_;
     dynamic_tree_.clear();
     dynamic_objects_.clear();
@@ -371,6 +389,7 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
     engine->geometries_for_deformable_contact_ =
         this->geometries_for_deformable_contact_;
     engine->mesh_sdf_data_ = this->mesh_sdf_data_;
+    engine->mesh_boundary_cache_ = this->mesh_boundary_cache_;
     engine->convex_hull_cache_ = this->convex_hull_cache_;
     engine->distance_tolerance_ = this->distance_tolerance_;
 
@@ -1014,7 +1033,7 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
     if (iter == mesh_sdf_data_.end()) {
       return nullptr;
     }
-    return &iter->second.tri_mesh();
+    return &iter->second.GetOrMake().tri_mesh();
   }
 
   const Aabb& GetDeformableAabbInWorld(GeometryId id) const {
@@ -1250,38 +1269,80 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
     ProcessGeometriesForDeformableContact(mesh, user_data);
   }
 
-  // TODO(DamrongGuoy): If setting up mesh_sdf_data_ turns out to be too
-  //  expensive during initialization, defer its computation to the time when
-  //  users call ComputeSignedDistanceToPoint(). The deferred computation
-  //  will need to be thread-safe.
-
   // Populate the proximity representation of Mesh for
-  // ComputeSignedDistanceToPoint. It could be .vtk tetrahedral mesh or
-  // .obj triangle mesh.
+  // ComputeSignedDistanceToPoint. It could be a .vtk tetrahedral mesh or a
+  // .obj triangle mesh. Construction of the MeshDistanceBoundary is deferred
+  // to first use; only a factory lambda is stored here. For a given (source,
+  // scale) pair the boundary is built at most once and shared across all
+  // geometry instances registered from the same source at the same scale.
   void ImplementMeshSdfData(const Mesh& mesh, void* user_data) {
     const ReifyData& data = *static_cast<ReifyData*>(user_data);
-    if (mesh.extension() == ".vtk") {
-      // Assume the .vtk file is a tetrahedral mesh.  If that's not true,
-      // we'll get an error.
-      VolumeMesh<double> volume_mesh = MakeVolumeMeshFromVtk<double>(mesh);
-      mesh_sdf_data_.emplace(data.id, MeshDistanceBoundary(volume_mesh));
-    } else if (mesh.extension() == ".obj") {
-      mesh_sdf_data_.emplace(data.id,
-                             MeshDistanceBoundary(ReadObjToTriangleSurfaceMesh(
-                                 mesh.source(), mesh.scale3())));
+    if (mesh.extension() != ".vtk" && mesh.extension() != ".obj") {
+      // Unsupported mesh format; Callback() skips geometries absent from
+      // mesh_sdf_data_.
+      return;
     }
-    // Meshes are unsupported if we cannot compute a MeshDistanceBoundary.
-    // point_distance::Callback() skips every Mesh that doesn't have an entry
-    // in mesh_sdf_data_.
+
+    const std::string cache_key =
+        mesh.source().GetCacheKey(/* is_convex= */ false);
+    DistanceBoundaryCacheEntry& entry = mesh_boundary_cache_[cache_key];
+    if (!entry.source) {
+      entry.source =
+          make_shared<const MeshSource>(StripSupportingFiles(mesh.source()));
+    }
+
+    const std::array<double, 3> scale_key{mesh.scale3()[0], mesh.scale3()[1],
+                                          mesh.scale3()[2]};
+    LazyShared<MeshDistanceBoundary>& lazy = entry.scaled_boundaries[scale_key];
+    const shared_ptr<const MeshSource> src = entry.source;
+    const Vector3d scale = mesh.scale3();
+
+    std::function<shared_ptr<const MeshDistanceBoundary>()> factory;
+    if (mesh.extension() == ".vtk") {
+      factory = [src, scale]() {
+        VolumeMesh<double> vol =
+            MakeVolumeMeshFromVtk<double>(Mesh(*src, scale));
+        return make_shared<const MeshDistanceBoundary>(vol);
+      };
+    } else {
+      factory = [src, scale]() {
+        return make_shared<const MeshDistanceBoundary>(
+            ReadObjToTriangleSurfaceMesh(*src, scale));
+      };
+    }
+    mesh_sdf_data_.emplace(
+        data.id, point_distance::MeshSdfEntry{lazy, std::move(factory)});
   }
 
   // Populate the proximity representation of Convex for
-  // ComputeSignedDistanceToPoint.
+  // ComputeSignedDistanceToPoint. Construction is deferred to first use;
+  // only a factory lambda is stored here. For a given (source, scale) pair
+  // the boundary is built at most once and shared across all geometry
+  // instances registered from the same source at the same scale.
   void ImplementMeshSdfData(const Convex& convex, void* user_data) {
-    const PolygonSurfaceMesh<double>& hull = convex.GetConvexHull();
     const ReifyData& data = *static_cast<ReifyData*>(user_data);
-    mesh_sdf_data_.emplace(
-        data.id, MeshDistanceBoundary(MakeTriangleFromPolygonMesh(hull)));
+
+    const std::string cache_key =
+        convex.source().GetCacheKey(/* is_convex= */ true);
+    DistanceBoundaryCacheEntry& entry = mesh_boundary_cache_[cache_key];
+    if (!entry.source) {
+      entry.source =
+          make_shared<const MeshSource>(StripSupportingFiles(convex.source()));
+    }
+
+    const std::array<double, 3> scale_key{
+        convex.scale3()[0], convex.scale3()[1], convex.scale3()[2]};
+    LazyShared<MeshDistanceBoundary>& lazy = entry.scaled_boundaries[scale_key];
+    const shared_ptr<const MeshSource> src = entry.source;
+    const Vector3d scale = convex.scale3();
+
+    mesh_sdf_data_.emplace(data.id,
+                           point_distance::MeshSdfEntry{
+                               lazy, [src, scale]() {
+                                 return make_shared<const MeshDistanceBoundary>(
+                                     MakeTriangleFromPolygonMesh(
+                                         Convex(*src, scale).GetConvexHull()));
+                               }});
   }
 
   /* @throws a std::exception with an appropriate error message for the various
@@ -1371,8 +1432,21 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
   // `dynamic_objects_` and `dynamic_tree_`.
   deformable::Geometries geometries_for_deformable_contact_;
 
-  // Data for ComputeSignedDistanceToPoint from meshes (Mesh and Convex).
-  std::unordered_map<GeometryId, MeshDistanceBoundary> mesh_sdf_data_{};
+  // Per-geometry placeholder for lazily-constructed MeshDistanceBoundary data
+  // used by ComputeSignedDistanceToPoint. The boundary is only built on the
+  // first query that reaches this geometry; until then only a factory closure
+  // is stored. Backed by mesh_boundary_cache_ for source deduplication.
+  MapGeometryIdToMeshSdfEntry mesh_sdf_data_{};
+
+  // Two-level cache used by ImplementMeshSdfData().
+  //   Level 1: mesh-source cache key  →  DistanceBoundaryCacheEntry
+  //     Stores the stripped MeshSource (supporting files removed) once per
+  //     unique source, so in-memory payloads are never duplicated.
+  //   Level 2 (inside DistanceBoundaryCacheEntry): scale factor  →
+  //     LazyShared<MeshDistanceBoundary>
+  //     The LazyShared is copy-shared into every MeshSdfEntry for the same
+  //     (source, scale), ensuring construction happens at most once.
+  MapStringToDistanceBoundaryCache mesh_boundary_cache_{};
 
   // Two-level cache used by ImplementFromConvexHull().
   //   Level 1: mesh-source cache key  →  ConvexHullCacheEntry
