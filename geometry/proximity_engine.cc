@@ -63,6 +63,7 @@ class FclDynamicAABBTreeCollisionManager
     : public fcl::DynamicAABBTreeCollisionManager<double> {};
 class MapGeometryIdToFclCollisionObject
     : public unordered_map<GeometryId, unique_ptr<CollisionObjectd>> {};
+
 // Cache entry for a single mesh source file (independent of scale). Stores the
 // convex hull topology and unit-scale vertex positions once, then maps each
 // encountered scale factor to its own fcl::Convexd.
@@ -75,6 +76,24 @@ struct ConvexHullCacheEntry {
   int num_faces{0};
   // Sub-cache of fcl::Convexd objects keyed by scale (x, y, z).
   std::map<std::array<double, 3>, shared_ptr<fcl::Convexd>> scaled_hulls;
+};
+
+// Cache entry for a single mesh source associated with distance queries. It
+// stores a unit-sized instance (computed with a scale of (1, 1, 1)) and scaled
+// variants.
+struct DistanceBoundaryCacheEntry {
+  shared_ptr<MeshDistanceBoundary> unit_boundary;
+  std::map<std::array<double, 3>, shared_ptr<MeshDistanceBoundary>> scale;
+};
+
+// When a mesh is registered with the proximity engine, we build various
+// quantities form the mesh specification (e.g., convex hulls, surface meshes,
+// etc.) It is not uncommon to load multiple instances of the same object and
+// therefore specify the same mesh file multiple times. ProximityEngine
+// maintains a cache of those mesh-derived quantities, keyed by the mesh source.
+struct MeshCacheEntry {
+  ConvexHullCacheEntry convex_hull_cache_entry;
+  DistanceBoundaryCacheEntry distance_boundary_cache_entry;
 };
 
 class MapStringToConvexHullCache
