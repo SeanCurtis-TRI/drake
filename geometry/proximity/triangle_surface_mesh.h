@@ -200,6 +200,19 @@ class TriangleSurfaceMesh {
     p_MSc_ = X_NM * p_MSc_;
   }
 
+  /** (Internal use only) Given a scale factor, creates a new mesh with scaled
+   vertices.
+
+   Negative scale factors are permitted and correspond to reflections. An odd
+   number of negative components reflects the mesh, reversing the winding order
+   of every triangle so that outward-facing normals remain outward-facing. Zero
+   scale factors are permitted and flatten the mesh along that axis; triangles
+   that collapse to zero area will have zero face normals.
+
+   @param scale  The finite scale factors for the mesh along the Mx, My, and
+                 Mz directions. */
+  TriangleSurfaceMesh<T> CreateScaledMesh(const Vector3<double>& scale) const;
+
   /** (Internal use only) Reverses the ordering of all the triangles' indices
    -- see SurfaceTriangle::ReverseWinding().
    */
@@ -395,6 +408,8 @@ class TriangleSurfaceMesh {
   void SetAllPositions(const Eigen::Ref<const VectorX<T>>& p_MVs);
 
  private:
+  TriangleSurfaceMesh() {}
+
   // Calculates the areas and face normals of each triangle, the total area,
   // and the centroid of the surface.
   void ComputePositionDependentQuantities();
