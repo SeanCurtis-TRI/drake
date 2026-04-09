@@ -258,8 +258,7 @@ class TriangleSurfaceMesh {
     // We count negative components explicitly rather than testing the sign of
     // the product sx*sy*sz, which would be zero whenever any component is zero
     // regardless of the signs of the remaining components.
-    const int num_negative = (scale.x() < 0 ? 1 : 0) +
-                             (scale.y() < 0 ? 1 : 0) +
+    const int num_negative = (scale.x() < 0 ? 1 : 0) + (scale.y() < 0 ? 1 : 0) +
                              (scale.z() < 0 ? 1 : 0);
     if (num_negative % 2 != 0) {
       scaled_mesh.ReverseFaceWinding();

@@ -711,13 +711,15 @@ void TestScalarShapeSupport() {
   const GeometryId other_id = GeometryId::get_new_id();
   std::unordered_map<GeometryId, RigidTransform<T>> X_WGs{
       {point_id, X_WQ}, {other_id, RigidTransform<T>::Identity()}};
-  std::unordered_map<GeometryId, MeshDistanceBoundary> mesh_data{
-      {other_id, MeshDistanceBoundary(VolumeMesh<double>(
-                     std::vector<VolumeElement>{{0, 1, 2, 3}},
-                     std::vector<Vector3d>{
-                         {0, 0, 0}, {1, 0, 0}, {0, 1, 0}, {0, 0, 1}}))}};
-  CallbackData<T> data{&query_point, threshold,  p_WQ,
-                       &X_WGs,       &mesh_data, &distances};
+  MeshSdfCache mesh_sdf_cache;
+  mesh_sdf_cache.RegisterMeshForTesting(
+      other_id,
+      TriangleSurfaceMesh<double>(
+          std::vector<SurfaceTriangle>{
+              {0, 2, 1}, {0, 1, 3}, {0, 3, 2}, {1, 2, 3}},
+          std::vector<Vector3d>{{0, 0, 0}, {1, 0, 0}, {0, 1, 0}, {0, 0, 1}}));
+  CallbackData<T> data{&query_point, threshold,       p_WQ,
+                       &X_WGs,       &mesh_sdf_cache, &distances};
 
   auto run_callback = [&query_point, &threshold, &distances, &data,
                        other_id](auto geometry_shared_ptr) {
@@ -827,17 +829,20 @@ GTEST_TEST(Callback, MeshAndConvex) {
   const double kThreshold100Meters = 100;
   const std::unordered_map<GeometryId, RigidTransformd> X_WGs{{mesh_id, X_WM}};
 
-  // There is MeshDistanceBoundary.
+  // There is a registered mesh.
   {
-    const std::unordered_map<GeometryId, MeshDistanceBoundary> mesh_boundaries{
-        {mesh_id, MeshDistanceBoundary(VolumeMesh<double>(
-                      {VolumeElement{0, 1, 2, 3}},
-                      {Vector3d::Zero(), Vector3d::UnitX(), Vector3d::UnitY(),
-                       Vector3d::UnitZ()}))}};
+    MeshSdfCache mesh_sdf_cache;
+    mesh_sdf_cache.RegisterMeshForTesting(
+        mesh_id,
+        TriangleSurfaceMesh<double>(
+            std::vector<SurfaceTriangle>{
+                {0, 2, 1}, {0, 1, 3}, {0, 3, 2}, {1, 2, 3}},
+            std::vector<Vector3d>{Vector3d::Zero(), Vector3d::UnitX(),
+                                  Vector3d::UnitY(), Vector3d::UnitZ()}));
     std::vector<SignedDistanceToPoint<double>> distances;
     CallbackData<double> callback_data{
         &query_point, kThreshold100Meters, p_WQ,
-        &X_WGs,       &mesh_boundaries,    &distances};
+        &X_WGs,       &mesh_sdf_cache,     &distances};
 
     double threshold_out = 0;
     // Expect Callback() to return false, so the broad-phase fcl will continue
@@ -848,14 +853,13 @@ GTEST_TEST(Callback, MeshAndConvex) {
     EXPECT_EQ(threshold_out, kThreshold100Meters);
   }
 
-  // No MeshDistanceBoundary.
+  // No registered mesh.
   {
-    const std::unordered_map<GeometryId, MeshDistanceBoundary>
-        no_mesh_boundaries;
+    MeshSdfCache no_mesh_sdf_cache;
     std::vector<SignedDistanceToPoint<double>> distances;
     CallbackData<double> callback_data{
         &query_point, kThreshold100Meters, p_WQ,
-        &X_WGs,       &no_mesh_boundaries, &distances};
+        &X_WGs,       &no_mesh_sdf_cache,  &distances};
 
     double threshold_out = 0;
     // Expect Callback() to return false, so the broad-phase fcl will continue
@@ -1533,7 +1537,7 @@ struct SignedDistanceToPointTest
         MakeFclObject(*data.geometry, id, /* is_dynamic= */ true);
 
     vector<SignedDistanceToPoint<double>> distances;
-    unordered_map<GeometryId, MeshDistanceBoundary> no_meshes;
+    MeshSdfCache no_meshes;
     CallbackData<double> callback_data{&query_point, threshold,  data.p_WQ,
                                        &X_WGs,       &no_meshes, &distances};
     Callback<double>(&query_point, geometry_object.get(), &callback_data,
@@ -1585,7 +1589,7 @@ TEST_P(SignedDistanceToPointTest, SingleQueryPointSymbolic) {
   vector<SignedDistanceToPoint<Expression>> sym_distances;
   unordered_map<GeometryId, RigidTransform<Expression>> X_WGs_sym{
       {id, data.X_WG.cast<Expression>()}};
-  unordered_map<GeometryId, MeshDistanceBoundary> no_meshes;
+  MeshSdfCache no_meshes;
   CallbackData<Expression> callback_data{
       &query_point, threshold,  data.p_WQ.cast<Expression>(),
       &X_WGs_sym,   &no_meshes, &sym_distances};

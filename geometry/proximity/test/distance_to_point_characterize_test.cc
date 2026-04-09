@@ -8,8 +8,8 @@
 
 #include "drake/geometry/proximity/distance_to_point_callback.h"
 #include "drake/geometry/proximity/make_box_mesh.h"
-#include "drake/geometry/proximity/mesh_distance_boundary.h"
 #include "drake/geometry/proximity/test/characterization_utilities.h"
+#include "drake/geometry/proximity/volume_to_surface_mesh.h"
 #include "drake/geometry/query_results/signed_distance_to_point.h"
 #include "drake/math/rigid_transform.h"
 #include "drake/math/rotation_matrix.h"
@@ -38,15 +38,16 @@ class PointDistanceCallback : public DistanceCallback<T> {
     DRAKE_DEMAND(obj_A->collisionGeometry()->getNodeType() == fcl::GEOM_SPHERE);
     const GeometryId point_id = EncodedData(*obj_A).id();
     const Vector3<T> p_WQ = X_WGs->at(point_id).translation();
-    std::unordered_map<GeometryId, MeshDistanceBoundary> mesh_data;
+    MeshSdfCache mesh_sdf_cache;
     // Both drake::Convex and drake::Mesh are represented as fcl::GEOM_CONVEX.
     if (obj_B->collisionGeometry().get()->getNodeType() == fcl::GEOM_CONVEX) {
-      mesh_data.emplace(EncodedData(*obj_B).id(),
-                        MeshDistanceBoundary(MakeBoxVolumeMeshWithMa<double>(
-                            CharacterizeResultTest<T>::box())));
+      mesh_sdf_cache.RegisterMeshForTesting(
+          EncodedData(*obj_B).id(),
+          ConvertVolumeToSurfaceMesh(MakeBoxVolumeMeshWithMa<double>(
+              CharacterizeResultTest<T>::box())));
     }
     CallbackData<T> data(obj_A, std::numeric_limits<double>::infinity(), p_WQ,
-                         X_WGs, &mesh_data, &results_);
+                         X_WGs, &mesh_sdf_cache, &results_);
     double max_distance = std::numeric_limits<double>::infinity();
     return Callback<T>(obj_A, obj_B, &data, max_distance);
   }

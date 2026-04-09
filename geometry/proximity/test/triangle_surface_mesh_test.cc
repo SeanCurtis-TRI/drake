@@ -212,10 +212,8 @@ GTEST_TEST(SurfaceMeshTest, TestFaceNormal) {
   const auto surface_mesh = TestSurfaceMesh<double>(X_WM);
   const Vector3<double> expect_normal =
       X_WM.rotation() * Vector3<double>::UnitZ();
-  EXPECT_TRUE(
-      CompareMatrices(expect_normal, surface_mesh.face_normal(0), tol));
-  EXPECT_TRUE(
-      CompareMatrices(expect_normal, surface_mesh.face_normal(1), tol));
+  EXPECT_TRUE(CompareMatrices(expect_normal, surface_mesh.face_normal(0), tol));
+  EXPECT_TRUE(CompareMatrices(expect_normal, surface_mesh.face_normal(1), tol));
 
   // Verify that the zero-area mesh has zero-vector face normal.
   const auto zero_mesh = GenerateZeroAreaMesh();
