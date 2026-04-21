@@ -359,6 +359,9 @@ class ProximityEngineTester {
   }
 };
 
+// TODO: This is no longer correct. Although it is represented by a convex mesh
+// in the broadphase, that doesn't mean it is used in the narrow phase. This
+// test doesn't account for callback-specific details.
 ::testing::AssertionResult MeshIsConvexInFcl() {
   // Create a small obj in a temp directory.
   const std::string obj_path = temp_directory() + "/tri.obj";
