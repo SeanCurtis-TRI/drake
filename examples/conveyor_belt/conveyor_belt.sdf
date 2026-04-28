@@ -70,6 +70,7 @@
           <drake:mu_static>1.0</drake:mu_static>
           <drake:surface_speed>0.25</drake:surface_speed>
           <drake:surface_velocity_normal>0.0 1.0 0</drake:surface_velocity_normal>
+          <drake:mesh_resolution_hint>0.2</drake:mesh_resolution_hint>
         </drake:proximity_properties>
       </collision>
     </link>
