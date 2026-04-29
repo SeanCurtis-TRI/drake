@@ -50,14 +50,10 @@
       <pose> 0 0 1 0 0.0 0.78</pose>
       <visual name="conveyor_belt_visual">
         <geometry>
-          <box>
-            <size>10.0 1.0 0.1</size>
-          </box>
+          <mesh>
+            <uri>/home/seancurtis/code/drake/examples/conveyor_belt/conveyor_belt.gltf</uri>
+          </mesh>
         </geometry>
-        <material>
-          <ambient>1.0 0.0 0.0 1.0</ambient> <!-- Red color -->
-          <diffuse>1.0 0.0 0.0 1.0</diffuse>
-        </material>
       </visual>
       <collision name="conveyor_belt_collision">
         <geometry>

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <map>
 #include <memory>
 #include <optional>
@@ -188,7 +189,13 @@ class MeshcatVisualizer final : public systems::LeafSystem<T> {
   /* A store of the geometries sent to Meshcat, so that they can be removed if a
    new geometry version appears that does not contain them. */
   mutable std::map<GeometryId, std::string> geometries_{};
-
+  /* Map from geometry Meshcat path to {u_velocity, v_velocity} for animating
+   texture UV offsets based on surface velocity proximity properties. Only
+   populated for geometries that have surface velocity properties. The UV
+   velocity is derived from the 3D surface velocity projected onto the geometry's
+   XY plane (U↔local-X, V↔local-Y), using geometry-local +Z as the canonical
+   surface normal reference. */
+  mutable std::map<std::string, std::array<double, 2>> uv_velocity_geometries_;
   /* The last alpha value applied to the objects in geometries_; used to avoid
    unnecessary updates to geometry opacities. */
   mutable double alpha_value_{1.0};

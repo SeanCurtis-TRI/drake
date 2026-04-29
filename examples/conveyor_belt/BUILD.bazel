@@ -10,6 +10,10 @@ drake_cc_binary(
     data = [
         "conveyor_belt.sdf",
         "//examples/scene_graph:models",
+        "conveyor_belt.gltf",
+        "conveyor_belt.bin",
+        "belt_diffuse.png",
+        "belt_normal.png",
     ],
     deps = [
         "//geometry:scene_graph",

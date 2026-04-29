@@ -807,6 +807,7 @@ drake_cc_library(
         ":meshcat",
         ":meshcat_graphviz",
         ":meshcat_visualizer_params",
+        ":proximity_properties",
         ":rgba",
         ":scene_graph",
         "//common:essential",

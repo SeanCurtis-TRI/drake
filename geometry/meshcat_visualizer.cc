@@ -14,6 +14,7 @@
 #include "drake/geometry/meshcat_internal.h"
 #include "drake/geometry/proximity/polygon_to_triangle_mesh.h"
 #include "drake/geometry/proximity/volume_to_surface_mesh.h"
+#include "drake/geometry/proximity_properties.h"
 #include "drake/geometry/utilities.h"
 
 namespace drake {
@@ -165,6 +166,9 @@ void MeshcatVisualizer<T>::SetObjects(
   std::map<GeometryId, std::string> geometries_to_delete{};
   geometries_.swap(geometries_to_delete);
 
+  // UV velocity entries will be rebuilt below for the current geometry set.
+  uv_velocity_geometries_.clear();
+
   // TODO(SeanCurtis-TRI): Mimic the full tree structure in SceneGraph.
   // SceneGraph supports arbitrary hierarchies of frames just like Meshcat.
   // This code is arbitrarily flattening it because the current SceneGraph API
@@ -246,6 +250,35 @@ void MeshcatVisualizer<T>::SetObjects(
       geometries_[geom_id] = path;
       geometries_to_delete.erase(geom_id);  // Don't delete this one.
       frame_has_any_geometry = true;
+
+      // Populate UV velocity for texture animation if this geometry has
+      // surface velocity proximity properties.
+      const ProximityProperties* proximity =
+          inspector.GetProximityProperties(geom_id);
+      if (proximity != nullptr &&
+          proximity->HasProperty(internal::kSurfaceVelocityGroup,
+                                 internal::kSurfaceSpeed) &&
+          proximity->HasProperty(internal::kSurfaceVelocityGroup,
+                                 internal::kSurfaceVelocityNormal)) {
+        const double speed = proximity->GetProperty<double>(
+            internal::kSurfaceVelocityGroup, internal::kSurfaceSpeed);
+        const Eigen::Vector3d n_ss =
+            proximity->GetProperty<Eigen::Vector3d>(
+                internal::kSurfaceVelocityGroup,
+                internal::kSurfaceVelocityNormal);
+        // Approximate the surface motion direction using geometry-local +Z as
+        // the canonical surface normal. The motion direction is n_ss × [0,0,1],
+        // which for a flat surface (normal = [0,0,1]) gives the tangential
+        // motion vector in the geometry frame.
+        const Eigen::Vector3d vel_G =
+            speed * n_ss.cross(Eigen::Vector3d::UnitZ());
+        if (vel_G.head<2>().norm() > 0.0) {
+          // UV space: U ↔ geometry-local X, V ↔ geometry-local Y.
+          // Negate because incrementing texture.offset.x shifts the sample
+          // point in +U, which visually moves the pattern in the -U direction.
+          uv_velocity_geometries_[path] = {-vel_G.x(), -vel_G.y()};
+        }
+      }
     }
 
     if (frame_has_any_geometry && (frame_id != inspector.world_frame_id())) {
@@ -268,11 +301,24 @@ template <typename T>
 void MeshcatVisualizer<T>::SetTransforms(
     const systems::Context<T>& context,
     const QueryObject<T>& query_object) const {
+  const double t = ExtractDoubleOrThrow(context.get_time());
   for (const auto& [frame_id, path] : dynamic_frames_) {
     const math::RigidTransformd X_WF =
         internal::convert_to_double(query_object.GetPoseInWorld(frame_id));
-    meshcat_->SetTransform(path, X_WF,
-                           ExtractDoubleOrThrow(context.get_time()));
+    meshcat_->SetTransform(path, X_WF, t);
+  }
+
+  // Animate texture UV offsets for geometries with surface velocity properties.
+  // The offset is accumulated as offset = uv_velocity * t, causing the texture
+  // to scroll continuously at the configured surface speed.
+  // Requires the geometry's material to have a texture map assigned; if not,
+  // the property update will be silently ignored by the browser.
+  for (const auto& [geo_path, uv_vel] : uv_velocity_geometries_) {
+    const std::string object_path = geo_path + "/<object>";
+    meshcat_->SetProperty(object_path, "material.map.offset.x",
+                          uv_vel[0] * t, t);
+    meshcat_->SetProperty(object_path, "material.map.offset.y",
+                          uv_vel[1] * t, t);
   }
 }
 
