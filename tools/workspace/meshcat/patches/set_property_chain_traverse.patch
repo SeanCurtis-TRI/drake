@@ -6,6 +6,14 @@ Mesh nodes with materials reside in the child hierarchy (e.g.,
 
 --- src/index.js
 +++ src/index.js
+@@ -803,7 +803,7 @@
+             if (child in parent) {
+                 parent_path += "." + child;
+-                if (typeof parent[child] === 'object') {
++                if (typeof parent[child] === 'object' && parent[child] !== null) {
+                     parent = parent[child];
+                     continue;
+                 }
 @@ -821,8 +821,29 @@
          }
  
@@ -21,7 +29,7 @@ Mesh nodes with materials reside in the child hierarchy (e.g.,
 +                let cur = child;
 +                let ok = true;
 +                for (const part of objects) {
-+                    if (part in cur && typeof cur[part] === 'object') {
++                    if (part in cur && typeof cur[part] === 'object' && cur[part] !== null) {
 +                        cur = cur[part];
 +                    } else {
 +                        ok = false;
