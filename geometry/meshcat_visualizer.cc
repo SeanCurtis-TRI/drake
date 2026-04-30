@@ -185,6 +185,40 @@ void MeshcatVisualizer<T>::SetObjects(
       frame_path.replace(pos++, 2, "/");
     }
 
+    // Scan proximity geometries on this frame for surface velocity properties.
+    // This drives UV texture animation on the frame's visual geometries, since
+    // surface velocity is authored on collision geometry, not visual geometry.
+    std::optional<std::array<double, 2>> frame_uv_vel;
+    for (GeometryId prox_id :
+         inspector.GetGeometries(frame_id, Role::kProximity)) {
+      const ProximityProperties* proximity =
+          inspector.GetProximityProperties(prox_id);
+      if (proximity != nullptr &&
+          proximity->HasProperty(internal::kSurfaceVelocityGroup,
+                                 internal::kSurfaceSpeed) &&
+          proximity->HasProperty(internal::kSurfaceVelocityGroup,
+                                 internal::kSurfaceVelocityNormal)) {
+        const double speed = proximity->GetProperty<double>(
+            internal::kSurfaceVelocityGroup, internal::kSurfaceSpeed);
+        const Eigen::Vector3d n_ss =
+            proximity->GetProperty<Eigen::Vector3d>(
+                internal::kSurfaceVelocityGroup,
+                internal::kSurfaceVelocityNormal);
+        // Surface motion direction in the geometry frame: n_ss × Ẑ.
+        const Eigen::Vector3d vel_G =
+            speed * n_ss.cross(Eigen::Vector3d::UnitZ());
+        if (vel_G.head<2>().norm() > 0.0) {
+          // Three.js texture.offset shifts the texture itself (not the sample
+          // window), so offsetting by +dx moves the visible pattern in the +U
+          // direction.  vel_G is already in geometry frame G, which maps
+          // directly to UV space (U=Gx, V=Gy) for this mesh, so no sign
+          // adjustment is needed.
+          frame_uv_vel = {vel_G.x(), vel_G.y()};
+          break;  // First geometry with surface velocity wins.
+        }
+      }
+    }
+
     bool frame_has_any_geometry = false;
     for (GeometryId geom_id : inspector.GetGeometries(frame_id, params_.role)) {
       const GeometryProperties& properties =
@@ -251,33 +285,10 @@ void MeshcatVisualizer<T>::SetObjects(
       geometries_to_delete.erase(geom_id);  // Don't delete this one.
       frame_has_any_geometry = true;
 
-      // Populate UV velocity for texture animation if this geometry has
-      // surface velocity proximity properties.
-      const ProximityProperties* proximity =
-          inspector.GetProximityProperties(geom_id);
-      if (proximity != nullptr &&
-          proximity->HasProperty(internal::kSurfaceVelocityGroup,
-                                 internal::kSurfaceSpeed) &&
-          proximity->HasProperty(internal::kSurfaceVelocityGroup,
-                                 internal::kSurfaceVelocityNormal)) {
-        const double speed = proximity->GetProperty<double>(
-            internal::kSurfaceVelocityGroup, internal::kSurfaceSpeed);
-        const Eigen::Vector3d n_ss =
-            proximity->GetProperty<Eigen::Vector3d>(
-                internal::kSurfaceVelocityGroup,
-                internal::kSurfaceVelocityNormal);
-        // Approximate the surface motion direction using geometry-local +Z as
-        // the canonical surface normal. The motion direction is n_ss × [0,0,1],
-        // which for a flat surface (normal = [0,0,1]) gives the tangential
-        // motion vector in the geometry frame.
-        const Eigen::Vector3d vel_G =
-            speed * n_ss.cross(Eigen::Vector3d::UnitZ());
-        if (vel_G.head<2>().norm() > 0.0) {
-          // UV space: U ↔ geometry-local X, V ↔ geometry-local Y.
-          // Negate because incrementing texture.offset.x shifts the sample
-          // point in +U, which visually moves the pattern in the -U direction.
-          uv_velocity_geometries_[path] = {-vel_G.x(), -vel_G.y()};
-        }
+      // If the frame has a surface velocity (sourced from its proximity
+      // geometry), record this illustration path for UV offset animation.
+      if (params_.role == Role::kIllustration && frame_uv_vel.has_value()) {
+        uv_velocity_geometries_[path] = *frame_uv_vel;
       }
     }
 
@@ -311,14 +322,30 @@ void MeshcatVisualizer<T>::SetTransforms(
   // Animate texture UV offsets for geometries with surface velocity properties.
   // The offset is accumulated as offset = uv_velocity * t, causing the texture
   // to scroll continuously at the configured surface speed.
-  // Requires the geometry's material to have a texture map assigned; if not,
-  // the property update will be silently ignored by the browser.
+  // All standard MeshStandardMaterial map channels are updated together so
+  // that every texture layer (diffuse, normal, roughness, metalness, etc.)
+  // scrolls in sync.  SetProperty silently no-ops on absent map channels.
+  static constexpr std::string_view kUVMaps[] = {
+      "material.map",
+      "material.normalMap",
+      "material.roughnessMap",
+      "material.metalnessMap",
+      "material.emissiveMap",
+      "material.bumpMap",
+      "material.aoMap",
+      "material.displacementMap",
+      "material.alphaMap",
+  };
   for (const auto& [geo_path, uv_vel] : uv_velocity_geometries_) {
+    const double u = uv_vel[0] * t;
+    const double v = uv_vel[1] * t;
     const std::string object_path = geo_path + "/<object>";
-    meshcat_->SetProperty(object_path, "material.map.offset.x",
-                          uv_vel[0] * t, t);
-    meshcat_->SetProperty(object_path, "material.map.offset.y",
-                          uv_vel[1] * t, t);
+    for (const auto& map_name : kUVMaps) {
+      meshcat_->SetProperty(
+          object_path, fmt::format("{}.offset.x", map_name), u, t);
+      meshcat_->SetProperty(
+          object_path, fmt::format("{}.offset.y", map_name), v, t);
+    }
   }
 }
 

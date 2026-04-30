@@ -1,0 +1,40 @@
+When set_property_chain fails to find the property chain on the immediate
+object, fall back to traversing all descendants. This handles glTF-loaded
+meshes where the scene root (`<object>`) is a THREE.Group and the actual
+Mesh nodes with materials reside in the child hierarchy (e.g.,
+`<object>/Scene/Cube`).
+
+--- src/index.js
++++ src/index.js
+@@ -821,8 +821,29 @@
+         }
+ 
+         if (error_detail != null) {
+-            // Note: full_path may not be an exact reproduction of the path
+-            // passed via msgpack.
++            // Fall back: traverse all descendants to handle glTF/OBJ meshes
++            // where this.object is a Group and the actual Mesh nodes are
++            // children (e.g. gltf scene hierarchy: <object>/Scene/Cube).
++            let applied = false;
++            this.object.traverse((child) => {
++                if (child === this.object) return;
++                let cur = child;
++                let ok = true;
++                for (const part of objects) {
++                    if (part in cur && typeof cur[part] === 'object') {
++                        cur = cur[part];
++                    } else {
++                        ok = false;
++                        break;
++                    }
++                }
++                if (ok && final_property in cur) {
++                    cur[final_property] = value;
++                    applied = true;
++                }
++            });
++            if (applied) return;
++            // Not found in any descendant either; log the error.
+             const full_path = "/" + target_path.join('/');
+             const value_str = JSON.stringify(value);
+             console.error(
