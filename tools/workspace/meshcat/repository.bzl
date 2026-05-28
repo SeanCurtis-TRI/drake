@@ -4,6 +4,7 @@ def meshcat_repository(
         name,
         mirrors = None):
     github_archive(
+        local_repository_override = "/home/seancurtis/code/meshcat",
         name = name,
         repository = "SeanCurtis-TRI/meshcat",
         upgrade_advice = """

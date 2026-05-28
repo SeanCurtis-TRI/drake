@@ -48,11 +48,11 @@
     <!-- Conveyor belt -->
     <link name="conveyor_belt">
       <pose> 0 0 1 0 0.0 0.78</pose>
-      <drake:surface_velocity_normal>0.0 1.0 0.0</drake:surface_velocity_normal>
+      <drake:surface_velocity_axis>0.0 1.0 0.0</drake:surface_velocity_axis>
       <visual name="conveyor_belt_visual">
         <geometry>
           <mesh>
-            <uri>/home/seancurtis/code/drake/examples/conveyor_belt/conveyor_belt.gltf</uri>
+            <uri>package://drake/examples/conveyor_belt/conveyor_belt.gltf</uri>
           </mesh>
         </geometry>
         <material>
@@ -81,7 +81,7 @@
     <!-- Blue cube on top of the conveyor belt -->
     <link name="box">
       <pose> -2 -2 1.27 0 0.0 0.0</pose>
-      <drake:surface_velocity_normal>0.0 1.0 0.0</drake:surface_velocity_normal>
+      <drake:surface_velocity_axis>0.0 1.0 0.0</drake:surface_velocity_axis>
       <visual name="box_visual">
         <geometry>
           <box>
@@ -90,7 +90,7 @@
         </geometry>
         <material>
           <diffuse>1.0 0.0 0.0 1.0</diffuse>
-          <drake:diffuse_map>/home/seancurtis/code/drake/examples/conveyor_belt/checker.png</drake:diffuse_map>
+          <drake:diffuse_map>package://drake/examples/conveyor_belt/checker.png</drake:diffuse_map>
         </material>
       </visual>
       <collision name="box_collision">
@@ -108,7 +108,7 @@
 
     <link name="capsule">
       <pose> 0.5 0.5 0.3 1.57 0.0 0.0</pose>
-      <drake:surface_velocity_normal>0.0 0.0 1.0</drake:surface_velocity_normal>
+      <drake:surface_velocity_axis>0.0 0.0 1.0</drake:surface_velocity_axis>
       <visual name="capsule_visual">
         <geometry>
           <capsule>
@@ -137,7 +137,7 @@
 
     <link name="Cylinder">
       <pose> -0.5 -0.5 0.3 1.57 0.77 0.0</pose>
-      <drake:surface_velocity_normal>0.0 0.0 1.0</drake:surface_velocity_normal>
+      <drake:surface_velocity_axis>0.0 0.0 1.0</drake:surface_velocity_axis>
       <visual name="cylinder_visual">
         <geometry>
           <cylinder>
@@ -166,7 +166,7 @@
 
     <link name="Sphere">
       <pose> 0.5 -0.5 0.3 0 0 0.0</pose>
-      <drake:surface_velocity_normal>0.0 1.0 0.0</drake:surface_velocity_normal>
+      <drake:surface_velocity_axis>0.0 1.0 0.0</drake:surface_velocity_axis>
       <visual name="sphere_visual">
         <geometry>
           <sphere>
@@ -193,7 +193,7 @@
 
     <link name="Ellipsoid">
       <pose> -1.0 0.5 0.7 0 0 0.0</pose>
-      <drake:surface_velocity_normal>-1.0 0.0 0.0</drake:surface_velocity_normal>
+      <drake:surface_velocity_axis>-1.0 0.0 0.0</drake:surface_velocity_axis>
       <visual name="ellipsoid_visual">
         <geometry>
           <ellipsoid>
@@ -220,7 +220,7 @@
 
     <link name="Mesh">
       <pose> 3.0 -3.5 1.3 0.5 0.8 0.0</pose>
-      <drake:surface_velocity_normal>0.0 -1.0 0.0</drake:surface_velocity_normal>
+      <drake:surface_velocity_axis>0.0 -1.0 0.0</drake:surface_velocity_axis>
       <visual name="mesh_visual">
         <geometry>
           <mesh>
@@ -253,7 +253,7 @@
      ground like a tank tread. -->
     <link name="hydro_pad">
       <pose>3 0 0.1 0 0 0</pose>
-      <drake:surface_velocity_normal>0.0 -1.0 0.0</drake:surface_velocity_normal>
+      <drake:surface_velocity_axis>0.0 -1.0 0.0</drake:surface_velocity_axis>
       <inertial>
         <mass>1.0</mass>
         <inertia>
@@ -269,7 +269,7 @@
         </geometry>
         <material>
           <diffuse>0.0 0.6 0.6 1.0</diffuse>
-          <drake:diffuse_map>/home/seancurtis/code/drake/examples/conveyor_belt/checker.png</drake:diffuse_map>
+          <drake:diffuse_map>package://drake/examples/conveyor_belt/checker.png</drake:diffuse_map>
         </material>
       </visual>
       <collision name="hydro_pad_collision">
@@ -291,7 +291,7 @@
      velocity that is perpendicular to the hydro pad's surface velocity.-->
     <link name="hydro_sphere">
       <pose>3 0 1.3 0 0 0</pose>
-      <drake:surface_velocity_normal>1.0 0.0 0.0</drake:surface_velocity_normal>
+      <drake:surface_velocity_axis>1.0 0.0 0.0</drake:surface_velocity_axis>
       <inertial>
         <mass>0.5</mass>
         <inertia>
