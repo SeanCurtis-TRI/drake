@@ -36,9 +36,9 @@ int do_main_continous_plant() {
   multibody::Parser(&builder).AddModelsFromUrl(conveyor_belt_url);
 
   // Register a deformable sphere to drop onto the conveyor belt.
-  // The belt center is at z=1 with thickness 0.1, so its top surface is ~z=1.05.
-  // We place the sphere center at z=1.4 (radius=0.15, so it starts ~0.2m above
-  // the belt).
+  // The belt center is at z=1 with thickness 0.1, so its top surface is
+  // ~z=1.05. We place the sphere center at z=1.4 (radius=0.15, so it starts
+  // ~0.2m above the belt).
   if (FLAGS_max_time_step > 0) {
     // Switch to SAP, which is required for deformable bodies.
     plant.set_discrete_contact_approximation(

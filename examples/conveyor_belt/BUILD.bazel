@@ -8,13 +8,13 @@ drake_cc_binary(
     name = "conveyor_belt",
     srcs = ["conveyor_belt.cc"],
     data = [
-        "conveyor_belt.sdf",
-        "//examples/scene_graph:models",
-        "conveyor_belt.gltf",
-        "conveyor_belt.bin",
         "belt_diffuse.png",
         "belt_normal.png",
         "checker.png",
+        "conveyor_belt.bin",
+        "conveyor_belt.gltf",
+        "conveyor_belt.sdf",
+        "//examples/scene_graph:models",
     ],
     deps = [
         "//common:value",
