@@ -829,10 +829,12 @@ drake_cc_googletest(
     deps = [
         ":meshcat_visualizer",
         "//common:timer",
+        "//common:value",
         "//common/test_utilities:expect_throws_message",
         "//multibody/parsing",
         "//multibody/plant",
         "//systems/analysis:simulator",
+        "//systems/framework:bus_value",
         "//systems/primitives:constant_vector_source",
         "@msgpack_internal//:msgpack",
     ],

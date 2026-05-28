@@ -291,6 +291,7 @@ void MeshcatVisualizer<T>::SetObjects(
 
       if (surface_velocity_axis.has_value()) {
         meshcat_->SetProperty(path, "crawl_axis", *surface_velocity_axis);
+        surface_velocity_geometries_[geom_id] = frame_name;
       }
     }
 
