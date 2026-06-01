@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cmath>
 #include <memory>
 #include <string>
@@ -30,20 +31,25 @@ DEFINE_double(time_step, 0.001,
               "Discrete update period for the MultibodyPlant.");
 DEFINE_bool(visualize, true, "Whether to publish visualization geometry.");
 
-DEFINE_int32(num_links, 36,
+DEFINE_int32(num_links, 80,
              "Number of rigid links used to approximate the belt.");
-DEFINE_double(drum_spacing, 1.0, "Distance between drum centers, in meters.");
+DEFINE_double(drum_spacing, 2.0, "Distance between drum centers, in meters.");
 DEFINE_double(drum_radius, 0.16, "Radius of each conveyor drum, in meters.");
-DEFINE_double(belt_width, 0.24, "Belt width along the y-axis, in meters.");
+DEFINE_double(belt_width, 0.44, "Belt width along the y-axis, in meters.");
 DEFINE_double(belt_thickness, 0.035, "Belt link thickness, in meters.");
+DEFINE_bool(include_center_support, true,
+            "Whether to include the frictionless box between the drums.");
 DEFINE_double(link_mass, 0.03, "Mass of each belt link, in kg.");
-DEFINE_double(drive_force, 4.0,
-              "Constant force applied in the driven link's +x body direction.");
+DEFINE_double(target_belt_speed, 0.5, "Target belt speed in m/s.");
+DEFINE_double(belt_speed_kp, 50.0,
+              "Proportional gain for the belt speed controller.");
+DEFINE_double(max_drive_force, 25.0,
+              "Maximum drive force applied to the driven link, in N.");
 DEFINE_int32(driven_link, 3,
              "Index of the belt link that receives the body-frame force.");
 
 DEFINE_double(box_size, 0.16, "Edge length of the carried box, in meters.");
-DEFINE_double(box_mass, 0.25, "Mass of the carried box, in kg.");
+DEFINE_double(box_mass, 0.1, "Mass of the carried box, in kg.");
 
 namespace drake {
 namespace examples {
@@ -63,6 +69,7 @@ using drake::multibody::RevoluteJoint;
 using drake::multibody::RigidBody;
 using drake::multibody::SpatialForce;
 using drake::multibody::SpatialInertia;
+using drake::multibody::SpatialVelocity;
 using drake::multibody::UnitInertia;
 using Eigen::Vector3d;
 
@@ -73,26 +80,38 @@ struct BeltPoint {
   double pitch{};
 };
 
-class BodyFrameConstantForce final : public systems::LeafSystem<double> {
+class BeltSpeedController final : public systems::LeafSystem<double> {
  public:
-  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(BodyFrameConstantForce);
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(BeltSpeedController);
 
-  BodyFrameConstantForce(BodyIndex body_index, const Vector3d& force_B,
-                         const Vector3d& application_point_B)
+  BeltSpeedController(BodyIndex body_index, double target_speed, double kp,
+                      double max_force, const Vector3d& application_point_B)
       : systems::LeafSystem<double>(),
         body_index_(body_index),
-        force_B_(force_B),
+        target_speed_(target_speed),
+        kp_(kp),
+        max_force_(max_force),
         application_point_B_(application_point_B) {
     body_poses_input_port_ =
         this->DeclareAbstractInputPort("body_poses",
                                        Value<std::vector<RigidTransformd>>())
             .get_index();
+    body_spatial_velocities_input_port_ =
+        this->DeclareAbstractInputPort(
+                "body_spatial_velocities",
+                Value<std::vector<SpatialVelocity<double>>>())
+            .get_index();
     this->DeclareAbstractOutputPort("spatial_force",
-                                    &BodyFrameConstantForce::CalcSpatialForce);
+                                    &BeltSpeedController::CalcSpatialForce);
   }
 
   const systems::InputPort<double>& get_body_poses_input_port() const {
     return this->get_input_port(body_poses_input_port_);
+  }
+
+  const systems::InputPort<double>& get_body_spatial_velocities_input_port()
+      const {
+    return this->get_input_port(body_spatial_velocities_input_port_);
   }
 
   const systems::OutputPort<double>& get_spatial_force_output_port() const {
@@ -107,9 +126,17 @@ class BodyFrameConstantForce final : public systems::LeafSystem<double> {
     const RigidTransformd& X_WB =
         get_body_poses_input_port().Eval<std::vector<RigidTransformd>>(
             context)[body_index_];
+    const SpatialVelocity<double>& V_WB =
+        get_body_spatial_velocities_input_port()
+            .Eval<std::vector<SpatialVelocity<double>>>(context)[body_index_];
+
+    const Vector3d xhat_W = X_WB.rotation() * Vector3d::UnitX();
+    const double measured_speed = xhat_W.dot(V_WB.translational());
+    const double force_magnitude = std::clamp(
+        kp_ * (target_speed_ - measured_speed), -max_force_, max_force_);
 
     SpatialForce<double> F_Bq_B = SpatialForce<double>::Zero();
-    F_Bq_B.translational() = force_B_;
+    F_Bq_B.translational() = force_magnitude * Vector3d::UnitX();
 
     ExternallyAppliedSpatialForce<double>& force = output->front();
     force.body_index = body_index_;
@@ -118,9 +145,12 @@ class BodyFrameConstantForce final : public systems::LeafSystem<double> {
   }
 
   BodyIndex body_index_;
-  Vector3d force_B_;
+  double target_speed_{};
+  double kp_{};
+  double max_force_{};
   Vector3d application_point_B_;
   systems::InputPortIndex body_poses_input_port_;
+  systems::InputPortIndex body_spatial_velocities_input_port_;
 };
 
 BeltPoint CalcBeltPoint(double s, double drum_spacing,
@@ -184,6 +214,20 @@ void AddDrumGeometry(MultibodyPlant<double>* plant, std::string name,
                                 name + "_visual", color);
 }
 
+void AddCenterSupportGeometry(MultibodyPlant<double>* plant,
+                              double drum_spacing, double drum_radius,
+                              double belt_width,
+                              const CoulombFriction<double>& friction,
+                              const Vector4<double>& color) {
+  const Box support_shape(drum_spacing, 1.15 * belt_width, 2.0 * drum_radius);
+  plant->RegisterCollisionGeometry(plant->world_body(),
+                                   RigidTransformd::Identity(), support_shape,
+                                   "center_support_collision", friction);
+  plant->RegisterVisualGeometry(plant->world_body(),
+                                RigidTransformd::Identity(), support_shape,
+                                "center_support_visual", color);
+}
+
 int do_main() {
   DRAKE_DEMAND(FLAGS_num_links >= 12);
   DRAKE_DEMAND(FLAGS_time_step > 0.0);
@@ -191,6 +235,8 @@ int do_main() {
   DRAKE_DEMAND(FLAGS_drum_radius > 0.0);
   DRAKE_DEMAND(FLAGS_belt_thickness > 0.0);
   DRAKE_DEMAND(FLAGS_belt_width > 0.0);
+  DRAKE_DEMAND(FLAGS_belt_speed_kp >= 0.0);
+  DRAKE_DEMAND(FLAGS_max_drive_force >= 0.0);
   const int driven_link =
       (FLAGS_driven_link % FLAGS_num_links + FLAGS_num_links) % FLAGS_num_links;
 
@@ -200,7 +246,7 @@ int do_main() {
   plant.set_discrete_contact_approximation(DiscreteContactApproximation::kSap);
 
   const CoulombFriction<double> belt_friction(1.0, 0.9);
-  const CoulombFriction<double> drum_friction(0.8, 0.7);
+  const CoulombFriction<double> drum_friction(0.0, 0.0);
   const CoulombFriction<double> box_friction(1.1, 1.0);
 
   const double centerline_radius =
@@ -273,12 +319,18 @@ int do_main() {
       *links.back(), p_last - closure_axis_offset * Vector3d::UnitY(),
       *links.front(), p_first - closure_axis_offset * Vector3d::UnitY());
 
+  Eigen::Vector4d support_rgb(0.6, 0.62, 0.66, 1.0);
   AddDrumGeometry(&plant, "left_drum", -0.5 * FLAGS_drum_spacing,
                   FLAGS_drum_radius, FLAGS_belt_width, drum_friction,
-                  Vector4<double>(0.6, 0.62, 0.66, 1.0));
+                  support_rgb);
   AddDrumGeometry(&plant, "right_drum", 0.5 * FLAGS_drum_spacing,
                   FLAGS_drum_radius, FLAGS_belt_width, drum_friction,
-                  Vector4<double>(0.6, 0.62, 0.66, 1.0));
+                  support_rgb);
+  if (FLAGS_include_center_support) {
+    AddCenterSupportGeometry(&plant, FLAGS_drum_spacing,
+                             FLAGS_drum_radius * 0.9, FLAGS_belt_width,
+                             drum_friction, support_rgb);
+  }
 
   const UnitInertia<double> G_Box = UnitInertia<double>::SolidBox(
       FLAGS_box_size, FLAGS_box_size, FLAGS_box_size);
@@ -301,17 +353,21 @@ int do_main() {
 
   plant.Finalize();
 
-  BodyFrameConstantForce* drive_force =
-      builder.AddSystem<BodyFrameConstantForce>(
-          links.at(driven_link)->index(), FLAGS_drive_force * Vector3d::UnitX(),
-          Vector3d::Zero());
+  BeltSpeedController* speed_controller =
+      builder.AddSystem<BeltSpeedController>(
+          links.at(driven_link)->index(), FLAGS_target_belt_speed,
+          FLAGS_belt_speed_kp, FLAGS_max_drive_force, Vector3d::Zero());
   builder.Connect(plant.get_body_poses_output_port(),
-                  drive_force->get_body_poses_input_port());
-  builder.Connect(drive_force->get_spatial_force_output_port(),
+                  speed_controller->get_body_poses_input_port());
+  builder.Connect(plant.get_body_spatial_velocities_output_port(),
+                  speed_controller->get_body_spatial_velocities_input_port());
+  builder.Connect(speed_controller->get_spatial_force_output_port(),
                   plant.get_applied_spatial_force_input_port());
 
   if (FLAGS_visualize) {
-    visualization::AddDefaultVisualization(&builder);
+    visualization::VisualizationConfig visualization_config;
+    visualization_config.publish_contacts = false;
+    visualization::ApplyVisualizationConfig(visualization_config, &builder);
   }
 
   auto diagram = builder.Build();
