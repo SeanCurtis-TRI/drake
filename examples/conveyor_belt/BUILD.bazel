@@ -4,6 +4,9 @@ load(
     "drake_cc_binary",
 )
 
+package(default_visibility = ["//visibility:private"])
+
+
 drake_cc_binary(
     name = "conveyor_belt",
     srcs = ["conveyor_belt.cc"],
@@ -30,6 +33,27 @@ drake_cc_binary(
         "//systems/primitives:constant_value_source",
         "//visualization",
         "@gflags",
+    ],
+)
+
+drake_cc_binary(
+    name = "conveyor_belt_simulation",
+    srcs = ["conveyor_belt_simulation.cc"],
+    deps = [
+        "//common:add_text_logging_gflags",
+        "//geometry",
+        "//multibody/plant",
+        "//multibody/tree",
+        "//systems/analysis:simulator",
+        "//systems/framework:diagram",
+        "//visualization:visualization_config_functions",
+        "@gflags",
+    ],
+    add_test_rule = True,
+    test_rule_args = [
+        "--simulation_time=0.02",
+        "--target_realtime_rate=0.0",
+        "--visualize=false",
     ],
 )
 
