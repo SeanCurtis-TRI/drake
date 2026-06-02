@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <cmath>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -9,6 +10,7 @@
 
 #include "drake/common/drake_assert.h"
 #include "drake/common/eigen_types.h"
+#include "drake/geometry/proximity_properties.h"
 #include "drake/geometry/shape_specification.h"
 #include "drake/math/rigid_transform.h"
 #include "drake/math/roll_pitch_yaw.h"
@@ -24,7 +26,7 @@
 #include "drake/systems/framework/leaf_system.h"
 #include "drake/visualization/visualization_config_functions.h"
 
-DEFINE_double(target_realtime_rate, 0.25,
+DEFINE_double(target_realtime_rate, 1,
               "Desired rate relative to real time.");
 DEFINE_double(simulation_time, 8.0, "Desired simulation duration in seconds.");
 DEFINE_double(time_step, 0.001,
@@ -40,6 +42,14 @@ DEFINE_double(belt_thickness, 0.035, "Belt link thickness, in meters.");
 DEFINE_bool(include_center_support, true,
             "Whether to include the frictionless box between the drums.");
 DEFINE_double(link_mass, 0.03, "Mass of each belt link, in kg.");
+DEFINE_string(contact_model, "point",
+              "Contact model to use: 'point' or 'hydro'.");
+DEFINE_double(hydro_resolution_hint, 0.02,
+              "Resolution hint for hydroelastic contact geometries, in m.");
+DEFINE_double(hydroelastic_modulus, 1.0e5,
+              "Hydroelastic modulus for compliant contact geometries, in Pa.");
+DEFINE_double(hunt_crossley_dissipation, 10.0,
+              "Hunt-Crossley dissipation for contact geometries, in s/m.");
 DEFINE_double(target_belt_speed, 0.5, "Target belt speed in m/s.");
 DEFINE_double(belt_speed_kp, 50.0,
               "Proportional gain for the belt speed controller.");
@@ -58,9 +68,11 @@ namespace {
 
 using drake::geometry::Box;
 using drake::geometry::Cylinder;
+using drake::geometry::ProximityProperties;
 using drake::math::RigidTransformd;
 using drake::math::RollPitchYawd;
 using drake::multibody::BodyIndex;
+using drake::multibody::ContactModel;
 using drake::multibody::CoulombFriction;
 using drake::multibody::DiscreteContactApproximation;
 using drake::multibody::ExternallyAppliedSpatialForce;
@@ -202,30 +214,65 @@ Vector3d ExpressPointInBody(const BeltPoint& body_pose_point,
 
 void AddDrumGeometry(MultibodyPlant<double>* plant, std::string name,
                      double x_WD, double drum_radius, double belt_width,
+                     double resolution_hint, double hydroelastic_modulus,
+                     double dissipation,
                      const CoulombFriction<double>& friction,
                      const Vector4<double>& color) {
   const RigidTransformd X_WD(RollPitchYawd(-M_PI / 2.0, 0.0, 0.0),
                              Vector3d(x_WD, 0.0, 0.0));
-  plant->RegisterCollisionGeometry(plant->world_body(), X_WD,
-                                   Cylinder(drum_radius, 1.15 * belt_width),
-                                   name + "_collision", friction);
-  plant->RegisterVisualGeometry(plant->world_body(), X_WD,
-                                Cylinder(drum_radius, 1.15 * belt_width),
+  const Cylinder drum_shape(drum_radius, 1.15 * belt_width);
+  ProximityProperties proximity_props;
+  geometry::AddContactMaterial(dissipation, {} /* point stiffness */, friction,
+                               &proximity_props);
+  geometry::AddCompliantHydroelasticProperties(
+      resolution_hint, hydroelastic_modulus, &proximity_props);
+  plant->RegisterCollisionGeometry(plant->world_body(), X_WD, drum_shape,
+                                   name + "_collision",
+                                   std::move(proximity_props));
+  plant->RegisterVisualGeometry(plant->world_body(), X_WD, drum_shape,
                                 name + "_visual", color);
 }
 
 void AddCenterSupportGeometry(MultibodyPlant<double>* plant,
                               double drum_spacing, double drum_radius,
-                              double belt_width,
+                              double belt_width, double resolution_hint,
+                              double hydroelastic_modulus, double dissipation,
                               const CoulombFriction<double>& friction,
                               const Vector4<double>& color) {
   const Box support_shape(drum_spacing, 1.15 * belt_width, 2.0 * drum_radius);
-  plant->RegisterCollisionGeometry(plant->world_body(),
-                                   RigidTransformd::Identity(), support_shape,
-                                   "center_support_collision", friction);
+  ProximityProperties proximity_props;
+  geometry::AddContactMaterial(dissipation, {} /* point stiffness */, friction,
+                               &proximity_props);
+  geometry::AddCompliantHydroelasticProperties(
+      resolution_hint, hydroelastic_modulus, &proximity_props);
+  plant->RegisterCollisionGeometry(
+      plant->world_body(), RigidTransformd::Identity(), support_shape,
+      "center_support_collision", std::move(proximity_props));
   plant->RegisterVisualGeometry(plant->world_body(),
                                 RigidTransformd::Identity(), support_shape,
                                 "center_support_visual", color);
+}
+
+ProximityProperties MakeCompliantHydroelasticProperties(
+    double resolution_hint, double hydroelastic_modulus, double dissipation,
+    const CoulombFriction<double>& friction) {
+  ProximityProperties properties;
+  geometry::AddContactMaterial(dissipation, {} /* point stiffness */, friction,
+                               &properties);
+  geometry::AddCompliantHydroelasticProperties(
+      resolution_hint, hydroelastic_modulus, &properties);
+  return properties;
+}
+
+ContactModel ParseContactModel() {
+  if (FLAGS_contact_model == "point") {
+    return ContactModel::kPoint;
+  }
+  if (FLAGS_contact_model == "hydro" || FLAGS_contact_model == "hydroelastic") {
+    return ContactModel::kHydroelastic;
+  }
+  throw std::runtime_error("Invalid --contact_model='" + FLAGS_contact_model +
+                           "'. Expected 'point', 'hydro', or 'hydroelastic'.");
 }
 
 int do_main() {
@@ -235,6 +282,9 @@ int do_main() {
   DRAKE_DEMAND(FLAGS_drum_radius > 0.0);
   DRAKE_DEMAND(FLAGS_belt_thickness > 0.0);
   DRAKE_DEMAND(FLAGS_belt_width > 0.0);
+  DRAKE_DEMAND(FLAGS_hydro_resolution_hint > 0.0);
+  DRAKE_DEMAND(FLAGS_hydroelastic_modulus > 0.0);
+  DRAKE_DEMAND(FLAGS_hunt_crossley_dissipation >= 0.0);
   DRAKE_DEMAND(FLAGS_belt_speed_kp >= 0.0);
   DRAKE_DEMAND(FLAGS_max_drive_force >= 0.0);
   const int driven_link =
@@ -244,6 +294,7 @@ int do_main() {
   auto [plant, scene_graph] =
       multibody::AddMultibodyPlantSceneGraph(&builder, FLAGS_time_step);
   plant.set_discrete_contact_approximation(DiscreteContactApproximation::kSap);
+  plant.set_contact_model(ParseContactModel());
 
   const CoulombFriction<double> belt_friction(1.0, 0.9);
   const CoulombFriction<double> drum_friction(0.0, 0.0);
@@ -277,7 +328,10 @@ int do_main() {
     plant.RegisterCollisionGeometry(
         link, RigidTransformd::Identity(),
         Box(link_length, FLAGS_belt_width, FLAGS_belt_thickness),
-        name + "_collision", belt_friction);
+        name + "_collision",
+        MakeCompliantHydroelasticProperties(
+            FLAGS_hydro_resolution_hint, FLAGS_hydroelastic_modulus,
+            FLAGS_hunt_crossley_dissipation, belt_friction));
     plant.RegisterVisualGeometry(
         link, RigidTransformd::Identity(),
         Box(link_length, FLAGS_belt_width, FLAGS_belt_thickness),
@@ -321,15 +375,18 @@ int do_main() {
 
   Eigen::Vector4d support_rgb(0.6, 0.62, 0.66, 1.0);
   AddDrumGeometry(&plant, "left_drum", -0.5 * FLAGS_drum_spacing,
-                  FLAGS_drum_radius, FLAGS_belt_width, drum_friction,
-                  support_rgb);
+                  FLAGS_drum_radius, FLAGS_belt_width,
+                  FLAGS_hydro_resolution_hint, FLAGS_hydroelastic_modulus,
+                  FLAGS_hunt_crossley_dissipation, drum_friction, support_rgb);
   AddDrumGeometry(&plant, "right_drum", 0.5 * FLAGS_drum_spacing,
-                  FLAGS_drum_radius, FLAGS_belt_width, drum_friction,
-                  support_rgb);
+                  FLAGS_drum_radius, FLAGS_belt_width,
+                  FLAGS_hydro_resolution_hint, FLAGS_hydroelastic_modulus,
+                  FLAGS_hunt_crossley_dissipation, drum_friction, support_rgb);
   if (FLAGS_include_center_support) {
-    AddCenterSupportGeometry(&plant, FLAGS_drum_spacing,
-                             FLAGS_drum_radius * 0.9, FLAGS_belt_width,
-                             drum_friction, support_rgb);
+    AddCenterSupportGeometry(
+        &plant, FLAGS_drum_spacing, FLAGS_drum_radius * 0.9, FLAGS_belt_width,
+        FLAGS_hydro_resolution_hint, FLAGS_hydroelastic_modulus,
+        FLAGS_hunt_crossley_dissipation, drum_friction, support_rgb);
   }
 
   const UnitInertia<double> G_Box = UnitInertia<double>::SolidBox(
@@ -341,7 +398,9 @@ int do_main() {
   plant.RegisterCollisionGeometry(
       box, RigidTransformd::Identity(),
       Box(FLAGS_box_size, FLAGS_box_size, FLAGS_box_size), "box_collision",
-      box_friction);
+      MakeCompliantHydroelasticProperties(
+          FLAGS_hydro_resolution_hint, FLAGS_hydroelastic_modulus,
+          FLAGS_hunt_crossley_dissipation, box_friction));
   plant.RegisterVisualGeometry(
       box, RigidTransformd::Identity(),
       Box(FLAGS_box_size, FLAGS_box_size, FLAGS_box_size), "box_visual",
