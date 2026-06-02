@@ -6,7 +6,6 @@ load(
 
 package(default_visibility = ["//visibility:private"])
 
-
 drake_cc_binary(
     name = "conveyor_belt",
     srcs = ["conveyor_belt.cc"],
@@ -39,13 +38,24 @@ drake_cc_binary(
 drake_cc_binary(
     name = "conveyor_belt_simulation",
     srcs = ["conveyor_belt_simulation.cc"],
+    data = [
+        "belt_diffuse.png",
+        "belt_normal.png",
+        "sagging_belt.bin",
+        "sagging_belt.gltf",
+        "sagging_belt.obj",
+    ],
     deps = [
         "//common:add_text_logging_gflags",
+        "//common:find_resource",
+        "//common:value",
         "//geometry",
         "//multibody/plant",
         "//multibody/tree",
         "//systems/analysis:simulator",
+        "//systems/framework:bus_value",
         "//systems/framework:diagram",
+        "//systems/primitives:constant_value_source",
         "//visualization:visualization_config_functions",
         "@gflags",
     ],

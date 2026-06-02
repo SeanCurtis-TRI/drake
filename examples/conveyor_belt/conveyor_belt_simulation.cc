@@ -10,6 +10,8 @@
 
 #include "drake/common/drake_assert.h"
 #include "drake/common/eigen_types.h"
+#include "drake/common/find_resource.h"
+#include "drake/common/value.h"
 #include "drake/geometry/proximity_properties.h"
 #include "drake/geometry/shape_specification.h"
 #include "drake/math/rigid_transform.h"
@@ -22,12 +24,13 @@
 #include "drake/multibody/tree/spatial_inertia.h"
 #include "drake/multibody/tree/unit_inertia.h"
 #include "drake/systems/analysis/simulator.h"
+#include "drake/systems/framework/bus_value.h"
 #include "drake/systems/framework/diagram_builder.h"
 #include "drake/systems/framework/leaf_system.h"
+#include "drake/systems/primitives/constant_value_source.h"
 #include "drake/visualization/visualization_config_functions.h"
 
-DEFINE_double(target_realtime_rate, 1,
-              "Desired rate relative to real time.");
+DEFINE_double(target_realtime_rate, 1, "Desired rate relative to real time.");
 DEFINE_double(simulation_time, 8.0, "Desired simulation duration in seconds.");
 DEFINE_double(time_step, 0.001,
               "Discrete update period for the MultibodyPlant.");
@@ -57,6 +60,8 @@ DEFINE_double(max_drive_force, 25.0,
               "Maximum drive force applied to the driven link, in N.");
 DEFINE_int32(driven_link, 3,
              "Index of the belt link that receives the body-frame force.");
+DEFINE_double(surface_velocity_belt_y, 0.8,
+              "World y-position of the mesh belt with surface velocity, in m.");
 
 DEFINE_double(box_size, 0.16, "Edge length of the carried box, in meters.");
 DEFINE_double(box_mass, 0.1, "Mass of the carried box, in kg.");
@@ -68,6 +73,7 @@ namespace {
 
 using drake::geometry::Box;
 using drake::geometry::Cylinder;
+using drake::geometry::Mesh;
 using drake::geometry::ProximityProperties;
 using drake::math::RigidTransformd;
 using drake::math::RollPitchYawd;
@@ -253,6 +259,16 @@ void AddCenterSupportGeometry(MultibodyPlant<double>* plant,
                                 "center_support_visual", color);
 }
 
+ProximityProperties MakeRigidHydroelasticProperties(
+    double resolution_hint, double dissipation,
+    const CoulombFriction<double>& friction) {
+  ProximityProperties properties;
+  geometry::AddContactMaterial(dissipation, {} /* point stiffness */, friction,
+                               &properties);
+  geometry::AddRigidHydroelasticProperties(resolution_hint, &properties);
+  return properties;
+}
+
 ProximityProperties MakeCompliantHydroelasticProperties(
     double resolution_hint, double hydroelastic_modulus, double dissipation,
     const CoulombFriction<double>& friction) {
@@ -275,6 +291,37 @@ ContactModel ParseContactModel() {
                            "'. Expected 'point', 'hydro', or 'hydroelastic'.");
 }
 
+const RigidBody<double>& AddSurfaceVelocityBelt(
+    MultibodyPlant<double>* plant, const CoulombFriction<double>& friction) {
+  const auto model_instance = plant->AddModelInstance("surface_velocity_belt");
+  const SpatialInertia<double> M_BBo =
+      SpatialInertia<double>::SolidBoxWithMass(1.0, 1.0, 1.0, 1.0);
+  const RigidBody<double>& belt =
+      plant->AddRigidBody("surface_velocity_belt", model_instance, M_BBo);
+  plant->WeldFrames(
+      plant->world_frame(), belt.body_frame(),
+      RigidTransformd(Vector3d(0.0, FLAGS_surface_velocity_belt_y, 0.0)));
+
+  const std::string collision_mesh =
+      FindResourceOrThrow("drake/examples/conveyor_belt/sagging_belt.obj");
+  // The OBJ's long axis is +Y; rotate it into this body's +X belt direction.
+  const RigidTransformd X_BC(RollPitchYawd(0.0, 0.0, -M_PI / 2.0),
+                             Vector3d::Zero());
+  plant->RegisterCollisionGeometry(
+      belt, X_BC, Mesh(collision_mesh), "surface_velocity_belt_collision",
+      MakeRigidHydroelasticProperties(FLAGS_hydro_resolution_hint,
+                                      FLAGS_hunt_crossley_dissipation,
+                                      friction));
+
+  const std::string visual_mesh =
+      FindResourceOrThrow("drake/examples/conveyor_belt/sagging_belt.gltf");
+  plant->RegisterVisualGeometry(belt, RigidTransformd::Identity(),
+                                Mesh(visual_mesh),
+                                "surface_velocity_belt_visual");
+  plant->SetSurfaceVelocityAxis(belt, Vector3d::UnitY());
+  return belt;
+}
+
 int do_main() {
   DRAKE_DEMAND(FLAGS_num_links >= 12);
   DRAKE_DEMAND(FLAGS_time_step > 0.0);
@@ -285,10 +332,12 @@ int do_main() {
   DRAKE_DEMAND(FLAGS_hydro_resolution_hint > 0.0);
   DRAKE_DEMAND(FLAGS_hydroelastic_modulus > 0.0);
   DRAKE_DEMAND(FLAGS_hunt_crossley_dissipation >= 0.0);
+  DRAKE_DEMAND(std::isfinite(FLAGS_target_belt_speed));
   DRAKE_DEMAND(FLAGS_belt_speed_kp >= 0.0);
   DRAKE_DEMAND(FLAGS_max_drive_force >= 0.0);
   const int driven_link =
       (FLAGS_driven_link % FLAGS_num_links + FLAGS_num_links) % FLAGS_num_links;
+  const double desired_belt_speed = FLAGS_target_belt_speed;
 
   systems::DiagramBuilder<double> builder;
   auto [plant, scene_graph] =
@@ -394,27 +443,50 @@ int do_main() {
   const SpatialInertia<double> M_Box =
       SpatialInertia<double>::MakeFromCentralInertia(
           FLAGS_box_mass, Vector3d::Zero(), FLAGS_box_mass * G_Box);
-  const RigidBody<double>& box = plant.AddRigidBody("box", M_Box);
-  plant.RegisterCollisionGeometry(
-      box, RigidTransformd::Identity(),
-      Box(FLAGS_box_size, FLAGS_box_size, FLAGS_box_size), "box_collision",
-      MakeCompliantHydroelasticProperties(
-          FLAGS_hydro_resolution_hint, FLAGS_hydroelastic_modulus,
-          FLAGS_hunt_crossley_dissipation, box_friction));
-  plant.RegisterVisualGeometry(
-      box, RigidTransformd::Identity(),
-      Box(FLAGS_box_size, FLAGS_box_size, FLAGS_box_size), "box_visual",
-      Vector4<double>(0.16, 0.38, 0.72, 1.0));
+  auto add_free_box = [&](const std::string& name, const Vector3d& p_WB,
+                          const Vector4<double>& color) {
+    const RigidBody<double>& free_box = plant.AddRigidBody(name, M_Box);
+    plant.RegisterCollisionGeometry(
+        free_box, RigidTransformd::Identity(),
+        Box(FLAGS_box_size, FLAGS_box_size, FLAGS_box_size),
+        name + "_collision",
+        MakeCompliantHydroelasticProperties(
+            FLAGS_hydro_resolution_hint, FLAGS_hydroelastic_modulus,
+            FLAGS_hunt_crossley_dissipation, box_friction));
+    plant.RegisterVisualGeometry(
+        free_box, RigidTransformd::Identity(),
+        Box(FLAGS_box_size, FLAGS_box_size, FLAGS_box_size), name + "_visual",
+        color);
+    plant.SetDefaultFloatingBaseBodyPose(free_box, RigidTransformd(p_WB));
+  };
   const double box_z =
       centerline_radius + FLAGS_belt_thickness + 0.5 * FLAGS_box_size + 0.005;
-  plant.SetDefaultFloatingBaseBodyPose(
-      box, RigidTransformd(Vector3d(-0.3 * FLAGS_drum_spacing, 0.0, box_z)));
+  add_free_box("box", Vector3d(-0.3 * FLAGS_drum_spacing, 0.0, box_z),
+               Vector4<double>(0.16, 0.38, 0.72, 1.0));
+  add_free_box("surface_velocity_box",
+               Vector3d(-0.3 * FLAGS_drum_spacing,
+                        FLAGS_surface_velocity_belt_y, box_z),
+               Vector4<double>(0.12, 0.58, 0.36, 1.0));
+
+  const RigidBody<double>& surface_velocity_belt =
+      AddSurfaceVelocityBelt(&plant, belt_friction);
 
   plant.Finalize();
 
+  {
+    systems::BusValue surface_speeds;
+    surface_speeds.Set(surface_velocity_belt.scoped_name().to_string(),
+                       Value<double>(desired_belt_speed));
+    auto* surface_speed_source =
+        builder.AddSystem<systems::ConstantValueSource<double>>(
+            Value<systems::BusValue>(surface_speeds));
+    builder.Connect(surface_speed_source->get_output_port(0),
+                    plant.get_surface_speeds_input_port());
+  }
+
   BeltSpeedController* speed_controller =
       builder.AddSystem<BeltSpeedController>(
-          links.at(driven_link)->index(), FLAGS_target_belt_speed,
+          links.at(driven_link)->index(), desired_belt_speed,
           FLAGS_belt_speed_kp, FLAGS_max_drive_force, Vector3d::Zero());
   builder.Connect(plant.get_body_poses_output_port(),
                   speed_controller->get_body_poses_input_port());
@@ -426,6 +498,7 @@ int do_main() {
   if (FLAGS_visualize) {
     visualization::VisualizationConfig visualization_config;
     visualization_config.publish_contacts = false;
+    visualization_config.publish_inertia = false;
     visualization::ApplyVisualizationConfig(visualization_config, &builder);
   }
 
