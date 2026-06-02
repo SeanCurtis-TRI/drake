@@ -19,19 +19,21 @@
 #include "drake/multibody/math/spatial_algebra.h"
 #include "drake/multibody/plant/externally_applied_spatial_force.h"
 #include "drake/multibody/plant/multibody_plant.h"
+#include "drake/multibody/tree/prismatic_joint.h"
+#include "drake/multibody/tree/prismatic_spring.h"
 #include "drake/multibody/tree/revolute_joint.h"
 #include "drake/multibody/tree/rigid_body.h"
 #include "drake/multibody/tree/spatial_inertia.h"
 #include "drake/multibody/tree/unit_inertia.h"
 #include "drake/systems/analysis/simulator.h"
+#include "drake/systems/framework/basic_vector.h"
 #include "drake/systems/framework/bus_value.h"
 #include "drake/systems/framework/diagram_builder.h"
 #include "drake/systems/framework/leaf_system.h"
-#include "drake/systems/primitives/constant_value_source.h"
 #include "drake/visualization/visualization_config_functions.h"
 
 DEFINE_double(target_realtime_rate, 1, "Desired rate relative to real time.");
-DEFINE_double(simulation_time, 8.0, "Desired simulation duration in seconds.");
+DEFINE_double(simulation_time, 100.0, "Desired simulation duration in seconds.");
 DEFINE_double(time_step, 0.001,
               "Discrete update period for the MultibodyPlant.");
 DEFINE_bool(visualize, true, "Whether to publish visualization geometry.");
@@ -69,6 +71,16 @@ DEFINE_double(surface_velocity_belt_y, 0.8,
 
 DEFINE_double(box_size, 0.16, "Edge length of the carried box, in meters.");
 DEFINE_double(box_mass, 0.1, "Mass of the carried box, in kg.");
+DEFINE_double(button_travel, 0.06,
+              "Maximum travel for each spring-loaded button, in meters.");
+DEFINE_double(button_press_threshold, 0.015,
+              "Button travel that latches the belt direction, in meters.");
+DEFINE_double(button_release_threshold, 0.0075,
+              "Button travel below which the latch can re-arm, in meters.");
+DEFINE_double(button_stiffness, 40.0,
+              "Spring stiffness for each conveyor-end button, in N/m.");
+DEFINE_double(button_damping, 1.0,
+              "Viscous damping for each conveyor-end button, in N s/m.");
 
 namespace drake {
 namespace examples {
@@ -86,7 +98,10 @@ using drake::multibody::ContactModel;
 using drake::multibody::CoulombFriction;
 using drake::multibody::DiscreteContactApproximation;
 using drake::multibody::ExternallyAppliedSpatialForce;
+using drake::multibody::ModelInstanceIndex;
 using drake::multibody::MultibodyPlant;
+using drake::multibody::PrismaticJoint;
+using drake::multibody::PrismaticSpring;
 using drake::multibody::RevoluteJoint;
 using drake::multibody::RigidBody;
 using drake::multibody::SpatialForce;
@@ -106,20 +121,21 @@ class BeltSpeedController final : public systems::LeafSystem<double> {
  public:
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(BeltSpeedController);
 
-  BeltSpeedController(BodyIndex body_index, double target_speed, double kp,
-                      double ki, double max_force,
+  BeltSpeedController(BodyIndex body_index, double kp, double ki,
+                      double max_force,
                       double max_integral_force,
                       const Vector3d& application_point_B,
                       double update_period)
       : systems::LeafSystem<double>(),
         body_index_(body_index),
-        target_speed_(target_speed),
         kp_(kp),
         ki_(ki),
         max_force_(max_force),
         max_integral_force_(max_integral_force),
         application_point_B_(application_point_B),
         update_period_(update_period) {
+    target_speed_input_port_ =
+        this->DeclareVectorInputPort("target_speed", 1).get_index();
     body_poses_input_port_ =
         this->DeclareAbstractInputPort("body_poses",
                                        Value<std::vector<RigidTransformd>>())
@@ -130,10 +146,15 @@ class BeltSpeedController final : public systems::LeafSystem<double> {
                 Value<std::vector<SpatialVelocity<double>>>())
             .get_index();
     integral_force_state_index_ = this->DeclareDiscreteState(1);
+    previous_target_speed_state_index_ = this->DeclareDiscreteState(1);
     this->DeclarePeriodicDiscreteUpdateEvent(
         update_period, 0.0, &BeltSpeedController::UpdateIntegralForce);
     this->DeclareAbstractOutputPort("spatial_force",
                                     &BeltSpeedController::CalcSpatialForce);
+  }
+
+  const systems::InputPort<double>& get_target_speed_input_port() const {
+    return this->get_input_port(target_speed_input_port_);
   }
 
   const systems::InputPort<double>& get_body_poses_input_port() const {
@@ -150,6 +171,10 @@ class BeltSpeedController final : public systems::LeafSystem<double> {
   }
 
  private:
+  double CalcTargetSpeed(const systems::Context<double>& context) const {
+    return get_target_speed_input_port().Eval(context)(0);
+  }
+
   double CalcMeasuredSpeed(const systems::Context<double>& context) const {
     const RigidTransformd& X_WB =
         get_body_poses_input_port().Eval<std::vector<RigidTransformd>>(
@@ -163,20 +188,34 @@ class BeltSpeedController final : public systems::LeafSystem<double> {
   }
 
   double CalcForceMagnitude(const systems::Context<double>& context) const {
+    const double target_speed = CalcTargetSpeed(context);
     const double measured_speed = CalcMeasuredSpeed(context);
-    const double speed_error = target_speed_ - measured_speed;
-    const double integral_force =
+    const double speed_error = target_speed - measured_speed;
+    double integral_force =
         context.get_discrete_state(integral_force_state_index_).GetAtIndex(0);
+    const double previous_target_speed =
+        context.get_discrete_state(previous_target_speed_state_index_)
+            .GetAtIndex(0);
+    if (target_speed * previous_target_speed < 0.0) {
+      integral_force = 0.0;
+    }
     return std::clamp(kp_ * speed_error + integral_force, -max_force_,
                       max_force_);
   }
 
   void UpdateIntegralForce(const systems::Context<double>& context,
                            systems::DiscreteValues<double>* updates) const {
+    const double target_speed = CalcTargetSpeed(context);
     const double measured_speed = CalcMeasuredSpeed(context);
-    const double speed_error = target_speed_ - measured_speed;
-    const double integral_force =
+    const double speed_error = target_speed - measured_speed;
+    const double previous_target_speed =
+        context.get_discrete_state(previous_target_speed_state_index_)
+            .GetAtIndex(0);
+    double integral_force =
         context.get_discrete_state(integral_force_state_index_).GetAtIndex(0);
+    if (target_speed * previous_target_speed < 0.0) {
+      integral_force = 0.0;
+    }
     const double force_unsaturated = kp_ * speed_error + integral_force;
     const bool saturated_high = force_unsaturated > max_force_;
     const bool saturated_low = force_unsaturated < -max_force_;
@@ -194,6 +233,8 @@ class BeltSpeedController final : public systems::LeafSystem<double> {
     }
     updates->get_mutable_vector(integral_force_state_index_)
         .SetAtIndex(0, next_integral_force);
+    updates->get_mutable_vector(previous_target_speed_state_index_)
+        .SetAtIndex(0, target_speed);
   }
 
   void CalcSpatialForce(
@@ -215,16 +256,132 @@ class BeltSpeedController final : public systems::LeafSystem<double> {
   }
 
   BodyIndex body_index_;
-  double target_speed_{};
   double kp_{};
   double ki_{};
   double max_force_{};
   double max_integral_force_{};
   Vector3d application_point_B_;
   double update_period_{};
+  systems::InputPortIndex target_speed_input_port_;
   systems::InputPortIndex body_poses_input_port_;
   systems::InputPortIndex body_spatial_velocities_input_port_;
   systems::DiscreteStateIndex integral_force_state_index_;
+  systems::DiscreteStateIndex previous_target_speed_state_index_;
+};
+
+class ButtonSpeedSelector final : public systems::LeafSystem<double> {
+ public:
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(ButtonSpeedSelector);
+
+  ButtonSpeedSelector(int state_size, int left_button_q_index,
+                      int right_button_q_index, double initial_speed,
+                      double press_threshold, double release_threshold,
+                      double update_period)
+      : systems::LeafSystem<double>(),
+        left_button_q_index_(left_button_q_index),
+        right_button_q_index_(right_button_q_index),
+        speed_magnitude_(std::abs(initial_speed)),
+        press_threshold_(press_threshold),
+        release_threshold_(release_threshold) {
+    const double initial_direction = initial_speed < 0.0 ? -1.0 : 1.0;
+    state_input_port_ =
+        this->DeclareVectorInputPort("plant_state", state_size).get_index();
+    selector_state_index_ =
+        this->DeclareDiscreteState(Vector3d(initial_direction, 0.0, 0.0));
+    this->DeclarePeriodicDiscreteUpdateEvent(
+        update_period, 0.0, &ButtonSpeedSelector::UpdateSelection);
+    this->DeclareVectorOutputPort("desired_speed", 1,
+                                  &ButtonSpeedSelector::CalcDesiredSpeed);
+  }
+
+  const systems::InputPort<double>& get_state_input_port() const {
+    return this->get_input_port(state_input_port_);
+  }
+
+  const systems::OutputPort<double>& get_desired_speed_output_port() const {
+    return this->get_output_port(0);
+  }
+
+ private:
+  bool CalcPressed(double travel, bool was_pressed) const {
+    if (was_pressed) {
+      return travel > release_threshold_;
+    }
+    return travel >= press_threshold_;
+  }
+
+  void UpdateSelection(const systems::Context<double>& context,
+                       systems::DiscreteValues<double>* updates) const {
+    const auto& plant_state = get_state_input_port().Eval(context);
+    const systems::BasicVector<double>& selector_state =
+        context.get_discrete_state(selector_state_index_);
+    double direction = selector_state.GetAtIndex(0);
+    const bool left_was_pressed = selector_state.GetAtIndex(1) != 0.0;
+    const bool right_was_pressed = selector_state.GetAtIndex(2) != 0.0;
+
+    const bool left_pressed =
+        CalcPressed(plant_state(left_button_q_index_), left_was_pressed);
+    const bool right_pressed =
+        CalcPressed(plant_state(right_button_q_index_), right_was_pressed);
+    const bool left_rising = left_pressed && !left_was_pressed;
+    const bool right_rising = right_pressed && !right_was_pressed;
+    if (left_rising != right_rising) {
+      direction = left_rising ? 1.0 : -1.0;
+    }
+
+    systems::BasicVector<double>& next_state =
+        updates->get_mutable_vector(selector_state_index_);
+    next_state.SetAtIndex(0, direction);
+    next_state.SetAtIndex(1, left_pressed ? 1.0 : 0.0);
+    next_state.SetAtIndex(2, right_pressed ? 1.0 : 0.0);
+  }
+
+  void CalcDesiredSpeed(const systems::Context<double>& context,
+                        systems::BasicVector<double>* output) const {
+    const double direction =
+        context.get_discrete_state(selector_state_index_).GetAtIndex(0);
+    output->SetAtIndex(0, direction * speed_magnitude_);
+  }
+
+  int left_button_q_index_{};
+  int right_button_q_index_{};
+  double speed_magnitude_{};
+  double press_threshold_{};
+  double release_threshold_{};
+  systems::InputPortIndex state_input_port_;
+  systems::DiscreteStateIndex selector_state_index_;
+};
+
+class SurfaceSpeedBus final : public systems::LeafSystem<double> {
+ public:
+  DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(SurfaceSpeedBus);
+
+  explicit SurfaceSpeedBus(std::string surface_velocity_body_name)
+      : surface_velocity_body_name_(std::move(surface_velocity_body_name)) {
+    speed_input_port_ =
+        this->DeclareVectorInputPort("desired_speed", 1).get_index();
+    this->DeclareAbstractOutputPort("surface_speeds",
+                                    &SurfaceSpeedBus::CalcSurfaceSpeeds);
+  }
+
+  const systems::InputPort<double>& get_speed_input_port() const {
+    return this->get_input_port(speed_input_port_);
+  }
+
+  const systems::OutputPort<double>& get_surface_speeds_output_port() const {
+    return this->get_output_port(0);
+  }
+
+ private:
+  void CalcSurfaceSpeeds(const systems::Context<double>& context,
+                         systems::BusValue* output) const {
+    const double desired_speed = get_speed_input_port().Eval(context)(0);
+    output->Clear();
+    output->Set(surface_velocity_body_name_, Value<double>(desired_speed));
+  }
+
+  std::string surface_velocity_body_name_;
+  systems::InputPortIndex speed_input_port_;
 };
 
 BeltPoint CalcBeltPoint(double s, double drum_spacing,
@@ -378,6 +535,43 @@ const RigidBody<double>& AddSurfaceVelocityBelt(
   return belt;
 }
 
+const PrismaticJoint<double>& AddEndButton(
+    MultibodyPlant<double>* plant, ModelInstanceIndex model_instance,
+    const std::string& name, double x_WB, double y_WB, double z_WB,
+    const Vector3d& press_axis_W, double button_thickness,
+    double button_y_size, double button_height, double button_travel,
+    double button_stiffness, double button_damping, double resolution_hint,
+    double hydroelastic_modulus, double dissipation,
+    const CoulombFriction<double>& friction, const Vector4<double>& color) {
+  const SpatialInertia<double> M_BBo =
+      SpatialInertia<double>::SolidBoxWithMass(
+          0.05, button_thickness, button_y_size, button_height);
+  const RigidBody<double>& button =
+      plant->AddRigidBody(name, model_instance, M_BBo);
+  const PrismaticJoint<double>& slider = plant->AddJoint<PrismaticJoint>(
+      name + "_slider", plant->world_body(),
+      RigidTransformd(Vector3d(x_WB, y_WB, z_WB)), button,
+      RigidTransformd::Identity(), press_axis_W, 0.0, button_travel,
+      button_damping);
+  plant->AddForceElement<PrismaticSpring>(slider, 0.0, button_stiffness);
+
+  plant->RegisterCollisionGeometry(
+      button, RigidTransformd::Identity(),
+      Box(button_thickness, button_y_size, button_height), name + "_collision",
+      MakeCompliantHydroelasticProperties(resolution_hint, hydroelastic_modulus,
+                                          dissipation, friction));
+  plant->RegisterVisualGeometry(
+      button, RigidTransformd::Identity(),
+      Box(button_thickness, button_y_size, button_height), name + "_visual",
+      color);
+  return slider;
+}
+
+struct EndButtons {
+  const PrismaticJoint<double>* left{};
+  const PrismaticJoint<double>* right{};
+};
+
 int do_main() {
   DRAKE_DEMAND(FLAGS_num_links >= 12);
   DRAKE_DEMAND(FLAGS_time_step > 0.0);
@@ -393,6 +587,14 @@ int do_main() {
   DRAKE_DEMAND(FLAGS_belt_speed_ki >= 0.0);
   DRAKE_DEMAND(FLAGS_max_drive_force >= 0.0);
   DRAKE_DEMAND(FLAGS_max_integral_drive_force >= 0.0);
+  DRAKE_DEMAND(FLAGS_button_travel > 0.0);
+  DRAKE_DEMAND(FLAGS_button_press_threshold > 0.0);
+  DRAKE_DEMAND(FLAGS_button_press_threshold <= FLAGS_button_travel);
+  DRAKE_DEMAND(FLAGS_button_release_threshold >= 0.0);
+  DRAKE_DEMAND(FLAGS_button_release_threshold <
+               FLAGS_button_press_threshold);
+  DRAKE_DEMAND(FLAGS_button_stiffness >= 0.0);
+  DRAKE_DEMAND(FLAGS_button_damping >= 0.0);
   const int driven_link =
       (FLAGS_driven_link % FLAGS_num_links + FLAGS_num_links) % FLAGS_num_links;
   const double desired_belt_speed = FLAGS_target_belt_speed;
@@ -529,24 +731,57 @@ int do_main() {
   const RigidBody<double>& surface_velocity_belt =
       AddSurfaceVelocityBelt(&plant, belt_friction);
 
+  const double button_thickness = 0.08;
+  const double button_height = std::max(0.10, 0.75 * FLAGS_box_size);
+  const double button_y_center = 0.5 * FLAGS_surface_velocity_belt_y;
+  const double button_y_size =
+      std::abs(FLAGS_surface_velocity_belt_y) + 1.15 * FLAGS_belt_width;
+  const double button_face_gap = 0.04;
+  const double button_x =
+      0.5 * FLAGS_drum_spacing + button_face_gap + 0.5 * button_thickness;
+  const CoulombFriction<double> button_friction(0.0, 0.0);
+  const Vector4<double> button_color(0.95, 0.68, 0.18, 1.0);
+  const ModelInstanceIndex button_model_instance =
+      plant.AddModelInstance("end_buttons");
+  EndButtons buttons;
+  buttons.left = &AddEndButton(
+      &plant, button_model_instance, "left_button", -button_x,
+      button_y_center, box_z, -Vector3d::UnitX(), button_thickness,
+      button_y_size, button_height, FLAGS_button_travel,
+      FLAGS_button_stiffness, FLAGS_button_damping, FLAGS_hydro_resolution_hint,
+      FLAGS_hydroelastic_modulus, FLAGS_hunt_crossley_dissipation,
+      button_friction, button_color);
+  buttons.right = &AddEndButton(
+      &plant, button_model_instance, "right_button", button_x, button_y_center,
+      box_z, Vector3d::UnitX(), button_thickness, button_y_size, button_height,
+      FLAGS_button_travel, FLAGS_button_stiffness, FLAGS_button_damping,
+      FLAGS_hydro_resolution_hint, FLAGS_hydroelastic_modulus,
+      FLAGS_hunt_crossley_dissipation, button_friction, button_color);
+
   plant.Finalize();
 
-  {
-    systems::BusValue surface_speeds;
-    surface_speeds.Set(surface_velocity_belt.scoped_name().to_string(),
-                       Value<double>(desired_belt_speed));
-    auto* surface_speed_source =
-        builder.AddSystem<systems::ConstantValueSource<double>>(
-            Value<systems::BusValue>(surface_speeds));
-    builder.Connect(surface_speed_source->get_output_port(0),
-                    plant.get_surface_speeds_input_port());
-  }
+  ButtonSpeedSelector* speed_selector = builder.AddSystem<ButtonSpeedSelector>(
+      plant.num_multibody_states(), buttons.left->position_start(),
+      buttons.right->position_start(), desired_belt_speed,
+      FLAGS_button_press_threshold, FLAGS_button_release_threshold,
+      FLAGS_time_step);
+  builder.Connect(plant.get_state_output_port(),
+                  speed_selector->get_state_input_port());
+
+  SurfaceSpeedBus* surface_speed_bus = builder.AddSystem<SurfaceSpeedBus>(
+      surface_velocity_belt.scoped_name().to_string());
+  builder.Connect(speed_selector->get_desired_speed_output_port(),
+                  surface_speed_bus->get_speed_input_port());
+  builder.Connect(surface_speed_bus->get_surface_speeds_output_port(),
+                  plant.get_surface_speeds_input_port());
 
   BeltSpeedController* speed_controller =
       builder.AddSystem<BeltSpeedController>(
-          links.at(driven_link)->index(), desired_belt_speed,
-          FLAGS_belt_speed_kp, FLAGS_belt_speed_ki, FLAGS_max_drive_force,
+          links.at(driven_link)->index(), FLAGS_belt_speed_kp,
+          FLAGS_belt_speed_ki, FLAGS_max_drive_force,
           FLAGS_max_integral_drive_force, Vector3d::Zero(), FLAGS_time_step);
+  builder.Connect(speed_selector->get_desired_speed_output_port(),
+                  speed_controller->get_target_speed_input_port());
   builder.Connect(plant.get_body_poses_output_port(),
                   speed_controller->get_body_poses_input_port());
   builder.Connect(plant.get_body_spatial_velocities_output_port(),
