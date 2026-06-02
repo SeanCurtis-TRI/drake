@@ -56,8 +56,12 @@ DEFINE_double(hunt_crossley_dissipation, 10.0,
 DEFINE_double(target_belt_speed, 0.5, "Target belt speed in m/s.");
 DEFINE_double(belt_speed_kp, 50.0,
               "Proportional gain for the belt speed controller.");
+DEFINE_double(belt_speed_ki, 50.0,
+              "Integral gain for the belt speed controller, in N/(m/s)/s.");
 DEFINE_double(max_drive_force, 25.0,
               "Maximum drive force applied to the driven link, in N.");
+DEFINE_double(max_integral_drive_force, 10.0,
+              "Maximum integral drive force contribution, in N.");
 DEFINE_int32(driven_link, 3,
              "Index of the belt link that receives the body-frame force.");
 DEFINE_double(surface_velocity_belt_y, 0.8,
@@ -103,13 +107,19 @@ class BeltSpeedController final : public systems::LeafSystem<double> {
   DRAKE_NO_COPY_NO_MOVE_NO_ASSIGN(BeltSpeedController);
 
   BeltSpeedController(BodyIndex body_index, double target_speed, double kp,
-                      double max_force, const Vector3d& application_point_B)
+                      double ki, double max_force,
+                      double max_integral_force,
+                      const Vector3d& application_point_B,
+                      double update_period)
       : systems::LeafSystem<double>(),
         body_index_(body_index),
         target_speed_(target_speed),
         kp_(kp),
+        ki_(ki),
         max_force_(max_force),
-        application_point_B_(application_point_B) {
+        max_integral_force_(max_integral_force),
+        application_point_B_(application_point_B),
+        update_period_(update_period) {
     body_poses_input_port_ =
         this->DeclareAbstractInputPort("body_poses",
                                        Value<std::vector<RigidTransformd>>())
@@ -119,6 +129,9 @@ class BeltSpeedController final : public systems::LeafSystem<double> {
                 "body_spatial_velocities",
                 Value<std::vector<SpatialVelocity<double>>>())
             .get_index();
+    integral_force_state_index_ = this->DeclareDiscreteState(1);
+    this->DeclarePeriodicDiscreteUpdateEvent(
+        update_period, 0.0, &BeltSpeedController::UpdateIntegralForce);
     this->DeclareAbstractOutputPort("spatial_force",
                                     &BeltSpeedController::CalcSpatialForce);
   }
@@ -137,10 +150,7 @@ class BeltSpeedController final : public systems::LeafSystem<double> {
   }
 
  private:
-  void CalcSpatialForce(
-      const systems::Context<double>& context,
-      std::vector<ExternallyAppliedSpatialForce<double>>* output) const {
-    output->resize(1);
+  double CalcMeasuredSpeed(const systems::Context<double>& context) const {
     const RigidTransformd& X_WB =
         get_body_poses_input_port().Eval<std::vector<RigidTransformd>>(
             context)[body_index_];
@@ -149,9 +159,51 @@ class BeltSpeedController final : public systems::LeafSystem<double> {
             .Eval<std::vector<SpatialVelocity<double>>>(context)[body_index_];
 
     const Vector3d xhat_W = X_WB.rotation() * Vector3d::UnitX();
-    const double measured_speed = xhat_W.dot(V_WB.translational());
-    const double force_magnitude = std::clamp(
-        kp_ * (target_speed_ - measured_speed), -max_force_, max_force_);
+    return xhat_W.dot(V_WB.translational());
+  }
+
+  double CalcForceMagnitude(const systems::Context<double>& context) const {
+    const double measured_speed = CalcMeasuredSpeed(context);
+    const double speed_error = target_speed_ - measured_speed;
+    const double integral_force =
+        context.get_discrete_state(integral_force_state_index_).GetAtIndex(0);
+    return std::clamp(kp_ * speed_error + integral_force, -max_force_,
+                      max_force_);
+  }
+
+  void UpdateIntegralForce(const systems::Context<double>& context,
+                           systems::DiscreteValues<double>* updates) const {
+    const double measured_speed = CalcMeasuredSpeed(context);
+    const double speed_error = target_speed_ - measured_speed;
+    const double integral_force =
+        context.get_discrete_state(integral_force_state_index_).GetAtIndex(0);
+    const double force_unsaturated = kp_ * speed_error + integral_force;
+    const bool saturated_high = force_unsaturated > max_force_;
+    const bool saturated_low = force_unsaturated < -max_force_;
+    const bool should_integrate =
+        (!saturated_high && !saturated_low) ||
+        (saturated_high && speed_error < 0.0) ||
+        (saturated_low && speed_error > 0.0);
+
+    double next_integral_force = integral_force;
+    if (should_integrate) {
+      next_integral_force += update_period_ * ki_ * speed_error;
+      next_integral_force =
+          std::clamp(next_integral_force, -max_integral_force_,
+                     max_integral_force_);
+    }
+    updates->get_mutable_vector(integral_force_state_index_)
+        .SetAtIndex(0, next_integral_force);
+  }
+
+  void CalcSpatialForce(
+      const systems::Context<double>& context,
+      std::vector<ExternallyAppliedSpatialForce<double>>* output) const {
+    output->resize(1);
+    const RigidTransformd& X_WB =
+        get_body_poses_input_port().Eval<std::vector<RigidTransformd>>(
+            context)[body_index_];
+    const double force_magnitude = CalcForceMagnitude(context);
 
     SpatialForce<double> F_Bq_B = SpatialForce<double>::Zero();
     F_Bq_B.translational() = force_magnitude * Vector3d::UnitX();
@@ -165,10 +217,14 @@ class BeltSpeedController final : public systems::LeafSystem<double> {
   BodyIndex body_index_;
   double target_speed_{};
   double kp_{};
+  double ki_{};
   double max_force_{};
+  double max_integral_force_{};
   Vector3d application_point_B_;
+  double update_period_{};
   systems::InputPortIndex body_poses_input_port_;
   systems::InputPortIndex body_spatial_velocities_input_port_;
+  systems::DiscreteStateIndex integral_force_state_index_;
 };
 
 BeltPoint CalcBeltPoint(double s, double drum_spacing,
@@ -334,7 +390,9 @@ int do_main() {
   DRAKE_DEMAND(FLAGS_hunt_crossley_dissipation >= 0.0);
   DRAKE_DEMAND(std::isfinite(FLAGS_target_belt_speed));
   DRAKE_DEMAND(FLAGS_belt_speed_kp >= 0.0);
+  DRAKE_DEMAND(FLAGS_belt_speed_ki >= 0.0);
   DRAKE_DEMAND(FLAGS_max_drive_force >= 0.0);
+  DRAKE_DEMAND(FLAGS_max_integral_drive_force >= 0.0);
   const int driven_link =
       (FLAGS_driven_link % FLAGS_num_links + FLAGS_num_links) % FLAGS_num_links;
   const double desired_belt_speed = FLAGS_target_belt_speed;
@@ -487,7 +545,8 @@ int do_main() {
   BeltSpeedController* speed_controller =
       builder.AddSystem<BeltSpeedController>(
           links.at(driven_link)->index(), desired_belt_speed,
-          FLAGS_belt_speed_kp, FLAGS_max_drive_force, Vector3d::Zero());
+          FLAGS_belt_speed_kp, FLAGS_belt_speed_ki, FLAGS_max_drive_force,
+          FLAGS_max_integral_drive_force, Vector3d::Zero(), FLAGS_time_step);
   builder.Connect(plant.get_body_poses_output_port(),
                   speed_controller->get_body_poses_input_port());
   builder.Connect(plant.get_body_spatial_velocities_output_port(),
