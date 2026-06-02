@@ -10,6 +10,7 @@
 #include <gtest/gtest.h>
 #include <msgpack.hpp>
 
+#include "drake/common/find_resource.h"
 #include "drake/common/test_utilities/expect_throws_message.h"
 #include "drake/common/value.h"
 #include "drake/geometry/meshcat_internal.h"
@@ -586,6 +587,20 @@ std::optional<double> GetDoubleProperty(const Meshcat& meshcat,
   return decoded.value;
 }
 
+// Tests to see if the given meshcat instance has had the named vector-valued
+// property set for the given path. Returns the value if so, nullopt otherwise.
+std::optional<std::vector<double>> GetVectorProperty(
+    const Meshcat& meshcat, const std::string& path,
+    const std::string& property) {
+  const std::string bytes = meshcat.GetPackedProperty(path, property);
+  if (bytes.empty()) {
+    return {};
+  }
+  msgpack::object_handle oh = msgpack::unpack(bytes.data(), bytes.size());
+  auto decoded = oh.get().as<internal::SetPropertyData<std::vector<double>>>();
+  return decoded.value;
+}
+
 GTEST_TEST(MeshcatVisualizerTest, SurfaceDisplacement) {
   auto meshcat = std::make_shared<Meshcat>();
   systems::DiagramBuilder<double> builder;
@@ -619,6 +634,7 @@ GTEST_TEST(MeshcatVisualizerTest, SurfaceDisplacement) {
   const GeometryId geom_id = *geom_ids.begin();
   const std::string geom_path = fmt::format(
       "visualizer/belt/belt/{}", TransformGeometryName(geom_id, inspector));
+  const std::string object_path = geom_path + "/<object>";
 
   auto& visualizer = MeshcatVisualizer<double>::AddToBuilder(
       &builder, scene_graph, meshcat, {}, &plant);
@@ -634,10 +650,59 @@ GTEST_TEST(MeshcatVisualizerTest, SurfaceDisplacement) {
 
   diagram->ForcedPublish(*context);
 
+  const std::optional<std::vector<double>> axis =
+      GetVectorProperty(*meshcat, object_path, "crawl_axis");
+  ASSERT_TRUE(axis.has_value());
+  ASSERT_EQ(axis->size(), 3);
+  EXPECT_NEAR(axis->at(0), 1.0, 1e-14);
+  EXPECT_NEAR(axis->at(1), 0.0, 1e-14);
+  EXPECT_NEAR(axis->at(2), 0.0, 1e-14);
+
   const std::optional<double> displacement =
-      GetDoubleProperty(*meshcat, geom_path, "crawl_displacement");
+      GetDoubleProperty(*meshcat, object_path, "crawl_displacement");
   ASSERT_TRUE(displacement.has_value());
   EXPECT_EQ(*displacement, 2.25);
+}
+
+GTEST_TEST(MeshcatVisualizerTest, SurfaceVelocityAxisOnGltfObject) {
+  auto meshcat = std::make_shared<Meshcat>();
+  systems::DiagramBuilder<double> builder;
+  auto [plant, scene_graph] = AddMultibodyPlantSceneGraph(&builder, 0.001);
+
+  const auto model_instance = plant.AddModelInstance("belt");
+  const multibody::SpatialInertia<double> M_BBo =
+      multibody::SpatialInertia<double>::SolidBoxWithMass(1.0, 1.0, 1.0, 1.0);
+  const auto& belt = plant.AddRigidBody("belt", model_instance, M_BBo);
+  plant.RegisterVisualGeometry(
+      belt, math::RigidTransformd::Identity(),
+      Mesh(FindResourceOrThrow("drake/geometry/test/cube_with_hole.gltf")),
+      "visual");
+  plant.SetSurfaceVelocityAxis(belt, Eigen::Vector3d::UnitY());
+  plant.Finalize();
+
+  const auto& inspector = scene_graph.model_inspector();
+  const FrameId body_frame = plant.GetBodyFrameIdOrThrow(belt.index());
+  const auto geom_ids =
+      inspector.GetGeometries(body_frame, Role::kIllustration);
+  ASSERT_EQ(geom_ids.size(), 1);
+  const GeometryId geom_id = *geom_ids.begin();
+  const std::string geom_path = fmt::format(
+      "visualizer/belt/belt/{}", TransformGeometryName(geom_id, inspector));
+
+  MeshcatVisualizer<double>::AddToBuilder(&builder, scene_graph, meshcat, {},
+                                          &plant);
+  auto diagram = builder.Build();
+  auto context = diagram->CreateDefaultContext();
+
+  diagram->ForcedPublish(*context);
+
+  const std::optional<std::vector<double>> axis =
+      GetVectorProperty(*meshcat, geom_path + "/<object>", "crawl_axis");
+  ASSERT_TRUE(axis.has_value());
+  ASSERT_EQ(axis->size(), 3);
+  EXPECT_NEAR(axis->at(0), 0.0, 1e-14);
+  EXPECT_NEAR(axis->at(1), 0.0, 1e-14);
+  EXPECT_NEAR(axis->at(2), -1.0, 1e-14);
 }
 
 // Full system acceptance test of setting alpha slider values (including the

@@ -823,6 +823,7 @@ drake_cc_googletest(
     name = "meshcat_visualizer_test",
     data = [
         "//geometry/render:test_models",
+        ":test_gltf_files",
         "//multibody/meshcat:models",
         "@drake_models//:iiwa_description",
     ],
