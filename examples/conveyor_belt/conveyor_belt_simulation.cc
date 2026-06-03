@@ -38,6 +38,9 @@ DEFINE_double(time_step, 0.001,
               "Discrete update period for the MultibodyPlant.");
 DEFINE_bool(visualize, true, "Whether to publish visualization geometry.");
 
+DEFINE_string(conveyor_belts, "both",
+              "Which conveyor belt(s) to add: 'physical', 'virtual', or "
+              "'both'.");
 DEFINE_int32(num_links, 80,
              "Number of rigid links used to approximate the belt.");
 DEFINE_double(drum_spacing, 2.0, "Distance between drum centers, in meters.");
@@ -115,6 +118,12 @@ struct BeltPoint {
   // Body pitch angle about world y. With this convention, the body x-axis is
   // tangent to the belt path.
   double pitch{};
+};
+
+enum class ConveyorBeltSelection {
+  kPhysical,
+  kVirtual,
+  kBoth,
 };
 
 class BeltSpeedController final : public systems::LeafSystem<double> {
@@ -504,6 +513,21 @@ ContactModel ParseContactModel() {
                            "'. Expected 'point', 'hydro', or 'hydroelastic'.");
 }
 
+ConveyorBeltSelection ParseConveyorBeltSelection() {
+  if (FLAGS_conveyor_belts == "physical") {
+    return ConveyorBeltSelection::kPhysical;
+  }
+  if (FLAGS_conveyor_belts == "virtual") {
+    return ConveyorBeltSelection::kVirtual;
+  }
+  if (FLAGS_conveyor_belts == "both") {
+    return ConveyorBeltSelection::kBoth;
+  }
+  throw std::runtime_error("Invalid --conveyor_belts='" +
+                           FLAGS_conveyor_belts +
+                           "'. Expected 'physical', 'virtual', or 'both'.");
+}
+
 const RigidBody<double>& AddSurfaceVelocityBelt(
     MultibodyPlant<double>* plant, const CoulombFriction<double>& friction) {
   const auto model_instance = plant->AddModelInstance("surface_velocity_belt");
@@ -573,7 +597,6 @@ struct EndButtons {
 };
 
 int do_main() {
-  DRAKE_DEMAND(FLAGS_num_links >= 12);
   DRAKE_DEMAND(FLAGS_time_step > 0.0);
   DRAKE_DEMAND(FLAGS_drum_spacing > 0.0);
   DRAKE_DEMAND(FLAGS_drum_radius > 0.0);
@@ -595,8 +618,19 @@ int do_main() {
                FLAGS_button_press_threshold);
   DRAKE_DEMAND(FLAGS_button_stiffness >= 0.0);
   DRAKE_DEMAND(FLAGS_button_damping >= 0.0);
+  const ConveyorBeltSelection conveyor_belts = ParseConveyorBeltSelection();
+  const bool add_physical_belt =
+      conveyor_belts != ConveyorBeltSelection::kVirtual;
+  const bool add_virtual_belt =
+      conveyor_belts != ConveyorBeltSelection::kPhysical;
+  if (add_physical_belt) {
+    DRAKE_DEMAND(FLAGS_num_links >= 12);
+  }
   const int driven_link =
-      (FLAGS_driven_link % FLAGS_num_links + FLAGS_num_links) % FLAGS_num_links;
+      add_physical_belt
+          ? (FLAGS_driven_link % FLAGS_num_links + FLAGS_num_links) %
+                FLAGS_num_links
+          : 0;
   const double desired_belt_speed = FLAGS_target_belt_speed;
 
   systems::DiagramBuilder<double> builder;
@@ -611,91 +645,103 @@ int do_main() {
 
   const double centerline_radius =
       FLAGS_drum_radius + 0.5 * FLAGS_belt_thickness;
-  const double perimeter =
-      2.0 * FLAGS_drum_spacing + 2.0 * M_PI * centerline_radius;
-  const double pitch = perimeter / FLAGS_num_links;
-  const double link_length = 0.96 * pitch;
+  std::vector<double> belt_lane_y_positions;
+  if (add_physical_belt) {
+    belt_lane_y_positions.push_back(0.0);
+  }
+  if (add_virtual_belt) {
+    belt_lane_y_positions.push_back(FLAGS_surface_velocity_belt_y);
+  }
 
   std::vector<const RigidBody<double>*> links;
-  links.reserve(FLAGS_num_links);
-  std::vector<BeltPoint> link_points;
-  link_points.reserve(FLAGS_num_links);
+  if (add_physical_belt) {
+    links.reserve(FLAGS_num_links);
+    std::vector<BeltPoint> link_points;
+    link_points.reserve(FLAGS_num_links);
+    const double perimeter =
+        2.0 * FLAGS_drum_spacing + 2.0 * M_PI * centerline_radius;
+    const double pitch = perimeter / FLAGS_num_links;
+    const double link_length = 0.96 * pitch;
 
-  for (int i = 0; i < FLAGS_num_links; ++i) {
-    const std::string name = "belt_link_" + std::to_string(i);
-    const UnitInertia<double> G_BBo = UnitInertia<double>::SolidBox(
-        link_length, FLAGS_belt_width, FLAGS_belt_thickness);
-    const SpatialInertia<double> M_BBo =
-        SpatialInertia<double>::MakeFromCentralInertia(
-            FLAGS_link_mass, Vector3d::Zero(), FLAGS_link_mass * G_BBo);
-    const RigidBody<double>& link = plant.AddRigidBody(name, M_BBo);
-    links.push_back(&link);
+    for (int i = 0; i < FLAGS_num_links; ++i) {
+      const std::string name = "belt_link_" + std::to_string(i);
+      const UnitInertia<double> G_BBo = UnitInertia<double>::SolidBox(
+          link_length, FLAGS_belt_width, FLAGS_belt_thickness);
+      const SpatialInertia<double> M_BBo =
+          SpatialInertia<double>::MakeFromCentralInertia(
+              FLAGS_link_mass, Vector3d::Zero(), FLAGS_link_mass * G_BBo);
+      const RigidBody<double>& link = plant.AddRigidBody(name, M_BBo);
+      links.push_back(&link);
 
-    const Vector4<double> color = (i == driven_link)
-                                      ? Vector4<double>(0.9, 0.2, 0.1, 1.0)
-                                      : Vector4<double>(0.08, 0.12, 0.14, 1.0);
-    plant.RegisterCollisionGeometry(
-        link, RigidTransformd::Identity(),
-        Box(link_length, FLAGS_belt_width, FLAGS_belt_thickness),
-        name + "_collision",
-        MakeCompliantHydroelasticProperties(
-            FLAGS_hydro_resolution_hint, FLAGS_hydroelastic_modulus,
-            FLAGS_hunt_crossley_dissipation, belt_friction));
-    plant.RegisterVisualGeometry(
-        link, RigidTransformd::Identity(),
-        Box(link_length, FLAGS_belt_width, FLAGS_belt_thickness),
-        name + "_visual", color);
+      const Vector4<double> color =
+          (i == driven_link) ? Vector4<double>(0.9, 0.2, 0.1, 1.0)
+                             : Vector4<double>(0.08, 0.12, 0.14, 1.0);
+      plant.RegisterCollisionGeometry(
+          link, RigidTransformd::Identity(),
+          Box(link_length, FLAGS_belt_width, FLAGS_belt_thickness),
+          name + "_collision",
+          MakeCompliantHydroelasticProperties(
+              FLAGS_hydro_resolution_hint, FLAGS_hydroelastic_modulus,
+              FLAGS_hunt_crossley_dissipation, belt_friction));
+      plant.RegisterVisualGeometry(
+          link, RigidTransformd::Identity(),
+          Box(link_length, FLAGS_belt_width, FLAGS_belt_thickness),
+          name + "_visual", color);
 
-    link_points.push_back(CalcBeltPoint((i + 0.5) * pitch, FLAGS_drum_spacing,
-                                        centerline_radius));
-  }
+      link_points.push_back(CalcBeltPoint(
+          (i + 0.5) * pitch, FLAGS_drum_spacing, centerline_radius));
+    }
 
-  plant.SetDefaultFloatingBaseBodyPose(*links.front(),
-                                       MakePose(link_points[0]));
+    plant.SetDefaultFloatingBaseBodyPose(*links.front(),
+                                         MakePose(link_points[0]));
 
-  for (int i = 0; i < FLAGS_num_links - 1; ++i) {
-    const BeltPoint joint_point =
-        CalcBeltPoint((i + 1) * pitch, FLAGS_drum_spacing, centerline_radius);
-    const Vector3d p_PF = ExpressPointInBody(link_points[i], joint_point.p_WB);
-    const Vector3d p_BM =
-        ExpressPointInBody(link_points[i + 1], joint_point.p_WB);
-    const std::string joint_name = "belt_pin_" + std::to_string(i);
-    plant.AddJoint<RevoluteJoint>(joint_name, *links[i], RigidTransformd(p_PF),
-                                  *links[i + 1], RigidTransformd(p_BM),
-                                  Vector3d::UnitY(), 0.02);
-    RevoluteJoint<double>& joint =
-        plant.GetMutableJointByName<RevoluteJoint>(joint_name);
-    joint.set_default_angle(link_points[i + 1].pitch - link_points[i].pitch);
-  }
+    for (int i = 0; i < FLAGS_num_links - 1; ++i) {
+      const BeltPoint joint_point =
+          CalcBeltPoint((i + 1) * pitch, FLAGS_drum_spacing, centerline_radius);
+      const Vector3d p_PF =
+          ExpressPointInBody(link_points[i], joint_point.p_WB);
+      const Vector3d p_BM =
+          ExpressPointInBody(link_points[i + 1], joint_point.p_WB);
+      const std::string joint_name = "belt_pin_" + std::to_string(i);
+      plant.AddJoint<RevoluteJoint>(
+          joint_name, *links[i], RigidTransformd(p_PF), *links[i + 1],
+          RigidTransformd(p_BM), Vector3d::UnitY(), 0.02);
+      RevoluteJoint<double>& joint =
+          plant.GetMutableJointByName<RevoluteJoint>(joint_name);
+      joint.set_default_angle(link_points[i + 1].pitch - link_points[i].pitch);
+    }
 
-  const BeltPoint closure_point =
-      CalcBeltPoint(0.0, FLAGS_drum_spacing, centerline_radius);
-  const Vector3d p_last =
-      ExpressPointInBody(link_points.back(), closure_point.p_WB);
-  const Vector3d p_first =
-      ExpressPointInBody(link_points.front(), closure_point.p_WB);
-  const double closure_axis_offset = 0.2 * FLAGS_belt_width;
-  plant.AddBallConstraint(
-      *links.back(), p_last + closure_axis_offset * Vector3d::UnitY(),
-      *links.front(), p_first + closure_axis_offset * Vector3d::UnitY());
-  plant.AddBallConstraint(
-      *links.back(), p_last - closure_axis_offset * Vector3d::UnitY(),
-      *links.front(), p_first - closure_axis_offset * Vector3d::UnitY());
+    const BeltPoint closure_point =
+        CalcBeltPoint(0.0, FLAGS_drum_spacing, centerline_radius);
+    const Vector3d p_last =
+        ExpressPointInBody(link_points.back(), closure_point.p_WB);
+    const Vector3d p_first =
+        ExpressPointInBody(link_points.front(), closure_point.p_WB);
+    const double closure_axis_offset = 0.2 * FLAGS_belt_width;
+    plant.AddBallConstraint(
+        *links.back(), p_last + closure_axis_offset * Vector3d::UnitY(),
+        *links.front(), p_first + closure_axis_offset * Vector3d::UnitY());
+    plant.AddBallConstraint(
+        *links.back(), p_last - closure_axis_offset * Vector3d::UnitY(),
+        *links.front(), p_first - closure_axis_offset * Vector3d::UnitY());
 
-  Eigen::Vector4d support_rgb(0.6, 0.62, 0.66, 1.0);
-  AddDrumGeometry(&plant, "left_drum", -0.5 * FLAGS_drum_spacing,
-                  FLAGS_drum_radius, FLAGS_belt_width,
-                  FLAGS_hydro_resolution_hint, FLAGS_hydroelastic_modulus,
-                  FLAGS_hunt_crossley_dissipation, drum_friction, support_rgb);
-  AddDrumGeometry(&plant, "right_drum", 0.5 * FLAGS_drum_spacing,
-                  FLAGS_drum_radius, FLAGS_belt_width,
-                  FLAGS_hydro_resolution_hint, FLAGS_hydroelastic_modulus,
-                  FLAGS_hunt_crossley_dissipation, drum_friction, support_rgb);
-  if (FLAGS_include_center_support) {
-    AddCenterSupportGeometry(
-        &plant, FLAGS_drum_spacing, FLAGS_drum_radius * 0.9, FLAGS_belt_width,
-        FLAGS_hydro_resolution_hint, FLAGS_hydroelastic_modulus,
-        FLAGS_hunt_crossley_dissipation, drum_friction, support_rgb);
+    Eigen::Vector4d support_rgb(0.6, 0.62, 0.66, 1.0);
+    AddDrumGeometry(&plant, "left_drum", -0.5 * FLAGS_drum_spacing,
+                    FLAGS_drum_radius, FLAGS_belt_width,
+                    FLAGS_hydro_resolution_hint, FLAGS_hydroelastic_modulus,
+                    FLAGS_hunt_crossley_dissipation, drum_friction,
+                    support_rgb);
+    AddDrumGeometry(&plant, "right_drum", 0.5 * FLAGS_drum_spacing,
+                    FLAGS_drum_radius, FLAGS_belt_width,
+                    FLAGS_hydro_resolution_hint, FLAGS_hydroelastic_modulus,
+                    FLAGS_hunt_crossley_dissipation, drum_friction,
+                    support_rgb);
+    if (FLAGS_include_center_support) {
+      AddCenterSupportGeometry(
+          &plant, FLAGS_drum_spacing, FLAGS_drum_radius * 0.9, FLAGS_belt_width,
+          FLAGS_hydro_resolution_hint, FLAGS_hydroelastic_modulus,
+          FLAGS_hunt_crossley_dissipation, drum_friction, support_rgb);
+    }
   }
 
   const UnitInertia<double> G_Box = UnitInertia<double>::SolidBox(
@@ -703,9 +749,12 @@ int do_main() {
   const SpatialInertia<double> M_Box =
       SpatialInertia<double>::MakeFromCentralInertia(
           FLAGS_box_mass, Vector3d::Zero(), FLAGS_box_mass * G_Box);
+  const ModelInstanceIndex box_model_instance =
+      plant.AddModelInstance("carried_boxes");
   auto add_free_box = [&](const std::string& name, const Vector3d& p_WB,
                           const Vector4<double>& color) {
-    const RigidBody<double>& free_box = plant.AddRigidBody(name, M_Box);
+    const RigidBody<double>& free_box =
+        plant.AddRigidBody(name, box_model_instance, M_Box);
     plant.RegisterCollisionGeometry(
         free_box, RigidTransformd::Identity(),
         Box(FLAGS_box_size, FLAGS_box_size, FLAGS_box_size),
@@ -721,21 +770,29 @@ int do_main() {
   };
   const double box_z =
       centerline_radius + FLAGS_belt_thickness + 0.5 * FLAGS_box_size + 0.005;
-  add_free_box("box", Vector3d(-0.3 * FLAGS_drum_spacing, 0.0, box_z),
-               Vector4<double>(0.16, 0.38, 0.72, 1.0));
-  add_free_box("surface_velocity_box",
-               Vector3d(-0.3 * FLAGS_drum_spacing,
-                        FLAGS_surface_velocity_belt_y, box_z),
-               Vector4<double>(0.12, 0.58, 0.36, 1.0));
+  if (add_physical_belt) {
+    add_free_box("box", Vector3d(-0.3 * FLAGS_drum_spacing, 0.0, box_z),
+                 Vector4<double>(0.16, 0.38, 0.72, 1.0));
+  }
+  if (add_virtual_belt) {
+    add_free_box("surface_velocity_box",
+                 Vector3d(-0.3 * FLAGS_drum_spacing,
+                          FLAGS_surface_velocity_belt_y, box_z),
+                 Vector4<double>(0.12, 0.58, 0.36, 1.0));
+  }
 
-  const RigidBody<double>& surface_velocity_belt =
-      AddSurfaceVelocityBelt(&plant, belt_friction);
+  const RigidBody<double>* surface_velocity_belt = nullptr;
+  if (add_virtual_belt) {
+    surface_velocity_belt = &AddSurfaceVelocityBelt(&plant, belt_friction);
+  }
 
   const double button_thickness = 0.08;
   const double button_height = std::max(0.10, 0.75 * FLAGS_box_size);
-  const double button_y_center = 0.5 * FLAGS_surface_velocity_belt_y;
+  const auto [min_lane_y, max_lane_y] = std::minmax_element(
+      belt_lane_y_positions.begin(), belt_lane_y_positions.end());
+  const double button_y_center = 0.5 * (*min_lane_y + *max_lane_y);
   const double button_y_size =
-      std::abs(FLAGS_surface_velocity_belt_y) + 1.15 * FLAGS_belt_width;
+      (*max_lane_y - *min_lane_y) + 1.15 * FLAGS_belt_width;
   const double button_face_gap = 0.04;
   const double button_x =
       0.5 * FLAGS_drum_spacing + button_face_gap + 0.5 * button_thickness;
@@ -768,26 +825,32 @@ int do_main() {
   builder.Connect(plant.get_state_output_port(),
                   speed_selector->get_state_input_port());
 
-  SurfaceSpeedBus* surface_speed_bus = builder.AddSystem<SurfaceSpeedBus>(
-      surface_velocity_belt.scoped_name().to_string());
-  builder.Connect(speed_selector->get_desired_speed_output_port(),
-                  surface_speed_bus->get_speed_input_port());
-  builder.Connect(surface_speed_bus->get_surface_speeds_output_port(),
-                  plant.get_surface_speeds_input_port());
+  if (add_virtual_belt) {
+    DRAKE_DEMAND(surface_velocity_belt != nullptr);
+    SurfaceSpeedBus* surface_speed_bus = builder.AddSystem<SurfaceSpeedBus>(
+        surface_velocity_belt->scoped_name().to_string());
+    builder.Connect(speed_selector->get_desired_speed_output_port(),
+                    surface_speed_bus->get_speed_input_port());
+    builder.Connect(surface_speed_bus->get_surface_speeds_output_port(),
+                    plant.get_surface_speeds_input_port());
+  }
 
-  BeltSpeedController* speed_controller =
-      builder.AddSystem<BeltSpeedController>(
-          links.at(driven_link)->index(), FLAGS_belt_speed_kp,
-          FLAGS_belt_speed_ki, FLAGS_max_drive_force,
-          FLAGS_max_integral_drive_force, Vector3d::Zero(), FLAGS_time_step);
-  builder.Connect(speed_selector->get_desired_speed_output_port(),
-                  speed_controller->get_target_speed_input_port());
-  builder.Connect(plant.get_body_poses_output_port(),
-                  speed_controller->get_body_poses_input_port());
-  builder.Connect(plant.get_body_spatial_velocities_output_port(),
-                  speed_controller->get_body_spatial_velocities_input_port());
-  builder.Connect(speed_controller->get_spatial_force_output_port(),
-                  plant.get_applied_spatial_force_input_port());
+  if (add_physical_belt) {
+    BeltSpeedController* speed_controller =
+        builder.AddSystem<BeltSpeedController>(
+            links.at(driven_link)->index(), FLAGS_belt_speed_kp,
+            FLAGS_belt_speed_ki, FLAGS_max_drive_force,
+            FLAGS_max_integral_drive_force, Vector3d::Zero(), FLAGS_time_step);
+    builder.Connect(speed_selector->get_desired_speed_output_port(),
+                    speed_controller->get_target_speed_input_port());
+    builder.Connect(plant.get_body_poses_output_port(),
+                    speed_controller->get_body_poses_input_port());
+    builder.Connect(
+        plant.get_body_spatial_velocities_output_port(),
+        speed_controller->get_body_spatial_velocities_input_port());
+    builder.Connect(speed_controller->get_spatial_force_output_port(),
+                    plant.get_applied_spatial_force_input_port());
+  }
 
   if (FLAGS_visualize) {
     visualization::VisualizationConfig visualization_config;
