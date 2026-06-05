@@ -30,6 +30,7 @@
 #include "drake/systems/framework/bus_value.h"
 #include "drake/systems/framework/diagram_builder.h"
 #include "drake/systems/framework/leaf_system.h"
+#include "drake/systems/primitives/constant_vector_source.h"
 #include "drake/visualization/visualization_config_functions.h"
 
 DEFINE_double(target_realtime_rate, 1, "Desired rate relative to real time.");
@@ -38,9 +39,15 @@ DEFINE_double(time_step, 0.001,
               "Discrete update period for the MultibodyPlant.");
 DEFINE_bool(visualize, true, "Whether to publish visualization geometry.");
 
+// What conveyor belts are there?
 DEFINE_string(conveyor_belts, "both",
               "Which conveyor belt(s) to add: 'physical', 'virtual', or "
               "'both'.");
+
+// Global conveyor belt parameters.
+DEFINE_double(target_belt_speed, 0.5, "Target belt speed in m/s.");
+
+// Physical belt parameters
 DEFINE_int32(num_links, 80,
              "Number of rigid links used to approximate the belt.");
 DEFINE_double(drum_spacing, 2.0, "Distance between drum centers, in meters.");
@@ -50,15 +57,7 @@ DEFINE_double(belt_thickness, 0.035, "Belt link thickness, in meters.");
 DEFINE_bool(include_center_support, true,
             "Whether to include the frictionless box between the drums.");
 DEFINE_double(link_mass, 0.03, "Mass of each belt link, in kg.");
-DEFINE_string(contact_model, "point",
-              "Contact model to use: 'point' or 'hydro'.");
-DEFINE_double(hydro_resolution_hint, 0.02,
-              "Resolution hint for hydroelastic contact geometries, in m.");
-DEFINE_double(hydroelastic_modulus, 1.0e5,
-              "Hydroelastic modulus for compliant contact geometries, in Pa.");
-DEFINE_double(hunt_crossley_dissipation, 10.0,
-              "Hunt-Crossley dissipation for contact geometries, in s/m.");
-DEFINE_double(target_belt_speed, 0.5, "Target belt speed in m/s.");
+
 DEFINE_double(belt_speed_kp, 50.0,
               "Proportional gain for the belt speed controller.");
 DEFINE_double(belt_speed_ki, 50.0,
@@ -69,11 +68,29 @@ DEFINE_double(max_integral_drive_force, 10.0,
               "Maximum integral drive force contribution, in N.");
 DEFINE_int32(driven_link, 3,
              "Index of the belt link that receives the body-frame force.");
-DEFINE_double(surface_velocity_belt_y, 0.8,
-              "World y-position of the mesh belt with surface velocity, in m.");
 
+// Virtual belt parameters
+DEFINE_double(surface_velocity_belt_y, 0.8,
+              "World y-position of the mesh belt with surface velocity when "
+              "--conveyor_belts=both, in m.");
+
+// Simulation parameters
+DEFINE_string(contact_model, "point",
+              "Contact model to use: 'point' or 'hydro'.");
+DEFINE_double(hydro_resolution_hint, 0.02,
+              "Resolution hint for hydroelastic contact geometries, in m.");
+DEFINE_double(hydroelastic_modulus, 1.0e5,
+              "Hydroelastic modulus for compliant contact geometries, in Pa.");
+DEFINE_double(hunt_crossley_dissipation, 10.0,
+              "Hunt-Crossley dissipation for contact geometries, in s/m.");
+
+// Manipulands.
 DEFINE_double(box_size, 0.16, "Edge length of the carried box, in meters.");
 DEFINE_double(box_mass, 0.1, "Mass of the carried box, in kg.");
+
+// End-button parameters
+DEFINE_bool(include_end_buttons, true,
+            "Whether to instantiate spring-loaded end buttons.");
 DEFINE_double(button_travel, 0.06,
               "Maximum travel for each spring-loaded button, in meters.");
 DEFINE_double(button_press_threshold, 0.015,
@@ -142,6 +159,7 @@ class BeltSpeedController final : public systems::LeafSystem<double> {
         max_force_(max_force),
         max_integral_force_(max_integral_force),
         application_point_B_(application_point_B),
+        drive_axis_B_(Vector3d::UnitX()),
         update_period_(update_period) {
     target_speed_input_port_ =
         this->DeclareVectorInputPort("target_speed", 1).get_index();
@@ -192,8 +210,10 @@ class BeltSpeedController final : public systems::LeafSystem<double> {
         get_body_spatial_velocities_input_port()
             .Eval<std::vector<SpatialVelocity<double>>>(context)[body_index_];
 
-    const Vector3d xhat_W = X_WB.rotation() * Vector3d::UnitX();
-    return xhat_W.dot(V_WB.translational());
+    const Vector3d drive_axis_W = X_WB.rotation() * drive_axis_B_;
+    const Vector3d p_BoBq_W = X_WB.rotation() * application_point_B_;
+    const Vector3d v_WBq_W = V_WB.Shift(p_BoBq_W).translational();
+    return drive_axis_W.dot(v_WBq_W);
   }
 
   double CalcForceMagnitude(const systems::Context<double>& context) const {
@@ -256,7 +276,7 @@ class BeltSpeedController final : public systems::LeafSystem<double> {
     const double force_magnitude = CalcForceMagnitude(context);
 
     SpatialForce<double> F_Bq_B = SpatialForce<double>::Zero();
-    F_Bq_B.translational() = force_magnitude * Vector3d::UnitX();
+    F_Bq_B.translational() = force_magnitude * drive_axis_B_;
 
     ExternallyAppliedSpatialForce<double>& force = output->front();
     force.body_index = body_index_;
@@ -270,6 +290,7 @@ class BeltSpeedController final : public systems::LeafSystem<double> {
   double max_force_{};
   double max_integral_force_{};
   Vector3d application_point_B_;
+  Vector3d drive_axis_B_;
   double update_period_{};
   systems::InputPortIndex target_speed_input_port_;
   systems::InputPortIndex body_poses_input_port_;
@@ -442,23 +463,48 @@ Vector3d ExpressPointInBody(const BeltPoint& body_pose_point,
 
 void AddDrumGeometry(MultibodyPlant<double>* plant, std::string name,
                      double x_WD, double drum_radius, double belt_width,
+                     double belt_thickness,
                      double resolution_hint, double hydroelastic_modulus,
                      double dissipation,
                      const CoulombFriction<double>& friction,
                      const Vector4<double>& color) {
   const RigidTransformd X_WD(RollPitchYawd(-M_PI / 2.0, 0.0, 0.0),
                              Vector3d(x_WD, 0.0, 0.0));
-  const Cylinder drum_shape(drum_radius, 1.15 * belt_width);
-  ProximityProperties proximity_props;
-  geometry::AddContactMaterial(dissipation, {} /* point stiffness */, friction,
-                               &proximity_props);
-  geometry::AddCompliantHydroelasticProperties(
-      resolution_hint, hydroelastic_modulus, &proximity_props);
+  const double drum_length = 1.15 * belt_width;
+  const Cylinder drum_shape(drum_radius, drum_length);
+  auto make_proximity_props = [&]() {
+    ProximityProperties proximity_props;
+    geometry::AddContactMaterial(dissipation, {} /* point stiffness */,
+                                 friction, &proximity_props);
+    geometry::AddCompliantHydroelasticProperties(
+        resolution_hint, hydroelastic_modulus, &proximity_props);
+    return proximity_props;
+  };
+  ProximityProperties drum_proximity_props = make_proximity_props();
   plant->RegisterCollisionGeometry(plant->world_body(), X_WD, drum_shape,
                                    name + "_collision",
-                                   std::move(proximity_props));
+                                   std::move(drum_proximity_props));
   plant->RegisterVisualGeometry(plant->world_body(), X_WD, drum_shape,
                                 name + "_visual", color);
+
+  const double cap_thickness = belt_thickness;
+  const double cap_radius = drum_radius + belt_thickness;
+  const double cap_y_offset = 0.5 * (drum_length + cap_thickness);
+  const Cylinder cap_shape(cap_radius, cap_thickness);
+  const double cap_y_offsets[] = {-cap_y_offset, cap_y_offset};
+  const std::string cap_names[] = {"negative_y_cap", "positive_y_cap"};
+  for (int i = 0; i < 2; ++i) {
+    const RigidTransformd X_WC(RollPitchYawd(-M_PI / 2.0, 0.0, 0.0),
+                               Vector3d(x_WD, cap_y_offsets[i], 0.0));
+    ProximityProperties cap_proximity_props = make_proximity_props();
+    plant->RegisterCollisionGeometry(
+        plant->world_body(), X_WC, cap_shape,
+        name + "_" + cap_names[i] + "_collision",
+        std::move(cap_proximity_props));
+    plant->RegisterVisualGeometry(plant->world_body(), X_WC, cap_shape,
+                                  name + "_" + cap_names[i] + "_visual",
+                                  color);
+  }
 }
 
 void AddCenterSupportGeometry(MultibodyPlant<double>* plant,
@@ -529,7 +575,8 @@ ConveyorBeltSelection ParseConveyorBeltSelection() {
 }
 
 const RigidBody<double>& AddSurfaceVelocityBelt(
-    MultibodyPlant<double>* plant, const CoulombFriction<double>& friction) {
+    MultibodyPlant<double>* plant, double y_WB,
+    const CoulombFriction<double>& friction) {
   const auto model_instance = plant->AddModelInstance("surface_velocity_belt");
   const SpatialInertia<double> M_BBo =
       SpatialInertia<double>::SolidBoxWithMass(1.0, 1.0, 1.0, 1.0);
@@ -537,7 +584,7 @@ const RigidBody<double>& AddSurfaceVelocityBelt(
       plant->AddRigidBody("surface_velocity_belt", model_instance, M_BBo);
   plant->WeldFrames(
       plant->world_frame(), belt.body_frame(),
-      RigidTransformd(Vector3d(0.0, FLAGS_surface_velocity_belt_y, 0.0)));
+      RigidTransformd(Vector3d(0.0, y_WB, 0.0)));
 
   const std::string collision_mesh =
       FindResourceOrThrow("drake/examples/conveyor_belt/sagging_belt.obj");
@@ -610,19 +657,25 @@ int do_main() {
   DRAKE_DEMAND(FLAGS_belt_speed_ki >= 0.0);
   DRAKE_DEMAND(FLAGS_max_drive_force >= 0.0);
   DRAKE_DEMAND(FLAGS_max_integral_drive_force >= 0.0);
-  DRAKE_DEMAND(FLAGS_button_travel > 0.0);
-  DRAKE_DEMAND(FLAGS_button_press_threshold > 0.0);
-  DRAKE_DEMAND(FLAGS_button_press_threshold <= FLAGS_button_travel);
-  DRAKE_DEMAND(FLAGS_button_release_threshold >= 0.0);
-  DRAKE_DEMAND(FLAGS_button_release_threshold <
-               FLAGS_button_press_threshold);
-  DRAKE_DEMAND(FLAGS_button_stiffness >= 0.0);
-  DRAKE_DEMAND(FLAGS_button_damping >= 0.0);
+  if (FLAGS_include_end_buttons) {
+    DRAKE_DEMAND(FLAGS_button_travel > 0.0);
+    DRAKE_DEMAND(FLAGS_button_press_threshold > 0.0);
+    DRAKE_DEMAND(FLAGS_button_press_threshold <= FLAGS_button_travel);
+    DRAKE_DEMAND(FLAGS_button_release_threshold >= 0.0);
+    DRAKE_DEMAND(FLAGS_button_release_threshold <
+                 FLAGS_button_press_threshold);
+    DRAKE_DEMAND(FLAGS_button_stiffness >= 0.0);
+    DRAKE_DEMAND(FLAGS_button_damping >= 0.0);
+  }
   const ConveyorBeltSelection conveyor_belts = ParseConveyorBeltSelection();
   const bool add_physical_belt =
       conveyor_belts != ConveyorBeltSelection::kVirtual;
   const bool add_virtual_belt =
       conveyor_belts != ConveyorBeltSelection::kPhysical;
+  const double surface_velocity_belt_y =
+      conveyor_belts == ConveyorBeltSelection::kBoth
+          ? FLAGS_surface_velocity_belt_y
+          : 0.0;
   if (add_physical_belt) {
     DRAKE_DEMAND(FLAGS_num_links >= 12);
   }
@@ -650,7 +703,7 @@ int do_main() {
     belt_lane_y_positions.push_back(0.0);
   }
   if (add_virtual_belt) {
-    belt_lane_y_positions.push_back(FLAGS_surface_velocity_belt_y);
+    belt_lane_y_positions.push_back(surface_velocity_belt_y);
   }
 
   std::vector<const RigidBody<double>*> links;
@@ -728,12 +781,14 @@ int do_main() {
     Eigen::Vector4d support_rgb(0.6, 0.62, 0.66, 1.0);
     AddDrumGeometry(&plant, "left_drum", -0.5 * FLAGS_drum_spacing,
                     FLAGS_drum_radius, FLAGS_belt_width,
-                    FLAGS_hydro_resolution_hint, FLAGS_hydroelastic_modulus,
+                    FLAGS_belt_thickness, FLAGS_hydro_resolution_hint,
+                    FLAGS_hydroelastic_modulus,
                     FLAGS_hunt_crossley_dissipation, drum_friction,
                     support_rgb);
     AddDrumGeometry(&plant, "right_drum", 0.5 * FLAGS_drum_spacing,
                     FLAGS_drum_radius, FLAGS_belt_width,
-                    FLAGS_hydro_resolution_hint, FLAGS_hydroelastic_modulus,
+                    FLAGS_belt_thickness, FLAGS_hydro_resolution_hint,
+                    FLAGS_hydroelastic_modulus,
                     FLAGS_hunt_crossley_dissipation, drum_friction,
                     support_rgb);
     if (FLAGS_include_center_support) {
@@ -771,65 +826,84 @@ int do_main() {
   const double box_z =
       centerline_radius + FLAGS_belt_thickness + 0.5 * FLAGS_box_size + 0.005;
   if (add_physical_belt) {
-    add_free_box("box", Vector3d(-0.3 * FLAGS_drum_spacing, 0.0, box_z),
+    add_free_box("box", Vector3d(-0.4 * FLAGS_drum_spacing, 0.0, box_z),
                  Vector4<double>(0.16, 0.38, 0.72, 1.0));
   }
   if (add_virtual_belt) {
     add_free_box("surface_velocity_box",
-                 Vector3d(-0.3 * FLAGS_drum_spacing,
-                          FLAGS_surface_velocity_belt_y, box_z),
+                 Vector3d(-0.4 * FLAGS_drum_spacing,
+                          surface_velocity_belt_y, box_z),
                  Vector4<double>(0.12, 0.58, 0.36, 1.0));
   }
 
   const RigidBody<double>* surface_velocity_belt = nullptr;
   if (add_virtual_belt) {
-    surface_velocity_belt = &AddSurfaceVelocityBelt(&plant, belt_friction);
+    surface_velocity_belt =
+        &AddSurfaceVelocityBelt(&plant, surface_velocity_belt_y,
+                                belt_friction);
   }
 
-  const double button_thickness = 0.08;
-  const double button_height = std::max(0.10, 0.75 * FLAGS_box_size);
-  const auto [min_lane_y, max_lane_y] = std::minmax_element(
-      belt_lane_y_positions.begin(), belt_lane_y_positions.end());
-  const double button_y_center = 0.5 * (*min_lane_y + *max_lane_y);
-  const double button_y_size =
-      (*max_lane_y - *min_lane_y) + 1.15 * FLAGS_belt_width;
-  const double button_face_gap = 0.04;
-  const double button_x =
-      0.5 * FLAGS_drum_spacing + button_face_gap + 0.5 * button_thickness;
-  const CoulombFriction<double> button_friction(0.0, 0.0);
-  const Vector4<double> button_color(0.95, 0.68, 0.18, 1.0);
-  const ModelInstanceIndex button_model_instance =
-      plant.AddModelInstance("end_buttons");
   EndButtons buttons;
-  buttons.left = &AddEndButton(
-      &plant, button_model_instance, "left_button", -button_x,
-      button_y_center, box_z, -Vector3d::UnitX(), button_thickness,
-      button_y_size, button_height, FLAGS_button_travel,
-      FLAGS_button_stiffness, FLAGS_button_damping, FLAGS_hydro_resolution_hint,
-      FLAGS_hydroelastic_modulus, FLAGS_hunt_crossley_dissipation,
-      button_friction, button_color);
-  buttons.right = &AddEndButton(
-      &plant, button_model_instance, "right_button", button_x, button_y_center,
-      box_z, Vector3d::UnitX(), button_thickness, button_y_size, button_height,
-      FLAGS_button_travel, FLAGS_button_stiffness, FLAGS_button_damping,
-      FLAGS_hydro_resolution_hint, FLAGS_hydroelastic_modulus,
-      FLAGS_hunt_crossley_dissipation, button_friction, button_color);
+  if (FLAGS_include_end_buttons) {
+    const double button_thickness = 0.08;
+    const double button_height = std::max(0.10, 0.75 * FLAGS_box_size);
+    const auto [min_lane_y, max_lane_y] = std::minmax_element(
+        belt_lane_y_positions.begin(), belt_lane_y_positions.end());
+    const double button_y_center = 0.5 * (*min_lane_y + *max_lane_y);
+    const double button_y_size =
+        (*max_lane_y - *min_lane_y) + 1.15 * FLAGS_belt_width;
+    const double button_face_gap = 0.04;
+    const double button_x =
+        0.5 * FLAGS_drum_spacing + button_face_gap + 0.5 * button_thickness;
+    const CoulombFriction<double> button_friction(0.0, 0.0);
+    const Vector4<double> button_color(0.95, 0.68, 0.18, 1.0);
+    const ModelInstanceIndex button_model_instance =
+        plant.AddModelInstance("end_buttons");
+    buttons.left = &AddEndButton(
+        &plant, button_model_instance, "left_button", -button_x,
+        button_y_center, box_z, -Vector3d::UnitX(), button_thickness,
+        button_y_size, button_height, FLAGS_button_travel,
+        FLAGS_button_stiffness, FLAGS_button_damping,
+        FLAGS_hydro_resolution_hint, FLAGS_hydroelastic_modulus,
+        FLAGS_hunt_crossley_dissipation, button_friction, button_color);
+    buttons.right = &AddEndButton(
+        &plant, button_model_instance, "right_button", button_x,
+        button_y_center, box_z, Vector3d::UnitX(), button_thickness,
+        button_y_size, button_height, FLAGS_button_travel,
+        FLAGS_button_stiffness, FLAGS_button_damping,
+        FLAGS_hydro_resolution_hint, FLAGS_hydroelastic_modulus,
+        FLAGS_hunt_crossley_dissipation, button_friction, button_color);
+  }
 
   plant.Finalize();
 
-  ButtonSpeedSelector* speed_selector = builder.AddSystem<ButtonSpeedSelector>(
-      plant.num_multibody_states(), buttons.left->position_start(),
-      buttons.right->position_start(), desired_belt_speed,
-      FLAGS_button_press_threshold, FLAGS_button_release_threshold,
-      FLAGS_time_step);
-  builder.Connect(plant.get_state_output_port(),
-                  speed_selector->get_state_input_port());
+  const systems::OutputPort<double>* desired_speed_output{};
+  if (FLAGS_include_end_buttons) {
+    DRAKE_DEMAND(buttons.left != nullptr);
+    DRAKE_DEMAND(buttons.right != nullptr);
+    ButtonSpeedSelector* speed_selector =
+        builder.AddSystem<ButtonSpeedSelector>(
+            plant.num_multibody_states(), buttons.left->position_start(),
+            buttons.right->position_start(), desired_belt_speed,
+            FLAGS_button_press_threshold, FLAGS_button_release_threshold,
+            FLAGS_time_step);
+    builder.Connect(plant.get_state_output_port(),
+                    speed_selector->get_state_input_port());
+    desired_speed_output = &speed_selector->get_desired_speed_output_port();
+  } else {
+    Vector1d constant_speed;
+    constant_speed << desired_belt_speed;
+    auto* speed_source =
+        builder.AddSystem<systems::ConstantVectorSource<double>>(
+            constant_speed);
+    desired_speed_output = &speed_source->get_output_port();
+  }
 
   if (add_virtual_belt) {
     DRAKE_DEMAND(surface_velocity_belt != nullptr);
     SurfaceSpeedBus* surface_speed_bus = builder.AddSystem<SurfaceSpeedBus>(
         surface_velocity_belt->scoped_name().to_string());
-    builder.Connect(speed_selector->get_desired_speed_output_port(),
+    builder.Connect(*desired_speed_output,
                     surface_speed_bus->get_speed_input_port());
     builder.Connect(surface_speed_bus->get_surface_speeds_output_port(),
                     plant.get_surface_speeds_input_port());
@@ -841,7 +915,7 @@ int do_main() {
             links.at(driven_link)->index(), FLAGS_belt_speed_kp,
             FLAGS_belt_speed_ki, FLAGS_max_drive_force,
             FLAGS_max_integral_drive_force, Vector3d::Zero(), FLAGS_time_step);
-    builder.Connect(speed_selector->get_desired_speed_output_port(),
+    builder.Connect(*desired_speed_output,
                     speed_controller->get_target_speed_input_port());
     builder.Connect(plant.get_body_poses_output_port(),
                     speed_controller->get_body_poses_input_port());
