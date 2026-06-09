@@ -141,6 +141,7 @@ systems::EventStatus MeshcatVisualizer<T>::UpdateMeshcat(
     version_ = current_version;
   }
   SetTransforms(context, query_object);
+  BroadcastDeformables(query_object);
   if (params_.enable_alpha_slider) {
     double new_alpha_value = meshcat_->GetSliderValue(alpha_slider_name_);
     if (new_alpha_value != alpha_value_) {
@@ -153,22 +154,30 @@ systems::EventStatus MeshcatVisualizer<T>::UpdateMeshcat(
   return systems::EventStatus::Succeeded();
 }
 
-// This method shall only be used with a deformable `geom_id`.
-// Read header for more info.
 template <typename T>
-void MeshcatVisualizer<T>::RegisterDeformableTriangleSurface(
-    const QueryObject<T>& query_object, GeometryId geom_id) const {
-  const auto& inspector = query_object.inspector();
+void MeshcatVisualizer<T>::RegisterDeformable(
+    const QueryObject<T>& query_object, GeometryId deformable_id) const {
   if constexpr (std::is_same_v<T, double>) {
-    const std::vector<internal::RenderMesh>& render_meshes =
-        inspector.GetDrivenRenderMeshes(geom_id, params_.role);
-    const int num_render_meshes = ssize(render_meshes);
+    if (dynamic_deformable_geometries_.contains(deformable_id)) {
+      throw std::logic_error(fmt::format(
+          "Deformable geometry {} has already been registered. It cannot be "
+          "registered again.",
+          deformable_id));
+    }
 
-    dynamic_deformable_geometries_[geom_id].reserve(num_render_meshes);
+    const auto& inspector = query_object.inspector();
+    const std::vector<internal::RenderMesh>& render_meshes =
+        inspector.GetDrivenRenderMeshes(deformable_id, params_.role);
+    const int num_render_meshes = ssize(render_meshes);
+    dynamic_deformable_geometries_[deformable_id].reserve(num_render_meshes);
+
     for (int i = 0; i < num_render_meshes; ++i) {
-      TriangleSurfaceMesh<double> tri_surface =
-          internal::MakeTriangleSurfaceMesh(render_meshes[i]);
-      dynamic_deformable_geometries_[geom_id].push_back(tri_surface);
+      const Rgba& diffuse_color = render_meshes[i].material.has_value()
+                                      ? render_meshes[i].material->diffuse
+                                      : params_.default_color;
+
+      dynamic_deformable_geometries_[deformable_id].push_back(
+          {internal::MakeTriangleSurfaceMesh(render_meshes[i]), diffuse_color});
     }
   } else {
     throw std::runtime_error(
@@ -176,47 +185,34 @@ void MeshcatVisualizer<T>::RegisterDeformableTriangleSurface(
   }
 }
 
-// This method shall only be used with a deformable `geom_id` already
-// registered with `RegisterDeformableTriangleSurface()`. Read header for more
-// info.
 template <typename T>
-void MeshcatVisualizer<T>::BroadcastDeformableGeometry(
-    const QueryObject<T>& query_object, GeometryId geom_id,
-    const std::string& path) const {
-  const auto& inspector = query_object.inspector();
-
+void MeshcatVisualizer<T>::BroadcastDeformables(
+    const QueryObject<T>& query_object) const {
   if constexpr (std::is_same_v<T, double>) {
-    const std::vector<internal::RenderMesh>& render_meshes =
-        inspector.GetDrivenRenderMeshes(geom_id, params_.role);
-    // We already checked the T is double
-    const std::vector<VectorX<double>> vertex_positions =
-        query_object.GetDrivenMeshConfigurationsInWorld(geom_id, params_.role);
-    DRAKE_DEMAND(ssize(vertex_positions) == ssize(render_meshes));
-    DRAKE_DEMAND(dynamic_deformable_geometries_.contains(geom_id));
-    const int num_render_meshes = ssize(render_meshes);
+    for (auto& [deformable_id, colored_meshes] :
+         dynamic_deformable_geometries_) {
+      const int num_render_meshes = std::size(colored_meshes);
+      const std::string& path = geometries_.at(deformable_id);
 
-    for (int i = 0; i < num_render_meshes; ++i) {
-      const Rgba& diffuse_color = render_meshes[i].material.has_value()
-                                      ? render_meshes[i].material->diffuse
-                                      : params_.default_color;
+      // We already checked the T is double
+      const std::vector<VectorX<double>> vertex_positions =
+          query_object.GetDrivenMeshConfigurationsInWorld(deformable_id,
+                                                          params_.role);
+      DRAKE_DEMAND(std::ssize(vertex_positions) == num_render_meshes);
 
-      // The final path is either `path` (if there is only one render mesh) or
-      // `path/i` (if there are multiple render meshes).
-      const std::string final_sub_path =
-          num_render_meshes == 1 ? path : fmt::format("{}/{}", path, i);
+      for (int i = 0; i < num_render_meshes; ++i) {
+        colored_meshes[i].mesh.SetAllPositions(vertex_positions[i]);
 
-      dynamic_deformable_geometries_[geom_id][i].SetAllPositions(
-          vertex_positions[i]);
-      meshcat_->SetObject(final_sub_path,
-                          dynamic_deformable_geometries_[geom_id][i],
-                          diffuse_color);
+        const std::string final_sub_path =
+            num_render_meshes == 1 ? path : fmt::format("{}/{}", path, i);
+        meshcat_->SetObject(final_sub_path, colored_meshes[i].mesh,
+                            colored_meshes[i].diffuse);
+      }
+      meshcat_->SetTransform(path, math::RigidTransformd::Identity());
     }
-    // Deformables are working with vertices link to world only.
-    meshcat_->SetTransform(path, math::RigidTransformd::Identity());
-  } else {
-    throw std::runtime_error(
-        "Only MeshcatVisualizer<double> supports deformable geometry.");
   }
+  // Else do nothing -- we should've already thrown in RegisterDeformable()
+  // for T != double.
 }
 
 template <typename T>
@@ -319,8 +315,7 @@ void MeshcatVisualizer<T>::SetObjects(
           path = fmt::format("{}/{}/{}", frame_path, "deformable_geometries",
                              geometry_name);
 
-          RegisterDeformableTriangleSurface(query_object, geom_id);
-          BroadcastDeformableGeometry(query_object, geom_id, path);
+          RegisterDeformable(query_object, geom_id);
         } else {
           // Fall back to the geometry's shape.
           meshcat_->SetObject(path, inspector.GetShape(geom_id), rgba,
@@ -362,12 +357,6 @@ void MeshcatVisualizer<T>::SetTransforms(
         internal::convert_to_double(query_object.GetPoseInWorld(frame_id));
     meshcat_->SetTransform(path, X_WF,
                            ExtractDoubleOrThrow(context.get_time()));
-  }
-
-  for (const auto& [geom_id, _] : dynamic_deformable_geometries_) {
-    std::string geom_path = geometries_.at(geom_id);
-    // Force update the deformable geometries
-    BroadcastDeformableGeometry(query_object, geom_id, geom_path);
   }
 }
 

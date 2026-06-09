@@ -141,38 +141,15 @@ class MeshcatVisualizer final : public systems::LeafSystem<T> {
    is valid (if not, sends the objects) and then sends the transforms.  */
   systems::EventStatus UpdateMeshcat(const systems::Context<T>& context) const;
 
-  /* Register a given deformable geometry. This register optimizes vertex
-   position operations.
+  /* Registers a deformable geometry with the visualizer. This doesn't broadcast
+   any messages to Meshcat; that happens in BroadcastDeformables().
+   @pre deformable_id names a deformable geometry.
+   @throws if deformable_id is already registered. */
+  void RegisterDeformable(const QueryObject<T>& query_object,
+                          GeometryId deformable_id) const;
 
-   @see `BroadcastDeformableGeometry()`.
-
-   @pre This method shall only be used with a deformable `geom_id`.
-
-   @param query_object The query object to get the geometry configuration.
-   @param geom_id The geometry id of the deformable geometry.
-
-   @throws std::runtime_error if `T` is not double. */
-  void RegisterDeformableTriangleSurface(const QueryObject<T>& query_object,
-                                         GeometryId geom_id) const;
-
-  /* Broadcast updates of a given deformable geometry, which replaces the
-   visualizer with the new vertex positions. If the deformable geometry has not
-   been registered before, it stores all new TriangleSurfaceMesh. Otherwise, it
-   updates their positions with the new deformable geometry vertices.
-
-   @pre This method shall only be used with a deformable `geom_id`. For
-   performance reasons, no geometry type check is made in this function.
-   @pre geom_id is already registered with
-   `RegisterDeformableTriangleSurface()`.
-
-   @param query_object The query object to get the geometry configuration.
-   @param geom_id The geometry id of the deformable geometry.
-   @param path The path to the geometry in Meshcat.
-
-   @throws std::runtime_error if `T` is not double. */
-  void BroadcastDeformableGeometry(const QueryObject<T>& query_object,
-                                   GeometryId geom_id,
-                                   const std::string& path) const;
+  /* Broadcasts all deformable meshes with current vertex positions. */
+  void BroadcastDeformables(const QueryObject<T>& query_object) const;
 
   /* Makes calls to Meshcat::SetObject to register geometry in SceneGraph. */
   void SetObjects(const QueryObject<T>& query_object) const;
@@ -219,11 +196,19 @@ class MeshcatVisualizer final : public systems::LeafSystem<T> {
    state. */
   mutable std::map<FrameId, std::string> dynamic_frames_{};
 
-  /* The set of deformable geometries and the triangle surfaces associated with
-    that geometry. It is coupled with the version_. This is only for efficiency;
-    it does not represent undeclared state. This map provides a quick filtered
-    list of the geometries that this class requires. */
-  mutable std::map<GeometryId, std::vector<TriangleSurfaceMesh<T>>>
+  /* Store a colored surface mesh for each discrete component of a deformable
+   geometry's visible geometry. */
+  struct ColoredMesh {
+    TriangleSurfaceMesh<T> mesh;
+    Rgba diffuse;
+  };
+
+  /* The visual representation of the known deformable geometries. For a single
+   geometry id, we have one or more colored meshes. The contents gets rebuilt
+   when scene graph version changes. We use these cached surface mesehes to
+   broadcast the deformed mesh without recomputing/duplicating the surface mesh
+   over and over (instead, we simply update vertex positions). */
+  mutable std::map<GeometryId, std::vector<ColoredMesh>>
       dynamic_deformable_geometries_{};
 
   /* A store of the geometries sent to Meshcat, so that they can be removed if a
