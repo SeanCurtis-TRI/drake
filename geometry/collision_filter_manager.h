@@ -23,49 +23,54 @@ class GeometryState;
  @ref scene_graph_collision_filter_manager "SceneGraph's documentation" for
  details on acquiring an instance.
 
- A SceneGraph instance contains the set of geometry
- `G = D ⋃ A = {g₀, g₁, ..., gₙ}`, where D is the set of dynamic geometries and
- A is the set of anchored geometries (by definition `D ⋂ A = ∅`). `Gₚ ⊂ G` is
- the subset of geometries that have a proximity role (with an analogous
- interpretation of `Dₚ` and `Aₚ`). Many proximity queries operate on pairs of
- geometries (e.g., (gᵢ, gⱼ)). The set of proximity candidate pairs for such
- queries is initially defined as
- `C = (Gₚ × Gₚ) - (Aₚ × Aₚ) - Fₚ - Iₚ - Nₚ*`, where:
+ A SceneGraph instance contains the set of geometries with assigned proximity
+ properties `G = D ⋃ A = {g₀, g₁, ..., gₙ}`, where D is the set of dynamic
+ geometries and A is the set of anchored geometries (by definition `D ⋂ A = ∅`).
+ Many proximity queries operate on pairs of geometries (e.g., (gᵢ, gⱼ)). So, in
+ principle, the potential domain of those queries (the "candidate pairs") are
+ the set of geometry pairs `G × G`. In practice, we exclude pairs from the set.
 
-  - `Gₚ × Gₚ = {(gᵢ, gⱼ)}, ∀ gᵢ, gⱼ ∈ Gₚ` is the Cartesian product of the set
-    of SceneGraph proximity geometries.
-  - `Aₚ × Aₚ` represents all pairs consisting only of anchored geometries;
-    an anchored geometry is never tested against another anchored geometry.
-  - `Fₚ = {(gᵢ, gⱼ)} ∀ i, j`, such that `gᵢ, gⱼ ∈ Dₚ` and
-    `frame(gᵢ) == frame(gⱼ)`; the pairs where both geometries are rigidly
-    affixed to the same frame.
-  - `Iₚ = {(g, g)}, ∀ g ∈ Gₚ` is the set of all pairs consisting of a
-    geometry with itself; there is no meaningful proximity query on a
-    geometry with itself.
-  - `Nₚ* = {(g, x)}, ∀ g ∈ Nₚ, x ∈ Gₚ, g ≠ x`, where `Nₚ ⊂ Gₚ` is the set of
-    *inactive* geometries (see CollisionFilterDeclaration::Deactivate()). An
-    inactive geometry forms no candidate pair with any other geometry. Unlike
-    the other terms, `Nₚ*` is evaluated against the *live* set `Gₚ`: a geometry
-    registered after `g` was deactivated still forms no pair with `g`.
-    Membership in `Nₚ` is edited by Deactivate() and Activate() declarations;
-    all other statements edit pairs, not active status.
+ The %CollisionFilterManager excludes many pairs intrinsically, and provides
+ mechanisms for the users to exclude even more pairs.
 
- Only pairs contained in C will be included in pairwise proximity operations.
+ Intrinsic Exclusions
 
- The manager provides an interface to modify the set C. Changes to C are
- articulated with CollisionFilterDeclaration. Once a change has been *declared*
- it is applied via the manager's API to change the configuration of C.
+ - `Iₚ = {(g, g)}, ∀ g ∈ G` is the set of all pairs consisting of a geometry
+   with itself; there is no meaningful proximity query on such a pair.
+ - `A × A` represents all pairs consisting only of anchored geometries; an
+   anchored geometry is never tested against another anchored geometry.
+ - `F = {(gᵢ, gⱼ)} ∀ i, j`, such that `gᵢ, gⱼ ∈ D` and `frame(gᵢ) == frame(gⱼ)`;
+   the pairs where both geometries are rigidly affixed to the same frame.
+ - Intrinsic exclusions are immutable: they cannot be restored to the candidate
+   set by the user.
 
- There are limits to how C can be modified.
+ User-Defined Exclusions
 
-   - `∀ (gᵢ, gⱼ) ∈ C`, both gᵢ and gⱼ must be registered with SceneGraph; you
-     can't inject arbitrary ids. Attempting to do so will result in an error.
-   - No pairs in `Aₚ × Aₚ`, `Fₚ`, or `Iₚ` can ever be added to C. Excluding
-     those pairs is a SceneGraph invariant. Attempts to do so will be ignored.
+ - Using CollisionFilterDeclaration, the user can declare other pairs to be
+   excluded (i.e., "filtered"). Subsequent declarations can restore those pairs
+   to the candidate set ("allowing" the pair).
+ - Declarations of user-defined exclusions and allowances can only be made on
+   known geometries. Declarations on unknown geometries will be rejected with an
+   error.
 
- The current configuration of C depends on the sequence of filter declarations
- that have been applied in the manager. Changing the order can change the end
- result.
+ Geometry Activity
+
+ In addition to excluding specific geometry pairs, a geometry can be declared
+ *inactive* (see CollisionFilterDeclaration::Deactivate()). An inactive geometry
+ is essentially excluded from G. It still exists as a known geometry. So,
+ adding or removing filters on that geometry is still valid. However, those
+ declarations will have no apparent effect until the geometry is reactivated.
+ An inactive geometry will simply never appear in the candidate set C.
+
+ We can define `N` as the set of inactive geometries and `Gₐ = G - N` as the set
+ of active geometries. 
+ 
+ Candidate Geometry Pairs
+ 
+ Therefore, the set of geometry pair candidates for proximity queries is defined
+ as:
+
+  `C = (Gₐ × Gₐ) - (A × A) - F - I`.
 
  A %CollisionFilterManager is a view into geometry data (either that owned by
  a SceneGraph instance or a SceneGraph context). The manager instance can be
@@ -73,25 +78,21 @@ class GeometryState;
  both the original and the copy (or just the target when moving the manager),
  the source data must stay alive for at least as long as the manager instance.
 
- @warning The effect of applying a declaration is based on the state of
- SceneGraph's geometry data at the time of application. More concretely:
+ @warning Generally, the effect of applying a declaration is based on the state
+ of SceneGraph's geometry data at the time of application. The geometry's active
+ status is the one exception (see below). More concretely:
  - For a particular FrameId in a GeometrySet instance, only those geometries
    attached to the identified frame with the proximity role assigned at the
    time of the call will be included in the filter. If geometries are
    subsequently added or assigned the proximity role, they will not be
    retroactively added to the user-declared filter.
- - If the geometry set in a declaration statement includes geometries which
-   have _not_ been assigned a proximity role, those geometries will be ignored.
-   If a proximity role is subsequently assigned, those geometries will _still_
-   not be part of any user-declared collision filters.
- - In general, adding collisions and assigning proximity roles should
+ - In general, adding collision geometries and assigning proximity roles should
    happen prior to collision filter configuration.
- - The inactive set `Nₚ` is the deliberate exception to the
-   apply-time-resolution rule -- in one direction only. *Which* geometries get
-   deactivated (or reactivated) is resolved at apply time, exactly as above;
-   but the pairs an inactive geometry suppresses are evaluated against the live
-   geometry set, so an inactive geometry also forms no pair with geometries
-   registered later.
+ - Declaring a set of geometries active/inactive is the exception. These add or
+   remove the geometries from the set Gₐ. We are not adding/deleting filtered
+   pairs at the time of declaration, but simply changing the active status of
+   the geometries. A geometry's active status doesn't change just because other
+   geometries get added/removed.
 
  <h3>Transient vs Persistent changes</h3>
 
