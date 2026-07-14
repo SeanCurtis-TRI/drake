@@ -19,12 +19,26 @@ drake_cc_package_library(
     name = "render",
     visibility = ["//visibility:public"],
     deps = [
+        ":colorize_label_image",
         ":light_parameter",
         ":render_camera",
         ":render_engine",
         ":render_label",
         ":render_material",
         ":render_mesh",
+    ],
+)
+
+drake_cc_library(
+    name = "colorize_label_image",
+    srcs = ["colorize_label_image.cc"],
+    hdrs = ["colorize_label_image.h"],
+    deps = [
+        ":render_label",
+        "//common:essential",
+        "//common:never_destroyed",
+        "//geometry:rgba",
+        "//systems/sensors:image",
     ],
 )
 
