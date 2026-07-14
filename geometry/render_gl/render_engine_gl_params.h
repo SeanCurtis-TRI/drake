@@ -19,6 +19,8 @@ struct RenderEngineGlParams {
     a->Visit(DRAKE_NVP(default_diffuse));
     a->Visit(DRAKE_NVP(default_clear_color));
     a->Visit(DRAKE_NVP(lights));
+    a->Visit(DRAKE_NVP(cast_shadows));
+    a->Visit(DRAKE_NVP(shadow_map_size));
   }
 
   /** Default diffuse color to apply to a geometry when none is otherwise
@@ -31,6 +33,20 @@ struct RenderEngineGlParams {
   /** Lights in the scene. More than five lights is an error. If no lights are
    defined, a single directional light, fixed to the camera frame, is used. */
   std::vector<render::LightParameter> lights;
+
+  /** If true, all spot and directional lights that have valid directions cast
+   shadows in color images. Point lights do not cast shadows. Geometry whose
+   `(phong, diffuse)` alpha is less than one receives shadows but does not cast
+   them; alpha in a diffuse texture is not inspected. Enabling this adds one
+   additional scene render per shadow-casting light. */
+  bool cast_shadows{false};
+
+  /** The width and height, in pixels, of each shadow map. All shadow-casting
+   lights use the same resolution. Larger maps improve fidelity at the cost of
+   GPU memory and rendering time.
+   @pre shadow_map_size is positive and does not exceed the OpenGL
+   implementation's maximum allowable texture size. */
+  int shadow_map_size{256};
 };
 
 }  // namespace geometry

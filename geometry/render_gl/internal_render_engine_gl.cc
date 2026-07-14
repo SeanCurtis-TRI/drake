@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <filesystem>
+#include <limits>
 #include <optional>
 #include <unordered_set>
 #include <utility>
@@ -73,7 +74,9 @@ namespace fs = std::filesystem;
 class LightingShader : public ShaderProgram {
  public:
   DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(LightingShader);
-  LightingShader() : ShaderProgram() {}
+  explicit LightingShader(std::vector<int> shadow_light_indices)
+      : ShaderProgram(),
+        shadow_light_indices_(std::move(shadow_light_indices)) {}
 
   void SetAllLights(const std::vector<LightParameter>& lights) const {
     DRAKE_DEMAND(lights.size() <= kMaxNumLights);
@@ -88,9 +91,44 @@ class LightingShader : public ShaderProgram {
 
   static constexpr int kMaxNumLights{5};
 
+  void SetShadowMaps(GLuint texture, const std::vector<Matrix4f>& T_DWs) const {
+    if (shadow_light_indices_.empty()) return;
+    DRAKE_DEMAND(T_DWs.size() == shadow_light_indices_.size());
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, texture);
+    glUniform1i(shadow_map_loc_, 1);
+    glUniformMatrix4fv(shadow_matrices_loc_, ssize(T_DWs), GL_FALSE,
+                       T_DWs[0].data());
+    std::array<GLint, kMaxNumLights> light_to_layer;
+    light_to_layer.fill(-1);
+    for (int layer = 0; layer < ssize(shadow_light_indices_); ++layer) {
+      light_to_layer[shadow_light_indices_[layer]] = layer;
+    }
+    glUniform1iv(light_shadow_layers_loc_, kMaxNumLights,
+                 light_to_layer.data());
+  }
+
  protected:
   // Derived classes have the chance to configure additional uniforms.
   virtual void DoConfigureMoreUniforms() {}
+
+  std::string VertexShaderSource() const {
+    const std::string define =
+        shadow_light_indices_.empty()
+            ? ""
+            : fmt::format("#define SHADOW_MAP_COUNT {}\n",
+                          shadow_light_indices_.size());
+    return fmt::format("#version 330\n{}{}", define, kVertexShader);
+  }
+
+  std::string FragmentShaderSource() const {
+    const std::string define =
+        shadow_light_indices_.empty()
+            ? ""
+            : fmt::format("#define SHADOW_MAP_COUNT {}\n",
+                          shadow_light_indices_.size());
+    return fmt::format("#version 330\n{}{}", define, kFragmentShader);
+  }
 
   // This provides GLSL code necessary for performing lighting calculations:
   //   - Transforms the vertex into device *and* world coordinates.
@@ -101,7 +139,6 @@ class LightingShader : public ShaderProgram {
   // whatever work is unique to the shader and invoke PrepareLighting() so that
   // the transformed vertex is evaluated.
   static constexpr char kVertexShader[] = R"""(
-#version 330
 layout(location = 0) in vec3 p_MV;
 layout(location = 1) in vec3 n_M;
 uniform mat4 T_CM;  // The "model view matrix" (in OpenGl terms).
@@ -115,6 +152,10 @@ uniform mat3 T_WM_normals;  // Rotation * inverse_scale to transform normals.
 // number of uniforms; T_WM is no longer necessary.
 out vec3 n_W;
 out vec3 p_WV; // Vertex position in world space.
+#ifdef SHADOW_MAP_COUNT
+uniform mat4 shadow_T_DW[SHADOW_MAP_COUNT];
+out vec4 shadow_position[SHADOW_MAP_COUNT];
+#endif
 
 void PrepareLighting() {
   // gl_Position is p_DV; the vertex position in device coordinates.
@@ -122,6 +163,24 @@ void PrepareLighting() {
 
   n_W = normalize(T_WM_normals * n_M);
   p_WV = (T_WM * vec4(p_MV, 1)).xyz;
+#ifdef SHADOW_MAP_COUNT
+  // Keep the array indices compile-time constants. Some software OpenGL
+  // implementations mishandle dynamically indexed arrays passed between
+  // shader stages, even though GLSL 3.30 permits them.
+  shadow_position[0] = shadow_T_DW[0] * vec4(p_WV, 1.0);
+#if SHADOW_MAP_COUNT > 1
+  shadow_position[1] = shadow_T_DW[1] * vec4(p_WV, 1.0);
+#endif
+#if SHADOW_MAP_COUNT > 2
+  shadow_position[2] = shadow_T_DW[2] * vec4(p_WV, 1.0);
+#endif
+#if SHADOW_MAP_COUNT > 3
+  shadow_position[3] = shadow_T_DW[3] * vec4(p_WV, 1.0);
+#endif
+#if SHADOW_MAP_COUNT > 4
+  shadow_position[4] = shadow_T_DW[4] * vec4(p_WV, 1.0);
+#endif
+#endif
 }
 )""";
 
@@ -131,7 +190,6 @@ void PrepareLighting() {
   // main function should compute the diffuse value at the fragment and call
   // GetIlluminatedColor() to get the illuminated result.
   static constexpr char kFragmentShader[] = R"""(
-#version 330
 uniform mat4 X_WC;  // Transform light position from camera to world.
 in vec3 n_W;
 in vec3 p_WV;
@@ -175,6 +233,48 @@ struct Light {
 
 uniform Light lights[MAX_LIGHT_NUM];
 
+#ifdef SHADOW_MAP_COUNT
+uniform sampler2DArrayShadow shadow_map;
+uniform int light_shadow_layer[MAX_LIGHT_NUM];
+in vec4 shadow_position[SHADOW_MAP_COUNT];
+
+vec4 GetShadowPosition(int layer) {
+  // Keep the array indices compile-time constants for software OpenGL driver
+  // compatibility. light_shadow_layer only contains valid layer indices.
+  if (layer == 0) return shadow_position[0];
+#if SHADOW_MAP_COUNT > 1
+  if (layer == 1) return shadow_position[1];
+#endif
+#if SHADOW_MAP_COUNT > 2
+  if (layer == 2) return shadow_position[2];
+#endif
+#if SHADOW_MAP_COUNT > 3
+  if (layer == 3) return shadow_position[3];
+#endif
+#if SHADOW_MAP_COUNT > 4
+  if (layer == 4) return shadow_position[4];
+#endif
+  return vec4(0.0);
+}
+
+float GetShadowVisibility(int light_index) {
+  int layer = light_shadow_layer[light_index];
+  if (layer < 0) return 1.0;
+  vec4 position = GetShadowPosition(layer);
+  vec3 ndc = position.xyz / position.w;
+  // glClipControl(GL_UPPER_LEFT, ...) reverses the viewport's y mapping.
+  vec2 uv = vec2(ndc.x * 0.5 + 0.5, 0.5 - ndc.y * 0.5);
+  float reference = ndc.z * 0.5 + 0.5 - 0.0015;
+  if (uv.x <= 0.0 || uv.x >= 1.0 || uv.y <= 0.0 || uv.y >= 1.0 ||
+      reference <= 0.0 || reference >= 1.0) {
+    return 1.0;
+  }
+  return texture(shadow_map, vec4(uv, float(layer), reference));
+}
+#else
+float GetShadowVisibility(int unused_light_index) { return 1.0; }
+#endif
+
 vec3 GetLightPositionInWorld(Light light) {
   vec3 v_W = light.position.xyz;  // Interpreting v as v_W.
   if (light.position.w == 1) {
@@ -213,7 +313,7 @@ float GetDirectionalExposure(Light light, vec3 nhat_W) {
   return max(dot(nhat_W, normalize(-dir_L_W)), 0.0);
 }
 
-vec3 GetLightIllumination(Light light, vec3 nhat_W) {
+vec3 GetLightIllumination(Light light, int light_index, vec3 nhat_W) {
   // Position vector from fragment to light.
   vec3 p_WL = GetLightPositionInWorld(light);
   // p_WV is interpolated to be p_WF (position of the fragment).
@@ -237,13 +337,15 @@ vec3 GetLightIllumination(Light light, vec3 nhat_W) {
       // Invalid light; no exposure.
       return vec3(0.0, 0.0, 0.0);
   }
+  if (exposure <= 0.0) return vec3(0.0, 0.0, 0.0);
 
   // Attenuation.
   float inv_attenuation = light.atten_coeff[0] +
                           (light.atten_coeff[1] +
                            light.atten_coeff[2] * dist_FL) * dist_FL;
 
-  return light.color * exposure * light.intensity / inv_attenuation;
+  return GetShadowVisibility(light_index) * light.color * exposure *
+         light.intensity / inv_attenuation;
 }
 
 vec4 GetIlluminatedColor(vec4 diffuse) {
@@ -255,7 +357,7 @@ vec4 GetIlluminatedColor(vec4 diffuse) {
 
   vec3 illum = vec3(0.0, 0.0, 0.0);
   for (int i = 0; i < MAX_LIGHT_NUM; i++) {
-    illum += GetLightIllumination(lights[i], nhat_W);
+    illum += GetLightIllumination(lights[i], i, nhat_W);
   }
   return vec4(illum * diffuse.rgb, diffuse.a);
 }
@@ -272,6 +374,11 @@ vec4 GetIlluminatedColor(vec4 diffuse) {
     T_WM_normals_loc_ = GetUniformLocation("T_WM_normals");
     T_WM_loc_ = GetUniformLocation("T_WM");
     X_WC_loc_ = GetUniformLocation("X_WC");
+    if (!shadow_light_indices_.empty()) {
+      shadow_map_loc_ = GetUniformLocation("shadow_map");
+      shadow_matrices_loc_ = GetUniformLocation("shadow_T_DW[0]");
+      light_shadow_layers_loc_ = GetUniformLocation("light_shadow_layer[0]");
+    }
     DoConfigureMoreUniforms();
   }
 
@@ -326,6 +433,11 @@ vec4 GetIlluminatedColor(vec4 diffuse) {
   // The transform between world and camera frame (used for transforming light
   // positions defined in the camera frame).
   GLint X_WC_loc_{};
+
+  std::vector<int> shadow_light_indices_;
+  GLint shadow_map_loc_{};
+  GLint shadow_matrices_loc_{};
+  GLint light_shadow_layers_loc_{};
 };
 
 /* The built-in shader for Rgba diffuse colored objects. This shader supports
@@ -334,13 +446,15 @@ class DefaultRgbaColorShader final : public LightingShader {
  public:
   DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(DefaultRgbaColorShader);
 
-  explicit DefaultRgbaColorShader(const Rgba& default_diffuse)
-      : LightingShader(), default_diffuse_(default_diffuse) {
+  DefaultRgbaColorShader(const Rgba& default_diffuse,
+                         std::vector<int> shadow_light_indices)
+      : LightingShader(std::move(shadow_light_indices)),
+        default_diffuse_(default_diffuse) {
     // TODO(SeanCurtis-TRI): See if I can't come up with a more elegant way for
     // derived classes to exercise LightShader's GLSL functionality.
     LoadFromSources(
-        fmt::format("{}{}", LightingShader::kVertexShader, kVertexShader),
-        fmt::format("{}{}", LightingShader::kFragmentShader, kFragmentShader));
+        fmt::format("{}{}", VertexShaderSource(), kVertexShader),
+        fmt::format("{}{}", FragmentShaderSource(), kFragmentShader));
   }
 
   void SetInstanceParameters(const ShaderProgramData& data) const final {
@@ -404,12 +518,14 @@ class DefaultTextureColorShader final : public LightingShader {
    is alright, because the owning RenderEngineGl instances share that library
    as well -- so the shader program instances are consistent with the render
    engine instances. */
-  explicit DefaultTextureColorShader(shared_ptr<TextureLibrary> library)
-      : LightingShader(), library_(std::move(library)) {
+  DefaultTextureColorShader(shared_ptr<TextureLibrary> library,
+                            std::vector<int> shadow_light_indices)
+      : LightingShader(std::move(shadow_light_indices)),
+        library_(std::move(library)) {
     DRAKE_DEMAND(library_ != nullptr);
     LoadFromSources(
-        fmt::format("{}{}", LightingShader::kVertexShader, kVertexShader),
-        fmt::format("{}{}", LightingShader::kFragmentShader, kFragmentShader));
+        fmt::format("{}{}", VertexShaderSource(), kVertexShader),
+        fmt::format("{}{}", FragmentShaderSource(), kFragmentShader));
   }
 
   void SetInstanceParameters(const ShaderProgramData& data) const final {
@@ -507,6 +623,35 @@ void main() {
   vec4 map_rgba = texture(diffuse_map, uv);
   color = GetIlluminatedColor(map_rgba);
 })""";
+};
+
+/* A position-only shader for populating shadow-map depth attachments. */
+class ShadowDepthShader final : public ShaderProgram {
+ public:
+  DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(ShadowDepthShader);
+
+  ShadowDepthShader() { LoadFromSources(kVertexShader, kFragmentShader); }
+
+ private:
+  void DoConfigureUniforms() final {}
+
+  std::unique_ptr<ShaderProgram> DoClone() const final {
+    return make_unique<ShadowDepthShader>(*this);
+  }
+
+  static constexpr char kVertexShader[] = R"""(
+#version 330
+layout(location = 0) in vec3 p_MV;
+uniform mat4 T_CM;
+uniform mat4 T_DC;
+void main() {
+  gl_Position = T_DC * T_CM * vec4(p_MV, 1.0);
+})""";
+
+  static constexpr char kFragmentShader[] = R"""(
+#version 330
+void main() {}
+)""";
 };
 
 /* The built-in shader for objects in depth images. By default, the shader
@@ -663,6 +808,146 @@ void main() {
 })""";
 };
 
+struct ShadowView {
+  Matrix4f X_LW;
+  Matrix4f T_DL;
+  Matrix4f T_DW;
+};
+
+Matrix4f MakeLightView(const Vector3f& p_WL, const Vector3f& direction_W) {
+  const Vector3f z_W = direction_W.normalized();
+  const Vector3f reference =
+      std::abs(z_W.z()) < 0.9f ? Vector3f::UnitZ() : Vector3f::UnitY();
+  const Vector3f x_W = reference.cross(z_W).normalized();
+  const Vector3f y_W = z_W.cross(x_W);
+  Matrix4f X_LW = Matrix4f::Identity();
+  X_LW.block<3, 3>(0, 0).row(0) = x_W.transpose();
+  X_LW.block<3, 3>(0, 0).row(1) = y_W.transpose();
+  X_LW.block<3, 3>(0, 0).row(2) = z_W.transpose();
+  X_LW.block<3, 1>(0, 3) = -X_LW.block<3, 3>(0, 0) * p_WL;
+  return X_LW;
+}
+
+Matrix4f PhysicalCameraToGlCamera() {
+  Matrix4f result = Matrix4f::Identity();
+  result(1, 1) = -1;
+  result(2, 2) = -1;
+  return result;
+}
+
+Matrix4f MakePerspectiveProjection(float half_angle, float z_near,
+                                   float z_far) {
+  Matrix4f result = Matrix4f::Zero();
+  const float focal = 1.0f / std::tan(half_angle);
+  result(0, 0) = focal;
+  result(1, 1) = focal;
+  result(2, 2) = -(z_far + z_near) / (z_far - z_near);
+  result(2, 3) = -2 * z_far * z_near / (z_far - z_near);
+  result(3, 2) = -1;
+  return result;
+}
+
+Matrix4f MakeOrthographicProjection(float left, float right, float bottom,
+                                    float top, float z_near, float z_far) {
+  Matrix4f result = Matrix4f::Identity();
+  result(0, 0) = 2 / (right - left);
+  result(1, 1) = 2 / (top - bottom);
+  result(2, 2) = -2 / (z_far - z_near);
+  result(0, 3) = -(right + left) / (right - left);
+  result(1, 3) = -(top + bottom) / (top - bottom);
+  result(2, 3) = -(z_far + z_near) / (z_far - z_near);
+  return result;
+}
+
+std::array<Vector3f, 8> CalcWorldFrustumCorners(const ColorRenderCamera& camera,
+                                                const Matrix4f& X_WC) {
+  const auto& intrinsics = camera.core().intrinsics();
+  std::array<Vector3f, 8> result;
+  int index = 0;
+  for (float z : {static_cast<float>(camera.core().clipping().near()),
+                  static_cast<float>(camera.core().clipping().far())}) {
+    for (float v : {0.0f, static_cast<float>(intrinsics.height())}) {
+      for (float u : {0.0f, static_cast<float>(intrinsics.width())}) {
+        Vector3f p_C((u - intrinsics.center_x()) * z / intrinsics.focal_x(),
+                     (v - intrinsics.center_y()) * z / intrinsics.focal_y(), z);
+        result[index++] = (X_WC * p_C.homogeneous()).head<3>();
+      }
+    }
+  }
+  return result;
+}
+
+ShadowView MakeSpotShadowView(const LightParameter& light,
+                              const std::array<Vector3f, 8>& corners_W,
+                              const Matrix4f& X_WC) {
+  const bool in_world = render::light_frame_from_string(light.frame) ==
+                        render::LightFrame::kWorld;
+  Vector3f p_WL = light.position.cast<float>();
+  Vector3f direction_W = light.direction.cast<float>();
+  if (!in_world) {
+    p_WL = (X_WC * p_WL.homogeneous()).head<3>();
+    direction_W = X_WC.block<3, 3>(0, 0) * direction_W;
+  }
+  ShadowView result;
+  result.X_LW = MakeLightView(p_WL, direction_W);
+  float z_far = 0.02f;
+  for (const Vector3f& p_W : corners_W) {
+    z_far = std::max(z_far, (result.X_LW * p_W.homogeneous()).z());
+  }
+  result.T_DL =
+      MakePerspectiveProjection(light.cone_angle * M_PI / 180.0, 0.01f, z_far);
+  result.T_DW = result.T_DL * PhysicalCameraToGlCamera() * result.X_LW;
+  return result;
+}
+
+ShadowView MakeDirectionalShadowView(const LightParameter& light,
+                                     const std::array<Vector3f, 8>& corners_W,
+                                     const Matrix4f& X_WC, float camera_far,
+                                     int map_size) {
+  const bool in_world = render::light_frame_from_string(light.frame) ==
+                        render::LightFrame::kWorld;
+  Vector3f direction_W = light.direction.cast<float>();
+  if (!in_world) {
+    direction_W = X_WC.block<3, 3>(0, 0) * direction_W;
+  }
+  const Vector3f camera_position = X_WC.block<3, 1>(0, 3);
+  float minimum_projection = std::numeric_limits<float>::infinity();
+  for (const Vector3f& p_W : corners_W) {
+    minimum_projection = std::min(minimum_projection, direction_W.dot(p_W));
+  }
+  // Put the light origin one camera range upstream of the nearest receiver.
+  // Any caster between that origin and a visible receiver is retained.
+  const Vector3f p_WL =
+      camera_position + direction_W * (minimum_projection - camera_far -
+                                       direction_W.dot(camera_position));
+  ShadowView result;
+  result.X_LW = MakeLightView(p_WL, direction_W);
+  Vector3f minimum = Vector3f::Constant(std::numeric_limits<float>::infinity());
+  Vector3f maximum = -minimum;
+  for (const Vector3f& p_W : corners_W) {
+    const Vector3f p_L = (result.X_LW * p_W.homogeneous()).head<3>();
+    minimum = minimum.cwiseMin(p_L);
+    maximum = maximum.cwiseMax(p_L);
+  }
+  float width = std::max(maximum.x() - minimum.x(), 0.01f);
+  float height = std::max(maximum.y() - minimum.y(), 0.01f);
+  float center_x = 0.5f * (minimum.x() + maximum.x());
+  float center_y = 0.5f * (minimum.y() + maximum.y());
+  // Stabilize the projection under small camera motions.
+  center_x = std::round(center_x / (width / map_size)) * (width / map_size);
+  center_y = std::round(center_y / (height / map_size)) * (height / map_size);
+  const float left = center_x - width * 0.5f;
+  const float right = center_x + width * 0.5f;
+  // The physical camera's +y is flipped when converted to the GL camera.
+  const float bottom = -(center_y + height * 0.5f);
+  const float top = -(center_y - height * 0.5f);
+  const float z_far = std::max(maximum.z() + camera_far, 0.02f);
+  result.T_DL =
+      MakeOrthographicProjection(left, right, bottom, top, 0.01f, z_far);
+  result.T_DW = result.T_DL * PhysicalCameraToGlCamera() * result.X_LW;
+  return result;
+}
+
 // We want to make sure the lights are as clean as possible. So, we'll
 // re-normalize unit vectors (where possible). We're not testing for "bad"
 // values because those values which *might* be considered "bad" can be used
@@ -672,6 +957,10 @@ RenderEngineGlParams CleanupLights(RenderEngineGlParams params) {
     throw std::runtime_error(
         fmt::format("RenderEngineGl supports up to five lights; {} specified.",
                     ssize(params.lights)));
+  }
+  if (params.shadow_map_size <= 0) {
+    throw std::runtime_error(
+        "RenderEngineGl shadow_map_size must be positive.");
   }
   for (auto& light : params.lights) {
     if (light.type != "point") {
@@ -701,12 +990,40 @@ RenderEngineGl::RenderEngineGl(RenderEngineGlParams params)
 
   InitGlState();
 
+  if (parameters_.cast_shadows) {
+    if (parameters_.shadow_map_size >
+        OpenGlContext::max_allowable_texture_size()) {
+      throw std::runtime_error(fmt::format(
+          "RenderEngineGl shadow_map_size {} exceeds the maximum allowable "
+          "texture size {}.",
+          parameters_.shadow_map_size,
+          OpenGlContext::max_allowable_texture_size()));
+    }
+    const auto& lights = active_lights();
+    for (int i = 0; i < ssize(lights); ++i) {
+      const render::LightType type =
+          render::light_type_from_string(lights[i].type);
+      const bool valid_spot = type == render::LightType::kSpot &&
+                              lights[i].cone_angle > 0 &&
+                              lights[i].cone_angle < 90;
+      if (lights[i].direction.squaredNorm() > 0 &&
+          (valid_spot || type == render::LightType::kDirectional)) {
+        shadow_light_indices_.push_back(i);
+      }
+    }
+    if (!shadow_light_indices_.empty()) {
+      shadow_shader_ = make_unique<ShadowDepthShader>();
+    }
+  }
+
   // Color shaders. See documentation on GetShaderProgram. We want color from
   // texture to be "more preferred" than color from rgba, so we add the
   // texture color shader *after* the rgba color shader.
-  AddShader(make_unique<DefaultRgbaColorShader>(params.default_diffuse),
+  AddShader(make_unique<DefaultRgbaColorShader>(parameters_.default_diffuse,
+                                                shadow_light_indices_),
             RenderType::kColor);
-  AddShader(make_unique<DefaultTextureColorShader>(texture_library_),
+  AddShader(make_unique<DefaultTextureColorShader>(texture_library_,
+                                                   shadow_light_indices_),
             RenderType::kColor);
   ConfigureLights();
 
@@ -745,6 +1062,11 @@ RenderEngineGl::~RenderEngineGl() {
       program_ptr->Free();
     }
   }
+  if (shadow_shader_ != nullptr) shadow_shader_->Free();
+  if (shadow_frame_buffer_ != 0) {
+    glDeleteFramebuffers(1, &shadow_frame_buffer_);
+  }
+  if (shadow_texture_ != 0) glDeleteTextures(1, &shadow_texture_);
 }
 
 void RenderEngineGl::UpdateViewpoint(const RigidTransformd& X_WR) {
@@ -1016,6 +1338,8 @@ unique_ptr<RenderEngine> RenderEngineGl::DoClone() const {
   for (auto& buffer : clone->frame_buffers_) {
     buffer.clear();
   }
+  clone->shadow_texture_ = 0;
+  clone->shadow_frame_buffer_ = 0;
 
   clone->InitGlState();
 
@@ -1033,6 +1357,7 @@ unique_ptr<RenderEngine> RenderEngineGl::DoClone() const {
       program_ptr->Relink();
     }
   }
+  if (clone->shadow_shader_ != nullptr) clone->shadow_shader_->Relink();
 
   // Update the shader OpenGL state to properly configure the lighting.
   clone->ConfigureLights();
@@ -1067,6 +1392,93 @@ void RenderEngineGl::RenderAt(const ShaderProgram& shader_program,
   glBindVertexArray(0);
 }
 
+void RenderEngineGl::EnsureShadowMapResources() const {
+  if (shadow_texture_ != 0) return;
+  DRAKE_DEMAND(!shadow_light_indices_.empty());
+
+  glGenTextures(1, &shadow_texture_);
+  glBindTexture(GL_TEXTURE_2D_ARRAY, shadow_texture_);
+  glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_DEPTH_COMPONENT24,
+               parameters_.shadow_map_size, parameters_.shadow_map_size,
+               shadow_light_indices_.size(), 0, GL_DEPTH_COMPONENT,
+               GL_UNSIGNED_INT, nullptr);
+  glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+  glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+  glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_COMPARE_MODE,
+                  GL_COMPARE_REF_TO_TEXTURE);
+  glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
+  const GLfloat border[] = {1, 1, 1, 1};
+  glTexParameterfv(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_BORDER_COLOR, border);
+  glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
+
+  glGenFramebuffers(1, &shadow_frame_buffer_);
+  glBindFramebuffer(GL_FRAMEBUFFER, shadow_frame_buffer_);
+  glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
+                            shadow_texture_, 0, 0);
+  glDrawBuffer(GL_NONE);
+  glReadBuffer(GL_NONE);
+  if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+    throw std::runtime_error("Shadow-map framebuffer creation failed.");
+  }
+}
+
+std::vector<Matrix4f> RenderEngineGl::RenderShadowMaps(
+    const ColorRenderCamera& camera) const {
+  std::vector<Matrix4f> matrices;
+  if (shadow_light_indices_.empty()) return matrices;
+  EnsureShadowMapResources();
+
+  const Matrix4f X_CW = X_CW_.GetAsMatrix4().matrix().cast<float>();
+  const Matrix4f X_WC = X_CW.inverse();
+  const auto corners_W = CalcWorldFrustumCorners(camera, X_WC);
+  const float camera_far = camera.core().clipping().far();
+
+  glBindFramebuffer(GL_FRAMEBUFFER, shadow_frame_buffer_);
+  glViewport(0, 0, parameters_.shadow_map_size, parameters_.shadow_map_size);
+  glDisable(GL_BLEND);
+  // Perception meshes are two-sided shadow casters. Keep color rendering's
+  // back-face culling policy independent from the shadow silhouette so that
+  // open meshes cast the same shadow regardless of triangle winding.
+  glDisable(GL_CULL_FACE);
+  glEnable(GL_POLYGON_OFFSET_FILL);
+  glPolygonOffset(2.0f, 4.0f);
+  shadow_shader_->Use();
+
+  for (int layer = 0; layer < ssize(shadow_light_indices_); ++layer) {
+    const LightParameter& light = active_lights()[shadow_light_indices_[layer]];
+    const render::LightType type = render::light_type_from_string(light.type);
+    const ShadowView view =
+        type == render::LightType::kSpot
+            ? MakeSpotShadowView(light, corners_W, X_WC)
+            : MakeDirectionalShadowView(light, corners_W, X_WC, camera_far,
+                                        parameters_.shadow_map_size);
+    matrices.push_back(view.T_DW);
+
+    glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
+                              shadow_texture_, 0, layer);
+    glClear(GL_DEPTH_BUFFER_BIT);
+    shadow_shader_->SetProjectionMatrix(view.T_DL);
+    for (const auto& [_, prop] : visuals_) {
+      for (const OpenGlInstance& instance : prop.instances) {
+        if (!instance.casts_shadows) continue;
+        const OpenGlGeometry& geometry = geometries_[instance.geometry];
+        glBindVertexArray(geometry.vertex_array);
+        shadow_shader_->SetModelViewMatrix(view.X_LW, instance.T_WN,
+                                           instance.N_WN);
+        glDrawElements(geometry.mode, geometry.index_count, geometry.type, 0);
+      }
+    }
+  }
+
+  glBindVertexArray(0);
+  shadow_shader_->Unuse();
+  glDisable(GL_POLYGON_OFFSET_FILL);
+  glEnable(GL_CULL_FACE);
+  return matrices;
+}
+
 void RenderEngineGl::DoRenderColorImage(const ColorRenderCamera& camera,
                                         ImageRgba8U* color_image_out) const {
   opengl_context_->MakeCurrent();
@@ -1076,6 +1488,8 @@ void RenderEngineGl::DoRenderColorImage(const ColorRenderCamera& camera,
   //  rendered in that order. This may lead to shader thrashing. Without this
   //  ordering, I may not necessarily see objects through transparent surfaces.
   //  Confirm that VTK handles transparency correctly and do the same.
+
+  const std::vector<Matrix4f> shadow_matrices = RenderShadowMaps(camera);
 
   const RenderTarget render_target =
       GetRenderTarget(camera.core(), RenderType::kColor);
@@ -1094,6 +1508,12 @@ void RenderEngineGl::DoRenderColorImage(const ColorRenderCamera& camera,
   for (const auto& [_, shader_program] : shader_programs_[RenderType::kColor]) {
     shader_program->Use();
     shader_program->SetProjectionMatrix(T_DC);
+    if (!shadow_matrices.empty()) {
+      const auto* lighting_program =
+          dynamic_pointer_cast_or_throw<const LightingShader>(
+              shader_program.get());
+      lighting_program->SetShadowMaps(shadow_texture_, shadow_matrices);
+    }
     RenderAt(*shader_program, RenderType::kColor);
     shader_program->Unuse();
   }
@@ -1216,9 +1636,13 @@ void RenderEngineGl::AddGeometryInstance(int geometry_index, void* user_data,
   DRAKE_DEMAND(color_data.has_value() && depth_data.has_value() &&
                label_data.has_value());
 
+  const Rgba diffuse = data.properties.GetPropertyOrDefault(
+      "phong", "diffuse", data.default_diffuse);
+  const bool casts_shadows = diffuse.rgba()(3) >= 1.0;
+
   visuals_[data.id].instances.push_back(
       {geometry_index, scale.cast<float>(), geometries_.at(geometry_index),
-       *color_data, *depth_data, *label_data});
+       *color_data, *depth_data, *label_data, casts_shadows});
 
   // For anchored geometry, we need to make sure the instance's values for
   // T_WN and N_WN are initialized based on the initial pose, X_WG.

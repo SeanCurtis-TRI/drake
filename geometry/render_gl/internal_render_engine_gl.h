@@ -333,6 +333,14 @@ class RenderEngineGl final : public render::RenderEngine, private ShapeReifier {
   // during cloning.
   void ConfigureLights();
 
+  // Renders one depth map for every shadow-casting light and returns the
+  // world-to-device matrix for each texture-array layer.
+  std::vector<Eigen::Matrix4f> RenderShadowMaps(
+      const render::ColorRenderCamera& camera) const;
+
+  // Allocates this engine's shadow texture array and framebuffer on first use.
+  void EnsureShadowMapResources() const;
+
   // The cached value transformation between camera and world frames.
   math::RigidTransformd X_CW_;
 
@@ -441,6 +449,16 @@ class RenderEngineGl final : public render::RenderEngine, private ShapeReifier {
   mutable std::array<std::unordered_map<BufferDim, RenderTarget>,
                      RenderType::kTypeCount>
       frame_buffers_;
+
+  // The indices into active_lights() which have a shadow-map layer. Point
+  // lights are deliberately omitted because they require six render views.
+  std::vector<int> shadow_light_indices_;
+
+  // Shadow resources are per-engine (and recreated when cloning) so that
+  // clones rendering concurrently never write the same maps.
+  copyable_unique_ptr<ShaderProgram> shadow_shader_;
+  mutable GLuint shadow_texture_{0};
+  mutable GLuint shadow_frame_buffer_{0};
 
   // Each OpenGlInstance is associated with a single material. Some visuals
   // may be comprised of multiple instances (such as might come from an Obj or

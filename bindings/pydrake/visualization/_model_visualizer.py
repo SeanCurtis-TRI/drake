@@ -269,8 +269,8 @@ class ModelVisualizer:
         if self._rgbd_renderer == "gl":
             return RenderEngineGlParams(
                 lights=lights or [],
-                # cast_shadows=self._rgbd_cast_shadows,
-                # shadow_map_size=self._rgbd_shadow_map_size,
+                cast_shadows=self._rgbd_cast_shadows,
+                shadow_map_size=self._rgbd_shadow_map_size,
             )
 
         result = RenderEngineVtkParams()
