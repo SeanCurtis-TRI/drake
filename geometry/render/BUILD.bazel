@@ -36,7 +36,6 @@ drake_cc_library(
     deps = [
         ":render_label",
         "//common:essential",
-        "//common:never_destroyed",
         "//geometry:rgba",
         "//systems/sensors:image",
     ],
@@ -160,6 +159,14 @@ filegroup(
         "test/meshes/*",
         "test/*.png",
     ]),
+)
+
+drake_cc_googletest(
+    name = "colorize_label_image_test",
+    deps = [
+        ":colorize_label_image",
+        "//systems/sensors/test_utilities:image_compare",
+    ],
 )
 
 drake_cc_googletest(

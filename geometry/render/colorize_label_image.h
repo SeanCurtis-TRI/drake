@@ -11,10 +11,9 @@ namespace render {
  Non-reserved labels (user-assigned values) are mapped to colors from a
  built-in palette. Reserved labels (empty, don't care, etc.) are mapped to
  `background_color`. */
-void ColorizeLabelImage(
-    const systems::sensors::ImageLabel16I& input,
-    systems::sensors::ImageRgba8U* output,
-    const Rgba& background_color = Rgba{0, 0, 0, 0});
+void ColorizeLabelImage(const systems::sensors::ImageLabel16I& input,
+                        systems::sensors::ImageRgba8U* output,
+                        const Rgba& background_color = Rgba{0, 0, 0, 0});
 
 }  // namespace render
 }  // namespace geometry
