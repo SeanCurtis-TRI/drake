@@ -33,6 +33,7 @@
 #include "drake/geometry/geometry_ids.h"
 #include "drake/geometry/geometry_roles.h"
 #include "drake/geometry/read_gltf_to_memory.h"
+#include "drake/geometry/render/colorize_label_image.h"
 #include "drake/geometry/render/render_label.h"
 #include "drake/math/rigid_transform.h"
 #include "drake/math/rotation_matrix.h"
@@ -2575,6 +2576,36 @@ TEST_F(RenderEngineGlTest, ShowColorWindowIsRightSideUp) {
   }
   EXPECT_GT(flipped_matches, channel_count * 0.99);
   EXPECT_GT(flipped_matches, unflipped_matches);
+
+  // Also confirm the label window is right-side-up.
+  ImageLabel16I label_image(kWidth, kHeight);
+  engine.RenderLabelImage(camera, &label_image);
+
+  ImageRgba8U label_window(kWidth, kHeight);
+  glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+  glReadBuffer(GL_FRONT);
+  glPixelStorei(GL_PACK_ALIGNMENT, 1);
+  glPixelStorei(GL_PACK_ROW_LENGTH, 0);
+  glReadPixels(0, 0, kWidth, kHeight, GL_RGBA, GL_UNSIGNED_BYTE,
+               label_window.at(0, 0));
+
+  ImageRgba8U label_ref(kWidth, kHeight);
+  render::ColorizeLabelImage(label_image, &label_ref);
+
+  int label_flipped_matches = 0;
+  int label_unflipped_matches = 0;
+  for (int y = 0; y < kHeight; ++y) {
+    for (int x = 0; x < kWidth; ++x) {
+      for (int c = 0; c < 3; ++c) {
+        label_flipped_matches +=
+            label_window.at(x, y)[c] == label_ref.at(x, kHeight - y - 1)[c];
+        label_unflipped_matches +=
+            label_window.at(x, y)[c] == label_ref.at(x, y)[c];
+      }
+    }
+  }
+  EXPECT_GT(label_flipped_matches, channel_count * 0.99);
+  EXPECT_GT(label_flipped_matches, label_unflipped_matches);
 }
 
 // We need to confirm that two Convex shapes, referring to the same file name,

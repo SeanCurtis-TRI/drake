@@ -15,6 +15,7 @@ from pydrake.geometry import (
     EquirectangularMap,
     LightParameter,
     MeshcatCone,
+    RenderEngineGlParams,
     RenderEngineVtkParams,
     Rgba,
     StartMeshcat,
@@ -81,6 +82,7 @@ class ModelVisualizer:
         meshcat=None,
         environment_map: Path = Path(),
         no_lights: bool = False,
+        rgbd_renderer: str = "vtk",
         compliance_type: str = "undefined",
     ):
         """Initializes a ModelVisualizer.
@@ -100,6 +102,8 @@ class ModelVisualizer:
           no_lights: optionally disable the lights in the render engine and
              meshcat. This is useful when using an environment map to assess
              the effect of the map.
+          rgbd_renderer: the render engine used by the optional RgbdSensor;
+             either "vtk" or "gl".
           compliance_type: Overrides the DefaultProximityProperties setting
              with same name. Can be set to either "rigid" or "compliant" for
              hydroelastic contact, or "undefined" to use point contact.
@@ -128,6 +132,9 @@ class ModelVisualizer:
         self._meshcat = meshcat
         self._environment_map = environment_map
         self._no_lights = no_lights
+        if rgbd_renderer not in ("vtk", "gl"):
+            raise ValueError("rgbd_renderer must be either 'vtk' or 'gl'")
+        self._rgbd_renderer = rgbd_renderer
         self._compliance_type = compliance_type
 
         # This is the list of loaded models, to enable the Reload button.
@@ -204,6 +211,7 @@ class ModelVisualizer:
             "browser_new",
             "pyplot",
             "environment_map",
+            "rgbd_renderer",
             "compliance_type",
         ]:
             value = getattr(prototype, f"_{name}")
@@ -225,6 +233,26 @@ class ModelVisualizer:
         # of it during Finalize().
         return self._builder.parser().package_map()
 
+    def _make_rgbd_renderer_class(self):
+        """Returns the configured parameters for the preview renderer."""
+        if self._no_lights:
+            # Neither renderer has a separate master switch for all lights.
+            lights = [LightParameter(intensity=0)]
+
+        if self._rgbd_renderer == "gl":
+            return RenderEngineGlParams(
+                lights=lights or [],
+            )
+        result = RenderEngineVtkParams()
+        result.exposure = 1
+        if self._environment_map.is_file():
+            result.environment_map = EnvironmentMap(
+                skybox=True,
+                texture=EquirectangularMap(path=str(self._environment_map)),
+            )
+        if sys.platform != "darwin":
+            result.backend = "GLX"
+        return result
     def parser(self):
         """
         (Advanced) Returns a Parser that will load models into this visualizer.
@@ -422,6 +450,8 @@ class ModelVisualizer:
             camera_config.X_PB.base_frame = "$rgbd_sensor_body"
             camera_config.z_far = 3  # Show 3m of frustum.
             camera_config.fps = 1.0  # Ignored -- we're not simulating.
+            camera_config.rgb = False
+            camera_config.label = True
             # The meshcat default field of view is 75 degrees. We want the two
             # images to match.
             camera_config.focal = CameraConfig.FovDegrees(y=75)
@@ -429,25 +459,7 @@ class ModelVisualizer:
             if not is_unit_test:
                 # Pop up a local window.
                 camera_config.show_rgb = True
-                camera_config.renderer_class = RenderEngineVtkParams()
-                camera_config.renderer_class.exposure = 1
-                if self._environment_map.is_file():
-                    camera_config.renderer_class.environment_map = (
-                        EnvironmentMap(
-                            skybox=True,
-                            texture=EquirectangularMap(
-                                path=str(self._environment_map)
-                            ),
-                        )
-                    )
-                if self._no_lights:
-                    # We can only disable *all* lights by creating a light with
-                    # zero intensity.
-                    camera_config.renderer_class.lights = [
-                        LightParameter(intensity=0)
-                    ]
-                if "darwin" not in sys.platform:
-                    camera_config.renderer_class.backend = "GLX"
+                camera_config.renderer_class = self._make_rgbd_renderer_class()
             ApplyCameraConfig(
                 config=camera_config, builder=self._builder.builder()
             )
@@ -459,7 +471,7 @@ class ModelVisualizer:
             )
             # Export the preview camera image output port for later use.
             self._builder.builder().ExportOutput(
-                camera_sensor.GetOutputPort("color_image"), "preview_image"
+                camera_sensor.GetOutputPort("label_image"), "preview_image"
             )
             # Disable LCM image transmission. It has a non-trivial cost, and
             # at the moment Meldis can't display LCM images anyway.

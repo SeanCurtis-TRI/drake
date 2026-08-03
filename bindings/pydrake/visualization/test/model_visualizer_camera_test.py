@@ -6,12 +6,17 @@ import numpy as np
 import umsgpack
 
 import pydrake.common.test_utilities.numpy_compare as numpy_compare
-from pydrake.geometry import Meshcat
+from pydrake.geometry import (
+    Meshcat,
+    RenderEngineGlParams,
+    RenderEngineVtkParams,
+)
 from pydrake.math import (
     RigidTransform,
     RollPitchYaw,
     RotationMatrix,
 )
+from pydrake.systems.sensors import ImageLabel16I
 
 
 class TestModelVisualizerCamera(unittest.TestCase):
@@ -79,3 +84,29 @@ class TestModelVisualizerCamera(unittest.TestCase):
         numpy_compare.assert_allclose(
             X_WB.GetAsMatrix34(), X_WB_expected.GetAsMatrix34(), atol=1e-15
         )
+
+        camera_sensor = dut._diagram.GetSubsystemByName("rgbd_sensor_preview")
+        color_camera = camera_sensor.default_color_render_camera()
+        self.assertEqual(color_camera.core().clipping().far(), 10.0)
+        depth_camera = camera_sensor.default_depth_render_camera()
+        self.assertEqual(depth_camera.depth_range().max_depth(), 3.0)
+        preview_image = dut._diagram.GetOutputPort("preview_image").Eval(
+            dut._context
+        )
+        self.assertIsInstance(preview_image, ImageLabel16I)
+
+    def test_rgbd_renderer_configuration(self):
+        """Checks preview renderer selection, lights, and shadows."""
+        vtk_params = mut.ModelVisualizer()._make_rgbd_renderer_class()
+        self.assertIsInstance(vtk_params, RenderEngineVtkParams)
+
+        dut = mut.ModelVisualizer(
+            rgbd_renderer="gl",
+        )
+        gl_params = dut._make_rgbd_renderer_class()
+        self.assertIsInstance(gl_params, RenderEngineGlParams)
+        default_gl = mut.ModelVisualizer(
+            rgbd_renderer="gl"
+        )._make_rgbd_renderer_class()
+        with self.assertRaisesRegex(ValueError, "rgbd_renderer"):
+            mut.ModelVisualizer(rgbd_renderer="bad")
