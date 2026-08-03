@@ -6647,6 +6647,20 @@ Raises:
 Raises:
     RuntimeError if any values are outside of the range [0, 1].)""";
         } set;
+        // Symbol: drake::geometry::Rgba::to_bytes
+        struct /* to_bytes */ {
+          // Source: drake/geometry/rgba.h
+          const char* doc =
+R"""(Converts the Rgba value to bytes, returning all four channels in
+order.
+
+Each channel is scaled by 255 and rounded to the *nearest* byte, so
+that 0.0 maps to 0 and 1.0 maps to 255. This is the conventional
+mapping used by image formats and graphics APIs, and it exactly
+inverts dividing a byte by 255 (i.e., ``Rgba(v / 255.0,
+...).to_bytes()[0] == v`` for every byte ``v``). Truncating instead of
+rounding would bias every channel low by up to one byte.)""";
+        } to_bytes;
         // Symbol: drake::geometry::Rgba::to_string
         struct /* to_string */ {
           // Source: drake/geometry/rgba.h

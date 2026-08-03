@@ -1,6 +1,7 @@
 #include "drake/visualization/colorize_depth_image.h"
 
 #include <array>
+#include <cmath>
 #include <optional>
 
 namespace drake {
@@ -56,12 +57,7 @@ void ColorizeDepthImage<T>::Calc(const ImageDepth32F& input,
   }
 
   // Convert the invalid color to bytes.
-  const std::array<uint8_t, 4> invalid = {
-      static_cast<uint8_t>(invalid_color_.r() * 255),
-      static_cast<uint8_t>(invalid_color_.g() * 255),
-      static_cast<uint8_t>(invalid_color_.b() * 255),
-      static_cast<uint8_t>(invalid_color_.a() * 255),
-  };
+  const std::array<uint8_t, 4> invalid = invalid_color_.to_bytes();
 
   // Convert the depths to grayscale.
   const double depth_scale = (*min_pixel == *max_pixel)
@@ -72,7 +68,12 @@ void ColorizeDepthImage<T>::Calc(const ImageDepth32F& input,
       const float pixel = input.at(u, v)[0];
       if (is_valid(pixel)) {
         const double normalized_depth = (pixel - *min_pixel) * depth_scale;
-        const uint8_t byte = 255 - static_cast<uint8_t>(normalized_depth * 255);
+        // Near depths are white and far depths are black. This uses the same
+        // round-to-nearest convention as Rgba::to_bytes(). Note that we invert
+        // *before* rounding; inverting afterwards (i.e., 255 minus the rounded
+        // depth) would round in the wrong direction.
+        const uint8_t byte =
+            static_cast<uint8_t>(std::round((1.0 - normalized_depth) * 255));
         for (int ch = 0; ch < 3; ++ch) {
           output->at(u, v)[ch] = byte;
         }

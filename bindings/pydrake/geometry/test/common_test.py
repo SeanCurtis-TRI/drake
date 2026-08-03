@@ -599,6 +599,11 @@ class TestGeometryCore(unittest.TestCase):
         self.assertIsInstance(color * mut.Rgba(0.5, 0.5, 0.5), mut.Rgba)
         self.assertIsInstance(color.scale_rgb(0.5), mut.Rgba)
 
+        # Byte conversion rounds to the nearest byte.
+        self.assertEqual(
+            mut.Rgba(0.5, 0.1, 0.2, 1.0).to_bytes(), [128, 26, 51, 255]
+        )
+
         # Confirm value instantiation.
         Value[mut.Rgba]
 

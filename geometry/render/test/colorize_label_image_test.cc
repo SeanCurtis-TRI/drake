@@ -42,12 +42,13 @@ GTEST_TEST(ColorizeLabelImageTest, Background) {
   label.at(5, 1)[0] = 0;
 
   ImageRgba8U actual;
-  ColorizeLabelImage(label, &actual, Rgba(0.2, 0.2, 0.2, 1.0));
+  ColorizeLabelImage(label, &actual, Rgba(0.5, 0.5, 0.5, 1.0));
 
-  // Check an arbitrary empty pixel.
-  EXPECT_EQ(actual.at(0, 0)[0], 51);
-  EXPECT_EQ(actual.at(0, 0)[1], 51);
-  EXPECT_EQ(actual.at(0, 0)[2], 51);
+  // Check an arbitrary empty pixel. Note that 0.5 lands exactly between two
+  // bytes; 128 (and not 127) confirms that channels round to the nearest byte.
+  EXPECT_EQ(actual.at(0, 0)[0], 128);
+  EXPECT_EQ(actual.at(0, 0)[1], 128);
+  EXPECT_EQ(actual.at(0, 0)[2], 128);
   EXPECT_EQ(actual.at(0, 0)[3], 255);
 
   // Check the non-empty pixel.

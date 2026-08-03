@@ -1,5 +1,6 @@
 #include "drake/geometry/rgba.h"
 
+#include <cmath>
 #include <stdexcept>
 
 #include <fmt/format.h>
@@ -31,6 +32,13 @@ void Rgba::set(const Eigen::Ref<const Eigen::VectorXd>& rgba) {
   }
 
   value_ = new_value;
+}
+
+std::array<uint8_t, 4> Rgba::to_bytes() const {
+  auto to_byte = [](double channel) {
+    return static_cast<uint8_t>(std::round(channel * 255));
+  };
+  return {to_byte(r()), to_byte(g()), to_byte(b()), to_byte(a())};
 }
 
 std::string Rgba::to_string() const {

@@ -40,12 +40,7 @@ void ColorizeLabelImage(const systems::sensors::ImageLabel16I& input,
   if (output->width() != input.width() || output->height() != input.height()) {
     output->resize(input.width(), input.height());
   }
-  const std::array<uint8_t, 4> background = {
-      static_cast<uint8_t>(background_color.r() * 255),
-      static_cast<uint8_t>(background_color.g() * 255),
-      static_cast<uint8_t>(background_color.b() * 255),
-      static_cast<uint8_t>(background_color.a() * 255),
-  };
+  const std::array<uint8_t, 4> background = background_color.to_bytes();
   const std::vector<std::array<uint8_t, 4>>& palette = GetDefaultPalette();
   for (int v = 0; v < output->height(); ++v) {
     for (int u = 0; u < output->width(); ++u) {

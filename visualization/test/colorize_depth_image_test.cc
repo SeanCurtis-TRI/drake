@@ -1,5 +1,7 @@
 #include "drake/visualization/colorize_depth_image.h"
 
+#include <array>
+#include <cstdint>
 #include <limits>
 
 #include <gtest/gtest.h>
@@ -18,19 +20,23 @@ using systems::sensors::ImageRgba8U;
 using systems::sensors::ImageTraits;
 using systems::sensors::PixelType;
 
-/* Creates a 32F depth image with only two valid values. */
+/* Creates a 32F depth image with only three valid values: the nearest, the
+farthest, and one a quarter of the way between them. */
 ImageDepth32F MakeSample32F() {
   ImageDepth32F result(6, 2, std::numeric_limits<float>::infinity());
   result.at(0, 0)[0] = -3.0;
+  result.at(4, 0)[0] = 1.25;
   result.at(5, 0)[0] = 1.0;
   result.at(5, 1)[0] = 2.0;
   return result;
 }
 
-/* Creates a 16U depth image with only two valid values. */
+/* Creates a 16U depth image with only three valid values, matching the depths
+in MakeSample32F(). */
 ImageDepth16U MakeSample16U() {
   ImageDepth16U result(6, 2, 0);
   result.at(0, 0)[0] = ImageTraits<PixelType::kDepth16U>::kTooFar;
+  result.at(4, 0)[0] = 1250;
   result.at(5, 0)[0] = 1000;
   result.at(5, 1)[0] = 2000;
   return result;
@@ -38,23 +44,31 @@ ImageDepth16U MakeSample16U() {
 
 /* Returns the "invalid depth" placeholder color. */
 Rgba MakeInvalidColor() {
-  return Rgba(0.2, 0.0, 0.0, 1.0);
+  return Rgba(0.1, 0.0, 0.0, 1.0);
 }
 
 /* Creates a color image with the expected values, i.e., the closest pixel is
-white and the farthest pixel is black. The rest of the pixels are set to the
-default invalid color. */
+white, the farthest pixel is black, and the quarter-depth pixel is a light gray.
+The rest of the pixels are set to the invalid color. */
 ImageRgba8U MakeExpected() {
   ImageRgba8U result(6, 2);
   for (int u = 0; u < result.width(); ++u) {
     for (int v = 0; v < result.height(); ++v) {
-      if (u < 5) {
-        // Per MakeInvalidColor() the invalid_color is (51, 0, 0).
-        result.at(u, v)[0] = 51;
-      } else {
+      if (u == 5) {
         for (int ch = 0; ch < 3; ++ch) {
           result.at(u, v)[ch] = (v == 0) ? 255 : 0;
         }
+      } else if (u == 4 && v == 0) {
+        // The quarter depth maps to 0.75 * 255 = 191.25; 191 (and not 192)
+        // confirms that the ramp is inverted before rounding to the nearest
+        // byte, rather than truncated and then subtracted from 255.
+        for (int ch = 0; ch < 3; ++ch) {
+          result.at(u, v)[ch] = 191;
+        }
+      } else {
+        // Per MakeInvalidColor() the invalid_color is (26, 0, 0); 26 (and not
+        // 25) confirms that channels round to the nearest byte.
+        result.at(u, v)[0] = 26;
       }
       result.at(u, v)[3] = 255;
     }
@@ -105,11 +119,8 @@ GTEST_TEST(ColorDepthImageTest, Direct16U) {
 // Confirm the default value.
 GTEST_TEST(ColorDepthImageTest, DefaultInvalidColor) {
   ColorizeDepthImage<double> dut;
-  const Rgba invalid = dut.get_invalid_color();
-  EXPECT_EQ(static_cast<int>(invalid.r() * 255), 100);
-  EXPECT_EQ(static_cast<int>(invalid.g() * 255), 0);
-  EXPECT_EQ(static_cast<int>(invalid.b() * 255), 0);
-  EXPECT_EQ(static_cast<int>(invalid.a() * 255), 255);
+  const std::array<uint8_t, 4> invalid = dut.get_invalid_color().to_bytes();
+  EXPECT_EQ(invalid, (std::array<uint8_t, 4>{100, 0, 0, 255}));
 }
 
 // Colorizes an image with valid, uniform depth across the board. The image

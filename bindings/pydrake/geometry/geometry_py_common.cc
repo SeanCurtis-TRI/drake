@@ -437,6 +437,7 @@ void DefineRgba(py::module_ m) {
         .def(py::self * py::self)
         .def("scale_rgb", &Class::scale_rgb, py::arg("scale"),
             cls_doc.scale_rgb.doc)
+        .def("to_bytes", &Class::to_bytes, cls_doc.to_bytes.doc)
         .def("__repr__", [](const Class& self) {
           return py::str("Rgba(r={}, g={}, b={}, a={})")
               .format(self.r(), self.g(), self.b(), self.a());

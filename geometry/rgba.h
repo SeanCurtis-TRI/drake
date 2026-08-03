@@ -1,6 +1,8 @@
 #pragma once
 
 #include <algorithm>
+#include <array>
+#include <cstdint>
 #include <optional>
 #include <string>
 
@@ -90,6 +92,16 @@ class Rgba {
     return {std::min(1.0, r() * scale), std::min(1.0, g() * scale),
             std::min(1.0, b() * scale), a()};
   }
+
+  /** Converts the %Rgba value to bytes, returning all four channels in order.
+
+   Each channel is scaled by 255 and rounded to the *nearest* byte, so that 0.0
+   maps to 0 and 1.0 maps to 255. This is the conventional mapping used by image
+   formats and graphics APIs, and it exactly inverts dividing a byte by 255
+   (i.e., `Rgba(v / 255.0, ...).to_bytes()[0] == v` for every byte `v`).
+   Truncating instead of rounding would bias every channel low by up to one
+   byte. */
+  std::array<uint8_t, 4> to_bytes() const;
 
   /** Converts the Rgba value to a string representation. */
   std::string to_string() const;

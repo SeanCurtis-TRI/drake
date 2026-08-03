@@ -1,5 +1,7 @@
 #include "drake/geometry/rgba.h"
 
+#include <array>
+#include <cstdint>
 #include <limits>
 #include <string>
 
@@ -14,6 +16,9 @@ namespace {
 
 using Eigen::Vector3d;
 using Eigen::Vector4d;
+
+/* Shorthand for the return type of Rgba::to_bytes(). */
+using Bytes = std::array<uint8_t, 4>;
 
 GTEST_TEST(RgbaTest, Default) {
   Rgba defaulted;
@@ -105,6 +110,28 @@ GTEST_TEST(RgbaTest, Product) {
 
   // Rgba channel values saturate at 1.
   EXPECT_EQ(a.scale_rgb(10), Rgba(1, 1, 1, a.a()));
+}
+
+GTEST_TEST(RgbaTest, ToBytes) {
+  // The endpoints map to the full byte range.
+  EXPECT_EQ(Rgba(0, 0, 0, 0).to_bytes(), (Bytes{0, 0, 0, 0}));
+  EXPECT_EQ(Rgba(1, 1, 1, 1).to_bytes(), (Bytes{255, 255, 255, 255}));
+
+  // Channels are kept in order.
+  EXPECT_EQ(Rgba(1, 0, 0, 0).to_bytes(), (Bytes{255, 0, 0, 0}));
+  EXPECT_EQ(Rgba(0, 1, 0, 0).to_bytes(), (Bytes{0, 255, 0, 0}));
+  EXPECT_EQ(Rgba(0, 0, 1, 0).to_bytes(), (Bytes{0, 0, 255, 0}));
+  EXPECT_EQ(Rgba(0, 0, 0, 1).to_bytes(), (Bytes{0, 0, 0, 255}));
+
+  // Values round to the *nearest* byte rather than truncating; 0.5 lands
+  // exactly between two bytes and 0.1 lands just above one.
+  EXPECT_EQ(Rgba(0.5, 0.1, 0.2, 1).to_bytes(), (Bytes{128, 26, 51, 255}));
+
+  // Dividing a byte by 255 round trips exactly, for every byte.
+  for (int i = 0; i <= 255; ++i) {
+    const uint8_t byte = static_cast<uint8_t>(i);
+    EXPECT_EQ(Rgba(byte / 255.0, 0, 0, 0).to_bytes()[0], byte);
+  }
 }
 
 GTEST_TEST(RgbaTest, ToString) {
