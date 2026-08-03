@@ -83,6 +83,9 @@ class ModelVisualizer:
         environment_map: Path = Path(),
         no_lights: bool = False,
         rgbd_renderer: str = "vtk",
+        rgbd_lights: list[LightParameter] | None = None,
+        rgbd_cast_shadows: bool = False,
+        rgbd_shadow_map_size: int = 1024,
         compliance_type: str = "undefined",
     ):
         """Initializes a ModelVisualizer.
@@ -95,7 +98,7 @@ class ModelVisualizer:
           triad_opacity: the opacity of visualization triads.
           publish_contacts: a flag for VisualizationConfig.
           show_rgbd_sensor: when True, adds an RgbdSensor to the scene and pops
-             up a local preview window of the rgb image. At the moment, the
+             up a local preview window of the label image. At the moment, the
              image display uses a native window so will not work in a remote or
              cloud runtime environment.
           environment_map: Meshcat environment map filename.
@@ -104,6 +107,11 @@ class ModelVisualizer:
              the effect of the map.
           rgbd_renderer: the render engine used by the optional RgbdSensor;
              either "vtk" or "gl".
+          rgbd_lights: optional lights for the RgbdSensor render engine. When
+             using RenderEngineGl, a world-fixed directional light is supplied
+             by default so that shadows are visible as the camera moves.
+          rgbd_cast_shadows: whether capable RgbdSensor lights cast shadows.
+          rgbd_shadow_map_size: the width and height of each shadow map.
           compliance_type: Overrides the DefaultProximityProperties setting
              with same name. Can be set to either "rigid" or "compliant" for
              hydroelastic contact, or "undefined" to use point contact.
@@ -134,7 +142,12 @@ class ModelVisualizer:
         self._no_lights = no_lights
         if rgbd_renderer not in ("vtk", "gl"):
             raise ValueError("rgbd_renderer must be either 'vtk' or 'gl'")
+        if rgbd_shadow_map_size <= 0:
+            raise ValueError("rgbd_shadow_map_size must be positive")
         self._rgbd_renderer = rgbd_renderer
+        self._rgbd_lights = copy.deepcopy(rgbd_lights)
+        self._rgbd_cast_shadows = rgbd_cast_shadows
+        self._rgbd_shadow_map_size = rgbd_shadow_map_size
         self._compliance_type = compliance_type
 
         # This is the list of loaded models, to enable the Reload button.
@@ -212,6 +225,8 @@ class ModelVisualizer:
             "pyplot",
             "environment_map",
             "rgbd_renderer",
+            "rgbd_cast_shadows",
+            "rgbd_shadow_map_size",
             "compliance_type",
         ]:
             value = getattr(prototype, f"_{name}")
@@ -235,16 +250,35 @@ class ModelVisualizer:
 
     def _make_rgbd_renderer_class(self):
         """Returns the configured parameters for the preview renderer."""
+        lights = copy.deepcopy(self._rgbd_lights)
         if self._no_lights:
             # Neither renderer has a separate master switch for all lights.
             lights = [LightParameter(intensity=0)]
+        elif lights is None and self._rgbd_renderer == "gl":
+            # A world-fixed diagonal light makes cast shadows visible while
+            # the user orbits the camera. The GL renderer's fallback headlamp
+            # would tend to hide shadows directly behind their casters.
+            lights = [
+                LightParameter(
+                    type="directional",
+                    frame="world",
+                    direction=[1.0, 1.0, -1.0],
+                )
+            ]
 
         if self._rgbd_renderer == "gl":
             return RenderEngineGlParams(
                 lights=lights or [],
+                # cast_shadows=self._rgbd_cast_shadows,
+                # shadow_map_size=self._rgbd_shadow_map_size,
             )
+
         result = RenderEngineVtkParams()
         result.exposure = 1
+        result.cast_shadows = self._rgbd_cast_shadows
+        result.shadow_map_size = self._rgbd_shadow_map_size
+        if lights is not None:
+            result.lights = lights
         if self._environment_map.is_file():
             result.environment_map = EnvironmentMap(
                 skybox=True,
@@ -253,6 +287,7 @@ class ModelVisualizer:
         if sys.platform != "darwin":
             result.backend = "GLX"
         return result
+
     def parser(self):
         """
         (Advanced) Returns a Parser that will load models into this visualizer.
@@ -448,7 +483,15 @@ class ModelVisualizer:
             camera_config = CameraConfig(width=1440, height=1080)
             camera_config.name = "preview"
             camera_config.X_PB.base_frame = "$rgbd_sensor_body"
-            camera_config.z_far = 3  # Show 3m of frustum.
+            # Keep both the color clipping range and depth measurement range
+            # local to the model. In particular, directional shadow maps cover
+            # the color camera's clipping frustum; leaving clipping_far at its
+            # 500 m default makes nearby shadows sub-pixel even at large shadow
+            # map sizes.
+            # Leave some margin beyond the measured depth range so that an
+            # object at exactly z_far is not clipped from the color image.
+            camera_config.clipping_far = 10
+            camera_config.z_far = 3
             camera_config.fps = 1.0  # Ignored -- we're not simulating.
             camera_config.rgb = False
             camera_config.label = True

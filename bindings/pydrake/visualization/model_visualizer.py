@@ -41,6 +41,7 @@ from pathlib import Path
 import textwrap
 
 from pydrake.common import configure_logging as _configure_logging
+from pydrake.geometry import LightParameter
 from pydrake.visualization._model_visualizer import (
     ModelVisualizer as _ModelVisualizer,
 )
@@ -127,6 +128,38 @@ def _main():
         help="Render engine for --show_rgbd_sensor (default: %(default)s).",
     )
     args_parser.add_argument(
+        "--rgbd_light_direction",
+        type=float,
+        nargs=3,
+        action="append",
+        default=[],
+        metavar=("X", "Y", "Z"),
+        help="Direction of a world-fixed directional light for the RGB-D "
+        "renderer. May be repeated to add multiple lights. RenderEngineGl "
+        "uses one diagonal directional light when this option is omitted.",
+    )
+    args_parser.add_argument(
+        "--rgbd_light_intensity",
+        type=float,
+        default=1.0,
+        help="Intensity for lights added by --rgbd_light_direction "
+        "(default: %(default)s).",
+    )
+    assert defaults["rgbd_cast_shadows"] is False
+    args_parser.add_argument(
+        "--rgbd_cast_shadows",
+        action="store_true",
+        help="Enable shadow maps for capable RGB-D renderer lights.",
+    )
+    assert defaults["rgbd_shadow_map_size"] == 1024
+    args_parser.add_argument(
+        "--rgbd_shadow_map_size",
+        type=int,
+        default=defaults["rgbd_shadow_map_size"],
+        help="Width and height of each RGB-D shadow map "
+        "(default: %(default)s).",
+    )
+    args_parser.add_argument(
         "--compliance_type",
         default=defaults["compliance_type"],
         help=textwrap.dedent("""Overrides the DefaultProximityProperties
@@ -184,6 +217,18 @@ def _main():
     if "BUILD_WORKSPACE_DIRECTORY" in os.environ:
         os.chdir(os.environ["BUILD_WORKING_DIRECTORY"])
 
+    rgbd_lights = None
+    if args.rgbd_light_direction:
+        rgbd_lights = [
+            LightParameter(
+                type="directional",
+                frame="world",
+                direction=direction,
+                intensity=args.rgbd_light_intensity,
+            )
+            for direction in args.rgbd_light_direction
+        ]
+
     visualizer = _ModelVisualizer(
         visualize_frames=args.visualize_frames,
         show_rgbd_sensor=args.show_rgbd_sensor,
@@ -195,6 +240,9 @@ def _main():
         environment_map=args.environment_map,
         no_lights=args.no_lights,
         rgbd_renderer=args.rgbd_renderer,
+        rgbd_lights=rgbd_lights,
+        rgbd_cast_shadows=args.rgbd_cast_shadows,
+        rgbd_shadow_map_size=args.rgbd_shadow_map_size,
         compliance_type=args.compliance_type,
     )
     package_map = visualizer.package_map()

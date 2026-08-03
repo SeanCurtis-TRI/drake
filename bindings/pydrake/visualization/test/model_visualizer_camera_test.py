@@ -7,6 +7,7 @@ import umsgpack
 
 import pydrake.common.test_utilities.numpy_compare as numpy_compare
 from pydrake.geometry import (
+    LightParameter,
     Meshcat,
     RenderEngineGlParams,
     RenderEngineVtkParams,
@@ -100,13 +101,35 @@ class TestModelVisualizerCamera(unittest.TestCase):
         vtk_params = mut.ModelVisualizer()._make_rgbd_renderer_class()
         self.assertIsInstance(vtk_params, RenderEngineVtkParams)
 
+        light = LightParameter(
+            type="directional",
+            frame="world",
+            direction=[-1.0, 0.0, -1.0],
+            intensity=2.0,
+        )
         dut = mut.ModelVisualizer(
             rgbd_renderer="gl",
+            rgbd_lights=[light],
+            rgbd_cast_shadows=True,
+            rgbd_shadow_map_size=512,
         )
         gl_params = dut._make_rgbd_renderer_class()
         self.assertIsInstance(gl_params, RenderEngineGlParams)
+        self.assertTrue(gl_params.cast_shadows)
+        self.assertEqual(gl_params.shadow_map_size, 512)
+        self.assertEqual(len(gl_params.lights), 1)
+        self.assertEqual(gl_params.lights[0].intensity, 2.0)
+        numpy_compare.assert_allclose(
+            gl_params.lights[0].direction, [-1.0, 0.0, -1.0]
+        )
+
         default_gl = mut.ModelVisualizer(
             rgbd_renderer="gl"
         )._make_rgbd_renderer_class()
+        self.assertEqual(len(default_gl.lights), 1)
+        self.assertEqual(default_gl.lights[0].frame, "world")
+
         with self.assertRaisesRegex(ValueError, "rgbd_renderer"):
             mut.ModelVisualizer(rgbd_renderer="bad")
+        with self.assertRaisesRegex(ValueError, "shadow_map_size"):
+            mut.ModelVisualizer(rgbd_shadow_map_size=0)
