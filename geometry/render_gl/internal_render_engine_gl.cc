@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <filesystem>
+#include <limits>
 #include <optional>
 #include <unordered_set>
 #include <utility>
@@ -73,7 +74,9 @@ namespace fs = std::filesystem;
 class LightingShader : public ShaderProgram {
  public:
   DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(LightingShader);
-  LightingShader() : ShaderProgram() {}
+  explicit LightingShader(std::vector<int> shadow_light_indices)
+      : ShaderProgram(),
+        shadow_light_indices_(std::move(shadow_light_indices)) {}
 
   void SetAllLights(const std::vector<LightParameter>& lights) const {
     DRAKE_DEMAND(lights.size() <= kMaxNumLights);
@@ -88,24 +91,63 @@ class LightingShader : public ShaderProgram {
 
   static constexpr int kMaxNumLights{5};
 
+  void SetShadowMaps(GLuint texture,
+                     const std::vector<Matrix4f>& T_DlightWs) const {
+    if (shadow_light_indices_.empty()) return;
+    DRAKE_DEMAND(T_DlightWs.size() == shadow_light_indices_.size());
+    glActiveTexture(GL_TEXTURE1);
+    glBindTexture(GL_TEXTURE_2D_ARRAY, texture);
+    glUniform1i(shadow_map_loc_, 1);
+    glUniformMatrix4fv(shadow_matrices_loc_, ssize(T_DlightWs), GL_FALSE,
+                       T_DlightWs[0].data());
+    std::array<GLint, kMaxNumLights> light_to_layer;
+    light_to_layer.fill(-1);
+    for (int layer = 0; layer < ssize(shadow_light_indices_); ++layer) {
+      light_to_layer[shadow_light_indices_[layer]] = layer;
+    }
+    glUniform1iv(light_shadow_layers_loc_, kMaxNumLights,
+                 light_to_layer.data());
+  }
+
  protected:
+  const char* DoGetModelToDeviceMatrixUniformName() const final {
+    return "T_DcameraM";
+  }
+
   // Derived classes have the chance to configure additional uniforms.
   virtual void DoConfigureMoreUniforms() {}
 
+  std::string VertexShaderSource() const {
+    const std::string define =
+        shadow_light_indices_.empty()
+            ? ""
+            : fmt::format("#define SHADOW_MAP_COUNT {}\n",
+                          shadow_light_indices_.size());
+    return fmt::format("#version 330\n{}{}", define, kVertexShader);
+  }
+
+  std::string FragmentShaderSource() const {
+    const std::string define =
+        shadow_light_indices_.empty()
+            ? ""
+            : fmt::format("#define SHADOW_MAP_COUNT {}\n",
+                          shadow_light_indices_.size());
+    return fmt::format("#version 330\n{}{}", define, kFragmentShader);
+  }
+
   // This provides GLSL code necessary for performing lighting calculations:
-  //   - Transforms the vertex into device *and* world coordinates.
+  //   - Transforms the vertex into camera's device *and* world coordinates.
   //   - Transforms the normal into world coordinates to be interpolated
   //     across the triangle (for lighting calculations).
+  //   - Transforms the vertex into shadow map device coordinates.
   // Derived classes are responsible for introducing their own inputs, uniforms
   // (etc.) and defining the main() function. That main function should do
   // whatever work is unique to the shader and invoke PrepareLighting() so that
   // the transformed vertex is evaluated.
   static constexpr char kVertexShader[] = R"""(
-#version 330
 layout(location = 0) in vec3 p_MV;
 layout(location = 1) in vec3 n_M;
-uniform mat4 T_CM;  // The "model view matrix" (in OpenGl terms).
-uniform mat4 T_DC;  // The "projection matrix" (in OpenGl terms).
+uniform mat4 T_DcameraM;
 uniform mat4 T_WM;  // The pose of the geometry (model) in the world.
 uniform mat3 T_WM_normals;  // Rotation * inverse_scale to transform normals.
 // TODO(SeanCurtis-TRI): Rather than propagating normal and position vertex in
@@ -115,13 +157,23 @@ uniform mat3 T_WM_normals;  // Rotation * inverse_scale to transform normals.
 // number of uniforms; T_WM is no longer necessary.
 out vec3 n_W;
 out vec3 p_WV; // Vertex position in world space.
+#ifdef SHADOW_MAP_COUNT
+// Dlight is the device frame of the corresponding shadow-casting light.
+uniform mat4 shadow_T_DlightW[SHADOW_MAP_COUNT];
+out vec4 light_clip_position[SHADOW_MAP_COUNT];
+#endif
 
 void PrepareLighting() {
   // gl_Position is p_DV; the vertex position in device coordinates.
-  gl_Position = T_DC * T_CM * vec4(p_MV, 1);
+  gl_Position = T_DcameraM * vec4(p_MV, 1);
 
   n_W = normalize(T_WM_normals * n_M);
   p_WV = (T_WM * vec4(p_MV, 1)).xyz;
+#ifdef SHADOW_MAP_COUNT
+  for (int i = 0; i < SHADOW_MAP_COUNT; ++i) {
+    light_clip_position[i] = shadow_T_DlightW[i] * vec4(p_WV, 1.0);
+  }
+#endif  // SHADOW_MAP_COUNT
 }
 )""";
 
@@ -131,7 +183,6 @@ void PrepareLighting() {
   // main function should compute the diffuse value at the fragment and call
   // GetIlluminatedColor() to get the illuminated result.
   static constexpr char kFragmentShader[] = R"""(
-#version 330
 uniform mat4 X_WC;  // Transform light position from camera to world.
 in vec3 n_W;
 in vec3 p_WV;
@@ -175,6 +226,31 @@ struct Light {
 
 uniform Light lights[MAX_LIGHT_NUM];
 
+#ifdef SHADOW_MAP_COUNT
+uniform sampler2DArrayShadow shadow_map;
+uniform int light_shadow_layer[MAX_LIGHT_NUM];
+in vec4 light_clip_position[SHADOW_MAP_COUNT];
+
+float GetShadowVisibility(int light_index) {
+  int layer = light_shadow_layer[light_index];
+  if (layer < 0) return 1.0;
+  vec4 clip_position = light_clip_position[layer];
+  vec3 ndc = clip_position.xyz / clip_position.w;
+  // glClipControl(GL_UPPER_LEFT, ...) reverses the viewport's y mapping.
+  vec2 uv = vec2(ndc.x * 0.5 + 0.5, 0.5 - ndc.y * 0.5);
+  // The shadow-map render pass applies its depth bias with glPolygonOffset.
+  // An additional bias here would detach shadows from nearby casters.
+  float reference = ndc.z * 0.5 + 0.5;
+  if (uv.x <= 0.0 || uv.x >= 1.0 || uv.y <= 0.0 || uv.y >= 1.0 ||
+      reference <= 0.0 || reference >= 1.0) {
+    return 1.0;
+  }
+  return texture(shadow_map, vec4(uv, float(layer), reference));
+}
+#else
+float GetShadowVisibility(int unused_light_index) { return 1.0; }
+#endif
+
 vec3 GetLightPositionInWorld(Light light) {
   vec3 v_W = light.position.xyz;  // Interpreting v as v_W.
   if (light.position.w == 1) {
@@ -213,7 +289,7 @@ float GetDirectionalExposure(Light light, vec3 nhat_W) {
   return max(dot(nhat_W, normalize(-dir_L_W)), 0.0);
 }
 
-vec3 GetLightIllumination(Light light, vec3 nhat_W) {
+vec3 GetLightIllumination(Light light, int light_index, vec3 nhat_W) {
   // Position vector from fragment to light.
   vec3 p_WL = GetLightPositionInWorld(light);
   // p_WV is interpolated to be p_WF (position of the fragment).
@@ -237,13 +313,15 @@ vec3 GetLightIllumination(Light light, vec3 nhat_W) {
       // Invalid light; no exposure.
       return vec3(0.0, 0.0, 0.0);
   }
+  if (exposure <= 0.0) return vec3(0.0, 0.0, 0.0);
 
   // Attenuation.
   float inv_attenuation = light.atten_coeff[0] +
                           (light.atten_coeff[1] +
                            light.atten_coeff[2] * dist_FL) * dist_FL;
 
-  return light.color * exposure * light.intensity / inv_attenuation;
+  return GetShadowVisibility(light_index) * light.color * exposure *
+         light.intensity / inv_attenuation;
 }
 
 vec4 GetIlluminatedColor(vec4 diffuse) {
@@ -255,7 +333,7 @@ vec4 GetIlluminatedColor(vec4 diffuse) {
 
   vec3 illum = vec3(0.0, 0.0, 0.0);
   for (int i = 0; i < MAX_LIGHT_NUM; i++) {
-    illum += GetLightIllumination(lights[i], nhat_W);
+    illum += GetLightIllumination(lights[i], i, nhat_W);
   }
   return vec4(illum * diffuse.rgb, diffuse.a);
 }
@@ -272,6 +350,11 @@ vec4 GetIlluminatedColor(vec4 diffuse) {
     T_WM_normals_loc_ = GetUniformLocation("T_WM_normals");
     T_WM_loc_ = GetUniformLocation("T_WM");
     X_WC_loc_ = GetUniformLocation("X_WC");
+    if (!shadow_light_indices_.empty()) {
+      shadow_map_loc_ = GetUniformLocation("shadow_map");
+      shadow_matrices_loc_ = GetUniformLocation("shadow_T_DlightW[0]");
+      light_shadow_layers_loc_ = GetUniformLocation("light_shadow_layer[0]");
+    }
     DoConfigureMoreUniforms();
   }
 
@@ -326,6 +409,11 @@ vec4 GetIlluminatedColor(vec4 diffuse) {
   // The transform between world and camera frame (used for transforming light
   // positions defined in the camera frame).
   GLint X_WC_loc_{};
+
+  std::vector<int> shadow_light_indices_;
+  GLint shadow_map_loc_{};
+  GLint shadow_matrices_loc_{};
+  GLint light_shadow_layers_loc_{};
 };
 
 /* The built-in shader for Rgba diffuse colored objects. This shader supports
@@ -334,13 +422,15 @@ class DefaultRgbaColorShader final : public LightingShader {
  public:
   DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(DefaultRgbaColorShader);
 
-  explicit DefaultRgbaColorShader(const Rgba& default_diffuse)
-      : LightingShader(), default_diffuse_(default_diffuse) {
+  DefaultRgbaColorShader(const Rgba& default_diffuse,
+                         std::vector<int> shadow_light_indices)
+      : LightingShader(std::move(shadow_light_indices)),
+        default_diffuse_(default_diffuse) {
     // TODO(SeanCurtis-TRI): See if I can't come up with a more elegant way for
     // derived classes to exercise LightShader's GLSL functionality.
     LoadFromSources(
-        fmt::format("{}{}", LightingShader::kVertexShader, kVertexShader),
-        fmt::format("{}{}", LightingShader::kFragmentShader, kFragmentShader));
+        fmt::format("{}{}", VertexShaderSource(), kVertexShader),
+        fmt::format("{}{}", FragmentShaderSource(), kFragmentShader));
   }
 
   void SetInstanceParameters(const ShaderProgramData& data) const final {
@@ -407,12 +497,14 @@ class DefaultTextureColorShader final : public LightingShader {
    is alright, because the owning RenderEngineGl instances share that library
    as well -- so the shader program instances are consistent with the render
    engine instances. */
-  explicit DefaultTextureColorShader(shared_ptr<TextureLibrary> library)
-      : LightingShader(), library_(std::move(library)) {
+  DefaultTextureColorShader(shared_ptr<TextureLibrary> library,
+                            std::vector<int> shadow_light_indices)
+      : LightingShader(std::move(shadow_light_indices)),
+        library_(std::move(library)) {
     DRAKE_DEMAND(library_ != nullptr);
     LoadFromSources(
-        fmt::format("{}{}", LightingShader::kVertexShader, kVertexShader),
-        fmt::format("{}{}", LightingShader::kFragmentShader, kFragmentShader));
+        fmt::format("{}{}", VertexShaderSource(), kVertexShader),
+        fmt::format("{}{}", FragmentShaderSource(), kFragmentShader));
   }
 
   void SetInstanceParameters(const ShaderProgramData& data) const final {
@@ -523,6 +615,34 @@ void main() {
 })""";
 };
 
+/* A position-only shader for populating shadow-map depth attachments. */
+class ShadowDepthShader final : public ShaderProgram {
+ public:
+  DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(ShadowDepthShader);
+
+  ShadowDepthShader() { LoadFromSources(kVertexShader, kFragmentShader); }
+
+ private:
+  void DoConfigureUniforms() final {}
+
+  std::unique_ptr<ShaderProgram> DoClone() const final {
+    return make_unique<ShadowDepthShader>(*this);
+  }
+
+  static constexpr char kVertexShader[] = R"""(
+#version 330
+layout(location = 0) in vec3 p_MV;
+uniform mat4 T_DM;
+void main() {
+  gl_Position = T_DM * vec4(p_MV, 1.0);
+})""";
+
+  static constexpr char kFragmentShader[] = R"""(
+#version 330
+void main() {}
+)""";
+};
+
 /* The built-in shader for objects in depth images. By default, the shader
  supports all geometries.  */
 class DefaultDepthShader final : public ShaderProgram {
@@ -566,13 +686,13 @@ class DefaultDepthShader final : public ShaderProgram {
 
 layout(location = 0) in vec3 p_MV;
 out float depth;
-uniform mat4 T_CM;  // The "model view matrix" (in OpenGl terms).
-uniform mat4 T_DC;  // The "projection matrix" (in OpenGl terms).
+uniform mat4 T_DM;
 
 void main() {
-  vec4 p_CV = T_CM * vec4(p_MV, 1);
-  depth = -p_CV.z;
-  gl_Position = T_DC * p_CV;
+  vec4 p_DV = T_DM * vec4(p_MV, 1);
+  // For Drake's perspective projection, w_D equals physical camera depth.
+  depth = p_DV.w;
+  gl_Position = p_DV;
 })""";
 
   // The fragment shader "clamps" the depth of the fragment to the specified
@@ -652,19 +772,13 @@ class DefaultLabelShader final : public ShaderProgram {
 
   GLint encoded_label_loc_{};
 
-  // The vertex shader simply transforms the vertices. Strictly speaking, we
-  // could combine modelview and projection matrices into a single transform,
-  // but there's no real value in doing so. Leaving it as is maintains
-  // compatibility with the depth shader.
+  // The vertex shader simply transforms the vertices.
   static constexpr char kVertexShader[] = R"""(
 #version 330
 layout(location = 0) in vec3 p_MV;
-uniform mat4 T_CM;  // The "model view matrix" (in OpenGl terms).
-uniform mat4 T_DC;  // The "projection matrix" (in OpenGl terms).
+uniform mat4 T_DM;
 void main() {
-  // X_CM = T_CM (although X may not be a *rigid* transform).
-  vec4 p_CV = T_CM * vec4(p_MV, 1);
-  gl_Position = T_DC * p_CV;
+  gl_Position = T_DM * vec4(p_MV, 1);
 })""";
 
   // For each fragment from a geometry, it simply writes the provided label.
@@ -677,6 +791,358 @@ void main() {
 })""";
 };
 
+// Transforms used to render and sample a shadow map for one light.
+//
+// We have the following frames:
+//   W: world frame
+//   Lphysical: the physical light-camera frame (+z forward).
+//   Lgl: the  corresponding OpenGL camera frame (-z forward).
+//   Dlight: the light's homogeneous clip/device coordinate system.
+//
+// When *rendering* the shadow map, the light serves as the camera, with its
+// position and orientation analogous to a camera's pose. For rendering, we
+// need the physical view transform (X_LphysicalW) and projection matrix
+// (T_DlightLgl). ShaderProgram inserts X_LglLphysical and composes the
+// model-to-light-device matrix for each instance.
+//
+// When sampling, we use T_DlightW to transform vertex positions into the
+// light's device frame so we know where in the shadow map to sample.
+struct ShadowCameraTransforms {
+  // Physical light view transform passed to SetModelViewMatrix().
+  Matrix4f X_LphysicalW;
+
+  // OpenGL projection matrix passed to SetProjectionMatrix().
+  Matrix4f T_DlightLgl;
+
+  // Precomposed transform used during shadow lookup:
+  // T_DlightW = T_DlightLgl * X_LglLphysical * X_LphysicalW.
+  Matrix4f T_DlightW;
+};
+
+struct Bounds3f {
+  Vector3f minimum = Vector3f::Constant(std::numeric_limits<float>::infinity());
+  Vector3f maximum = -minimum;
+
+  bool is_valid() const { return (minimum.array() <= maximum.array()).all(); }
+
+  void Extend(const Vector3f& p) {
+    minimum = minimum.cwiseMin(p);
+    maximum = maximum.cwiseMax(p);
+  }
+
+  void Extend(const Bounds3f& other) {
+    if (!other.is_valid()) return;
+    Extend(other.minimum);
+    Extend(other.maximum);
+  }
+
+  bool Intersects(const Bounds3f& other) const {
+    return is_valid() && other.is_valid() &&
+           (minimum.array() <= other.maximum.array()).all() &&
+           (other.minimum.array() <= maximum.array()).all();
+  }
+};
+
+std::array<Vector3f, 8> CalcBoundsCorners(const Vector3f& minimum,
+                                          const Vector3f& maximum,
+                                          const Matrix4f& T_AB) {
+  std::array<Vector3f, 8> result;
+  int index = 0;
+  for (float z : {minimum.z(), maximum.z()}) {
+    for (float y : {minimum.y(), maximum.y()}) {
+      for (float x : {minimum.x(), maximum.x()}) {
+        result[index++] = (T_AB * Vector3f(x, y, z).homogeneous()).head<3>();
+      }
+    }
+  }
+  return result;
+}
+
+Bounds3f CalcBounds(const std::array<Vector3f, 8>& corners) {
+  Bounds3f result;
+  for (const Vector3f& p : corners) result.Extend(p);
+  return result;
+}
+
+Bounds3f TransformBounds(const std::array<Vector3f, 8>& corners_A,
+                         const Matrix4f& T_BA) {
+  Bounds3f result;
+  for (const Vector3f& p_A : corners_A) {
+    result.Extend((T_BA * p_A.homogeneous()).head<3>());
+  }
+  return result;
+}
+
+Bounds3f IntersectBounds(const Bounds3f& a, const Bounds3f& b) {
+  Bounds3f result;
+  result.minimum = a.minimum.cwiseMax(b.minimum);
+  result.maximum = a.maximum.cwiseMin(b.maximum);
+  return result;
+}
+
+struct ShadowInstanceBounds {
+  std::array<Vector3f, 8> corners_W;
+  Bounds3f bounds_W;
+  bool visible_in_color{};
+  bool casts_shadows{};
+};
+
+// Computes the physical view transform for a light. The frame is arbitrarily
+// oriented around the direction vector.
+Matrix4f CalcX_LphysicalW(const Vector3f& p_WL, const Vector3f& direction_W) {
+  const Vector3f z_W = direction_W.normalized();
+  // Pick a direction reasonably orthogonal to z_W.
+  const Vector3f reference =
+      std::abs(z_W.z()) < 0.9f ? Vector3f::UnitZ() : Vector3f::UnitY();
+  const Vector3f x_W = reference.cross(z_W).normalized();
+  const Vector3f y_W = z_W.cross(x_W);
+  Matrix4f X_LphysicalW = Matrix4f::Identity();
+  X_LphysicalW.block<3, 3>(0, 0).row(0) = x_W.transpose();
+  X_LphysicalW.block<3, 3>(0, 0).row(1) = y_W.transpose();
+  X_LphysicalW.block<3, 3>(0, 0).row(2) = z_W.transpose();
+  X_LphysicalW.block<3, 1>(0, 3) = -X_LphysicalW.block<3, 3>(0, 0) * p_WL;
+  return X_LphysicalW;
+}
+
+// Returns the transform from the physical light-camera frame Lphysical (+x
+// right, +y down, and +z forward) to the OpenGL light-camera frame Lgl (+x
+// right, -y down, and -z forward). The frames are related by a 180-degree
+// rotation about their common x-axis.
+Matrix4f X_LglLphysical() {
+  Matrix4f result = Matrix4f::Identity();
+  result(1, 1) = -1;
+  result(2, 2) = -1;
+  return result;
+}
+
+// Special case of RenderCameraCore::CalcProjectionMatrix(). This is the
+// projection matrix for computing shadow maps. As such, we can make simplifying
+// assumptions:
+//   focal_x = focal_y = cot(half_angle)
+//   w = h
+//   center_x = center_y = w / 2 = h / 2
+// So, it's simpler to implement it directly than to defer to the camera code.
+Matrix4f MakePerspectiveProjection(float half_angle, float z_near,
+                                   float z_far) {
+  Matrix4f result = Matrix4f::Zero();
+  const float focal = 1.0f / std::tan(half_angle);
+  result(0, 0) = focal;
+  result(1, 1) = focal;
+  result(2, 2) = -(z_far + z_near) / (z_far - z_near);
+  result(2, 3) = -2 * z_far * z_near / (z_far - z_near);
+  result(3, 2) = -1;
+  return result;
+}
+
+// Orthographic projection matrix for directional lights.
+Matrix4f MakeOrthographicProjection(float left, float right, float bottom,
+                                    float top, float z_near, float z_far) {
+  Matrix4f result = Matrix4f::Identity();
+  result(0, 0) = 2 / (right - left);
+  result(1, 1) = 2 / (top - bottom);
+  result(2, 2) = -2 / (z_far - z_near);
+  result(0, 3) = -(right + left) / (right - left);
+  result(1, 3) = -(top + bottom) / (top - bottom);
+  result(2, 3) = -(z_far + z_near) / (z_far - z_near);
+  return result;
+}
+
+// Produces the 8 corners of the camera's frustum in world coordinates. Used to
+// help create an optimal shadow map frustum (accounting for what the camera
+// can see).
+std::array<Vector3f, 8> CalcWorldFrustumCorners(const ColorRenderCamera& camera,
+                                                const Matrix4f& X_WC) {
+  const auto& intrinsics = camera.core().intrinsics();
+  std::array<Vector3f, 8> result;
+  int index = 0;
+  for (float z : {static_cast<float>(camera.core().clipping().near()),
+                  static_cast<float>(camera.core().clipping().far())}) {
+    for (float v : {0.0f, static_cast<float>(intrinsics.height())}) {
+      for (float u : {0.0f, static_cast<float>(intrinsics.width())}) {
+        Vector3f p_C((u - intrinsics.center_x()) * z / intrinsics.focal_x(),
+                     (v - intrinsics.center_y()) * z / intrinsics.focal_y(), z);
+        result[index++] = (X_WC * p_C.homogeneous()).head<3>();
+      }
+    }
+  }
+  return result;
+}
+
+// Creates the transform matrices necessary to render a depth image from a
+// spot light's perspective.
+ShadowCameraTransforms CalcSpotShadowCameraTransforms(
+    const LightParameter& light, const Matrix4f& X_WC,
+    const std::vector<ShadowInstanceBounds>& instances) {
+  const bool in_world = render::light_frame_from_string(light.frame) ==
+                        render::LightFrame::kWorld;
+  Vector3f p_WL = light.position.cast<float>();
+  Vector3f direction_W = light.direction.cast<float>();
+  if (!in_world) {
+    p_WL = (X_WC * p_WL.homogeneous()).head<3>();
+    direction_W = X_WC.block<3, 3>(0, 0) * direction_W;
+  }
+  ShadowCameraTransforms result;
+  result.X_LphysicalW = CalcX_LphysicalW(p_WL, direction_W);
+  float z_far = 0.0f;
+  const float tan_half_angle =
+      std::tan(light.cone_angle * static_cast<float>(M_PI / 180.0));
+  for (const ShadowInstanceBounds& instance : instances) {
+    if (!instance.visible_in_color && !instance.casts_shadows) continue;
+    const Bounds3f bounds_L =
+        TransformBounds(instance.corners_W, result.X_LphysicalW);
+    if (bounds_L.maximum.z() <= 0.01f) continue;
+    // At the AABB's farthest depth, the cone is largest. If it still cannot
+    // reach the AABB's nearest point to the cone axis, the geometry cannot
+    // contribute to this shadow map.
+    const float distance_x =
+        std::max({bounds_L.minimum.x(), -bounds_L.maximum.x(), 0.0f});
+    const float distance_y =
+        std::max({bounds_L.minimum.y(), -bounds_L.maximum.y(), 0.0f});
+    const float minimum_radius = std::hypot(distance_x, distance_y);
+    if (minimum_radius > tan_half_angle * bounds_L.maximum.z()) continue;
+    z_far = std::max(z_far, bounds_L.maximum.z());
+  }
+  z_far = std::max(z_far + std::max(0.01f, 0.01f * z_far), 0.02f);
+  result.T_DlightLgl =
+      MakePerspectiveProjection(light.cone_angle * M_PI / 180.0, 0.01f, z_far);
+  result.T_DlightW =
+      result.T_DlightLgl * X_LglLphysical() * result.X_LphysicalW;
+  return result;
+}
+
+ShadowCameraTransforms MakeLegacyDirectionalShadowView(
+    const LightParameter& light, const std::array<Vector3f, 8>& corners_W,
+    const Matrix4f& X_WC, float camera_far, int map_size) {
+  const bool in_world = render::light_frame_from_string(light.frame) ==
+                        render::LightFrame::kWorld;
+  Vector3f direction_W = light.direction.cast<float>();
+  if (!in_world) {
+    direction_W = X_WC.block<3, 3>(0, 0) * direction_W;
+  }
+  const Vector3f camera_position = X_WC.block<3, 1>(0, 3);
+  float minimum_projection = std::numeric_limits<float>::infinity();
+  for (const Vector3f& p_W : corners_W) {
+    minimum_projection = std::min(minimum_projection, direction_W.dot(p_W));
+  }
+  // Put the light origin one camera range upstream of the nearest receiver.
+  // Any caster between that origin and a visible receiver is retained.
+  const Vector3f p_WL =
+      camera_position + direction_W * (minimum_projection - camera_far -
+                                       direction_W.dot(camera_position));
+  ShadowCameraTransforms result;
+  result.X_LphysicalW = CalcX_LphysicalW(p_WL, direction_W);
+  Vector3f minimum = Vector3f::Constant(std::numeric_limits<float>::infinity());
+  Vector3f maximum = -minimum;
+  for (const Vector3f& p_W : corners_W) {
+    const Vector3f p_Lphysical =
+        (result.X_LphysicalW * p_W.homogeneous()).head<3>();
+    minimum = minimum.cwiseMin(p_Lphysical);
+    maximum = maximum.cwiseMax(p_Lphysical);
+  }
+  float width = std::max(maximum.x() - minimum.x(), 0.01f);
+  float height = std::max(maximum.y() - minimum.y(), 0.01f);
+  float center_x = 0.5f * (minimum.x() + maximum.x());
+  float center_y = 0.5f * (minimum.y() + maximum.y());
+  // Stabilize the projection under small camera motions.
+  center_x = std::round(center_x / (width / map_size)) * (width / map_size);
+  center_y = std::round(center_y / (height / map_size)) * (height / map_size);
+  const float left = center_x - width * 0.5f;
+  const float right = center_x + width * 0.5f;
+  // Lphysical's +y is flipped when converted to Lgl.
+  const float bottom = -(center_y + height * 0.5f);
+  const float top = -(center_y - height * 0.5f);
+  const float z_far = std::max(maximum.z() + camera_far, 0.02f);
+  result.T_DlightLgl =
+      MakeOrthographicProjection(left, right, bottom, top, 0.01f, z_far);
+  result.T_DlightW =
+      result.T_DlightLgl * X_LglLphysical() * result.X_LphysicalW;
+  return result;
+}
+
+ShadowCameraTransforms CalcDirectionalShadowCameraTransforms(
+    const LightParameter& light,
+    const std::array<Vector3f, 8>& frustum_corners_W, const Matrix4f& X_WC,
+    int map_size, const std::vector<ShadowInstanceBounds>& instances) {
+  const bool in_world = render::light_frame_from_string(light.frame) ==
+                        render::LightFrame::kWorld;
+  Vector3f direction_W = light.direction.cast<float>();
+  if (!in_world) {
+    direction_W = X_WC.block<3, 3>(0, 0) * direction_W;
+  }
+
+  // First express all bounds in a light frame whose origin is arbitrary. Its
+  // x and y coordinates are invariant under the later translation of the
+  // origin along the light direction.
+  const Matrix4f X_L0W = CalcX_LphysicalW(Vector3f::Zero(), direction_W);
+  const Bounds3f frustum_bounds_W = CalcBounds(frustum_corners_W);
+  const Bounds3f frustum_bounds_L = TransformBounds(frustum_corners_W, X_L0W);
+
+  Bounds3f receiver_bounds_L;
+  for (const ShadowInstanceBounds& instance : instances) {
+    if (!instance.visible_in_color) continue;
+    if (!instance.bounds_W.Intersects(frustum_bounds_W)) continue;
+    const Bounds3f instance_bounds_L =
+        TransformBounds(instance.corners_W, X_L0W);
+    receiver_bounds_L.Extend(
+        IntersectBounds(instance_bounds_L, frustum_bounds_L));
+  }
+
+  // With no bounded, potentially visible receivers, retain the old behavior.
+  // This is primarily a fallback for empty and unbounded scenes.
+  if (!receiver_bounds_L.is_valid()) {
+    return MakeLegacyDirectionalShadowView(light, frustum_corners_W, X_WC,
+                                           /* camera_far = */ 10.0f, map_size);
+  }
+
+  float minimum_z = receiver_bounds_L.minimum.z();
+  float maximum_z = receiver_bounds_L.maximum.z();
+  for (const ShadowInstanceBounds& instance : instances) {
+    if (!instance.casts_shadows) continue;
+    const Bounds3f caster_bounds_L = TransformBounds(instance.corners_W, X_L0W);
+    const bool overlaps_receiver =
+        caster_bounds_L.minimum.x() <= receiver_bounds_L.maximum.x() &&
+        caster_bounds_L.maximum.x() >= receiver_bounds_L.minimum.x() &&
+        caster_bounds_L.minimum.y() <= receiver_bounds_L.maximum.y() &&
+        caster_bounds_L.maximum.y() >= receiver_bounds_L.minimum.y();
+    if (overlaps_receiver) {
+      minimum_z = std::min(minimum_z, caster_bounds_L.minimum.z());
+      maximum_z = std::max(maximum_z, caster_bounds_L.maximum.z());
+    }
+  }
+
+  float width = std::max(
+      receiver_bounds_L.maximum.x() - receiver_bounds_L.minimum.x(), 0.01f);
+  float height = std::max(
+      receiver_bounds_L.maximum.y() - receiver_bounds_L.minimum.y(), 0.01f);
+  // Reserve two texels on every side for filtering and conservative AABBs.
+  const float pad_x = std::max(2.0f * width / map_size, 0.005f);
+  const float pad_y = std::max(2.0f * height / map_size, 0.005f);
+  width += 2.0f * pad_x;
+  height += 2.0f * pad_y;
+  float center_x =
+      0.5f * (receiver_bounds_L.minimum.x() + receiver_bounds_L.maximum.x());
+  float center_y =
+      0.5f * (receiver_bounds_L.minimum.y() + receiver_bounds_L.maximum.y());
+  center_x = std::round(center_x / (width / map_size)) * (width / map_size);
+  center_y = std::round(center_y / (height / map_size)) * (height / map_size);
+
+  const float depth = std::max(maximum_z - minimum_z, 0.01f);
+  const float depth_pad = std::max(0.01f, depth * 0.01f);
+  const Vector3f p_WL = direction_W.normalized() * (minimum_z - depth_pad);
+  ShadowCameraTransforms result;
+  result.X_LphysicalW = CalcX_LphysicalW(p_WL, direction_W);
+  const float left = center_x - width * 0.5f;
+  const float right = center_x + width * 0.5f;
+  const float bottom = -(center_y + height * 0.5f);
+  const float top = -(center_y - height * 0.5f);
+  const float z_far = depth + 2.0f * depth_pad;
+  result.T_DlightLgl =
+      MakeOrthographicProjection(left, right, bottom, top, 0.01f, z_far);
+  result.T_DlightW =
+      result.T_DlightLgl * X_LglLphysical() * result.X_LphysicalW;
+  return result;
+}
+
 // We want to make sure the lights are as clean as possible. So, we'll
 // re-normalize unit vectors (where possible). We're not testing for "bad"
 // values because those values which *might* be considered "bad" can be used
@@ -686,6 +1152,10 @@ RenderEngineGlParams CleanupLights(RenderEngineGlParams params) {
     throw std::runtime_error(
         fmt::format("RenderEngineGl supports up to five lights; {} specified.",
                     ssize(params.lights)));
+  }
+  if (params.shadow_map_size <= 0) {
+    throw std::runtime_error(
+        "RenderEngineGl shadow_map_size must be positive.");
   }
   for (auto& light : params.lights) {
     if (light.type != "point") {
@@ -715,12 +1185,40 @@ RenderEngineGl::RenderEngineGl(RenderEngineGlParams params)
 
   InitGlState();
 
+  if (parameters_.cast_shadows) {
+    if (parameters_.shadow_map_size >
+        OpenGlContext::max_allowable_texture_size()) {
+      throw std::runtime_error(fmt::format(
+          "RenderEngineGl shadow_map_size {} exceeds the maximum allowable "
+          "texture size {}.",
+          parameters_.shadow_map_size,
+          OpenGlContext::max_allowable_texture_size()));
+    }
+    const auto& lights = active_lights();
+    for (int i = 0; i < ssize(lights); ++i) {
+      const render::LightType type =
+          render::light_type_from_string(lights[i].type);
+      const bool valid_spot = type == render::LightType::kSpot &&
+                              lights[i].cone_angle > 0 &&
+                              lights[i].cone_angle < 90;
+      if (lights[i].direction.squaredNorm() > 0 &&
+          (valid_spot || type == render::LightType::kDirectional)) {
+        shadow_light_indices_.push_back(i);
+      }
+    }
+    if (!shadow_light_indices_.empty()) {
+      shadow_shader_ = make_unique<ShadowDepthShader>();
+    }
+  }
+
   // Color shaders. See documentation on GetShaderProgram. We want color from
   // texture to be "more preferred" than color from rgba, so we add the
   // texture color shader *after* the rgba color shader.
-  AddShader(make_unique<DefaultRgbaColorShader>(params.default_diffuse),
+  AddShader(make_unique<DefaultRgbaColorShader>(parameters_.default_diffuse,
+                                                shadow_light_indices_),
             RenderType::kColor);
-  AddShader(make_unique<DefaultTextureColorShader>(texture_library_),
+  AddShader(make_unique<DefaultTextureColorShader>(texture_library_,
+                                                   shadow_light_indices_),
             RenderType::kColor);
   ConfigureLights();
 
@@ -759,6 +1257,11 @@ RenderEngineGl::~RenderEngineGl() {
       program_ptr->Free();
     }
   }
+  if (shadow_shader_ != nullptr) shadow_shader_->Free();
+  if (shadow_frame_buffer_ != 0) {
+    glDeleteFramebuffers(1, &shadow_frame_buffer_);
+  }
+  if (shadow_texture_ != 0) glDeleteTextures(1, &shadow_texture_);
 }
 
 void RenderEngineGl::UpdateViewpoint(const RigidTransformd& X_WR) {
@@ -963,6 +1466,15 @@ void RenderEngineGl::DoUpdateDeformableConfigurations(
     const int geometry_index = gl_mesh_indices[i];
     DRAKE_DEMAND(0 <= geometry_index && geometry_index < ssize(geometries_));
     OpenGlGeometry& geometry = geometries_[geometry_index];
+    DRAKE_DEMAND(q_WG.size() % 3 == 0);
+    geometry.p_N_min =
+        Vector3f::Constant(std::numeric_limits<float>::infinity());
+    geometry.p_N_max = -geometry.p_N_min;
+    for (int v = 0; v < q_WG.size(); v += 3) {
+      const Vector3f p = q_WG.segment<3>(v);
+      geometry.p_N_min = geometry.p_N_min.cwiseMin(p);
+      geometry.p_N_max = geometry.p_N_max.cwiseMax(p);
+    }
     // Update vertex position data.
     std::size_t positions_offset = 0;
     glNamedBufferSubData(geometry.vertex_buffer,
@@ -1030,6 +1542,8 @@ unique_ptr<RenderEngine> RenderEngineGl::DoClone() const {
   for (auto& buffer : clone->frame_buffers_) {
     buffer.clear();
   }
+  clone->shadow_texture_ = 0;
+  clone->shadow_frame_buffer_ = 0;
 
   clone->InitGlState();
 
@@ -1047,6 +1561,7 @@ unique_ptr<RenderEngine> RenderEngineGl::DoClone() const {
       program_ptr->Relink();
     }
   }
+  if (clone->shadow_shader_ != nullptr) clone->shadow_shader_->Relink();
 
   // Update the shader OpenGL state to properly configure the lighting.
   clone->ConfigureLights();
@@ -1081,6 +1596,112 @@ void RenderEngineGl::RenderAt(const ShaderProgram& shader_program,
   glBindVertexArray(0);
 }
 
+void RenderEngineGl::MaybeAllocateShadowMapResources() {
+  // No shadow-casting lights implies no allocation.
+  if (shadow_light_indices_.empty()) return;
+
+  DRAKE_DEMAND(shadow_texture_ == 0);
+  DRAKE_DEMAND(shadow_frame_buffer_ == 0);
+  DRAKE_DEMAND(!shadow_light_indices_.empty());
+
+  glGenTextures(1, &shadow_texture_);
+  glBindTexture(GL_TEXTURE_2D_ARRAY, shadow_texture_);
+  glTexImage3D(GL_TEXTURE_2D_ARRAY, 0, GL_DEPTH_COMPONENT24,
+               parameters_.shadow_map_size, parameters_.shadow_map_size,
+               shadow_light_indices_.size(), 0, GL_DEPTH_COMPONENT,
+               GL_UNSIGNED_INT, nullptr);
+  glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+  glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+  glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_COMPARE_MODE,
+                  GL_COMPARE_REF_TO_TEXTURE);
+  glTexParameteri(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
+  const GLfloat border[] = {1, 1, 1, 1};
+  glTexParameterfv(GL_TEXTURE_2D_ARRAY, GL_TEXTURE_BORDER_COLOR, border);
+  glBindTexture(GL_TEXTURE_2D_ARRAY, 0);
+
+  glGenFramebuffers(1, &shadow_frame_buffer_);
+  glBindFramebuffer(GL_FRAMEBUFFER, shadow_frame_buffer_);
+  glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
+                            shadow_texture_, 0, 0);
+  glDrawBuffer(GL_NONE);
+  glReadBuffer(GL_NONE);
+  if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
+    glDeleteFramebuffers(1, &shadow_frame_buffer_);
+    shadow_frame_buffer_ = 0;
+    glDeleteTextures(1, &shadow_texture_);
+    shadow_texture_ = 0;
+    throw std::runtime_error("Shadow-map framebuffer creation failed.");
+  }
+}
+
+std::vector<Matrix4f> RenderEngineGl::RenderShadowMaps(
+    const ColorRenderCamera& camera) const {
+  std::vector<Matrix4f> T_DlightWs;
+  if (shadow_light_indices_.empty()) return T_DlightWs;
+
+  const Matrix4f X_WC = X_CW_.inverse().GetAsMatrix4().cast<float>();
+  const auto corners_W = CalcWorldFrustumCorners(camera, X_WC);
+  std::vector<ShadowInstanceBounds> instance_bounds;
+  for (const auto& [_, prop] : visuals_) {
+    for (const OpenGlInstance& instance : prop.instances) {
+      const OpenGlGeometry& geometry = geometries_[instance.geometry];
+      ShadowInstanceBounds bounds;
+      bounds.corners_W =
+          CalcBoundsCorners(geometry.p_N_min, geometry.p_N_max, instance.T_WN);
+      bounds.bounds_W = CalcBounds(bounds.corners_W);
+      bounds.visible_in_color = instance.visible_in_color;
+      bounds.casts_shadows = instance.casts_shadows;
+      instance_bounds.push_back(std::move(bounds));
+    }
+  }
+
+  glBindFramebuffer(GL_FRAMEBUFFER, shadow_frame_buffer_);
+  glViewport(0, 0, parameters_.shadow_map_size, parameters_.shadow_map_size);
+  glDisable(GL_BLEND);
+  // Perception meshes are two-sided shadow casters. Keep color rendering's
+  // back-face culling policy independent from the shadow silhouette so that
+  // open meshes cast the same shadow regardless of triangle winding.
+  glDisable(GL_CULL_FACE);
+  glEnable(GL_POLYGON_OFFSET_FILL);
+  glPolygonOffset(2.0f, 4.0f);
+  shadow_shader_->Use();
+
+  for (int layer = 0; layer < ssize(shadow_light_indices_); ++layer) {
+    const LightParameter& light = active_lights()[shadow_light_indices_[layer]];
+    const render::LightType type = render::light_type_from_string(light.type);
+    const ShadowCameraTransforms transforms =
+        type == render::LightType::kSpot
+            ? CalcSpotShadowCameraTransforms(light, X_WC, instance_bounds)
+            : CalcDirectionalShadowCameraTransforms(light, corners_W, X_WC,
+                                                    parameters_.shadow_map_size,
+                                                    instance_bounds);
+    T_DlightWs.push_back(transforms.T_DlightW);
+
+    glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
+                              shadow_texture_, 0, layer);
+    glClear(GL_DEPTH_BUFFER_BIT);
+    shadow_shader_->SetProjectionMatrix(transforms.T_DlightLgl);
+    for (const auto& [_, prop] : visuals_) {
+      for (const OpenGlInstance& instance : prop.instances) {
+        if (!instance.casts_shadows) continue;
+        const OpenGlGeometry& geometry = geometries_[instance.geometry];
+        glBindVertexArray(geometry.vertex_array);
+        shadow_shader_->SetModelViewMatrix(transforms.X_LphysicalW,
+                                           instance.T_WN, instance.N_WN);
+        glDrawElements(geometry.mode, geometry.index_count, geometry.type, 0);
+      }
+    }
+  }
+
+  glBindVertexArray(0);
+  shadow_shader_->Unuse();
+  glDisable(GL_POLYGON_OFFSET_FILL);
+  glEnable(GL_CULL_FACE);
+  return T_DlightWs;
+}
+
 void RenderEngineGl::DoRenderColorImage(const ColorRenderCamera& camera,
                                         ImageRgba8U* color_image_out) const {
   opengl_context_->MakeCurrent();
@@ -1090,6 +1711,8 @@ void RenderEngineGl::DoRenderColorImage(const ColorRenderCamera& camera,
   //  rendered in that order. This may lead to shader thrashing. Without this
   //  ordering, I may not necessarily see objects through transparent surfaces.
   //  Confirm that VTK handles transparency correctly and do the same.
+
+  const std::vector<Matrix4f> shadow_matrices = RenderShadowMaps(camera);
 
   const RenderTarget render_target =
       GetRenderTarget(camera.core(), RenderType::kColor);
@@ -1103,11 +1726,18 @@ void RenderEngineGl::DoRenderColorImage(const ColorRenderCamera& camera,
 
   // Matrix mapping a geometry vertex from the camera frame C to the device
   // frame D.
-  const Matrix4f T_DC = camera.core().CalcProjectionMatrix().cast<float>();
+  const Matrix4f T_DcameraC =
+      camera.core().CalcProjectionMatrix().cast<float>();
 
   for (const auto& [_, shader_program] : shader_programs_[RenderType::kColor]) {
     shader_program->Use();
-    shader_program->SetProjectionMatrix(T_DC);
+    shader_program->SetProjectionMatrix(T_DcameraC);
+    if (!shadow_matrices.empty()) {
+      const auto* lighting_program =
+          dynamic_pointer_cast_or_throw<const LightingShader>(
+              shader_program.get());
+      lighting_program->SetShadowMaps(shadow_texture_, shadow_matrices);
+    }
     RenderAt(*shader_program, RenderType::kColor);
     shader_program->Unuse();
   }
@@ -1141,13 +1771,14 @@ void RenderEngineGl::DoRenderDepthImage(const DepthRenderCamera& camera,
 
   // Matrix mapping a geometry vertex from the camera frame C to the device
   // frame D.
-  const Matrix4f T_DC = camera.core().CalcProjectionMatrix().cast<float>();
+  const Matrix4f T_DcameraC =
+      camera.core().CalcProjectionMatrix().cast<float>();
 
   for (const auto& [_, shader_ptr] : shader_programs_[RenderType::kDepth]) {
     const ShaderProgram& shader_program = *shader_ptr;
     shader_program.Use();
 
-    shader_program.SetProjectionMatrix(T_DC);
+    shader_program.SetProjectionMatrix(T_DcameraC);
     shader_program.SetDepthCameraParameters(camera);
     RenderAt(shader_program, RenderType::kDepth);
 
@@ -1175,13 +1806,14 @@ void RenderEngineGl::DoRenderLabelImage(const ColorRenderCamera& camera,
 
   // Matrix mapping a geometry vertex from the camera frame C to the device
   // frame D.
-  const Matrix4f T_DC = camera.core().CalcProjectionMatrix().cast<float>();
+  const Matrix4f T_DcameraC =
+      camera.core().CalcProjectionMatrix().cast<float>();
 
   for (const auto& [_, shader_ptr] : shader_programs_[RenderType::kLabel]) {
     const ShaderProgram& shader_program = *shader_ptr;
     shader_program.Use();
 
-    shader_program.SetProjectionMatrix(T_DC);
+    shader_program.SetProjectionMatrix(T_DcameraC);
     RenderAt(shader_program, RenderType::kLabel);
 
     shader_program.Unuse();
@@ -1230,9 +1862,14 @@ void RenderEngineGl::AddGeometryInstance(int geometry_index, void* user_data,
   DRAKE_DEMAND(color_data.has_value() && depth_data.has_value() &&
                label_data.has_value());
 
+  const Rgba diffuse = data.properties.GetPropertyOrDefault(
+      "phong", "diffuse", data.default_diffuse);
+  const bool visible_in_color = diffuse.rgba()(3) > 0.0;
+  const bool casts_shadows = diffuse.rgba()(3) >= 1.0;
+
   visuals_[data.id].instances.push_back(
       {geometry_index, scale.cast<float>(), geometries_.at(geometry_index),
-       *color_data, *depth_data, *label_data});
+       *color_data, *depth_data, *label_data, visible_in_color, casts_shadows});
 
   // For anchored geometry, we need to make sure the instance's values for
   // T_WN and N_WN are initialized based on the initial pose, X_WG.
@@ -1794,6 +2431,14 @@ class RenderEngineGl::GltfMeshExtractor {
       /* Set the geometry's vertex and index buffers. */
       geometry.vertex_buffer = GetOpenGlBuffer(p_buffer, model);
       ConfigureIndexBuffer(prim, model, mesh_index, &geometry);
+      const tinygltf::Accessor& position_accessor =
+          model.accessors.at(prim.attributes.at("POSITION"));
+      DRAKE_DEMAND(position_accessor.minValues.size() == 3);
+      DRAKE_DEMAND(position_accessor.maxValues.size() == 3);
+      for (int i = 0; i < 3; ++i) {
+        geometry.p_N_min(i) = position_accessor.minValues[i];
+        geometry.p_N_max(i) = position_accessor.maxValues[i];
+      }
 
       /* Now initialize the vertex arrays for the geometry. */
       geometry.spec =
@@ -2324,6 +2969,10 @@ int RenderEngineGl::CreateGlGeometry(const RenderMesh& render_mesh,
   const int v_count = render_mesh.positions.rows();
   OpenGlGeometry geometry{
       .v_count = v_count, .type = GL_UNSIGNED_INT, .mode = GL_TRIANGLES};
+  geometry.p_N_min =
+      render_mesh.positions.colwise().minCoeff().cast<float>().transpose();
+  geometry.p_N_max =
+      render_mesh.positions.colwise().maxCoeff().cast<float>().transpose();
 
   // Create the vertex buffer object (VBO).
   glCreateBuffers(1, &geometry.vertex_buffer);
@@ -2479,6 +3128,7 @@ void RenderEngineGl::ConfigureLights() {
     lighting_program->SetAllLights(active_lights());
     lighting_program->Unuse();
   }
+  MaybeAllocateShadowMapResources();
 }
 
 }  // namespace internal

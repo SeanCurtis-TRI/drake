@@ -72,6 +72,17 @@ R"""(Construction parameters for RenderEngineGl.)""";
 R"""(Passes this object to an Archive. Refer to yaml_serialization "YAML
 Serialization" for background.)""";
         } Serialize;
+        // Symbol: drake::geometry::RenderEngineGlParams::cast_shadows
+        struct /* cast_shadows */ {
+          // Source: drake/geometry/render_gl/render_engine_gl_params.h
+          const char* doc =
+R"""(If true, all spot and directional lights that have valid directions
+cast shadows in color images. Point lights do not cast shadows.
+Geometry whose ``(phong, diffuse)`` alpha is less than one receives
+shadows but does not cast them; alpha in a diffuse texture is not
+inspected. Enabling this adds one additional scene render per
+shadow-casting light.)""";
+        } cast_shadows;
         // Symbol: drake::geometry::RenderEngineGlParams::default_clear_color
         struct /* default_clear_color */ {
           // Source: drake/geometry/render_gl/render_engine_gl_params.h
@@ -93,11 +104,25 @@ R"""(Lights in the scene. More than five lights is an error. If no lights
 are defined, a single directional light, fixed to the camera frame, is
 used.)""";
         } lights;
+        // Symbol: drake::geometry::RenderEngineGlParams::shadow_map_size
+        struct /* shadow_map_size */ {
+          // Source: drake/geometry/render_gl/render_engine_gl_params.h
+          const char* doc =
+R"""(The width and height, in pixels, of each shadow map. All
+shadow-casting lights use the same resolution. Larger maps improve
+fidelity at the cost of GPU memory and rendering time.
+
+Precondition:
+    shadow_map_size is positive and does not exceed the OpenGL
+    implementation's maximum allowable texture size.)""";
+        } shadow_map_size;
         auto Serialize__fields() const {
           return std::array{
+            std::make_pair("cast_shadows", cast_shadows.doc),
             std::make_pair("default_clear_color", default_clear_color.doc),
             std::make_pair("default_diffuse", default_diffuse.doc),
             std::make_pair("lights", lights.doc),
+            std::make_pair("shadow_map_size", shadow_map_size.doc),
           };
         }
       } RenderEngineGlParams;

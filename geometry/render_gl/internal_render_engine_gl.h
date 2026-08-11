@@ -333,6 +333,15 @@ class RenderEngineGl final : public render::RenderEngine, private ShapeReifier {
   // during cloning.
   void ConfigureLights();
 
+  // Renders one depth map for every shadow-casting light and returns the
+  // world-to-light-device (T_DlightW) matrix for each texture-array layer.
+  std::vector<Eigen::Matrix4f> RenderShadowMaps(
+      const render::ColorRenderCamera& camera) const;
+
+  // Allocates this engine's OpenGl shadow map resources. If there are no
+  // shadow-casting lights, no work is done.
+  void MaybeAllocateShadowMapResources();
+
   // The cached value transformation between camera and world frames.
   math::RigidTransformd X_CW_;
 
@@ -441,6 +450,21 @@ class RenderEngineGl final : public render::RenderEngine, private ShapeReifier {
   mutable std::array<std::unordered_map<BufferDim, RenderTarget>,
                      RenderType::kTypeCount>
       frame_buffers_;
+
+  // Not all lights cast shadows. For M total lights, and N shadow casting
+  // lights, j = shadow_light_indices_[i], i ∈ (0, N) and j ∈ (0, M). I.e., the
+  // iᵗʰ shadow casting light is the jᵗʰ light in the render engine.
+  std::vector<int> shadow_light_indices_;
+
+  // Shadow resources are per-engine (and recreated when cloning) so that
+  // clones rendering concurrently never write the same maps.
+  copyable_unique_ptr<ShaderProgram> shadow_shader_;
+  // Note: the shadow texture is a 3D texture. The width and height are
+  // defined by the shadow_map_size parameter. The depth is defined by the
+  // number of shadow-casting lights. The index into shadow_light_indices_
+  // is the same as the "layer" in this 3d texture.
+  GLuint shadow_texture_{0};
+  GLuint shadow_frame_buffer_{0};
 
   // Each OpenGlInstance is associated with a single material. Some visuals
   // may be comprised of multiple instances (such as might come from an Obj or

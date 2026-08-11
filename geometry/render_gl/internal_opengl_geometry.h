@@ -174,6 +174,12 @@ struct OpenGlGeometry {
   // points, etc.)
   GLenum mode{};
 
+  /* An axis-aligned bound on the vertex positions, measured and expressed in
+   frame N. This CPU-side copy is used to fit directional shadow cameras
+   without reading vertex buffers back from OpenGL. */
+  Eigen::Vector3f p_N_min{Eigen::Vector3f::Zero()};
+  Eigen::Vector3f p_N_max{Eigen::Vector3f::Zero()};
+
   /* The transform mapping vertex position to the model frame intrinsic to the
    geometry definition. */
   Eigen::Matrix4f T_MN{Eigen::Matrix4f::Identity()};
@@ -220,8 +226,11 @@ struct OpenGlInstance {
    @pre The shader program data has valid shader ids.  */
   OpenGlInstance(int g_in, const Eigen::Vector3f& scale,
                  const OpenGlGeometry& geo, ShaderProgramData color_data,
-                 ShaderProgramData depth_data, ShaderProgramData label_data)
-      : geometry(g_in) {
+                 ShaderProgramData depth_data, ShaderProgramData label_data,
+                 bool visible_in_color_in, bool casts_shadows_in)
+      : geometry(g_in),
+        visible_in_color(visible_in_color_in),
+        casts_shadows(casts_shadows_in) {
     const Eigen::DiagonalMatrix<float, 4> S_GM(
         Eigen::Vector4f(scale.x(), scale.y(), scale.z(), 1.0));
     T_GN = S_GM * geo.T_MN;
@@ -255,6 +264,14 @@ struct OpenGlInstance {
   Eigen::Matrix3f N_WN{Eigen::Matrix3f::Identity()};
 
   std::array<ShaderProgramData, RenderType::kTypeCount> shader_data;
+
+  /* True when material alpha permits this instance to contribute visible
+   color pixels and, therefore, act as a shadow-map receiver. */
+  bool visible_in_color{};
+
+  /* True when this instance participates in shadow-map depth passes. Instances
+   with transparency do not cast shadows. */
+  bool casts_shadows{};
 };
 
 }  // namespace internal
