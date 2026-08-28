@@ -839,6 +839,74 @@ struct ShadowCameraTransforms {
   Matrix4f T_DlightW;
 };
 
+struct Bounds3f {
+  Vector3f minimum = Vector3f::Constant(std::numeric_limits<float>::infinity());
+  Vector3f maximum = -minimum;
+
+  bool is_valid() const { return (minimum.array() <= maximum.array()).all(); }
+
+  void Extend(const Vector3f& p) {
+    minimum = minimum.cwiseMin(p);
+    maximum = maximum.cwiseMax(p);
+  }
+
+  void Extend(const Bounds3f& other) {
+    if (!other.is_valid()) return;
+    Extend(other.minimum);
+    Extend(other.maximum);
+  }
+
+  bool Intersects(const Bounds3f& other) const {
+    return is_valid() && other.is_valid() &&
+           (minimum.array() <= other.maximum.array()).all() &&
+           (other.minimum.array() <= maximum.array()).all();
+  }
+};
+
+std::array<Vector3f, 8> CalcBoundsCorners(const Vector3f& minimum,
+                                          const Vector3f& maximum,
+                                          const Matrix4f& T_AB) {
+  std::array<Vector3f, 8> result;
+  int index = 0;
+  for (float z : {minimum.z(), maximum.z()}) {
+    for (float y : {minimum.y(), maximum.y()}) {
+      for (float x : {minimum.x(), maximum.x()}) {
+        result[index++] = (T_AB * Vector3f(x, y, z).homogeneous()).head<3>();
+      }
+    }
+  }
+  return result;
+}
+
+Bounds3f CalcBounds(const std::array<Vector3f, 8>& corners) {
+  Bounds3f result;
+  for (const Vector3f& p : corners) result.Extend(p);
+  return result;
+}
+
+Bounds3f TransformBounds(const std::array<Vector3f, 8>& corners_A,
+                         const Matrix4f& T_BA) {
+  Bounds3f result;
+  for (const Vector3f& p_A : corners_A) {
+    result.Extend((T_BA * p_A.homogeneous()).head<3>());
+  }
+  return result;
+}
+
+Bounds3f IntersectBounds(const Bounds3f& a, const Bounds3f& b) {
+  Bounds3f result;
+  result.minimum = a.minimum.cwiseMax(b.minimum);
+  result.maximum = a.maximum.cwiseMin(b.maximum);
+  return result;
+}
+
+struct ShadowInstanceBounds {
+  std::array<Vector3f, 8> corners_W;
+  Bounds3f bounds_W;
+  bool visible_in_color{};
+  bool casts_shadows{};
+};
+
 // Computes the physical view transform for a light. The frame is arbitrarily
 // oriented around the direction vector.
 Matrix4f CalcX_LphysicalW(const Vector3f& p_WL, const Vector3f& direction_W) {
@@ -921,11 +989,10 @@ std::array<Vector3f, 8> CalcWorldFrustumCorners(const ColorRenderCamera& camera,
 }
 
 // Creates the transform matrices necessary to render a depth image from a
-// spot light's perspective. The depth range is fitted to the camera's view
-// frustum; nothing outside it can shadow a visible pixel.
+// spot light's perspective.
 ShadowCameraTransforms CalcSpotShadowCameraTransforms(
-    const LightParameter& light, const std::array<Vector3f, 8>& corners_W,
-    const Matrix4f& X_WC) {
+    const LightParameter& light, const Matrix4f& X_WC,
+    const std::vector<ShadowInstanceBounds>& instances) {
   const bool in_world = render::light_frame_from_string(light.frame) ==
                         render::LightFrame::kWorld;
   Vector3f p_WL = light.position.cast<float>();
@@ -937,10 +1004,23 @@ ShadowCameraTransforms CalcSpotShadowCameraTransforms(
   ShadowCameraTransforms result;
   result.X_LphysicalW = CalcX_LphysicalW(p_WL, direction_W);
   float z_far = 0.0f;
-  for (const Vector3f& p_W : corners_W) {
-    const Vector3f p_Lphysical =
-        (result.X_LphysicalW * p_W.homogeneous()).head<3>();
-    z_far = std::max(z_far, p_Lphysical.z());
+  const float tan_half_angle =
+      std::tan(light.cone_angle * static_cast<float>(M_PI / 180.0));
+  for (const ShadowInstanceBounds& instance : instances) {
+    if (!instance.visible_in_color && !instance.casts_shadows) continue;
+    const Bounds3f bounds_L =
+        TransformBounds(instance.corners_W, result.X_LphysicalW);
+    if (bounds_L.maximum.z() <= 0.01f) continue;
+    // At the AABB's farthest depth, the cone is largest. If it still cannot
+    // reach the AABB's nearest point to the cone axis, the geometry cannot
+    // contribute to this shadow map.
+    const float distance_x =
+        std::max({bounds_L.minimum.x(), -bounds_L.maximum.x(), 0.0f});
+    const float distance_y =
+        std::max({bounds_L.minimum.y(), -bounds_L.maximum.y(), 0.0f});
+    const float minimum_radius = std::hypot(distance_x, distance_y);
+    if (minimum_radius > tan_half_angle * bounds_L.maximum.z()) continue;
+    z_far = std::max(z_far, bounds_L.maximum.z());
   }
   z_far = std::max(z_far + std::max(0.01f, 0.01f * z_far), 0.02f);
   result.T_DlightLgl =
@@ -950,11 +1030,7 @@ ShadowCameraTransforms CalcSpotShadowCameraTransforms(
   return result;
 }
 
-// Creates the transform matrices necessary to render a depth image from a
-// directional light's perspective. The orthographic view volume is fitted to
-// the camera's view frustum; anything the camera cannot see is irrelevant to
-// the shadows it will draw.
-ShadowCameraTransforms CalcDirectionalShadowCameraTransforms(
+ShadowCameraTransforms MakeLegacyDirectionalShadowView(
     const LightParameter& light, const std::array<Vector3f, 8>& corners_W,
     const Matrix4f& X_WC, float camera_far, int map_size) {
   const bool in_world = render::light_frame_from_string(light.frame) ==
@@ -996,6 +1072,90 @@ ShadowCameraTransforms CalcDirectionalShadowCameraTransforms(
   const float bottom = -(center_y + height * 0.5f);
   const float top = -(center_y - height * 0.5f);
   const float z_far = std::max(maximum.z() + camera_far, 0.02f);
+  result.T_DlightLgl =
+      MakeOrthographicProjection(left, right, bottom, top, 0.01f, z_far);
+  result.T_DlightW =
+      result.T_DlightLgl * X_LglLphysical() * result.X_LphysicalW;
+  return result;
+}
+
+ShadowCameraTransforms CalcDirectionalShadowCameraTransforms(
+    const LightParameter& light,
+    const std::array<Vector3f, 8>& frustum_corners_W, const Matrix4f& X_WC,
+    int map_size, const std::vector<ShadowInstanceBounds>& instances) {
+  const bool in_world = render::light_frame_from_string(light.frame) ==
+                        render::LightFrame::kWorld;
+  Vector3f direction_W = light.direction.cast<float>();
+  if (!in_world) {
+    direction_W = X_WC.block<3, 3>(0, 0) * direction_W;
+  }
+
+  // First express all bounds in a light frame whose origin is arbitrary. Its
+  // x and y coordinates are invariant under the later translation of the
+  // origin along the light direction.
+  const Matrix4f X_L0W = CalcX_LphysicalW(Vector3f::Zero(), direction_W);
+  const Bounds3f frustum_bounds_W = CalcBounds(frustum_corners_W);
+  const Bounds3f frustum_bounds_L = TransformBounds(frustum_corners_W, X_L0W);
+
+  Bounds3f receiver_bounds_L;
+  for (const ShadowInstanceBounds& instance : instances) {
+    if (!instance.visible_in_color) continue;
+    if (!instance.bounds_W.Intersects(frustum_bounds_W)) continue;
+    const Bounds3f instance_bounds_L =
+        TransformBounds(instance.corners_W, X_L0W);
+    receiver_bounds_L.Extend(
+        IntersectBounds(instance_bounds_L, frustum_bounds_L));
+  }
+
+  // With no bounded, potentially visible receivers, retain the old behavior.
+  // This is primarily a fallback for empty and unbounded scenes.
+  if (!receiver_bounds_L.is_valid()) {
+    return MakeLegacyDirectionalShadowView(light, frustum_corners_W, X_WC,
+                                           /* camera_far = */ 10.0f, map_size);
+  }
+
+  float minimum_z = receiver_bounds_L.minimum.z();
+  float maximum_z = receiver_bounds_L.maximum.z();
+  for (const ShadowInstanceBounds& instance : instances) {
+    if (!instance.casts_shadows) continue;
+    const Bounds3f caster_bounds_L = TransformBounds(instance.corners_W, X_L0W);
+    const bool overlaps_receiver =
+        caster_bounds_L.minimum.x() <= receiver_bounds_L.maximum.x() &&
+        caster_bounds_L.maximum.x() >= receiver_bounds_L.minimum.x() &&
+        caster_bounds_L.minimum.y() <= receiver_bounds_L.maximum.y() &&
+        caster_bounds_L.maximum.y() >= receiver_bounds_L.minimum.y();
+    if (overlaps_receiver) {
+      minimum_z = std::min(minimum_z, caster_bounds_L.minimum.z());
+      maximum_z = std::max(maximum_z, caster_bounds_L.maximum.z());
+    }
+  }
+
+  float width = std::max(
+      receiver_bounds_L.maximum.x() - receiver_bounds_L.minimum.x(), 0.01f);
+  float height = std::max(
+      receiver_bounds_L.maximum.y() - receiver_bounds_L.minimum.y(), 0.01f);
+  // Reserve two texels on every side for filtering and conservative AABBs.
+  const float pad_x = std::max(2.0f * width / map_size, 0.005f);
+  const float pad_y = std::max(2.0f * height / map_size, 0.005f);
+  width += 2.0f * pad_x;
+  height += 2.0f * pad_y;
+  float center_x =
+      0.5f * (receiver_bounds_L.minimum.x() + receiver_bounds_L.maximum.x());
+  float center_y =
+      0.5f * (receiver_bounds_L.minimum.y() + receiver_bounds_L.maximum.y());
+  center_x = std::round(center_x / (width / map_size)) * (width / map_size);
+  center_y = std::round(center_y / (height / map_size)) * (height / map_size);
+
+  const float depth = std::max(maximum_z - minimum_z, 0.01f);
+  const float depth_pad = std::max(0.01f, depth * 0.01f);
+  const Vector3f p_WL = direction_W.normalized() * (minimum_z - depth_pad);
+  ShadowCameraTransforms result;
+  result.X_LphysicalW = CalcX_LphysicalW(p_WL, direction_W);
+  const float left = center_x - width * 0.5f;
+  const float right = center_x + width * 0.5f;
+  const float bottom = -(center_y + height * 0.5f);
+  const float top = -(center_y - height * 0.5f);
+  const float z_far = depth + 2.0f * depth_pad;
   result.T_DlightLgl =
       MakeOrthographicProjection(left, right, bottom, top, 0.01f, z_far);
   result.T_DlightW =
@@ -1312,6 +1472,15 @@ void RenderEngineGl::DoUpdateDeformableConfigurations(
     const int geometry_index = gl_mesh_indices[i];
     DRAKE_DEMAND(0 <= geometry_index && geometry_index < ssize(geometries_));
     OpenGlGeometry& geometry = geometries_[geometry_index];
+    DRAKE_DEMAND(q_WG.size() % 3 == 0);
+    geometry.p_N_min =
+        Vector3f::Constant(std::numeric_limits<float>::infinity());
+    geometry.p_N_max = -geometry.p_N_min;
+    for (int v = 0; v < q_WG.size(); v += 3) {
+      const Vector3f p = q_WG.segment<3>(v);
+      geometry.p_N_min = geometry.p_N_min.cwiseMin(p);
+      geometry.p_N_max = geometry.p_N_max.cwiseMax(p);
+    }
     // Update vertex position data.
     std::size_t positions_offset = 0;
     glNamedBufferSubData(geometry.vertex_buffer,
@@ -1481,11 +1650,28 @@ std::vector<Matrix4f> RenderEngineGl::RenderShadowMaps(
 
   const Matrix4f X_WC = X_CW_.inverse().GetAsMatrix4().cast<float>();
   const auto corners_W = CalcWorldFrustumCorners(camera, X_WC);
-  const float camera_far = static_cast<float>(camera.core().clipping().far());
+  std::vector<ShadowInstanceBounds> instance_bounds;
+  instance_bounds.reserve(visuals_.size());
+  for (const auto& [_, prop] : visuals_) {
+    for (const OpenGlInstance& instance : prop.instances) {
+      const OpenGlGeometry& geometry = geometries_[instance.geometry];
+      ShadowInstanceBounds bounds;
+      bounds.corners_W =
+          CalcBoundsCorners(geometry.p_N_min, geometry.p_N_max, instance.T_WN);
+      bounds.bounds_W = CalcBounds(bounds.corners_W);
+      bounds.visible_in_color = instance.visible_in_color;
+      bounds.casts_shadows = instance.casts_shadows;
+      instance_bounds.push_back(std::move(bounds));
+    }
+  }
 
   glBindFramebuffer(GL_FRAMEBUFFER, shadow_frame_buffer_);
   glViewport(0, 0, parameters_.shadow_map_size, parameters_.shadow_map_size);
   glDisable(GL_BLEND);
+  // Perception meshes are two-sided shadow casters. Keep color rendering's
+  // back-face culling policy independent from the shadow silhouette so that
+  // open meshes cast the same shadow regardless of triangle winding.
+  glDisable(GL_CULL_FACE);
   glEnable(GL_POLYGON_OFFSET_FILL);
   glPolygonOffset(2.0f, 4.0f);
   shadow_shader_->Use();
@@ -1495,10 +1681,10 @@ std::vector<Matrix4f> RenderEngineGl::RenderShadowMaps(
     const render::LightType type = render::light_type_from_string(light.type);
     const ShadowCameraTransforms transforms =
         type == render::LightType::kSpot
-            ? CalcSpotShadowCameraTransforms(light, corners_W, X_WC)
-            : CalcDirectionalShadowCameraTransforms(
-                  light, corners_W, X_WC, camera_far,
-                  parameters_.shadow_map_size);
+            ? CalcSpotShadowCameraTransforms(light, X_WC, instance_bounds)
+            : CalcDirectionalShadowCameraTransforms(light, corners_W, X_WC,
+                                                    parameters_.shadow_map_size,
+                                                    instance_bounds);
     T_DlightWs.push_back(transforms.T_DlightW);
 
     glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
@@ -1520,6 +1706,7 @@ std::vector<Matrix4f> RenderEngineGl::RenderShadowMaps(
   glBindVertexArray(0);
   shadow_shader_->Unuse();
   glDisable(GL_POLYGON_OFFSET_FILL);
+  glEnable(GL_CULL_FACE);
   return T_DlightWs;
 }
 
@@ -1685,11 +1872,12 @@ void RenderEngineGl::AddGeometryInstance(int geometry_index, void* user_data,
 
   const Rgba diffuse = data.properties.GetPropertyOrDefault(
       "phong", "diffuse", data.default_diffuse);
+  const bool visible_in_color = diffuse.rgba()(3) > 0.0;
   const bool casts_shadows = diffuse.rgba()(3) >= 1.0;
 
   visuals_[data.id].instances.push_back(
       {geometry_index, scale.cast<float>(), geometries_.at(geometry_index),
-       *color_data, *depth_data, *label_data, casts_shadows});
+       *color_data, *depth_data, *label_data, visible_in_color, casts_shadows});
 
   // For anchored geometry, we need to make sure the instance's values for
   // T_WN and N_WN are initialized based on the initial pose, X_WG.
@@ -2251,6 +2439,14 @@ class RenderEngineGl::GltfMeshExtractor {
       /* Set the geometry's vertex and index buffers. */
       geometry.vertex_buffer = GetOpenGlBuffer(p_buffer, model);
       ConfigureIndexBuffer(prim, model, mesh_index, &geometry);
+      const tinygltf::Accessor& position_accessor =
+          model.accessors.at(prim.attributes.at("POSITION"));
+      DRAKE_DEMAND(position_accessor.minValues.size() == 3);
+      DRAKE_DEMAND(position_accessor.maxValues.size() == 3);
+      for (int i = 0; i < 3; ++i) {
+        geometry.p_N_min(i) = position_accessor.minValues[i];
+        geometry.p_N_max(i) = position_accessor.maxValues[i];
+      }
 
       /* Now initialize the vertex arrays for the geometry. */
       geometry.spec =
@@ -2781,6 +2977,10 @@ int RenderEngineGl::CreateGlGeometry(const RenderMesh& render_mesh,
   const int v_count = render_mesh.positions.rows();
   OpenGlGeometry geometry{
       .v_count = v_count, .type = GL_UNSIGNED_INT, .mode = GL_TRIANGLES};
+  geometry.p_N_min =
+      render_mesh.positions.colwise().minCoeff().cast<float>().transpose();
+  geometry.p_N_max =
+      render_mesh.positions.colwise().maxCoeff().cast<float>().transpose();
 
   // Create the vertex buffer object (VBO).
   glCreateBuffers(1, &geometry.vertex_buffer);

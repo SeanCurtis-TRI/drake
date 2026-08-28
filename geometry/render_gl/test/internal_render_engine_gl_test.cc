@@ -2979,17 +2979,48 @@ TEST_F(RenderEngineGlTest, ShadowMaps) {
 
     int shadowed_ground_pixels = 0;
     int lit_ground_pixels = 0;
+    int expected_directional_shadow_pixels = 0;
+    int expected_directional_shadow_pixels_dark = 0;
+    int unexpected_directional_shadow_pixels = 0;
     for (int y = 0; y < kHeight; ++y) {
       for (int x = 0; x < kWidth; ++x) {
         if (label.at(x, y)[0] != 1) continue;
-        shadowed_ground_pixels +=
+        const bool is_dark =
             baseline_color.at(x, y)[0] > 100 && color.at(x, y)[0] < 30;
+        shadowed_ground_pixels += is_dark;
         lit_ground_pixels += color.at(x, y)[0] > 100;
+        if (light.type == "directional") {
+          // The camera looks straight down from z = 3. For light direction
+          // (1, 1, -1), a ground point is shadowed by the unit-height box iff
+          // tracing toward the light along (-1, -1, 1) intersects the box.
+          // Check an inset footprint for coverage and the full footprint for
+          // leakage; the inset avoids filtering ambiguity at the boundary.
+          const auto& intrinsics = camera.core().intrinsics();
+          const double x_W =
+              (x - intrinsics.center_x()) * 3.0 / intrinsics.focal_x();
+          const double y_W =
+              -(y - intrinsics.center_y()) * 3.0 / intrinsics.focal_y();
+          const double lower = std::max({0.05, x_W - 0.25, y_W - 0.25});
+          const double upper = std::min({0.95, x_W + 0.25, y_W + 0.25});
+          const bool expected_shadow = lower < upper;
+          const double full_lower = std::max({0.0, x_W - 0.3, y_W - 0.3});
+          const double full_upper = std::min({1.0, x_W + 0.3, y_W + 0.3});
+          expected_directional_shadow_pixels += expected_shadow;
+          expected_directional_shadow_pixels_dark += expected_shadow && is_dark;
+          unexpected_directional_shadow_pixels +=
+              full_lower >= full_upper && is_dark;
+        }
       }
     }
     const int minimum_shadowed_pixels = light.type == "spot" ? 5 : 20;
     EXPECT_GT(shadowed_ground_pixels, minimum_shadowed_pixels);
     EXPECT_GT(lit_ground_pixels, 1000);
+    if (light.type == "directional") {
+      EXPECT_GT(expected_directional_shadow_pixels_dark,
+                expected_directional_shadow_pixels * 0.8);
+      EXPECT_LT(unexpected_directional_shadow_pixels,
+                expected_directional_shadow_pixels * 0.2);
+    }
 
     auto clone = renderer.Clone();
     ImageRgba8U clone_color(kWidth, kHeight);
@@ -3005,6 +3036,252 @@ TEST_F(RenderEngineGlTest, ShadowMaps) {
     }
     EXPECT_GT(clone_dark_ground_pixels, minimum_shadowed_pixels);
   }
+}
+
+TEST_F(RenderEngineGlTest, NearbyShadowCaster) {
+  const RenderCameraCore core{
+      "unused", depth_camera_.core().intrinsics(), {kClipNear, 10.0}, {}};
+  const ColorRenderCamera camera(core, FLAGS_show_window);
+  const RigidTransformd X_WR(RotationMatrixd::MakeXRotation(M_PI),
+                             Vector3d(0, 0, 3));
+  const LightParameter light{.type = "spot",
+                             .position = {-2, 0, 2},
+                             .frame = "world",
+                             .direction = {1, 0, -1},
+                             .cone_angle = 40};
+
+  auto make_renderer = [&](bool cast_shadows) {
+    auto renderer = std::make_unique<RenderEngineGl>(
+        RenderEngineGlParams{.lights = {light},
+                             .cast_shadows = cast_shadows,
+                             .shadow_map_size = 1024});
+    renderer->UpdateViewpoint(X_WR);
+
+    PerceptionProperties ground_props;
+    ground_props.AddProperty("label", "id", RenderLabel(1));
+    ground_props.AddProperty("phong", "diffuse", Rgba(1, 1, 1));
+    renderer->RegisterVisual(GeometryId::get_new_id(), HalfSpace(),
+                             ground_props, RigidTransformd::Identity(), false);
+
+    PerceptionProperties caster_props;
+    caster_props.AddProperty("label", "id", RenderLabel(2));
+    caster_props.AddProperty("phong", "diffuse", Rgba(1, 1, 1));
+    // The bottom of this thin plate is only 5 cm above the receiver. The
+    // oblique light displaces its shadow enough that the camera can see it.
+    renderer->RegisterVisual(GeometryId::get_new_id(), Box(0.6, 0.6, 0.01),
+                             caster_props,
+                             RigidTransformd(Vector3d(0, 0, 0.055)), false);
+    return renderer;
+  };
+
+  auto renderer = make_renderer(true);
+  ImageRgba8U color(kWidth, kHeight);
+  ImageLabel16I label(kWidth, kHeight);
+  renderer->RenderColorImage(camera, &color);
+  renderer->RenderLabelImage(camera, &label);
+
+  auto baseline = make_renderer(false);
+  ImageRgba8U baseline_color(kWidth, kHeight);
+  baseline->RenderColorImage(camera, &baseline_color);
+
+  int shadowed_ground_pixels = 0;
+  for (int y = 0; y < kHeight; ++y) {
+    for (int x = 0; x < kWidth; ++x) {
+      shadowed_ground_pixels += label.at(x, y)[0] == 1 &&
+                                baseline_color.at(x, y)[0] > 100 &&
+                                color.at(x, y)[0] < 30;
+    }
+  }
+  EXPECT_GT(shadowed_ground_pixels, 200);
+}
+
+// The color camera's far clipping plane bounds what can be drawn, but it must
+// not set the resolution of a directional shadow map when the visible scene is
+// much smaller. This is a regression test for a compact scene disappearing
+// into approximately one shadow texel when clipping_far was hundreds of
+// meters.
+TEST_F(RenderEngineGlTest, DirectionalShadowFitIgnoresCameraFar) {
+  const LightParameter light{
+      .type = "directional", .frame = "world", .direction = {1, 1, -1}};
+  RenderEngineGl renderer(RenderEngineGlParams{
+      .lights = {light}, .cast_shadows = true, .shadow_map_size = 512});
+  renderer.UpdateViewpoint(
+      RigidTransformd(RotationMatrixd::MakeXRotation(M_PI), Vector3d(0, 0, 3)));
+
+  PerceptionProperties ground_props;
+  ground_props.AddProperty("label", "id", RenderLabel(1));
+  ground_props.AddProperty("phong", "diffuse", Rgba(1, 1, 1));
+  renderer.RegisterVisual(GeometryId::get_new_id(), Box(4, 4, 0.1),
+                          ground_props, RigidTransformd(Vector3d(0, 0, -0.05)),
+                          false);
+  PerceptionProperties caster_props(ground_props);
+  caster_props.UpdateProperty("label", "id", RenderLabel(2));
+  renderer.RegisterVisual(GeometryId::get_new_id(), Box(0.6, 0.6, 1.0),
+                          caster_props, RigidTransformd(Vector3d(0, 0, 0.5)),
+                          false);
+
+  auto render = [this, &renderer](double clipping_far) {
+    const RenderCameraCore core{"unused",
+                                depth_camera_.core().intrinsics(),
+                                {kClipNear, clipping_far},
+                                {}};
+    const ColorRenderCamera camera(core, FLAGS_show_window);
+    ImageRgba8U image(camera.core().intrinsics().width(),
+                      camera.core().intrinsics().height());
+    renderer.RenderColorImage(camera, &image);
+    return image;
+  };
+
+  const ImageRgba8U near_image = render(10.0);
+  const ImageRgba8U far_image = render(500.0);
+  int different_pixels = 0;
+  for (int y = 0; y < near_image.height(); ++y) {
+    for (int x = 0; x < near_image.width(); ++x) {
+      different_pixels += !IsColorNear(RgbaColor(near_image.at(x, y)),
+                                       RgbaColor(far_image.at(x, y)), 1);
+    }
+  }
+  EXPECT_EQ(different_pixels, 0);
+
+  const RenderCameraCore label_core{
+      "unused", depth_camera_.core().intrinsics(), {kClipNear, 500.0}, {}};
+  const ColorRenderCamera label_camera(label_core, false);
+  ImageLabel16I label_image(label_core.intrinsics().width(),
+                            label_core.intrinsics().height());
+  renderer.RenderLabelImage(label_camera, &label_image);
+  int shadowed_ground_pixels = 0;
+  int lit_ground_pixels = 0;
+  for (int y = 0; y < far_image.height(); ++y) {
+    for (int x = 0; x < far_image.width(); ++x) {
+      if (label_image.at(x, y)[0] != 1) continue;
+      shadowed_ground_pixels += far_image.at(x, y)[0] < 30;
+      lit_ground_pixels += far_image.at(x, y)[0] > 100;
+    }
+  }
+  EXPECT_GT(shadowed_ground_pixels, 100);
+  EXPECT_GT(lit_ground_pixels, 1000);
+}
+
+TEST_F(RenderEngineGlTest, SpotShadowFitIgnoresCameraFar) {
+  const LightParameter light{.type = "spot",
+                             .position = {-1, 0, 3},
+                             .frame = "world",
+                             .direction = {1, 0, -3},
+                             .cone_angle = 40};
+  RenderEngineGl renderer(RenderEngineGlParams{
+      .lights = {light}, .cast_shadows = true, .shadow_map_size = 512});
+  renderer.UpdateViewpoint(
+      RigidTransformd(RotationMatrixd::MakeXRotation(M_PI), Vector3d(0, 0, 3)));
+
+  PerceptionProperties ground_props;
+  ground_props.AddProperty("label", "id", RenderLabel(1));
+  ground_props.AddProperty("phong", "diffuse", Rgba(1, 1, 1));
+  renderer.RegisterVisual(GeometryId::get_new_id(), Box(4, 4, 0.1),
+                          ground_props, RigidTransformd(Vector3d(0, 0, -0.05)),
+                          false);
+  PerceptionProperties caster_props(ground_props);
+  caster_props.UpdateProperty("label", "id", RenderLabel(2));
+  renderer.RegisterVisual(GeometryId::get_new_id(), Box(0.6, 0.6, 1.0),
+                          caster_props, RigidTransformd(Vector3d(0, 0, 0.5)),
+                          false);
+
+  auto render = [this, &renderer](double clipping_far) {
+    const RenderCameraCore core{"unused",
+                                depth_camera_.core().intrinsics(),
+                                {kClipNear, clipping_far},
+                                {}};
+    const ColorRenderCamera camera(core, FLAGS_show_window);
+    ImageRgba8U image(camera.core().intrinsics().width(),
+                      camera.core().intrinsics().height());
+    renderer.RenderColorImage(camera, &image);
+    return image;
+  };
+
+  const ImageRgba8U near_image = render(10.0);
+  const ImageRgba8U far_image = render(500.0);
+  int different_pixels = 0;
+  for (int y = 0; y < near_image.height(); ++y) {
+    for (int x = 0; x < near_image.width(); ++x) {
+      different_pixels += !IsColorNear(RgbaColor(near_image.at(x, y)),
+                                       RgbaColor(far_image.at(x, y)), 1);
+    }
+  }
+  EXPECT_EQ(different_pixels, 0);
+
+  const RenderCameraCore label_core{
+      "unused", depth_camera_.core().intrinsics(), {kClipNear, 500.0}, {}};
+  const ColorRenderCamera label_camera(label_core, false);
+  ImageLabel16I label_image(label_core.intrinsics().width(),
+                            label_core.intrinsics().height());
+  renderer.RenderLabelImage(label_camera, &label_image);
+  int shadowed_ground_pixels = 0;
+  int lit_ground_pixels = 0;
+  for (int y = 0; y < far_image.height(); ++y) {
+    for (int x = 0; x < far_image.width(); ++x) {
+      if (label_image.at(x, y)[0] != 1) continue;
+      shadowed_ground_pixels += far_image.at(x, y)[0] < 30;
+      lit_ground_pixels += far_image.at(x, y)[0] > 100;
+    }
+  }
+  EXPECT_GT(shadowed_ground_pixels, 100);
+  EXPECT_GT(lit_ground_pixels, 1000);
+}
+
+TEST_F(RenderEngineGlTest, ShadowCastersAreTwoSided) {
+  const RenderCameraCore core{
+      "unused", depth_camera_.core().intrinsics(), {kClipNear, 10.0}, {}};
+  const ColorRenderCamera camera(core, FLAGS_show_window);
+  const RigidTransformd X_WR(RotationMatrixd::MakeXRotation(M_PI),
+                             Vector3d(0, 0, 3));
+  const LightParameter light{
+      .type = "directional", .frame = "world", .direction = {1, 0, -1}};
+
+  auto count_shadowed_ground = [&](std::string_view face) {
+    RenderEngineGl renderer(RenderEngineGlParams{
+        .lights = {light}, .cast_shadows = true, .shadow_map_size = 1024});
+    renderer.UpdateViewpoint(X_WR);
+
+    PerceptionProperties ground_props;
+    ground_props.AddProperty("label", "id", RenderLabel(1));
+    ground_props.AddProperty("phong", "diffuse", Rgba(1, 1, 1));
+    renderer.RegisterVisual(GeometryId::get_new_id(), HalfSpace(), ground_props,
+                            RigidTransformd::Identity(), false);
+
+    PerceptionProperties triangle_props;
+    triangle_props.AddProperty("label", "id", RenderLabel(2));
+    triangle_props.AddProperty("phong", "diffuse", Rgba(1, 1, 1));
+    const std::string obj = fmt::format(R"(v -0.5 -0.5 1
+v 0.5 -0.5 1
+v 0 0.5 1
+vn 0 0 1
+f {}
+)",
+                                        face);
+    renderer.RegisterVisual(
+        GeometryId::get_new_id(),
+        Mesh(InMemoryMesh{MemoryFile(obj, ".obj", "open_triangle.obj")}),
+        triangle_props, RigidTransformd::Identity(), false);
+
+    ImageRgba8U color(kWidth, kHeight);
+    ImageLabel16I label(kWidth, kHeight);
+    renderer.RenderColorImage(camera, &color);
+    renderer.RenderLabelImage(camera, &label);
+    int shadowed_ground_pixels = 0;
+    for (int y = 0; y < kHeight; ++y) {
+      for (int x = 0; x < kWidth; ++x) {
+        shadowed_ground_pixels +=
+            label.at(x, y)[0] == 1 && color.at(x, y)[0] < 30;
+      }
+    }
+    return shadowed_ground_pixels;
+  };
+
+  const int front_winding_shadow = count_shadowed_ground("1//1 2//1 3//1");
+  const int back_winding_shadow = count_shadowed_ground("1//1 3//1 2//1");
+  EXPECT_GT(front_winding_shadow, 1000);
+  EXPECT_GT(back_winding_shadow, 1000);
+  EXPECT_NEAR(front_winding_shadow, back_winding_shadow,
+              front_winding_shadow * 0.02);
 }
 
 namespace {

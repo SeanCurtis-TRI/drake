@@ -35,6 +35,8 @@ GTEST_TEST(OpenGlGeometryTest, Construction) {
   const Matrix3f N_MN = (Matrix3f() << 21, 22, 23,
                                        24, 25, 26,
                                        27, 28, 29).finished();
+  const Vector3f p_N_min(-1, -2, -3);
+  const Vector3f p_N_max(4, 5, 6);
   // clang-format on
   const OpenGlGeometry geometry{.vertex_array = 1,
                                 .vertex_buffer = 2,
@@ -43,6 +45,8 @@ GTEST_TEST(OpenGlGeometryTest, Construction) {
                                 .index_count = 5,
                                 .type = 17,
                                 .mode = 18,
+                                .p_N_min = p_N_min,
+                                .p_N_max = p_N_max,
                                 .T_MN = T_MN,
                                 .N_MN = N_MN};
   EXPECT_EQ(geometry.vertex_array, 1);
@@ -52,6 +56,8 @@ GTEST_TEST(OpenGlGeometryTest, Construction) {
   EXPECT_EQ(geometry.index_count, 5);
   EXPECT_EQ(geometry.type, 17);
   EXPECT_EQ(geometry.mode, 18);
+  EXPECT_TRUE(CompareMatrices(geometry.p_N_min, p_N_min));
+  EXPECT_TRUE(CompareMatrices(geometry.p_N_max, p_N_max));
   EXPECT_TRUE(CompareMatrices(geometry.T_MN, T_MN));
   EXPECT_TRUE(CompareMatrices(geometry.N_MN, N_MN));
 }
@@ -132,9 +138,10 @@ GTEST_TEST(OpenGlInstanceTest, Validity) {
                                      AbstractValue::Make(33));
 
   const OpenGlInstance instance(geometry_index, scale.head<3>(), geometry,
-                                color_data, depth_data, label_data, true);
+                                color_data, depth_data, label_data, true, true);
 
   EXPECT_EQ(instance.geometry, geometry_index);
+  EXPECT_TRUE(instance.visible_in_color);
   EXPECT_TRUE(instance.casts_shadows);
   EXPECT_TRUE(CompareMatrices(instance.T_GN, T_GN_expected));
   EXPECT_TRUE(CompareMatrices(instance.N_GN, N_GN_expected));
