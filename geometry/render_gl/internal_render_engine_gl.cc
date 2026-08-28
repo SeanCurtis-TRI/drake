@@ -844,6 +844,138 @@ struct ShadowCameraTransforms {
   Matrix4f T_DlightW;
 };
 
+// Reports the extent of a mesh in the mesh's frame. Used to define the extent
+// of light frusta for shadow maps.
+struct Bounds3f {
+  Vector3f minimum = Vector3f::Constant(std::numeric_limits<float>::infinity());
+  Vector3f maximum = -minimum;
+
+  bool is_valid() const { return (minimum.array() <= maximum.array()).all(); }
+
+  void Extend(const Vector3f& p) {
+    minimum = minimum.cwiseMin(p);
+    maximum = maximum.cwiseMax(p);
+  }
+
+  void Extend(const Bounds3f& other) {
+    if (!other.is_valid()) return;
+    Extend(other.minimum);
+    Extend(other.maximum);
+  }
+
+  bool Intersects(const Bounds3f& other) const {
+    return is_valid() && other.is_valid() &&
+           (minimum.array() <= other.maximum.array()).all() &&
+           (other.minimum.array() <= maximum.array()).all();
+  }
+};
+
+// Creates an axis-aligned bounding box (in frame B) of the axis-aligned
+// bounding box defined in frame A (by p_A_min and p_A_max), based on the
+// relationship between the frames: T_BA. Note: T_BA is an *affine* transform
+// and may include scale and shear factors. The box's image in B is therefore a
+// parallelepiped; this reports the axis-aligned bound *on* that shape.
+//
+// There is no need to enumerate the parallelepiped's eight corners. Writing M
+// for the linear block of T_BA, the bound's extent along B's iᵗʰ axis is the
+// accumulated contribution of each of A's axes through row i of M:
+//
+//   minimum(i) = p_BoAo_B(i) +
+//                Σⱼ min(M(i,j)⋅p_A_min(j), M(i,j)⋅p_A_max(j))
+//
+// and likewise for maximum (with max in place of min). Each term is
+// independently extremized because the box's extents along A's axes are
+// themselves independent. (See Arvo, "Transforming Axis-Aligned Bounding
+// Boxes", Graphics Gems, 1990.)
+Bounds3f CalcTransformedBounds(const Vector3f& p_A_min, const Vector3f& p_A_max,
+                               const Matrix4f& T_BA) {
+  // The linear block of T_BA -- rotation and, possibly, scale and shear.
+  const Matrix3f M_BA = T_BA.block<3, 3>(0, 0);
+  // lower(i, j) = M(i,j)⋅p_A_min(j); upper(i, j) = M(i,j)⋅p_A_max(j).
+  const Matrix3f lower = M_BA * p_A_min.asDiagonal();
+  const Matrix3f upper = M_BA * p_A_max.asDiagonal();
+  const Vector3f p_BoAo_B = T_BA.block<3, 1>(0, 3);
+  Bounds3f result;
+  result.minimum = p_BoAo_B + lower.cwiseMin(upper).rowwise().sum();
+  result.maximum = p_BoAo_B + lower.cwiseMax(upper).rowwise().sum();
+  return result;
+}
+
+// Creates an axis-aligned bounding box (in frame F) of a set of vertices p_FVs.
+// Used for the camera view frustum (a truncated pyramid represented by its
+// corners).
+Bounds3f CalcBounds(const std::array<Vector3f, 8>& p_FVs) {
+  Bounds3f result;
+  for (const Vector3f& p : p_FVs) result.Extend(p);
+  return result;
+}
+
+// Creates an axis-aligned bounding box (in frame B) of a set of vertices P_AVs
+// based on the relationship between the frames: T_BA. As with CalcBounds(),
+// this is for the camera view frustum, whose corners must be enumerated.
+Bounds3f TransformBounds(const std::array<Vector3f, 8>& P_AVs,
+                         const Matrix4f& T_BA) {
+  Bounds3f result;
+  for (const Vector3f& p_AV : P_AVs) {
+    result.Extend((T_BA * p_AV.homogeneous()).head<3>());
+  }
+  return result;
+}
+
+// Creates the intersection of two axis aligned bounding boxes.
+Bounds3f IntersectBounds(const Bounds3f& a, const Bounds3f& b) {
+  Bounds3f result;
+  result.minimum = a.minimum.cwiseMax(b.minimum);
+  result.maximum = a.maximum.cwiseMin(b.maximum);
+  return result;
+}
+
+// Reports properties of a single geometry instance relating to shadows (casting
+// and receiving).
+//
+// Remember, that each mesh has an axis aligned bounding box defined in its
+// local frame (aabb_N). An instance will have an arbitrary transform T_WN
+// mapping the mesh frame to a pose in the world (which may include scale
+// or shear factors). Applying T_WN to aabb_N gives us a bounding
+// parallelepiped (3d parallelogram) posed in world: pp_W.
+//
+// We never materialize pp_W. We keep aabb_N and T_WN and let CalcBoundsIn()
+// bound pp_W directly in whichever frame we need it (one frame per light, plus
+// the world). That is exactly as tight as enumerating pp_W's corners and
+// bounding those -- CalcTransformedBounds() reports the true axis-aligned bound
+// on the transformed box.
+//
+// Note: for rigid geometry, aabb_N is constant. For deformable geometry, aabb_N
+// gets updated as the vertices move.
+struct ShadowInstanceBounds {
+  // Reports the axis-aligned bound on pp_W, measured and expressed in an
+  // arbitrary frame F (in practice, a light frame), given X_FW. As a relatively
+  // tight fit to the mesh, it is used in two ways:
+  //  - to expand the light frustum to a *minimum* extent (at least, more
+  //    minimal than when using bounds_W), and
+  //  - to determine if a geometry can actually cast shadows (i.e., if it lies
+  //    within a light's frustum).
+  Bounds3f CalcBoundsIn(const Matrix4f& X_FW) const {
+    return CalcTransformedBounds(p_N_min, p_N_max, X_FW * T_WN);
+  }
+
+  // A special case of `CalcBoundsIn()`, optimized for the world frame.
+  Bounds3f CalcBoundsInWorld() const {
+    return CalcTransformedBounds(p_N_min, p_N_max, T_WN);
+  }
+
+  // The mesh's bounding box (aabb_N), measured and expressed in the mesh
+  // frame N.
+  Vector3f p_N_min;
+  Vector3f p_N_max;
+  // The instance's affine transform posing (and scaling) the mesh in the world.
+  Matrix4f T_WN;
+  // The geometry can *receive* shadows (i.e., alpha > 0).
+  bool receives_shadows{};
+  // Determines if the geometry can cast shadows (i.e., is fully opaque).
+  bool casts_shadows{};
+};
+
 // Computes the physical view transform for a light. The frame is arbitrarily
 // oriented around the direction vector.
 Matrix4f CalcX_LphysicalW(const Vector3f& p_WL, const Vector3f& direction_W) {
@@ -925,30 +1057,62 @@ std::array<Vector3f, 8> CalcWorldFrustumCorners(const ColorRenderCamera& camera,
   return result;
 }
 
-// Creates the transform matrices necessary to render a depth image from a
-// spot light's perspective. The depth range is fitted to the camera's view
-// frustum; nothing outside it can shadow a visible pixel.
-ShadowCameraTransforms CalcSpotShadowCameraTransforms(
-    const LightParameter& light, const std::array<Vector3f, 8>& corners_W,
-    const Matrix4f& X_WC) {
-  Vector3f p_WL = light.position.cast<float>();
-  // Start by assuming that light.direction is direction_W (based on
-  // light.frame).
-  Vector3f direction_W = light.direction.cast<float>();
+// Computes the light.direction_W from the given `light` and its pose `X_WC`.
+Vector3f GetLightDirectionInWorld(const LightParameter& light,
+                                  const Matrix4f& X_WC) {
+  Vector3f dir = light.direction.cast<float>();
   if (render::light_frame_from_string(light.frame) ==
       render::LightFrame::kCamera) {
-    // Oops; it's actually direction_C.
-    const Vector3f& direction_C = direction_W;
-    p_WL = (X_WC * p_WL.homogeneous()).head<3>();
-    direction_W = X_WC.block<3, 3>(0, 0) * direction_C;
+    const Vector3f direction_C = dir;
+    return X_WC.block<3, 3>(0, 0) * direction_C;
   }
+  // It's already expressed in the world frame.
+  return dir;
+}
+
+// Computes the light.position_W from the given `light` and its pose `X_WC`.
+Vector3f GetLightPositionInWorld(const LightParameter& light,
+                                 const Matrix4f& X_WC) {
+  Vector3f p = light.position.cast<float>();
+  if (render::light_frame_from_string(light.frame) ==
+      render::LightFrame::kCamera) {
+    const Vector3f& p_CL = p;
+    return (X_WC * p_CL.homogeneous()).head<3>();
+  }
+  // It's already expressed in the world frame.
+  return p;
+}
+
+// Creates the transform matrices necessary to render a depth image from a
+// spot light's perspective.
+ShadowCameraTransforms CalcSpotShadowCameraTransforms(
+    const LightParameter& light, const Matrix4f& X_WC,
+    const std::vector<ShadowInstanceBounds>& instances) {
+  const Vector3f direction_W = GetLightDirectionInWorld(light, X_WC);
+  const Vector3f p_WL = GetLightPositionInWorld(light, X_WC);
+
   ShadowCameraTransforms result;
   result.X_LphysicalW = CalcX_LphysicalW(p_WL, direction_W);
   float z_far = 0.0f;
-  for (const Vector3f& p_W : corners_W) {
-    const Vector3f p_Lphysical =
-        (result.X_LphysicalW * p_W.homogeneous()).head<3>();
-    z_far = std::max(z_far, p_Lphysical.z());
+  const float tan_half_angle =
+      static_cast<float>(std::tan(light.cone_angle * M_PI / 180.0));
+  for (const ShadowInstanceBounds& instance : instances) {
+    if (!instance.receives_shadows && !instance.casts_shadows) continue;
+    const Bounds3f bounds_L = instance.CalcBoundsIn(result.X_LphysicalW);
+    // TODO: Address this test; why 0.01f? Related to near clipping plane, but
+    // that is user specified. If we're going to play that game, we should
+    // play it for real.
+    if (bounds_L.maximum.z() <= 0.01f) continue;
+    // At the AABB's farthest depth, the cone is largest. If it still cannot
+    // reach the AABB's nearest point to the cone axis, the geometry cannot
+    // contribute to this shadow map.
+    const float distance_x =
+        std::max({bounds_L.minimum.x(), -bounds_L.maximum.x(), 0.0f});
+    const float distance_y =
+        std::max({bounds_L.minimum.y(), -bounds_L.maximum.y(), 0.0f});
+    const float minimum_radius = std::hypot(distance_x, distance_y);
+    if (minimum_radius > tan_half_angle * bounds_L.maximum.z()) continue;
+    z_far = std::max(z_far, bounds_L.maximum.z());
   }
   z_far = std::max(z_far + std::max(0.01f, 0.01f * z_far), 0.02f);
   result.T_DlightLgl =
@@ -958,19 +1122,13 @@ ShadowCameraTransforms CalcSpotShadowCameraTransforms(
   return result;
 }
 
-// Creates the transform matrices necessary to render a depth image from a
-// directional light's perspective. The orthographic view volume is fitted to
-// the camera's view frustum; anything the camera cannot see is irrelevant to
-// the shadows it will draw.
-ShadowCameraTransforms CalcDirectionalShadowCameraTransforms(
+// TODO: Legacy is a meaningless name. It should reflect that it's a fallback
+// characterization and that needs to be documented.
+ShadowCameraTransforms MakeLegacyDirectionalShadowView(
     const LightParameter& light, const std::array<Vector3f, 8>& corners_W,
     const Matrix4f& X_WC, float camera_far, int map_size) {
-  const bool in_world = render::light_frame_from_string(light.frame) ==
-                        render::LightFrame::kWorld;
-  Vector3f direction_W = light.direction.cast<float>();
-  if (!in_world) {
-    direction_W = X_WC.block<3, 3>(0, 0) * direction_W;
-  }
+  const Vector3f direction_W = GetLightDirectionInWorld(light, X_WC);
+
   const Vector3f camera_position = X_WC.block<3, 1>(0, 3);
   float minimum_projection = std::numeric_limits<float>::infinity();
   for (const Vector3f& p_W : corners_W) {
@@ -1004,6 +1162,97 @@ ShadowCameraTransforms CalcDirectionalShadowCameraTransforms(
   const float bottom = -(center_y + height * 0.5f);
   const float top = -(center_y - height * 0.5f);
   const float z_far = std::max(maximum.z() + camera_far, 0.02f);
+  result.T_DlightLgl =
+      MakeOrthographicProjection(left, right, bottom, top, 0.01f, z_far);
+  result.T_DlightW =
+      result.T_DlightLgl * X_LglLphysical() * result.X_LphysicalW;
+  return result;
+}
+
+ShadowCameraTransforms CalcDirectionalShadowCameraTransforms(
+    const LightParameter& light,
+    const std::array<Vector3f, 8>& frustum_corners_W, const Matrix4f& X_WC,
+    int map_size, const std::vector<ShadowInstanceBounds>& instances) {
+  // Start by assuming that light.direction is direction_W (based on
+  // light.frame).
+  Vector3f direction_W = light.direction.cast<float>();
+  if (render::light_frame_from_string(light.frame) ==
+      render::LightFrame::kCamera) {
+    // Oops; it's actually direction_C.
+    const Vector3f& direction_C = direction_W;
+    direction_W = X_WC.block<3, 3>(0, 0) * direction_C;
+  }
+
+  // First express all bounds in a light frame whose origin is arbitrary. Its
+  // x and y coordinates are invariant under the later translation of the
+  // origin along the light direction.
+  const Matrix4f X_L0W = CalcX_LphysicalW(Vector3f::Zero(), direction_W);
+  const Bounds3f frustum_bounds_W = CalcBounds(frustum_corners_W);
+  const Bounds3f frustum_bounds_L = TransformBounds(frustum_corners_W, X_L0W);
+
+  Bounds3f receiver_bounds_L;
+  for (const ShadowInstanceBounds& instance : instances) {
+    if (!instance.receives_shadows) continue;
+    // A coarse world-frame reject before paying for the light-frame bound.
+    // This matters for cameras mounted on robot wrists: as the hand approaches
+    // a manipuland, the frustum sees a small subset of the scene, and fitting
+    // the shadow map to that subset (rather than to everything) is exactly
+    // where the resolution is won.
+    if (!instance.CalcBoundsInWorld().Intersects(frustum_bounds_W)) continue;
+    const Bounds3f instance_bounds_L = instance.CalcBoundsIn(X_L0W);
+    receiver_bounds_L.Extend(
+        IntersectBounds(instance_bounds_L, frustum_bounds_L));
+  }
+
+  // With no bounded, potentially visible receivers, retain the old behavior.
+  // This is primarily a fallback for empty and unbounded scenes.
+  if (!receiver_bounds_L.is_valid()) {
+    return MakeLegacyDirectionalShadowView(light, frustum_corners_W, X_WC,
+                                           /* camera_far = */ 10.0f, map_size);
+  }
+
+  float minimum_z = receiver_bounds_L.minimum.z();
+  float maximum_z = receiver_bounds_L.maximum.z();
+  for (const ShadowInstanceBounds& instance : instances) {
+    if (!instance.casts_shadows) continue;
+    const Bounds3f caster_bounds_L = instance.CalcBoundsIn(X_L0W);
+    const bool overlaps_receiver =
+        caster_bounds_L.minimum.x() <= receiver_bounds_L.maximum.x() &&
+        caster_bounds_L.maximum.x() >= receiver_bounds_L.minimum.x() &&
+        caster_bounds_L.minimum.y() <= receiver_bounds_L.maximum.y() &&
+        caster_bounds_L.maximum.y() >= receiver_bounds_L.minimum.y();
+    if (overlaps_receiver) {
+      minimum_z = std::min(minimum_z, caster_bounds_L.minimum.z());
+      maximum_z = std::max(maximum_z, caster_bounds_L.maximum.z());
+    }
+  }
+
+  float width = std::max(
+      receiver_bounds_L.maximum.x() - receiver_bounds_L.minimum.x(), 0.01f);
+  float height = std::max(
+      receiver_bounds_L.maximum.y() - receiver_bounds_L.minimum.y(), 0.01f);
+  // Reserve two texels on every side for filtering and conservative AABBs.
+  const float pad_x = std::max(2.0f * width / map_size, 0.005f);
+  const float pad_y = std::max(2.0f * height / map_size, 0.005f);
+  width += 2.0f * pad_x;
+  height += 2.0f * pad_y;
+  float center_x =
+      0.5f * (receiver_bounds_L.minimum.x() + receiver_bounds_L.maximum.x());
+  float center_y =
+      0.5f * (receiver_bounds_L.minimum.y() + receiver_bounds_L.maximum.y());
+  center_x = std::round(center_x / (width / map_size)) * (width / map_size);
+  center_y = std::round(center_y / (height / map_size)) * (height / map_size);
+
+  const float depth = std::max(maximum_z - minimum_z, 0.01f);
+  const float depth_pad = std::max(0.01f, depth * 0.01f);
+  const Vector3f p_WL = direction_W.normalized() * (minimum_z - depth_pad);
+  ShadowCameraTransforms result;
+  result.X_LphysicalW = CalcX_LphysicalW(p_WL, direction_W);
+  const float left = center_x - width * 0.5f;
+  const float right = center_x + width * 0.5f;
+  const float bottom = -(center_y + height * 0.5f);
+  const float top = -(center_y - height * 0.5f);
+  const float z_far = depth + 2.0f * depth_pad;
   result.T_DlightLgl =
       MakeOrthographicProjection(left, right, bottom, top, 0.01f, z_far);
   result.T_DlightW =
@@ -1317,6 +1566,15 @@ void RenderEngineGl::DoUpdateDeformableConfigurations(
     const int geometry_index = gl_mesh_indices[i];
     DRAKE_DEMAND(0 <= geometry_index && geometry_index < ssize(geometries_));
     OpenGlGeometry& geometry = geometries_[geometry_index];
+    DRAKE_DEMAND(q_WG.size() % 3 == 0);
+    geometry.p_N_min =
+        Vector3f::Constant(std::numeric_limits<float>::infinity());
+    geometry.p_N_max = -geometry.p_N_min;
+    for (int v = 0; v < q_WG.size(); v += 3) {
+      const Vector3f p = q_WG.segment<3>(v);
+      geometry.p_N_min = geometry.p_N_min.cwiseMin(p);
+      geometry.p_N_max = geometry.p_N_max.cwiseMax(p);
+    }
     // Update vertex position data.
     std::size_t positions_offset = 0;
     glNamedBufferSubData(geometry.vertex_buffer,
@@ -1488,26 +1746,43 @@ std::vector<Matrix4f> RenderEngineGl::RenderShadowMaps(
   const std::vector<int>& shadow_light_indices = this->shadow_light_indices();
   if (shadow_light_indices.empty()) return T_DlightWs;
 
-  const Matrix4f X_WC = X_CW_.inverse().GetAsMatrix4().cast<float>();
-  const auto corners_W = CalcWorldFrustumCorners(camera, X_WC);
-  const float camera_far = static_cast<float>(camera.core().clipping().far());
+  std::vector<ShadowInstanceBounds> instance_bounds;
+  instance_bounds.reserve(visuals_.size());
+  for (const auto& [_, prop] : visuals_) {
+    for (const OpenGlInstance& instance : prop.instances) {
+      const OpenGlGeometry& geometry = geometries_[instance.geometry];
+      ShadowInstanceBounds bounds;
+      bounds.p_N_min = geometry.p_N_min;
+      bounds.p_N_max = geometry.p_N_max;
+      bounds.T_WN = instance.T_WN;
+      bounds.receives_shadows = instance.receives_shadows;
+      bounds.casts_shadows = instance.casts_shadows;
+      instance_bounds.push_back(std::move(bounds));
+    }
+  }
 
   glBindFramebuffer(GL_FRAMEBUFFER, shadow_frame_buffer_);
   glViewport(0, 0, parameters_.shadow_map_size, parameters_.shadow_map_size);
   glDisable(GL_BLEND);
+  // Perception meshes are two-sided shadow casters. Keep color rendering's
+  // back-face culling policy independent from the shadow silhouette so that
+  // open meshes cast the same shadow regardless of triangle winding.
+  glDisable(GL_CULL_FACE);
   glEnable(GL_POLYGON_OFFSET_FILL);
   glPolygonOffset(2.0f, 4.0f);
   shadow_shader_->Use();
 
+  const Matrix4f X_WC = X_CW_.inverse().GetAsMatrix4().cast<float>();
+  const auto corners_W = CalcWorldFrustumCorners(camera, X_WC);
   for (int layer = 0; layer < ssize(shadow_light_indices); ++layer) {
     const LightParameter& light = active_lights()[shadow_light_indices[layer]];
     const render::LightType type = render::light_type_from_string(light.type);
     const ShadowCameraTransforms transforms =
         type == render::LightType::kSpot
-            ? CalcSpotShadowCameraTransforms(light, corners_W, X_WC)
-            : CalcDirectionalShadowCameraTransforms(
-                  light, corners_W, X_WC, camera_far,
-                  parameters_.shadow_map_size);
+            ? CalcSpotShadowCameraTransforms(light, X_WC, instance_bounds)
+            : CalcDirectionalShadowCameraTransforms(light, corners_W, X_WC,
+                                                    parameters_.shadow_map_size,
+                                                    instance_bounds);
     T_DlightWs.push_back(transforms.T_DlightW);
 
     glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
@@ -1529,6 +1804,7 @@ std::vector<Matrix4f> RenderEngineGl::RenderShadowMaps(
   glBindVertexArray(0);
   shadow_shader_->Unuse();
   glDisable(GL_POLYGON_OFFSET_FILL);
+  glEnable(GL_CULL_FACE);
   return T_DlightWs;
 }
 
@@ -1694,11 +1970,12 @@ void RenderEngineGl::AddGeometryInstance(int geometry_index, void* user_data,
 
   const Rgba diffuse = data.properties.GetPropertyOrDefault(
       "phong", "diffuse", data.default_diffuse);
+  const bool receives_shadows = diffuse.rgba()(3) > 0.0;
   const bool casts_shadows = diffuse.rgba()(3) >= 1.0;
 
   visuals_[data.id].instances.push_back(
       {geometry_index, scale.cast<float>(), geometries_.at(geometry_index),
-       *color_data, *depth_data, *label_data, casts_shadows});
+       *color_data, *depth_data, *label_data, receives_shadows, casts_shadows});
 
   // For anchored geometry, we need to make sure the instance's values for
   // T_WN and N_WN are initialized based on the initial pose, X_WG.
@@ -2260,6 +2537,14 @@ class RenderEngineGl::GltfMeshExtractor {
       /* Set the geometry's vertex and index buffers. */
       geometry.vertex_buffer = GetOpenGlBuffer(p_buffer, model);
       ConfigureIndexBuffer(prim, model, mesh_index, &geometry);
+      const tinygltf::Accessor& position_accessor =
+          model.accessors.at(prim.attributes.at("POSITION"));
+      DRAKE_DEMAND(position_accessor.minValues.size() == 3);
+      DRAKE_DEMAND(position_accessor.maxValues.size() == 3);
+      for (int i = 0; i < 3; ++i) {
+        geometry.p_N_min(i) = position_accessor.minValues[i];
+        geometry.p_N_max(i) = position_accessor.maxValues[i];
+      }
 
       /* Now initialize the vertex arrays for the geometry. */
       geometry.spec =
@@ -2790,6 +3075,10 @@ int RenderEngineGl::CreateGlGeometry(const RenderMesh& render_mesh,
   const int v_count = render_mesh.positions.rows();
   OpenGlGeometry geometry{
       .v_count = v_count, .type = GL_UNSIGNED_INT, .mode = GL_TRIANGLES};
+  geometry.p_N_min =
+      render_mesh.positions.colwise().minCoeff().cast<float>().transpose();
+  geometry.p_N_max =
+      render_mesh.positions.colwise().maxCoeff().cast<float>().transpose();
 
   // Create the vertex buffer object (VBO).
   glCreateBuffers(1, &geometry.vertex_buffer);
