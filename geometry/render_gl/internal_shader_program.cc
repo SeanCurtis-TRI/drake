@@ -163,7 +163,8 @@ void ShaderProgram::Free() {
 }
 
 void ShaderProgram::ConfigureUniforms() {
-  model_to_device_matrix_loc_ = GetUniformLocation("T_DM");
+  model_to_device_matrix_loc_ =
+      GetUniformLocation(DoGetModelToDeviceMatrixUniformName());
   DoConfigureUniforms();
 }
 

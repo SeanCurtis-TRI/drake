@@ -132,9 +132,10 @@ GTEST_TEST(OpenGlInstanceTest, Validity) {
                                      AbstractValue::Make(33));
 
   const OpenGlInstance instance(geometry_index, scale.head<3>(), geometry,
-                                color_data, depth_data, label_data);
+                                color_data, depth_data, label_data, true);
 
   EXPECT_EQ(instance.geometry, geometry_index);
+  EXPECT_TRUE(instance.casts_shadows);
   EXPECT_TRUE(CompareMatrices(instance.T_GN, T_GN_expected));
   EXPECT_TRUE(CompareMatrices(instance.N_GN, N_GN_expected));
 

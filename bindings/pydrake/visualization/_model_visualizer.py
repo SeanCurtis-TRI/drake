@@ -286,6 +286,7 @@ class ModelVisualizer:
         camera_config.name = "preview"
         camera_config.X_PB.base_frame = "$rgbd_sensor_body"
         camera_config.z_far = 3  # Show 3m of frustum.
+        camera_config.clipping_far = 5
         camera_config.fps = 1.0  # Ignored -- we're not simulating.
         # The meshcat default field of view is 75 degrees. We want the two
         # images to match.
@@ -325,11 +326,11 @@ class ModelVisualizer:
                 # tests), so we'll simply stay away from GLX unless we're
                 # showing the render window.
                 renderer.backend = "GLX"
-            renderer.cast_shadows = self._rgbd_cast_shadows
-            renderer.shadow_map_size = self._rgbd_shadow_map_size
 
         # Common properties.
         renderer.lights = lights
+        renderer.cast_shadows = self._rgbd_cast_shadows
+        renderer.shadow_map_size = self._rgbd_shadow_map_size
 
         camera_config.renderer_class = renderer
         return camera_config

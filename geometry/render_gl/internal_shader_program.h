@@ -49,10 +49,12 @@ namespace internal {
 
  Explicit functionality is given in derived classes. They specify the actual
  shader code and any idiosyncratic details. To be compatible with *this*
- shader abstraction, a shader must specify a uniform mat4 called "T_DM" for the
- model-to-device matrix. This is a projective transform taking a model-frame
- point in ℜ³ to homogeneous OpenGL clip coordinates. We define this matrix
- as:
+ shader abstraction, a shader must specify a uniform mat4 for the
+ model-to-device matrix. By default, the uniform is called "T_DM";
+ derived classes can provide a different name when the device frame is not the
+ image camera's device frame (e.g., when rendering shadow maps). This is a
+ projective transform taking a model-frame point in ℜ³ to homogeneous OpenGL
+ clip coordinates. We define this matrix as:
 
    `T_DM = T_DCgl * T_CglCPhysical * X_CphysicalW * T_WM`
 
@@ -263,6 +265,13 @@ class ShaderProgram {
   virtual void DoSetModelViewMatrix(const Eigen::Matrix4f& /* X_CW */,
                                     const Eigen::Matrix4f& /* T_WM */,
                                     const Eigen::Matrix3f& /* N_WM */) const {}
+
+  /* Reports the name of the model-to-device matrix uniform. Note: this is only
+   called when the shader first gets configured and compiled; so a virtual call
+   is fine. */
+  virtual const char* DoGetModelToDeviceMatrixUniformName() const {
+    return "T_DM";
+  }
 
  private:
   friend class ShaderProgramTest;

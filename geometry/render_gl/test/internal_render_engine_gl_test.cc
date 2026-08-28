@@ -636,6 +636,9 @@ TEST_F(RenderEngineGlTest, ParameterMatching) {
 
   EXPECT_EQ(from_engine, make_yaml(params1));
   EXPECT_NE(from_engine, make_yaml(params2));
+
+  EXPECT_THROW(RenderEngineGl(RenderEngineGlParams{.shadow_map_size = 0}),
+               std::exception);
 }
 
 // Tests an empty image -- confirms that it clears to the "empty" color -- no
@@ -2912,6 +2915,96 @@ TEST_F(RenderEngineGlTest, MultiLights) {
   EXPECT_TRUE(IsColorNear(test_color, expected_color))
       << "  test color: " << test_color << "\n"
       << "  expected color: " << expected_color;
+}
+
+TEST_F(RenderEngineGlTest, ShadowMaps) {
+  const RenderCameraCore core{
+      "unused", depth_camera_.core().intrinsics(), {kClipNear, 10.0}, {}};
+  const ColorRenderCamera camera(core, FLAGS_show_window);
+  const RigidTransformd X_WR(RotationMatrixd::MakeXRotation(M_PI),
+                             Vector3d(0, 0, 3));
+
+  for (const LightParameter& light :
+       {LightParameter{
+            .type = "directional", .frame = "world", .direction = {1, 1, -1}},
+        LightParameter{.type = "spot",
+                       .position = {-1, 0, 3},
+                       .frame = "world",
+                       .direction = {1, 0, -3},
+                       .cone_angle = 40}}) {
+    SCOPED_TRACE(light.type);
+    const RenderEngineGlParams params{
+        .lights = {light}, .cast_shadows = true, .shadow_map_size = 1024};
+    RenderEngineGl renderer(params);
+    renderer.UpdateViewpoint(X_WR);
+
+    PerceptionProperties ground_props;
+    ground_props.AddProperty("label", "id", RenderLabel(1));
+    ground_props.AddProperty("phong", "diffuse", Rgba(1, 1, 1));
+    renderer.RegisterVisual(GeometryId::get_new_id(), HalfSpace(), ground_props,
+                            RigidTransformd::Identity(), false);
+
+    PerceptionProperties box_props;
+    box_props.AddProperty("label", "id", RenderLabel(2));
+    box_props.AddProperty("phong", "diffuse", Rgba(1, 1, 1));
+    renderer.RegisterVisual(GeometryId::get_new_id(), Box(0.6, 0.6, 1.0),
+                            box_props, RigidTransformd(Vector3d(0, 0, 0.5)),
+                            false);
+
+    PerceptionProperties transparent_props(box_props);
+    transparent_props.UpdateProperty("phong", "diffuse", Rgba(1, 1, 1, 0.5));
+    const GeometryId transparent_id = GeometryId::get_new_id();
+    renderer.RegisterVisual(transparent_id, Box(0.1, 0.1, 0.1),
+                            transparent_props,
+                            RigidTransformd(Vector3d(10, 10, 10)), false);
+    EXPECT_FALSE(RenderEngineGlTester(&renderer)
+                     .GetVisual(transparent_id)
+                     .instances[0]
+                     .casts_shadows);
+
+    ImageRgba8U color(kWidth, kHeight);
+    ImageLabel16I label(kWidth, kHeight);
+    EXPECT_NO_THROW(renderer.RenderColorImage(camera, &color));
+    EXPECT_NO_THROW(renderer.RenderLabelImage(camera, &label));
+
+    RenderEngineGl baseline(RenderEngineGlParams{.lights = {light}});
+    baseline.UpdateViewpoint(X_WR);
+    baseline.RegisterVisual(GeometryId::get_new_id(), HalfSpace(), ground_props,
+                            RigidTransformd::Identity(), false);
+    baseline.RegisterVisual(GeometryId::get_new_id(), Box(0.6, 0.6, 1.0),
+                            box_props, RigidTransformd(Vector3d(0, 0, 0.5)),
+                            false);
+    ImageRgba8U baseline_color(kWidth, kHeight);
+    baseline.RenderColorImage(camera, &baseline_color);
+
+    int shadowed_ground_pixels = 0;
+    int lit_ground_pixels = 0;
+    for (int y = 0; y < kHeight; ++y) {
+      for (int x = 0; x < kWidth; ++x) {
+        if (label.at(x, y)[0] != 1) continue;
+        shadowed_ground_pixels +=
+            baseline_color.at(x, y)[0] > 100 && color.at(x, y)[0] < 30;
+        lit_ground_pixels += color.at(x, y)[0] > 100;
+      }
+    }
+    const int minimum_shadowed_pixels = light.type == "spot" ? 5 : 20;
+    EXPECT_GT(shadowed_ground_pixels, minimum_shadowed_pixels);
+    EXPECT_GT(lit_ground_pixels, 1000);
+
+    auto clone = renderer.Clone();
+    ImageRgba8U clone_color(kWidth, kHeight);
+    EXPECT_NO_THROW(clone->RenderColorImage(camera, &clone_color));
+    int clone_dark_ground_pixels = 0;
+    for (int y = 0; y < kHeight; ++y) {
+      for (int x = 0; x < kWidth; ++x) {
+        if (label.at(x, y)[0] == 1 && baseline_color.at(x, y)[0] > 100 &&
+            clone_color.at(x, y)[0] < 30) {
+          ++clone_dark_ground_pixels;
+        }
+      }
+    }
+    EXPECT_GT(clone_dark_ground_pixels, minimum_shadowed_pixels);
+  }
 }
 
 namespace {
