@@ -2926,12 +2926,62 @@ TEST_F(RenderEngineGlTest, MultiLights) {
       << "  expected color: " << expected_color;
 }
 
+// A regression test that open meshes cast shadows from both sides.
+//
+// We've created a mesh consisting of two planar triangles next to each other.
+// One triangle's normal is facing the camera, the other's is facing away. The
+// first triangle is visible in the color image, the second is not. Both
+// triangles cast shadows (you'll see two distinct, triangular shadows on the
+// ground plane, heavily pixelated due to a low-resolution shadow map so the
+// geometry is easy to distinguish from the shadows).
+TEST_F(RenderEngineGlTest, ShadowCastersAreTwoSided) {
+  const RenderCameraCore core{
+      "unused", depth_camera_.core().intrinsics(), {kClipNear, 10.0}, {}};
+  const ColorRenderCamera camera(core, FLAGS_show_window);
+  const RigidTransformd X_WR(RotationMatrixd::MakeXRotation(M_PI),
+                             Vector3d(0, 0, 3));
+  const LightParameter light{
+      .type = "directional", .frame = "world", .direction = {0.5, 0, -1}};
+
+  RenderEngineGl renderer(RenderEngineGlParams{
+      .lights = {light}, .cast_shadows = true, .shadow_map_size = 256});
+  renderer.UpdateViewpoint(X_WR);
+
+  PerceptionProperties ground_props;
+  ground_props.AddProperty("phong", "diffuse", Rgba(1, 1, 1));
+  renderer.RegisterVisual(GeometryId::get_new_id(), HalfSpace(), ground_props,
+                          RigidTransformd::Identity(), false);
+
+  PerceptionProperties triangle_props;
+  triangle_props.AddProperty("phong", "diffuse", Rgba(1, 0, 0));
+  // These two open triangles have opposite winding. From above, the left
+  // triangle is visible and the right triangle is culled. Both must cast a
+  // triangular shadow onto the ground.
+  const std::string obj = R"(v -0.65 -0.35 1
+v -0.15 -0.35 1
+v -0.4 0.35 1
+v 0.15 -0.35 1
+v 0.65 -0.35 1
+v 0.4 0.35 1
+vn 0 0 1
+f 1//1 2//1 3//1
+f 4//1 6//1 5//1
+)";
+  renderer.RegisterVisual(
+      GeometryId::get_new_id(),
+      Mesh(InMemoryMesh{MemoryFile(obj, ".obj", "open_triangles.obj")}),
+      triangle_props, RigidTransformd::Identity(), false);
+
+  ImageRgba8U color(kWidth, kHeight);
+  EXPECT_NO_THROW(renderer.RenderColorImage(camera, &color));
+  CompareAgainstRef(
+      color, "two_sided_shadow_casters",
+      "drake/geometry/render_gl/test/two_sided_shadow_casters.png");
+}
+
 // A regression test against various properties of shadows:
 //
 // 1. Directional light casts shadows (behind the box, pointing toward camera).
-//    Note: the directional shadow will currently be *very* pixelated; it
-//    depends on the very large kClipFar value (100). Follow up PRs will correct
-//    that.
 // 2. Spot light with angle < 90 casts shadows (behind the box, pointing
 //    toward the camera's right).
 // 3. Spot lights with angle >= 90 and point lights universally do not cast
@@ -2945,8 +2995,11 @@ TEST_F(RenderEngineGlTest, MultiLights) {
 // The camera's pose is chosen for the express purpose of making all of the
 // above as reasonably recognizable for a human.
 TEST_F(RenderEngineGlTest, ShadowMaps) {
+  // It's important for far clipping to be quite distant; it provides regression
+  // against the light frusta being driven by the camera frusta.
+  DRAKE_DEMAND(kClipFar >= 100.0);
   const RenderCameraCore core{
-      "unused", depth_camera_.core().intrinsics(), {kClipNear, 100.0}, {}};
+      "unused", depth_camera_.core().intrinsics(), {kClipNear, kClipFar}, {}};
   const ColorRenderCamera camera(core, FLAGS_show_window);
   constexpr double kViewAngle = M_PI / 6;
   constexpr double kAzimuth = -M_PI / 6;
