@@ -1,0 +1,113 @@
+load("//tools/lint:lint.bzl", "add_lint_tests")
+load("//tools/skylark:drake_cc.bzl", "drake_cc_binary")
+load("//tools/skylark:drake_py.bzl", "drake_py_binary", "drake_py_library", "drake_py_test")
+
+package(default_visibility = ["//visibility:private"])
+
+filegroup(
+    name = "models",
+    srcs = glob([
+        "*.sdf",
+        "*.xml",
+        "*.obj",
+        "*.mtl",
+        "*.vtk",
+        "cup/*",
+        "fidget/*",
+    ]),
+    visibility = ["//:__pkg__"],
+)
+
+drake_py_binary(
+    name = "error_control_demo",
+    srcs = ["error_control_demo.py"],
+    data = [
+        ":models",
+        "@drake_models//:dishes",
+    ],
+    deps = [
+        "//bindings/pydrake",
+    ],
+)
+
+drake_cc_binary(
+    name = "rotational_ccd_study",
+    srcs = ["rotational_ccd_study.cc"],
+    data = [
+        ":models",
+    ],
+    deps = [
+        "//geometry:scene_graph",
+        "//multibody/parsing:package_map",
+        "//multibody/plant",
+        "//systems/framework:diagram_builder",
+        "@fmt",
+        "@gflags",
+    ],
+)
+
+drake_cc_binary(
+    name = "washer_stack",
+    srcs = ["washer_stack.cc"],
+    data = [
+        ":models",
+    ],
+    deps = [
+        "//geometry:scene_graph",
+        "//multibody/cenic:cenic_integrator",
+        "//multibody/parsing:package_map",
+        "//multibody/plant",
+        "//systems/analysis:simulator",
+        "//systems/framework:diagram_builder",
+        "@fmt",
+        "@gflags",
+    ],
+)
+
+drake_cc_binary(
+    name = "sheet_through_slot",
+    srcs = ["sheet_through_slot.cc"],
+    data = [
+        ":models",
+    ],
+    deps = [
+        "//geometry:scene_graph",
+        "//multibody/cenic:cenic_integrator",
+        "//multibody/parsing:package_map",
+        "//multibody/plant",
+        "//systems/analysis:simulator",
+        "//systems/framework:diagram_builder",
+        "@fmt",
+        "@gflags",
+    ],
+)
+
+drake_py_binary(
+    name = "suction_gripper",
+    srcs = ["suction_gripper.py"],
+    data = [
+        "@drake_models",
+    ],
+    deps = [
+        "//bindings/pydrake",
+    ],
+)
+
+drake_py_test(
+    name = "suction_gripper_smoke_test",
+    srcs = ["suction_gripper.py"],
+    args = ["--headless"],
+    data = [
+        "@drake_models",
+    ],
+    main = "suction_gripper.py",
+    deps = [
+        "//bindings/pydrake",
+    ],
+)
+
+add_lint_tests(
+    python_lint_exclude = [
+        ":suction_gripper.py",
+    ],
+)

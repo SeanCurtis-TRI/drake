@@ -1,0 +1,88 @@
+<?xml version="1.0"?>
+<sdf version="1.7" xmlns:drake="http://drake.mit.edu">
+  <!-- A thin (codimensional) square plate spinning above a table. Used by the
+       rotational CCD error study: the plate is given a large initial angular
+       velocity about an in-plane axis so that the linear-CCD assumption
+       (straight vertex trajectories) is stressed near grazing contact. -->
+  <model name="spinning_plate">
+    <!-- The table is fixed to the world. -->
+    <link name="table">
+      <inertial>
+        <inertia>
+          <ixx>0.12003</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>0.12003</iyy>
+          <iyz>0</iyz>
+          <izz>0.24</izz>
+        </inertia>
+        <mass>1</mass>
+        <pose>0 0 0 0 0 0</pose>
+      </inertial>
+      <visual name="table_visual">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>1.2 1.2 0.02</size>
+          </box>
+        </geometry>
+        <material>
+          <diffuse>0.9 0.8 0.7 1</diffuse>
+        </material>
+      </visual>
+      <collision name="table_collision">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <box>
+            <size>1.2 1.2 0.02</size>
+          </box>
+        </geometry>
+      </collision>
+    </link>
+    <joint name="table_joint" type="fixed">
+      <parent>world</parent>
+      <child>table</child>
+    </joint>
+
+    <!-- The free-floating thin plate: a codimensional square mesh
+         (2 triangles), scaled to 0.2 x 0.2 m. -->
+    <link name="plate">
+      <pose>0 0 0.05 0 0 0</pose>
+      <inertial>
+        <pose>0 0 0 0 0 0</pose>
+        <mass>0.05</mass>
+        <!-- Thin square plate, a = 0.2 m, m = 0.05 kg:
+             Ixx = Iyy = m a^2 / 12, Izz = m a^2 / 6. -->
+        <inertia>
+          <ixx>1.6667e-4</ixx>
+          <ixy>0</ixy>
+          <ixz>0</ixz>
+          <iyy>1.6667e-4</iyy>
+          <iyz>0</iyz>
+          <izz>3.3333e-4</izz>
+        </inertia>
+      </inertial>
+      <visual name="visual">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <uri>package://drake/examples/integrators/square.obj</uri>
+            <scale>0.1 0.1 0.1</scale>
+          </mesh>
+        </geometry>
+        <material>
+          <diffuse>0.4 0.6 0.9 1</diffuse>
+        </material>
+      </visual>
+      <collision name="collision">
+        <pose>0 0 0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <uri>package://drake/examples/integrators/square.obj</uri>
+            <scale>0.1 0.1 0.1</scale>
+          </mesh>
+        </geometry>
+      </collision>
+    </link>
+  </model>
+</sdf>

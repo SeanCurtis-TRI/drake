@@ -1,0 +1,87 @@
+<?xml version="1.0"?>
+<sdf version="1.7" xmlns:drake="http://drake.mit.edu">
+  <model name="container">
+    <!-- A box container with 4 walls and a floor, inner dimensions 0.8m x 0.8m x 0.6m -->
+    <link name="container">
+      <!-- Floor: 0.84 x 0.84 x 0.02, top surface at z=0 -->
+      <visual name="floor_visual">
+        <pose>0 0 -0.01 0 0 0</pose>
+        <geometry>
+          <box><size>0.84 0.84 0.02</size></box>
+        </geometry>
+        <material><diffuse>0.75 0.55 0.35 1.0</diffuse></material>
+      </visual>
+      <collision name="floor_collision">
+        <pose>0 0 -0.01 0 0 0</pose>
+        <geometry>
+          <box><size>0.84 0.84 0.02</size></box>
+        </geometry>
+      </collision>
+
+      <!-- +x wall -->
+      <visual name="wall_px_visual">
+        <pose>0.41 0 0.30 0 0 0</pose>
+        <geometry>
+          <box><size>0.02 0.80 0.60</size></box>
+        </geometry>
+        <material><diffuse>0.75 0.55 0.35 1.0</diffuse></material>
+      </visual>
+      <collision name="wall_px_collision">
+        <pose>0.41 0 0.30 0 0 0</pose>
+        <geometry>
+          <box><size>0.02 0.80 0.60</size></box>
+        </geometry>
+      </collision>
+
+      <!-- -x wall -->
+      <visual name="wall_nx_visual">
+        <pose>-0.41 0 0.30 0 0 0</pose>
+        <geometry>
+          <box><size>0.02 0.80 0.60</size></box>
+        </geometry>
+        <material><diffuse>0.75 0.55 0.35 1.0</diffuse></material>
+      </visual>
+      <collision name="wall_nx_collision">
+        <pose>-0.41 0 0.30 0 0 0</pose>
+        <geometry>
+          <box><size>0.02 0.80 0.60</size></box>
+        </geometry>
+      </collision>
+
+      <!-- +y wall -->
+      <visual name="wall_py_visual">
+        <pose>0 0.41 0.30 0 0 0</pose>
+        <geometry>
+          <box><size>0.84 0.02 0.60</size></box>
+        </geometry>
+        <material><diffuse>0.75 0.55 0.35 1.0</diffuse></material>
+      </visual>
+      <collision name="wall_py_collision">
+        <pose>0 0.41 0.30 0 0 0</pose>
+        <geometry>
+          <box><size>0.84 0.02 0.60</size></box>
+        </geometry>
+      </collision>
+
+      <!-- -y wall -->
+      <visual name="wall_ny_visual">
+        <pose>0 -0.41 0.30 0 0 0</pose>
+        <geometry>
+          <box><size>0.84 0.02 0.60</size></box>
+        </geometry>
+        <material><diffuse>0.75 0.55 0.35 1.0</diffuse></material>
+      </visual>
+      <collision name="wall_ny_collision">
+        <pose>0 -0.41 0.30 0 0 0</pose>
+        <geometry>
+          <box><size>0.84 0.02 0.60</size></box>
+        </geometry>
+      </collision>
+    </link>
+
+    <joint name="container_joint" type="fixed">
+      <parent>world</parent>
+      <child>container</child>
+    </joint>
+  </model>
+</sdf>

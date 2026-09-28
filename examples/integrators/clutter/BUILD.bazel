@@ -1,0 +1,26 @@
+load("//tools/lint:lint.bzl", "add_lint_tests")
+load("//tools/skylark:drake_py.bzl", "drake_py_binary")
+
+package(default_visibility = ["//visibility:private"])
+
+filegroup(
+    name = "models",
+    srcs = glob([
+        "*.sdf",
+        "models/*.sdf",
+        "models/*.obj",
+        "models/*.mtl",
+    ]),
+    visibility = ["//:__pkg__"],
+)
+
+drake_py_binary(
+    name = "clutter_demo",
+    srcs = ["clutter_demo.py"],
+    data = [":models"],
+    deps = [
+        "//bindings/pydrake",
+    ],
+)
+
+add_lint_tests()

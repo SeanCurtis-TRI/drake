@@ -1,0 +1,76 @@
+<?xml version='1.0'?>
+<sdf xmlns:drake="http://drake.mit.edu" version="1.8">
+  <model name='nut_and_bolt'>
+    <link name='bolt'>
+      <inertial>
+        <pose>1.6967167559043916e-05 -2.8589258913969606e-06 0.017329423246084944 0 0 0</pose>
+        <mass>0.07340903191896793</mass>
+        <inertia>
+          <ixx>1.1568853109599252e-05</ixx>
+          <ixy>3.870582615599469e-10</ixy>
+          <ixz>-4.4046647054479945e-09</ixz>
+          <iyy>1.1570697413757344e-05</iyy>
+          <iyz>7.180418808761142e-10</iyz>
+          <izz>4.4106130315261135e-06</izz>
+        </inertia>
+      </inertial>
+      <visual name='visual'>
+        <pose>0.0 0.0 0.0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <uri>bolt.obj</uri>
+            <scale>1.0 1.0 1.0</scale>
+          </mesh>
+        </geometry>
+      </visual>
+      <collision name='collision'>
+        <pose>0.0 0.0 0.0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <uri>bolt.obj</uri>
+            <scale>1.0 1.0 1.0</scale>
+          </mesh>
+        </geometry>
+      </collision>
+    </link>
+
+    <joint name="bolt_to_world" type="fixed">
+      <parent>world</parent>
+      <child>bolt</child>
+    </joint>
+
+    <link name='nut'>
+      <pose>0.0 0.0 0.0 0 0 0</pose>
+      <inertial>
+        <pose>1.1193859189771901e-06 -1.3522526815540973e-06 0.052568777572304465 0 0 0</pose>
+        <mass>0.03201778914919907</mass>
+        <inertia>
+          <ixx>2.1739082561571055e-06</ixx>
+          <ixy>-6.940754405901976e-11</ixy>
+          <ixz>-2.147945369635233e-09</ixz>
+          <iyy>2.1739630645709804e-06</iyy>
+          <iyz>-2.860896618970895e-10</iyz>
+          <izz>3.4700639459704922e-06</izz>
+        </inertia>
+      </inertial>
+      <visual name='visual'>
+        <pose>0.0 0.0 0.0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <uri>nut.obj</uri>
+            <scale>1.0 1.0 1.0</scale>
+          </mesh>
+        </geometry>
+      </visual>
+      <collision name='collision'>
+        <pose>0.0 0.0 0.0 0 0 0</pose>
+        <geometry>
+          <mesh>
+            <uri>nut.obj</uri>
+            <scale>1.0 1.0 1.0</scale>
+          </mesh>
+        </geometry>
+      </collision>
+    </link>
+  </model>
+</sdf>
