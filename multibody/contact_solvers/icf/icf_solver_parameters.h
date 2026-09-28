@@ -34,6 +34,10 @@ struct IcfSolverParameters {
     a->Visit(DRAKE_NVP(linesearch_tolerance));
     a->Visit(DRAKE_NVP(alpha_max));
     a->Visit(DRAKE_NVP(print_solver_stats));
+    a->Visit(DRAKE_NVP(beta));
+    a->Visit(DRAKE_NVP(collect_heavy_stats));
+    a->Visit(DRAKE_NVP(use_toi));
+    a->Visit(DRAKE_NVP(ccd_max_substep_rotation));
   }
 
   /** Maximum number of Newton iterations. */
@@ -77,6 +81,23 @@ struct IcfSolverParameters {
 
   /** Whether to print stats to the console at each iteration. */
   bool print_solver_stats{false};
+
+  /** LogBarrier beta parameter. */
+  double beta{0.1};
+
+  /** Whether to collect heavy statistics (like condition numbers). */
+  bool collect_heavy_stats{false};
+
+  /** Whether to use time of impact from CCD for time step selection. */
+  bool use_toi{false};
+
+  /** Maximum per-substep rotation (radians) for the rotation-adaptive
+  conservative subdivision of the CCD feasibility check: a step whose largest
+  per-geometry rotation is θ is checked in ceil(θ / ccd_max_substep_rotation)
+  slerp-interpolated sub-segments (one, on the common small-rotation path).
+  Smaller values tighten the chord-vs-arc sweep bound for fast-spinning
+  geometry at proportional CCD cost. Default: π/2. */
+  double ccd_max_substep_rotation{1.57079632679489661923};
 };
 
 }  // namespace icf

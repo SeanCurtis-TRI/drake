@@ -248,6 +248,21 @@ TEST_P(DoublePendulum, Stats) {
   Build();
 
   const std::set<std::string> expected_keys{
+      "cenic_num_convex_solves",
+      "cenic_num_feasibility_calls",
+      "cenic_num_feasibility_rejections_full",
+      "cenic_num_feasibility_rejections_half1",
+      "cenic_num_feasibility_rejections_half2",
+      "cenic_num_geometry_queries",
+      "cenic_scene_num_surface_triangles",
+      "cenic_scene_num_tetrahedra",
+      "cenic_scene_num_velocities",
+      "cenic_time_feasibility",
+      "cenic_time_geometry_queries",
+      "cenic_time_problem_build",
+      "cenic_time_linearize",
+      "cenic_time_model_update",
+      "cenic_time_solve",
       "cenic_total_hessian_factorizations",
       "cenic_total_ls_iterations",
       "cenic_total_solver_iterations",
@@ -258,15 +273,33 @@ TEST_P(DoublePendulum, Stats) {
       "integrator_num_steps_taken",
       "integrator_smallest_adapted_step_size_taken"};
 
+  // The cenic_time_* stats are wall-clock accumulators: they start at 0.0
+  // (not NaN) and are nondeterministic after a run.
+  auto is_wall_clock = [](const std::string& key) {
+    return key.starts_with("cenic_time_");
+  };
+
+  // The double pendulum has 2 generalized velocities; the scene-size counts
+  // are reported unconditionally (nv) or after the first step with geometry
+  // (triangles/tets — zero here, since the pendulum's capsules acquire no
+  // hydroelastic representation under the default properties).
+  auto is_scene_stat = [](const std::string& key) {
+    return key.starts_with("cenic_scene_");
+  };
+
   auto validate_empty_stats = [&](const std::vector<NamedStatistic>& stats,
                                   std::string_view label) {
-    EXPECT_EQ(ssize(stats), 9);
+    EXPECT_EQ(ssize(stats), 24);
     std::set<std::string> found_keys;
     for (const auto& [key, value] : stats) {
       SCOPED_TRACE(fmt::format("{} stat for '{}'", label, key));
       found_keys.insert(key);
-      if (std::holds_alternative<int64_t>(value)) {
+      if (key == "cenic_scene_num_velocities") {
+        EXPECT_EQ(std::get<int64_t>(value), 2);
+      } else if (std::holds_alternative<int64_t>(value)) {
         EXPECT_EQ(std::get<int64_t>(value), 0);
+      } else if (is_wall_clock(key)) {
+        EXPECT_EQ(std::get<double>(value), 0.0);
       } else {
         EXPECT_TRUE(std::isnan(std::get<double>(value)));
       }
@@ -279,11 +312,30 @@ TEST_P(DoublePendulum, Stats) {
   simulator_->AdvanceTo(1.0);
 
   std::vector<NamedStatistic> later_stats = integrator_->GetStatisticsSummary();
-  EXPECT_EQ(ssize(later_stats), 9);
+  EXPECT_EQ(ssize(later_stats), 24);
   std::set<std::string> later_keys;
   for (const auto& [key, value] : later_stats) {
     later_keys.insert(key);
-    if (key == "cenic_total_hessian_factorizations") {
+    if (is_wall_clock(key)) {
+      // Wall-clock accumulators: nonnegative, nondeterministic.
+      EXPECT_GE(std::get<double>(value), 0.0);
+      EXPECT_TRUE(std::isfinite(std::get<double>(value)));
+    } else if (key.starts_with("cenic_num_feasibility_rejections")) {
+      // The swinging pendulum never triggers the barrier/CCD model.
+      EXPECT_EQ(std::get<int64_t>(value), 0);
+    } else if (key == "cenic_num_convex_solves") {
+      // Three solves per accepted error-controlled step, plus solves from
+      // rejected step attempts.
+      EXPECT_GE(std::get<int64_t>(value), 3 * 167);
+    } else if (key == "cenic_num_feasibility_calls" ||
+               key == "cenic_num_geometry_queries" || is_scene_stat(key)) {
+      // Geometry-dependent counts: nonnegative always; nv is exactly 2.
+      if (key == "cenic_scene_num_velocities") {
+        EXPECT_EQ(std::get<int64_t>(value), 2);
+      } else {
+        EXPECT_GE(std::get<int64_t>(value), 0);
+      }
+    } else if (key == "cenic_total_hessian_factorizations") {
       EXPECT_EQ(std::get<int64_t>(value), 569);
     } else if (key == "cenic_total_ls_iterations") {
       // The system simulated here doesn't require using line search. See

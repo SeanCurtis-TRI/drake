@@ -440,6 +440,7 @@ drake_cc_library(
     implementation_deps = [
         ":implicit_integrator",
         ":integrator_base",
+        "//multibody/cenic:cenic_integrator",
         "@fmt",
         "@nlohmann_json//:singleheader-json",
     ],

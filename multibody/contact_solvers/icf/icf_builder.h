@@ -57,7 +57,7 @@ class IcfBuilder {
   void UpdateModel(const systems::Context<T>& context, const T& time_step,
                    const IcfLinearFeedbackGains<T>* actuation_feedback,
                    const IcfLinearFeedbackGains<T>* external_feedback,
-                   IcfModel<T>* model);
+                   double beta, IcfModel<T>* model);
 
   /* Updates only the feedback gains. All other model data remains unchanged.
   @pre The existence (i.e., nullness) of the two feedbacks values must match the
@@ -65,6 +65,25 @@ class IcfBuilder {
   void UpdateFeedbackGains(const IcfLinearFeedbackGains<T>* actuation_feedback,
                            const IcfLinearFeedbackGains<T>* external_feedback,
                            IcfModel<T>* model) const;
+
+  /* Accumulated wall-clock seconds spent inside the geometry contact queries
+  (SceneGraph contact-surface / point-pair computation, including the query
+  object evaluation), over every UpdateModel() call since the last
+  ResetQueryStats(). This is the "geometry queries" share of the model-update
+  time; the remainder of UpdateModel() is constraint/problem building. */
+  double time_geometry_queries() const { return time_geometry_queries_; }
+
+  /* Number of geometry contact-data queries (one per UpdateModel() call that
+  reached the geometry engine), including queries from later-rejected steps,
+  since the last ResetQueryStats(). */
+  int64_t num_geometry_queries() const { return num_geometry_queries_; }
+
+  /* Resets the accumulators reported by time_geometry_queries() and
+  num_geometry_queries(). */
+  void ResetQueryStats() {
+    time_geometry_queries_ = 0.0;
+    num_geometry_queries_ = 0;
+  }
 
  private:
   /* Scratch workspace data to build the model. */
@@ -76,6 +95,11 @@ class IcfBuilder {
     const VectorX<T> accelerations;  // size nv
     MultibodyForces<T> forces;
   };
+
+  /* Wall-clock accumulator and call counter for CalcGeometryContactData();
+  see time_geometry_queries(). */
+  double time_geometry_queries_{0.0};
+  int64_t num_geometry_queries_{0};
 
   /* Sort bodies in a pair so that the second one is guaranteed to be not
   anchored. By convention, body B is always not-anchored. */
@@ -90,7 +114,8 @@ class IcfBuilder {
   /* Throws if the plant provided at construction is not compatible with ICF. */
   void ValidatePlant();
 
-  /* Computes geometry data and stores it internally for later use. */
+  /* Computes geometry data and stores it internally for later use. Also
+  accumulates time_geometry_queries_ / num_geometry_queries_. */
   void CalcGeometryContactData(const systems::Context<T>& context);
 
   /* Allocates space for both point and hydroelastic contact constraints.
@@ -106,6 +131,14 @@ class IcfBuilder {
   @pre AllocatePatchConstraints() has already been called. */
   void SetPatchConstraintsForHydroelasticContact(
       const systems::Context<T>& context, IcfModel<T>* model) const;
+
+  /* Sets log barrier contact constraints in the model
+  @pre AllocatePatchConstraints() has already been called. */
+  void SetPatchConstraintsForLogBarrierContact(
+      const systems::Context<T>& context, IcfModel<T>* model) const;
+
+  /* Resizes the model to accommodate coupler constraints. */
+  void AllocateCouplerConstraints(IcfModel<T>* model) const;
 
   /* Computes the surface-velocity bias v_b_W (world frame) at a contact point
   between bodyA and bodyB, following the sign convention v_b = v_B_ss - v_A_ss

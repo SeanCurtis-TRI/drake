@@ -41,6 +41,7 @@
 // #include "drake/math/quadratic_form.h"
 // #include "drake/math/quaternion.h"
 // #include "drake/math/random_rotation.h"
+// #include "drake/math/real_roots.h"
 // #include "drake/math/rigid_transform.h"
 // #include "drake/math/roll_pitch_yaw.h"
 // #include "drake/math/rotation_conversion_gradient.h"
@@ -4933,6 +4934,16 @@ with a uniform distribution over the sphere.)""";
         // Source: drake/math/cross_product.h
         const char* doc = R"""()""";
       } VectorToSkewSymmetric;
+      // Symbol: drake::math::cubic_real_roots
+      struct /* cubic_real_roots */ {
+        // Source: drake/math/real_roots.h
+        const char* doc = R"""()""";
+      } cubic_real_roots;
+      // Symbol: drake::math::cubic_real_roots_interval
+      struct /* cubic_real_roots_interval */ {
+        // Source: drake/math/real_roots.h
+        const char* doc = R"""()""";
+      } cubic_real_roots_interval;
       // Symbol: drake::math::dquat2rotmat
       struct /* dquat2rotmat */ {
         // Source: drake/math/rotation_conversion_gradient.h
@@ -5022,6 +5033,11 @@ Returns:
         // Source: drake/math/gradient_util.h
         const char* doc = R"""()""";
       } matGradMultMat;
+      // Symbol: drake::math::quadratic_real_roots
+      struct /* quadratic_real_roots */ {
+        // Source: drake/math/real_roots.h
+        const char* doc = R"""()""";
+      } quadratic_real_roots;
       // Symbol: drake::math::quatConjugate
       struct /* quatConjugate */ {
         // Source: drake/math/quaternion.h

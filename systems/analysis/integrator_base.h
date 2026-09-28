@@ -1599,6 +1599,10 @@ class IntegratorBase {
   // Sets the "ideal" next step size (typically done via error control).
   void set_ideal_next_step_size(const T& h) { ideal_next_step_size_ = h; }
 
+  virtual T ComputeAdjustedStepSize(const T& h) const {
+    return subdivision_factor_ * h;
+  }
+
  private:
   // Validates that a smaller step size does not fall below the working minimum
   // and throws an exception if desired.

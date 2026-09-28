@@ -22,6 +22,7 @@ struct DefaultProximityProperties {
     a->Visit(DRAKE_NVP(resolution_hint));
     a->Visit(DRAKE_NVP(slab_thickness));
     a->Visit(DRAKE_NVP(margin));
+    a->Visit(DRAKE_NVP(barrier));
     a->Visit(DRAKE_NVP(dynamic_friction));
     a->Visit(DRAKE_NVP(static_friction));
     a->Visit(DRAKE_NVP(hunt_crossley_dissipation));
@@ -96,6 +97,8 @@ struct DefaultProximityProperties {
   @note Currently margin only applies to _compliant_ hydroelastic contact and
   it does not affect point contact. */
   std::optional<double> margin;
+
+  std::optional<double> barrier;
   /// @}
 
   /** @name General Contact Properties

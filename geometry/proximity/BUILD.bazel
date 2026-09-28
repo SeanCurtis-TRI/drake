@@ -35,6 +35,7 @@ drake_cc_package_library(
         ":bvh",
         ":bvh_updater",
         ":calc_obb",
+        ":ccd",
         ":collision_filter",
         ":contact_surface_utility",
         ":deformable_contact_geometries",
@@ -42,6 +43,7 @@ drake_cc_package_library(
         ":deformable_field_intersection",
         ":deformable_mesh_intersection",
         ":detect_zero_simplex",
+        ":dynamic_bvh",
         ":field_intersection",
         ":hydroelastic_internal",
         ":inflate_mesh",
@@ -152,6 +154,22 @@ drake_cc_library(
 )
 
 drake_cc_library(
+    name = "dynamic_bvh",
+    srcs = ["dynamic_bvh.cc"],
+    hdrs = ["dynamic_bvh.h"],
+    deps = [
+        ":bv",
+        ":posed_half_space",
+        ":triangle_surface_mesh",
+        ":volume_mesh",
+        "//common:essential",
+        "//geometry:shape_specification",
+        "//geometry:utilities",
+        "//math:geometric_transform",
+    ],
+)
+
+drake_cc_library(
     name = "calc_distance_to_surface_mesh",
     srcs = ["calc_distance_to_surface_mesh.cc"],
     hdrs = ["calc_distance_to_surface_mesh.h"],
@@ -177,6 +195,24 @@ drake_cc_library(
         ":bv",
         "//common:essential",
         "//geometry:shape_specification",
+    ],
+)
+
+drake_cc_library(
+    name = "hydroelastic_mesh_stats",
+    hdrs = ["hydroelastic_mesh_stats.h"],
+)
+
+drake_cc_library(
+    name = "ccd",
+    srcs = ["ccd.cc"],
+    hdrs = ["ccd.h"],
+    deps = [
+        "//common:essential",
+    ],
+    implementation_deps = [
+        "//common:default_scalars",
+        "//math:real_roots",
     ],
 )
 
@@ -437,11 +473,35 @@ drake_cc_library(
 )
 
 drake_cc_library(
+    name = "feasibility_calculator",
+    srcs = ["feasibility_calculator.cc"],
+    hdrs = ["feasibility_calculator.h"],
+    internal = True,
+    visibility = [
+        "//geometry:__pkg__",
+        "//geometry/benchmarking:__pkg__",
+    ],
+    deps = [
+        ":ccd",
+        ":dynamic_bvh",
+        ":hydroelastic_internal",
+        ":triangle_surface_mesh",
+        "//common:essential",
+        "//math:geometric_transform",
+        "//multibody/math:spatial_algebra",
+    ],
+    implementation_deps = [
+        "//geometry:utilities",
+    ],
+)
+
+drake_cc_library(
     name = "hydroelastic_internal",
     srcs = ["hydroelastic_internal.cc"],
     hdrs = ["hydroelastic_internal.h"],
     deps = [
         ":bvh",
+        ":dynamic_bvh",
         ":inflate_mesh",
         ":make_box_field",
         ":make_box_mesh",
@@ -458,6 +518,7 @@ drake_cc_library(
         ":make_mesh_from_vtk",
         ":make_sphere_field",
         ":make_sphere_mesh",
+        ":mesh_to_vtk",
         ":obj_to_surface_mesh",
         ":polygon_to_triangle_mesh",
         ":tessellation_strategy",
@@ -485,6 +546,7 @@ drake_cc_library(
     implementation_deps = [
         ":volume_to_surface_mesh",
         "//common:essential",
+        "//common:sorted_pair",
         "//solvers:choose_best_solver",
         "//solvers:clarabel_solver",
         "//solvers:mathematical_program",
@@ -969,6 +1031,7 @@ drake_cc_library(
     hdrs = ["triangle_surface_mesh.h"],
     deps = [
         ":mesh_traits",
+        "//common:sorted_pair",
         "//math:geometric_transform",
     ],
 )
@@ -1123,6 +1186,17 @@ drake_cc_googletest(
 )
 
 drake_cc_googletest(
+    name = "dynamic_bvh_test",
+    deps = [
+        ":bvh",
+        ":dynamic_bvh",
+        ":make_sphere_mesh",
+        ":volume_mesh",
+        "//geometry:shape_specification",
+    ],
+)
+
+drake_cc_googletest(
     name = "bvh_updater_test",
     deps = [
         ":bvh",
@@ -1160,6 +1234,42 @@ drake_cc_googletest(
         ":volume_to_surface_mesh",
         "//common/test_utilities:eigen_matrix_compare",
         "//common/test_utilities:expect_throws_message",
+    ],
+)
+
+drake_cc_googletest(
+    name = "ccd_test",
+    deps = [
+        ":ccd",
+        "//common:random",
+        "//math:geometric_transform",
+        "@fmt",
+    ],
+)
+
+drake_cc_library(
+    name = "ccd_test_configurations",
+    testonly = 1,
+    srcs = ["test/ccd_test_configurations.cc"],
+    hdrs = ["test/ccd_test_configurations.h"],
+    visibility = ["//geometry/benchmarking:__pkg__"],
+    deps = [
+        "//common:essential",
+        "//common:random",
+        "//math:geometric_transform",
+        "@fmt",
+    ],
+)
+
+drake_cc_googletest(
+    name = "ccd_differential_test",
+    timeout = "moderate",
+    deps = [
+        ":ccd",
+        ":ccd_test_configurations",
+        "@fcl_internal//:fcl",
+        "@fmt",
+        "@gflags",
     ],
 )
 
@@ -1448,6 +1558,7 @@ drake_cc_googletest(
     deps = [
         ":make_box_field",
         ":make_box_mesh",
+        ":mesh_to_vtk",
         ":pressure_field_invariants",
         ":volume_to_surface_mesh",
     ],
@@ -1457,6 +1568,7 @@ drake_cc_googletest(
     name = "make_box_mesh_test",
     deps = [
         ":make_box_mesh",
+        ":mesh_to_vtk",
         ":proximity_utilities",
         "//common/test_utilities:eigen_matrix_compare",
     ],
@@ -1608,6 +1720,7 @@ drake_cc_googletest(
     deps = [
         ":make_sphere_field",
         ":make_sphere_mesh",
+        ":mesh_to_vtk",
         ":pressure_field_invariants",
         ":volume_to_surface_mesh",
     ],
@@ -1617,6 +1730,7 @@ drake_cc_googletest(
     name = "make_sphere_mesh_test",
     deps = [
         ":make_sphere_mesh",
+        ":mesh_to_vtk",
         "//common:sorted_pair",
         "//common/test_utilities:eigen_matrix_compare",
     ],

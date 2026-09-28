@@ -4,9 +4,12 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "drake/geometry/proximity/aabb.h"
+#include "drake/geometry/proximity/ccd.h"
+#include "drake/geometry/proximity/hydroelastic_mesh_stats.h"
 #include "drake/geometry/query_results/contact_surface.h"
 #include "drake/geometry/query_results/deformable_contact.h"
 #include "drake/geometry/query_results/penetration_as_point_pair.h"
@@ -172,6 +175,9 @@ class QueryObject {
    @throws std::exception if the geometry `geometry_id` is not valid or if it
    is deformable.  */
   const math::RigidTransform<T>& GetPoseInWorld(GeometryId geometry_id) const;
+
+  const std::unordered_map<GeometryId, math::RigidTransform<T>>&
+  GetAllPosesInWorld() const;
 
   /** Reports the configuration of the deformable geometry indicated by
    `deformable_geometry_id` relative to the world frame.
@@ -482,6 +488,68 @@ class QueryObject {
    @warning For Mesh shapes, their convex hulls are used in this query. It is
             *not* computationally efficient or particularly accurate.  */
   bool HasCollisions() const;
+
+  /** Returns the (sorted) ids of the geometries that participate in the CCD
+   feasibility queries below: compliant hydroelastic geometries that carry a
+   rigid-core "collision_mesh". Callers that snapshot poses for those queries
+   need only snapshot these ids' poses. */
+  std::vector<GeometryId> GetCcdParticipantGeometryIds() const;
+
+  /** Aggregates mesh-size statistics (surface triangles, tetrahedra) over all
+   hydroelastic geometries; see internal::HydroelasticMeshStats for the
+   counting rules. Topology-only: does not require up-to-date poses. */
+  internal::HydroelasticMeshStats ComputeHydroelasticMeshStats() const;
+
+  /** Reports true if there are _no_ collisions between unfiltered pairs of
+   compliant hydroelastic geometries that both specify an alternative rigid
+   core "collision_mesh" purely for overlap queries. Uses linear CCD on the
+   vertex positions interpolated between X_WGs_prev and X_WGs_next, with
+   rotation-adaptive conservative subdivision: a step whose largest
+   per-geometry relative rotation is θ is checked as
+   ceil(θ / max_substep_rotation) slerp-interpolated sub-segments (one, on
+   the common small-rotation path). θ is recoverable from endpoint poses
+   only up to π; see internal::kDefaultCcdMaxSubstepRotation and the engine
+   documentation for the (documented) aliasing limitation beyond that. */
+  template <typename T1 = T>
+  typename std::enable_if_t<scalar_predicate<T1>::is_bool, bool>
+  IsFeasibleTrajectory(
+      const std::unordered_map<GeometryId, math::RigidTransform<T>>& X_WGs_prev,
+      const std::unordered_map<GeometryId, math::RigidTransform<T>>& X_WGs_next,
+      double max_substep_rotation =
+          internal::kDefaultCcdMaxSubstepRotation) const;
+
+  /** Returns the earliest time of impact in [0, 1] over the interpolated
+   trajectories (see IsFeasibleTrajectory()), or +∞ if the trajectories are
+   collision-free. */
+  template <typename T1 = T>
+  typename std::enable_if_t<scalar_predicate<T1>::is_bool, T>
+  FeasibilityTimeOfImpact(
+      const std::unordered_map<GeometryId, math::RigidTransform<T>>& X_WGs_prev,
+      const std::unordered_map<GeometryId, math::RigidTransform<T>>& X_WGs_next,
+      double max_substep_rotation =
+          internal::kDefaultCcdMaxSubstepRotation) const;
+
+  /** Variant of IsFeasibleTrajectory() whose trajectory end is this
+   %QueryObject's *current* geometry poses (i.e., the poses at the context
+   this query object was evaluated on). Callers that previously copied the
+   full pose map out of GetAllPosesInWorld() just to pass it back in can use
+   this to skip that copy entirely. */
+  template <typename T1 = T>
+  typename std::enable_if_t<scalar_predicate<T1>::is_bool, bool>
+  IsFeasibleTrajectoryToCurrent(
+      const std::unordered_map<GeometryId, math::RigidTransform<T>>& X_WGs_prev,
+      double max_substep_rotation =
+          internal::kDefaultCcdMaxSubstepRotation) const;
+
+  /** Variant of FeasibilityTimeOfImpact() whose trajectory end is this
+   %QueryObject's *current* geometry poses; see
+   IsFeasibleTrajectoryToCurrent(). */
+  template <typename T1 = T>
+  typename std::enable_if_t<scalar_predicate<T1>::is_bool, T>
+  FeasibilityTimeOfImpactToCurrent(
+      const std::unordered_map<GeometryId, math::RigidTransform<T>>& X_WGs_prev,
+      double max_substep_rotation =
+          internal::kDefaultCcdMaxSubstepRotation) const;
 
   //@}
 

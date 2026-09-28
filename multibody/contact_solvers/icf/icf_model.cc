@@ -406,11 +406,18 @@ void IcfModel<T>::UpdateTimeStep(const T& time_step) {
 
   params_->time_step = time_step;
 
+  // Update time step dependent quantities in the patch constraints.
+  patch_constraints_pool_.UpdateTimeStep(time_step);
+
   // Ball, distance, and weld constraint regularization R depends on the time
   // step. Recompute Hessian blocks whenever dt changes so AccumulateHessian()
   // uses up-to-date values.
   ball_constraints_pool_.PrecomputeHessianBlocks();
   distance_constraints_pool_.PrecomputeHessianBlocks();
+
+  // Weld constraint regularization R depends on the time step.
+  // Recompute Hessian blocks whenever dt changes so
+  // AccumulateHessian() uses up-to-date values.
   weld_constraints_pool_.PrecomputeHessianBlocks();
 }
 

@@ -17,6 +17,7 @@
 // #include "drake/geometry/proximity/bvh.h"
 // #include "drake/geometry/proximity/bvh_updater.h"
 // #include "drake/geometry/proximity/calc_obb.h"
+// #include "drake/geometry/proximity/ccd.h"
 // #include "drake/geometry/proximity/collision_filter.h"
 // #include "drake/geometry/proximity/contact_surface_utility.h"
 // #include "drake/geometry/proximity/deformable_contact_geometries.h"
@@ -24,8 +25,10 @@
 // #include "drake/geometry/proximity/deformable_field_intersection.h"
 // #include "drake/geometry/proximity/deformable_mesh_intersection.h"
 // #include "drake/geometry/proximity/detect_zero_simplex.h"
+// #include "drake/geometry/proximity/dynamic_bvh.h"
 // #include "drake/geometry/proximity/field_intersection.h"
 // #include "drake/geometry/proximity/hydroelastic_internal.h"
+// #include "drake/geometry/proximity/hydroelastic_mesh_stats.h"
 // #include "drake/geometry/proximity/inflate_mesh.h"
 // #include "drake/geometry/proximity/make_box_field.h"
 // #include "drake/geometry/proximity/make_box_mesh.h"
@@ -128,6 +131,11 @@ Precondition:
 R"""(Returns:
     Volume of the bounding box.)""";
         } CalcVolume;
+        // Symbol: drake::geometry::Aabb::Contains
+        struct /* Contains */ {
+          // Source: drake/geometry/proximity/aabb.h
+          const char* doc = R"""()""";
+        } Contains;
         // Symbol: drake::geometry::Aabb::Equal
         struct /* Equal */ {
           // Source: drake/geometry/proximity/aabb.h
@@ -228,10 +236,7 @@ Returns:
         // Symbol: drake::geometry::Aabb::center
         struct /* center */ {
           // Source: drake/geometry/proximity/aabb.h
-          const char* doc =
-R"""(Returns the center of the box -- equivalent to the position vector
-from the hierarchy frame's origin Ho to ``this`` box's origin Bo:
-``p_HoBo_H``.)""";
+          const char* doc = R"""()""";
         } center;
         // Symbol: drake::geometry::Aabb::half_width
         struct /* half_width */ {
@@ -1440,6 +1445,11 @@ Parameter ``i``:
 Precondition:
     0 <= i < 3)""";
         } vertex;
+        // Symbol: drake::geometry::SurfaceTriangle::vertices
+        struct /* vertices */ {
+          // Source: drake/geometry/proximity/triangle_surface_mesh.h
+          const char* doc = R"""()""";
+        } vertices;
       } SurfaceTriangle;
       // Symbol: drake::geometry::TriangleSurfaceMesh
       struct /* TriangleSurfaceMesh */ {
@@ -1635,6 +1645,16 @@ exactly zero, we define the centroid to be (0,0,0).
 The centroid location is calculated *per face* not *per vertex* so is
 insensitive to whether vertices are shared by triangles.)""";
         } centroid;
+        // Symbol: drake::geometry::TriangleSurfaceMesh::edge
+        struct /* edge */ {
+          // Source: drake/geometry/proximity/triangle_surface_mesh.h
+          const char* doc = R"""()""";
+        } edge;
+        // Symbol: drake::geometry::TriangleSurfaceMesh::edges
+        struct /* edges */ {
+          // Source: drake/geometry/proximity/triangle_surface_mesh.h
+          const char* doc = R"""()""";
+        } edges;
         // Symbol: drake::geometry::TriangleSurfaceMesh::element
         struct /* element */ {
           // Source: drake/geometry/proximity/triangle_surface_mesh.h
@@ -1665,6 +1685,11 @@ unreliable normal vector. A zero-area triangle will get a zero vector.
 Precondition:
     t ∈ {0, 1, 2,..., num_triangles()-1}.)""";
         } face_normal;
+        // Symbol: drake::geometry::TriangleSurfaceMesh::num_edges
+        struct /* num_edges */ {
+          // Source: drake/geometry/proximity/triangle_surface_mesh.h
+          const char* doc = R"""()""";
+        } num_edges;
         // Symbol: drake::geometry::TriangleSurfaceMesh::num_elements
         struct /* num_elements */ {
           // Source: drake/geometry/proximity/triangle_surface_mesh.h

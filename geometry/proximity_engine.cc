@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <limits>
 #include <map>
+#include <ranges>
 #include <string>
 #include <tuple>
 #include <type_traits>
@@ -19,12 +20,14 @@
 #include "drake/common/default_scalars.h"
 #include "drake/common/eigen_types.h"
 #include "drake/common/string_unordered_map.h"
+#include "drake/common/unused.h"
 #include "drake/geometry/geometry_ids.h"
 #include "drake/geometry/proximity/collisions_exist_callback.h"
 #include "drake/geometry/proximity/deformable_contact_geometries.h"
 #include "drake/geometry/proximity/deformable_contact_internal.h"
 #include "drake/geometry/proximity/distance_to_point_callback.h"
 #include "drake/geometry/proximity/distance_to_shape_callback.h"
+#include "drake/geometry/proximity/feasibility_calculator.h"
 #include "drake/geometry/proximity/find_collision_candidates_callback.h"
 #include "drake/geometry/proximity/hydroelastic_calculator.h"
 #include "drake/geometry/proximity/hydroelastic_internal.h"
@@ -902,6 +905,260 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
     return data.collisions_exist;
   }
 
+  /* Aggregates mesh-size statistics over all hydroelastic geometries; see
+   HydroelasticMeshStats for the counting rules. */
+  HydroelasticMeshStats ComputeHydroelasticMeshStats() const {
+    HydroelasticMeshStats stats;
+    for (const auto& [id, geometry] :
+         hydroelastic_geometries().compliant_geometries()) {
+      unused(id);
+      if (geometry.is_half_space()) continue;
+      const hydroelastic::CompliantMesh& mesh = geometry.compliant_mesh();
+      stats.num_tetrahedra += mesh.mesh().num_elements();
+      stats.num_surface_triangles += mesh.has_collision_mesh()
+                                         ? mesh.collision_mesh().num_triangles()
+                                         : mesh.surface_mesh().num_triangles();
+      ++stats.num_geometries;
+    }
+    for (const auto& [id, geometry] :
+         hydroelastic_geometries().rigid_geometries()) {
+      unused(id);
+      if (geometry.is_half_space()) continue;
+      stats.num_surface_triangles += geometry.mesh().num_triangles();
+      ++stats.num_geometries;
+    }
+    return stats;
+  }
+
+  /* Returns the ids of the geometries that participate in the CCD
+   feasibility queries: compliant geometries carrying a rigid-core collision
+   mesh. */
+  std::vector<GeometryId> GetCcdParticipantGeometryIds() const {
+    std::vector<GeometryId> ids;
+    for (const auto& [id, geometry] :
+         hydroelastic_geometries().compliant_geometries()) {
+      if (geometry.compliant_mesh().has_collision_mesh()) {
+        ids.push_back(id);
+      }
+    }
+    std::sort(ids.begin(), ids.end());
+    return ids;
+  }
+
+  template <typename T1 = T>
+  typename std::enable_if_t<scalar_predicate<T1>::is_bool, bool>
+  IsFeasibleTrajectory(
+      const std::unordered_map<GeometryId, math::RigidTransform<T>>& X_WGs_prev,
+      const std::unordered_map<GeometryId, math::RigidTransform<T>>& X_WGs_next,
+      double max_substep_rotation) {
+    PrepareCcdPoseScratch(X_WGs_prev, X_WGs_next);
+    return CalcFeasibilityToi(max_substep_rotation, /* early_exit = */ true) >
+           1.0;
+  }
+
+  template <typename T1 = T>
+  typename std::enable_if_t<scalar_predicate<T1>::is_bool, T>
+  FeasibilityTimeOfImpact(
+      const std::unordered_map<GeometryId, math::RigidTransform<T>>& X_WGs_prev,
+      const std::unordered_map<GeometryId, math::RigidTransform<T>>& X_WGs_next,
+      double max_substep_rotation) {
+    PrepareCcdPoseScratch(X_WGs_prev, X_WGs_next);
+    return T(CalcFeasibilityToi(max_substep_rotation, /* early_exit = */
+                                false));
+  }
+
+ private:
+  /* Refreshes the CCD scratch state from the caller's (scalar-typed) pose
+   maps: the participant id list and the double-valued endpoint pose maps.
+   Everything downstream of this point works in double.
+
+   The scratch maps only ever grow (values are overwritten in place; keys for
+   since-removed geometries are simply never read again), so after the first
+   query with a given set of geometries there are no allocations here — and,
+   critically, the map nodes are stable: DynamicBvh::SetMovingFrames() stores
+   raw pointers to the pose values it is given, which the broadphase
+   dereferences later in the query. (This also fixes a latent
+   use-after-scope for T = AutoDiffXd, where convert_to_double() returns a
+   temporary that the old code handed to SetMovingFrames().) */
+  template <typename T1 = T>
+  typename std::enable_if_t<scalar_predicate<T1>::is_bool, void>
+  PrepareCcdPoseScratch(
+      const std::unordered_map<GeometryId, math::RigidTransform<T>>& X_WGs_prev,
+      const std::unordered_map<GeometryId, math::RigidTransform<T>>&
+          X_WGs_next) {
+    ccd_ids_ = GetCcdParticipantGeometryIds();
+    for (const GeometryId id : ccd_ids_) {
+      ccd_X_prev_.insert_or_assign(id, convert_to_double(X_WGs_prev.at(id)));
+      ccd_X_next_.insert_or_assign(id, convert_to_double(X_WGs_next.at(id)));
+    }
+  }
+
+  /* Fills `out` with the poses interpolated at s ∈ [0, 1] between the scratch
+   endpoint poses: slerp on rotation, lerp on translation. */
+  void FillInterpolatedCcdPoses(
+      double s, std::unordered_map<GeometryId, math::RigidTransformd>* out) {
+    for (const GeometryId id : ccd_ids_) {
+      const math::RigidTransformd& X0 = ccd_X_prev_.at(id);
+      const math::RigidTransformd& X1 = ccd_X_next_.at(id);
+      const Eigen::Quaterniond q0 = X0.rotation().ToQuaternion();
+      const Eigen::Quaterniond q1 = X1.rotation().ToQuaternion();
+      out->insert_or_assign(
+          id,
+          math::RigidTransformd(q0.slerp(s, q1), (1.0 - s) * X0.translation() +
+                                                     s * X1.translation()));
+    }
+  }
+
+  /* Runs the feasibility query (broadphase + narrowphase) over the scratch
+   endpoint poses, with rotation-adaptive conservative subdivision: the step
+   is split into N = ceil(θ_max / max_substep_rotation) sub-segments with
+   slerp-interpolated poses, where θ_max is the largest relative rotation any
+   participant undergoes between the endpoint poses. N = 1 (the common case)
+   uses the endpoint poses directly. This closes the chord-vs-arc gap (S1) of
+   the linear vertex-trajectory model for per-step rotations up to θ_max ≤ π
+   (measured in E6a: all misses of the unsubdivided check were at θ ≥ 5.6
+   rad; none at θ ≤ π).
+
+   KNOWN LIMITATION: the relative rotation recoverable from two endpoint
+   poses lies in [0, π]. A true per-step rotation θ > π is aliased to
+   2π − θ, so it is under-subdivided here — no endpoint-pose-based method
+   can do better. Callers that can bound the true rotation (e.g. from
+   angular velocity ω: θ ≈ |ω|·h) should keep θ ≤ π per step (error control
+   does this in practice; fixed-step mode with fast spins does not).
+
+   Returns +∞ when the trajectories are feasible; otherwise the earliest
+   time of impact in [0, 1] (with `early_exit` true, a lower bound of it —
+   the query stops at the first proof of infeasibility). */
+  double CalcFeasibilityToi(double max_substep_rotation, bool early_exit) {
+    DRAKE_THROW_UNLESS(max_substep_rotation > 0);
+    if (ccd_ids_.empty()) {
+      return std::numeric_limits<double>::infinity();
+    }
+
+    double max_theta = 0.0;
+    for (const GeometryId id : ccd_ids_) {
+      const double theta = ccd_X_prev_.at(id)
+                               .rotation()
+                               .InvertAndCompose(ccd_X_next_.at(id).rotation())
+                               .ToAngleAxis()
+                               .angle();
+      max_theta = std::max(max_theta, theta);
+    }
+    if (max_theta <= max_substep_rotation) {
+      return CalcSegmentFeasibilityToi(ccd_X_prev_, ccd_X_next_, early_exit);
+    }
+
+    const int num_substeps =
+        static_cast<int>(std::ceil(max_theta / max_substep_rotation));
+    // Ping-pong between the two substep buffers so that the poses a
+    // sub-query's BVHs point at stay alive for that whole sub-query.
+    for (int k = 0; k < num_substeps; ++k) {
+      auto& X_a = ccd_X_sub_[k % 2];
+      auto& X_b = ccd_X_sub_[(k + 1) % 2];
+      if (k == 0) {
+        FillInterpolatedCcdPoses(0.0, &X_a);
+      }
+      // Absolute (not incremental) interpolation parameters avoid drift.
+      FillInterpolatedCcdPoses(static_cast<double>(k + 1) / num_substeps, &X_b);
+      const double sub_toi = CalcSegmentFeasibilityToi(X_a, X_b, early_exit);
+      if (sub_toi <= 1.0) {
+        // Compose the sub-segment time of impact back onto [0, 1].
+        return (k + std::max(0.0, sub_toi)) / num_substeps;
+      }
+    }
+    return std::numeric_limits<double>::infinity();
+  }
+
+  /* One linear segment of the feasibility query: moving-AABB broadphase over
+   the given endpoint poses, then pairwise narrowphase. Returns +∞ if
+   feasible; otherwise the earliest time of impact in [0, 1] over all pairs
+   (or, with `early_exit` true, 0.0 at the first infeasible pair). */
+  double CalcSegmentFeasibilityToi(
+      const std::unordered_map<GeometryId, math::RigidTransformd>& X_prev,
+      const std::unordered_map<GeometryId, math::RigidTransformd>& X_next,
+      bool early_exit) {
+    // Set all of the moving frames.
+    for (const GeometryId id : ccd_ids_) {
+      hydroelastic::CompliantGeometry& soft_geometry =
+          hydroelastic_geometries_.mutable_compliant_geometry(id);
+      const math::RigidTransformd& X_WG_prev = X_prev.at(id);
+      const math::RigidTransformd& X_WG_next = X_next.at(id);
+      soft_geometry.mutable_compliant_mesh()
+          .mutable_collision_mesh_vertex_bvh()
+          .SetMovingFrames(X_WG_prev, X_WG_next);
+      soft_geometry.mutable_compliant_mesh()
+          .mutable_collision_mesh_edge_bvh()
+          .SetMovingFrames(X_WG_prev, X_WG_next);
+      soft_geometry.mutable_compliant_mesh()
+          .mutable_collision_mesh_face_bvh()
+          .SetMovingFrames(X_WG_prev, X_WG_next);
+    }
+
+    const int num_surface_soft = ssize(ccd_ids_);
+
+    // Leaves of the candidate level broadphase BVH are just the root nodes of
+    // the individual per-geometry dynamic BVH. The root nodes moving query
+    // bv's are guaranteed to be cached because SetMovingFrames() was called
+    // above.
+    AabbCalculator broadphase_calculator = [this](int i) -> Aabb {
+      return this->hydroelastic_geometries()
+          .compliant_geometry(ccd_ids_[i])
+          .compliant_mesh()
+          .collision_mesh_vertex_bvh()
+          .root_node()
+          .moving_query_bv();
+    };
+    // If the bvh has never been built, build it in the current configuration,
+    // otherwise refit.
+    if (feasibility_bvh_.num_leaves() != num_surface_soft) {
+      feasibility_bvh_.Build(num_surface_soft, broadphase_calculator);
+    } else {
+      feasibility_bvh_.Refit(broadphase_calculator);
+    }
+
+    // Filter and sort collision candidates.
+    std::vector<std::pair<int, int>> geometry_index_pairs =
+        feasibility_bvh_.GetCollisionCandidates(feasibility_bvh_);
+    std::erase_if(geometry_index_pairs,
+                  [this](const std::pair<int, int>& pair) {
+                    return !this->collision_filter_.CanCollideWith(
+                        ccd_ids_[pair.first], ccd_ids_[pair.second]);
+                  });
+
+    // Transform the pairs of indices into sorted pairs of GeometryId.
+    std::vector<SortedPair<GeometryId>> geometry_pairs(
+        geometry_index_pairs.size());
+    std::transform(
+        geometry_index_pairs.begin(), geometry_index_pairs.end(),
+        geometry_pairs.begin(), [this](const std::pair<int, int>& pair) {
+          return SortedPair(ccd_ids_[pair.first], ccd_ids_[pair.second]);
+        });
+    // Sort the sorted pairs of GeometryIds.
+    std::sort(geometry_pairs.begin(), geometry_pairs.end());
+
+    hydroelastic::FeasibilityCalculator calculator(&hydroelastic_geometries_,
+                                                   &X_prev, &X_next);
+
+    double toi = std::numeric_limits<double>::infinity();
+    for (const auto& [id_A, id_B] : geometry_pairs) {
+      if (early_exit) {
+        if (!calculator.IsFeasibleTrajectory(id_A, id_B)) {
+          return 0.0;
+        }
+      } else {
+        toi = std::min(toi, calculator.FeasibilityTimeOfImpact(id_A, id_B));
+      }
+    }
+    return toi;
+  }
+
+  /* CCD feasibility scratch state; see PrepareCcdPoseScratch(). */
+  std::vector<GeometryId> ccd_ids_;
+  std::unordered_map<GeometryId, math::RigidTransformd> ccd_X_prev_;
+  std::unordered_map<GeometryId, math::RigidTransformd> ccd_X_next_;
+  std::unordered_map<GeometryId, math::RigidTransformd> ccd_X_sub_[2];
+
+ public:
   template <typename T1 = T>
   typename std::enable_if_t<scalar_predicate<T1>::is_bool,
                             std::vector<ContactSurface<T>>>
@@ -930,6 +1187,7 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
     }
     CullFlatten(&surface_ptrs, &surfaces);
     DRAKE_ASSERT(IsSortedByOrder(surfaces));
+
     return surfaces;
   }
 
@@ -1485,6 +1743,12 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
   // `dynamic_objects_` and `dynamic_tree_`.
   deformable::Geometries geometries_for_deformable_contact_;
 
+  // Data for ComputeSignedDistanceToPoint from meshes (Mesh and Convex).
+  std::unordered_map<GeometryId, MeshDistanceBoundary> mesh_sdf_data_{};
+
+  // BVH of AABBs for broad phase collision detection for feasibility checks.
+  DynamicBvh feasibility_bvh_;
+
   // Deferred repository of per-geometry data for point_distance::Callback on
   // meshes (Mesh and Convex). It converts declarations to definitions within
   // queries that require it.
@@ -1703,6 +1967,39 @@ bool ProximityEngine<T>::HasCollisions() const {
 }
 
 template <typename T>
+std::vector<GeometryId> ProximityEngine<T>::GetCcdParticipantGeometryIds()
+    const {
+  return impl_->GetCcdParticipantGeometryIds();
+}
+
+template <typename T>
+HydroelasticMeshStats ProximityEngine<T>::ComputeHydroelasticMeshStats() const {
+  return impl_->ComputeHydroelasticMeshStats();
+}
+
+template <typename T>
+template <typename T1>
+typename std::enable_if_t<scalar_predicate<T1>::is_bool, bool>
+ProximityEngine<T>::IsFeasibleTrajectory(
+    const std::unordered_map<GeometryId, math::RigidTransform<T>>& X_WGs_prev,
+    const std::unordered_map<GeometryId, math::RigidTransform<T>>& X_WGs_next,
+    double max_substep_rotation) {
+  return impl_->IsFeasibleTrajectory(X_WGs_prev, X_WGs_next,
+                                     max_substep_rotation);
+}
+
+template <typename T>
+template <typename T1>
+typename std::enable_if_t<scalar_predicate<T1>::is_bool, T>
+ProximityEngine<T>::FeasibilityTimeOfImpact(
+    const std::unordered_map<GeometryId, math::RigidTransform<T>>& X_WGs_prev,
+    const std::unordered_map<GeometryId, math::RigidTransform<T>>& X_WGs_next,
+    double max_substep_rotation) {
+  return impl_->FeasibilityTimeOfImpact(X_WGs_prev, X_WGs_next,
+                                        max_substep_rotation);
+}
+
+template <typename T>
 std::vector<PenetrationAsPointPair<T>>
 ProximityEngine<T>::ComputePointPairPenetration(
     const std::unordered_map<GeometryId, math::RigidTransform<T>>& X_WGs)
@@ -1827,7 +2124,9 @@ DRAKE_DEFINE_FUNCTION_TEMPLATE_INSTANTIATIONS_ON_DEFAULT_SCALARS(
 
 DRAKE_DEFINE_FUNCTION_TEMPLATE_INSTANTIATIONS_ON_DEFAULT_NONSYMBOLIC_SCALARS(
     (&ProximityEngine<T>::template ComputeContactSurfaces<T>,
-     &ProximityEngine<T>::template ComputeContactSurfacesWithFallback<T>));
+     &ProximityEngine<T>::template ComputeContactSurfacesWithFallback<T>,
+     &ProximityEngine<T>::template IsFeasibleTrajectory<T>,
+     &ProximityEngine<T>::template FeasibilityTimeOfImpact<T>));
 
 template void ProximityEngine<double>::ComputeDeformableContact<double>(
     DeformableContact<double>*) const;

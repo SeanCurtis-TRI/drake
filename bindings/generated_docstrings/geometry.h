@@ -884,6 +884,11 @@ Serialization" for background.)""";
           // Source: drake/geometry/scene_graph_config.h
           const char* doc = R"""(Throws if the values are inconsistent.)""";
         } ValidateOrThrow;
+        // Symbol: drake::geometry::DefaultProximityProperties::barrier
+        struct /* barrier */ {
+          // Source: drake/geometry/scene_graph_config.h
+          const char* doc = R"""()""";
+        } barrier;
         // Symbol: drake::geometry::DefaultProximityProperties::compliance_type
         struct /* compliance_type */ {
           // Source: drake/geometry/scene_graph_config.h
@@ -1044,6 +1049,7 @@ R"""(See also:
         } static_friction;
         auto Serialize__fields() const {
           return std::array{
+            std::make_pair("barrier", barrier.doc),
             std::make_pair("compliance_type", compliance_type.doc),
             std::make_pair("dynamic_friction", dynamic_friction.doc),
             std::make_pair("hunt_crossley_dissipation", hunt_crossley_dissipation.doc),
@@ -2381,6 +2387,12 @@ R"""(Implementation of QueryObject∷ComputeContactSurfacesWithFallback().)""";
           const char* doc =
 R"""(Implementation of QueryObject∷ComputeDeformableContact().)""";
         } ComputeDeformableContact;
+        // Symbol: drake::geometry::GeometryState::ComputeHydroelasticMeshStats
+        struct /* ComputeHydroelasticMeshStats */ {
+          // Source: drake/geometry/geometry_state.h
+          const char* doc =
+R"""(Implementation of QueryObject∷ComputeHydroelasticMeshStats().)""";
+        } ComputeHydroelasticMeshStats;
         // Symbol: drake::geometry::GeometryState::ComputeObbInWorld
         struct /* ComputeObbInWorld */ {
           // Source: drake/geometry/geometry_state.h
@@ -2419,6 +2431,17 @@ QueryObject∷ComputeSignedDistancePairwiseClosestPoints().)""";
           const char* doc =
 R"""(Implementation of QueryObject∷ComputeSignedDistanceToPoint().)""";
         } ComputeSignedDistanceToPoint;
+        // Symbol: drake::geometry::GeometryState::FeasibilityTimeOfImpact
+        struct /* FeasibilityTimeOfImpact */ {
+          // Source: drake/geometry/geometry_state.h
+          const char* doc = R"""()""";
+        } FeasibilityTimeOfImpact;
+        // Symbol: drake::geometry::GeometryState::FeasibilityTimeOfImpactToCurrent
+        struct /* FeasibilityTimeOfImpactToCurrent */ {
+          // Source: drake/geometry/geometry_state.h
+          const char* doc =
+R"""(Implementation of QueryObject∷FeasibilityTimeOfImpactToCurrent().)""";
+        } FeasibilityTimeOfImpactToCurrent;
         // Symbol: drake::geometry::GeometryState::FindCollisionCandidates
         struct /* FindCollisionCandidates */ {
           // Source: drake/geometry/geometry_state.h
@@ -2463,6 +2486,12 @@ R"""(Returns all of the source ids in the scene graph. The order is
 guaranteed to be stable and consistent. The first element is the
 SceneGraph-internal source.)""";
         } GetAllSourceIds;
+        // Symbol: drake::geometry::GeometryState::GetCcdParticipantGeometryIds
+        struct /* GetCcdParticipantGeometryIds */ {
+          // Source: drake/geometry/geometry_state.h
+          const char* doc =
+R"""(Implementation of QueryObject∷GetCcdParticipantGeometryIds().)""";
+        } GetCcdParticipantGeometryIds;
         // Symbol: drake::geometry::GeometryState::GetCollisionCandidates
         struct /* GetCollisionCandidates */ {
           // Source: drake/geometry/geometry_state.h
@@ -2608,6 +2637,19 @@ R"""(Implementation of SceneGraph∷HasRenderer().)""";
           const char* doc =
 R"""(Implementation of SceneGraphInspector∷IsDeformableGeometry().)""";
         } IsDeformableGeometry;
+        // Symbol: drake::geometry::GeometryState::IsFeasibleTrajectory
+        struct /* IsFeasibleTrajectory */ {
+          // Source: drake/geometry/geometry_state.h
+          const char* doc =
+R"""(Implementation of QueryObject∷IsFeasibleTrajectoryCollisions().)""";
+        } IsFeasibleTrajectory;
+        // Symbol: drake::geometry::GeometryState::IsFeasibleTrajectoryToCurrent
+        struct /* IsFeasibleTrajectoryToCurrent */ {
+          // Source: drake/geometry/geometry_state.h
+          const char* doc =
+R"""(Implementation of QueryObject∷IsFeasibleTrajectoryToCurrent(): the
+trajectory end is this state's own current poses — zero copies.)""";
+        } IsFeasibleTrajectoryToCurrent;
         // Symbol: drake::geometry::GeometryState::IsValidGeometryName
         struct /* IsValidGeometryName */ {
           // Source: drake/geometry/geometry_state.h
@@ -2871,6 +2913,11 @@ R"""(Implementation of SceneGraph∷collision_filter_manager().)""";
           const char* doc =
 R"""(Implementation of SceneGraphInspector∷GetGeometryVersion().)""";
         } geometry_version;
+        // Symbol: drake::geometry::GeometryState::get_all_poses_in_world
+        struct /* get_all_poses_in_world */ {
+          // Source: drake/geometry/geometry_state.h
+          const char* doc = R"""()""";
+        } get_all_poses_in_world;
         // Symbol: drake::geometry::GeometryState::get_configurations_in_world
         struct /* get_configurations_in_world */ {
           // Source: drake/geometry/geometry_state.h
@@ -6015,6 +6062,14 @@ Warning:
     or be removed at any time, without any deprecation notice ahead of
     time.)""";
         } ComputeDeformableContact;
+        // Symbol: drake::geometry::QueryObject::ComputeHydroelasticMeshStats
+        struct /* ComputeHydroelasticMeshStats */ {
+          // Source: drake/geometry/query_object.h
+          const char* doc =
+R"""(Aggregates mesh-size statistics (surface triangles, tetrahedra) over
+all hydroelastic geometries; see internal∷HydroelasticMeshStats for
+the counting rules. Topology-only: does not require up-to-date poses.)""";
+        } ComputeHydroelasticMeshStats;
         // Symbol: drake::geometry::QueryObject::ComputeObbInWorld
         struct /* ComputeObbInWorld */ {
           // Source: drake/geometry/query_object.h
@@ -6517,6 +6572,22 @@ Raises:
     RuntimeError if there are meshes with extremely sharp features
     where the calculation of feature normals become unstable.)""";
         } ComputeSignedDistanceToPoint;
+        // Symbol: drake::geometry::QueryObject::FeasibilityTimeOfImpact
+        struct /* FeasibilityTimeOfImpact */ {
+          // Source: drake/geometry/query_object.h
+          const char* doc =
+R"""(Returns the earliest time of impact in [0, 1] over the interpolated
+trajectories (see IsFeasibleTrajectory()), or +∞ if the trajectories
+are collision-free.)""";
+        } FeasibilityTimeOfImpact;
+        // Symbol: drake::geometry::QueryObject::FeasibilityTimeOfImpactToCurrent
+        struct /* FeasibilityTimeOfImpactToCurrent */ {
+          // Source: drake/geometry/query_object.h
+          const char* doc =
+R"""(Variant of FeasibilityTimeOfImpact() whose trajectory end is this
+QueryObject's *current* geometry poses; see
+IsFeasibleTrajectoryToCurrent().)""";
+        } FeasibilityTimeOfImpactToCurrent;
         // Symbol: drake::geometry::QueryObject::FindCollisionCandidates
         struct /* FindCollisionCandidates */ {
           // Source: drake/geometry/query_object.h
@@ -6533,6 +6604,20 @@ Returns:
     remain constant for a fixed population but can change as geometry
     ids are added/removed).)""";
         } FindCollisionCandidates;
+        // Symbol: drake::geometry::QueryObject::GetAllPosesInWorld
+        struct /* GetAllPosesInWorld */ {
+          // Source: drake/geometry/query_object.h
+          const char* doc = R"""()""";
+        } GetAllPosesInWorld;
+        // Symbol: drake::geometry::QueryObject::GetCcdParticipantGeometryIds
+        struct /* GetCcdParticipantGeometryIds */ {
+          // Source: drake/geometry/query_object.h
+          const char* doc =
+R"""(Returns the (sorted) ids of the geometries that participate in the CCD
+feasibility queries below: compliant hydroelastic geometries that
+carry a rigid-core "collision_mesh". Callers that snapshot poses for
+those queries need only snapshot these ids' poses.)""";
+        } GetCcdParticipantGeometryIds;
         // Symbol: drake::geometry::QueryObject::GetConfigurationsInWorld
         struct /* GetConfigurationsInWorld */ {
           // Source: drake/geometry/query_object.h
@@ -6623,6 +6708,31 @@ Warning:
     For Mesh shapes, their convex hulls are used in this query. It is
     not* computationally efficient or particularly accurate.)""";
         } HasCollisions;
+        // Symbol: drake::geometry::QueryObject::IsFeasibleTrajectory
+        struct /* IsFeasibleTrajectory */ {
+          // Source: drake/geometry/query_object.h
+          const char* doc =
+R"""(Reports true if there are *no* collisions between unfiltered pairs of
+compliant hydroelastic geometries that both specify an alternative
+rigid core "collision_mesh" purely for overlap queries. Uses linear
+CCD on the vertex positions interpolated between X_WGs_prev and
+X_WGs_next, with rotation-adaptive conservative subdivision: a step
+whose largest per-geometry relative rotation is θ is checked as ceil(θ
+/ max_substep_rotation) slerp-interpolated sub-segments (one, on the
+common small-rotation path). θ is recoverable from endpoint poses only
+up to π; see internal∷kDefaultCcdMaxSubstepRotation and the engine
+documentation for the (documented) aliasing limitation beyond that.)""";
+        } IsFeasibleTrajectory;
+        // Symbol: drake::geometry::QueryObject::IsFeasibleTrajectoryToCurrent
+        struct /* IsFeasibleTrajectoryToCurrent */ {
+          // Source: drake/geometry/query_object.h
+          const char* doc =
+R"""(Variant of IsFeasibleTrajectory() whose trajectory end is this
+QueryObject's *current* geometry poses (i.e., the poses at the context
+this query object was evaluated on). Callers that previously copied
+the full pose map out of GetAllPosesInWorld() just to pass it back in
+can use this to skip that copy entirely.)""";
+        } IsFeasibleTrajectoryToCurrent;
         // Symbol: drake::geometry::QueryObject::QueryObject<T>
         struct /* ctor */ {
           // Source: drake/geometry/query_object.h

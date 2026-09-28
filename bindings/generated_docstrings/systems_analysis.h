@@ -2121,6 +2121,11 @@ Note:
     match against integration using the original integrator started at
     the point it was cloned.)""";
         } Clone;
+        // Symbol: drake::systems::IntegratorBase::ComputeAdjustedStepSize
+        struct /* ComputeAdjustedStepSize */ {
+          // Source: drake/systems/analysis/integrator_base.h
+          const char* doc = R"""()""";
+        } ComputeAdjustedStepSize;
         // Symbol: drake::systems::IntegratorBase::DoClone
         struct /* DoClone */ {
           // Source: drake/systems/analysis/integrator_base.h

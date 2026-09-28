@@ -1507,7 +1507,7 @@ class Meshcat::Impl {
           {
             o.pack_array(path_track.second.size());
             for (const auto& property_track : path_track.second) {
-              o.pack_map(3);
+              o.pack_map(4);
               o.pack("name");
               o.pack("." + property_track.first);
               o.pack("type");
@@ -1528,6 +1528,9 @@ class Meshcat::Impl {
                     }
                   },
                   property_track.second.track);
+              // https://github.com/mrdoob/three.js/blob/0af9729d0c143a86a1d725d6e2c3ad83301f3f34/src/constants.js#L1110
+              o.pack("interpolation");
+              o.pack(2300);
             }
           }
         }

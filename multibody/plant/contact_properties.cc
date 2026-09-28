@@ -49,6 +49,32 @@ T GetHydroelasticModulus(geometry::GeometryId id, double default_value,
 }
 
 template <typename T>
+T GetMargin(geometry::GeometryId id, double default_value,
+            const geometry::SceneGraphInspector<T>& inspector) {
+  DRAKE_DEMAND(default_value >= 0.0);
+  const geometry::ProximityProperties* prop =
+      inspector.GetProximityProperties(id);
+  DRAKE_DEMAND(prop != nullptr);
+
+  return prop->template GetPropertyOrDefault<double>(
+      geometry::internal::kHydroGroup, geometry::internal::kMargin,
+      default_value);
+}
+
+template <typename T>
+T GetBarrier(geometry::GeometryId id, double default_value,
+             const geometry::SceneGraphInspector<T>& inspector) {
+  DRAKE_DEMAND(default_value >= 0.0);
+  const geometry::ProximityProperties* prop =
+      inspector.GetProximityProperties(id);
+  DRAKE_DEMAND(prop != nullptr);
+
+  return prop->template GetPropertyOrDefault<double>(
+      geometry::internal::kHydroGroup, geometry::internal::kBarrier,
+      default_value);
+}
+
+template <typename T>
 T GetHuntCrossleyDissipation(
     geometry::GeometryId id, double default_value,
     const geometry::SceneGraphInspector<T>& inspector) {
@@ -181,7 +207,7 @@ DRAKE_DEFINE_FUNCTION_TEMPLATE_INSTANTIATIONS_ON_DEFAULT_SCALARS(
      static_cast<T (*)(const T&, const T&)>(
          &GetCombinedPointContactStiffness<T>),
      &GetCombinedDissipationTimeConstant<T>,
-     &GetCombinedDynamicCoulombFriction<T>));
+     &GetCombinedDynamicCoulombFriction<T>, &GetMargin<T>, &GetBarrier<T>));
 
 }  // namespace internal
 }  // namespace multibody

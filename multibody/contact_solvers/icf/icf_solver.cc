@@ -329,6 +329,11 @@ void IcfSolver::ComputeSearchDirection(const IcfModel<double>& model,
       hessian_factorization_is_fresh_enough_ = true;
     }
 
+    if (parameters_.collect_heavy_stats) {
+      stats_.condition_numbers.push_back(1.0 /
+                                         dense_hessian_factorization_.rcond());
+    }
+
     // Compute the search direction w = -H⁻¹⋅g with dense algebra.
     *w = dense_hessian_factorization_.solve(-data.gradient());
 
@@ -350,6 +355,11 @@ void IcfSolver::ComputeSearchDirection(const IcfModel<double>& model,
 
       // The factorization is now fresh, so we should try to reuse it next time.
       hessian_factorization_is_fresh_enough_ = true;
+    }
+
+    if (parameters_.collect_heavy_stats) {
+      stats_.condition_numbers.push_back(
+          1.0 / hessian_->MakeDenseMatrix().ldlt().rcond());
     }
 
     // Compute the search direction w = -H⁻¹⋅g with sparse algebra.

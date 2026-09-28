@@ -249,6 +249,7 @@ void VolumeIntersector<MeshBuilder, BvType>::IntersectFields(
   if (builder_M.num_faces() == 0) return;
 
   std::tie(*surface_01_M, *e_01_M) = builder_M.MakeMeshAndField();
+
 }
 
 template <class MeshBuilder, class BvType>
@@ -408,8 +409,8 @@ std::vector<int> VolumeIntersector<MeshBuilder, BvType>::CalcContactPolygon(
   std::vector<int> polygon_vertex_indices;
   polygon_vertex_indices.reserve(polygon_vertices_M.size());
   for (const auto& p_MV : polygon_vertices_M) {
-    polygon_vertex_indices.push_back(
-        builder_M->AddVertex(p_MV, field0_M.EvaluateCartesian(tet0, p_MV)));
+    polygon_vertex_indices.push_back(builder_M->AddOrReturnExistingVertex(
+        p_MV, field0_M.EvaluateCartesian(tet0, p_MV)));
   }
   // TODO(DamrongGuoy): Right now we pass the gradient of the volumetric
   //  field for the gradient tangent to the polygon. Consider passing only

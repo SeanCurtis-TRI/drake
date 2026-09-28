@@ -24,6 +24,198 @@ namespace internal {
 template <typename T>
 class IcfModel;
 
+/* Implements a regularized log-barrier contact model.
+
+This model computes the normal impulse n(vₙ) and its antiderivative N(vₙ) for
+use in the ICF optimization framework. The model smoothly transitions between
+elastic (compliant) and near-rigid contact regimes.
+
+## Elastic Regime
+
+In the elastic regime, the normal impulse is based on a log-barrier potential:
+
+  nₑ(ε) = δt⋅A₀⋅E*⋅(ε/(1-ε))⋅(1 - d⋅vₙ)
+
+where:
+- ε ∈ [0,1) is the relative penetration depth (ε = 0 at contact, ε → 1 at full
+  compression)
+- δt is the time step
+- A₀ is the contact area
+- E* is the effective elastic modulus
+- d is the Hunt-Crossley dissipation coefficient
+- vₙ is the normal contact velocity (positive = separation)
+
+The relationship between velocity and penetration is:
+  vₙ = v_δ⋅(ε₀ - ε)
+where v_δ = 2⋅δ/δt and δ is the characteristic penetration depth.
+
+## Near-Rigid Regime
+
+For stiff contacts (large A₀⋅E* or small δt), the elastic model becomes
+numerically challenging. We transition to a linearized model:
+
+  n_linear(vₙ) = (m/ε)⋅(vₙ - vₙᵣ) + n(vₙᵣ)
+
+where:
+- m is the effective mass
+- ε = β²/(4π²) is a regularization parameter
+- vₙᵣ is the transition velocity where the elastic and linear models match
+- β is a tuning parameter controlling the transition stiffness
+
+The transition point vₙᵣ (equivalently, εₙᵣ or xₙᵣ = 1 - εₙᵣ) is chosen such
+that the linear stiffness k_linear = m/(ε⋅δt²) matches the local elastic
+stiffness at that point.
+
+## Change of Variables
+
+For numerical stability near ε → 1, computations use x = 1 - ε:
+
+  n_x(x) = δt⋅A₀⋅E*⋅((1-x)/x)⋅(1 - d⋅vₙ)
+
+This avoids catastrophic cancellation in (1-ε) when ε ≈ 1.
+
+## Velocity Limits
+
+The impulse is clamped to zero for vₙ ≥ v̂, where:
+  v̂ = min(vₓ, vₐ)
+  vₓ = ε₀⋅v_δ        (velocity at which elastic force vanishes)
+  vₐ = 1/d          (velocity at which dissipation term vanishes)
+
+This ensures nₙ ≥ 0 (no adhesion) and (1 - d⋅vₙ) ≥ 0.
+
+## Antiderivative
+
+The antiderivative N(vₙ) satisfies dN/dvₙ = n(vₙ) and defines the contact
+contribution to the ICF cost function. It's computed by integrating the impulse
+expressions with appropriate handling of the regime transition and velocity
+clamping.
+
+@tparam_nonsymbolic_scalar */
+template <typename T>
+class RegularizedBarrierModel {
+ public:
+  RegularizedBarrierModel() = default;
+
+  /* Initializes the barrier model for a contact pair.
+
+  @param pk Contact pair index.
+  @param dt Time step δt.
+  @param e0 Initial relative penetration ε₀ ∈ [0,1).
+  @param delta Characteristic penetration depth δ (m).
+  @param d Hunt-Crossley dissipation coefficient (s/m).
+  @param A0_E_star Product of contact area and effective modulus A₀⋅E* (N/m).
+  @param m_over_eps Effective mass divided by regularization: m/ε = m⋅4π²/β². */
+  void SetPair(const int pk, const T& dt, const T& e0, const T& delta,
+               const T& d, const T& A0_E_star, const T& m_over_eps);
+
+  /* Updates time-step-dependent quantities for the given pair.
+
+  Call this when the time step changes to recompute derived quantities like
+  v_δ, vₙᵣ, and N_bias.
+
+  @param pk Contact pair index.
+  @param time_step New time step δt. */
+  void UpdateTimeStep(const int pk, const T& time_step);
+
+  /* Resizes storage for the given number of contact pairs. */
+  void Resize(int capacity);
+
+  /* Computes the normal impulse n(vₙ), its derivative dn/dvₙ, and
+  antiderivative N(vₙ) for the given pair and velocity.
+
+  @param pk Contact pair index.
+  @param dt Time step δt.
+  @param v Normal contact velocity vₙ (positive = separation).
+  @param[out] N Antiderivative N(vₙ).
+  @param[out] n Normal impulse n(vₙ).
+  @param[out] dn_dvn Derivative dn/dvₙ. */
+  void CalcLogBarrierQuantities(const int pk, const T& dt, const T& v, T* N,
+                                T* n, T* dn_dvn) const;
+
+  /* @name Accessors for model parameters
+  These return the model parameters set via SetPair(). */
+  //@{
+  const T& e0(const int pk) const { return e0_[pk]; }
+  const T& delta(const int pk) const { return delta_[pk]; }
+  const T& d(const int pk) const { return d_[pk]; }
+  const T& A0_E_star(const int pk) const { return A0_E_star_[pk]; }
+  const T& m_over_eps(const int pk) const { return m_over_eps_[pk]; }
+  //@}
+
+  /* @name Accessors for computed quantities
+  These return quantities computed in UpdateTimeStep(). */
+  //@{
+  const T& v_delta(const int pk) const { return v_delta_[pk]; }
+  const T& v_hat(const int pk) const { return v_hat_[pk]; }
+  const T& N_v_hat(const int pk) const { return N_v_hat_[pk]; }
+  const T& x_nr(const int pk) const { return x_nr_[pk]; }
+  const T& n_x_nr(const int pk) const { return n_x_nr_[pk]; }
+  const T& N_bias(const int pk) const { return N_bias_[pk]; }
+  //@}
+
+  /* @name Internal computation methods */
+  //@{
+
+  /* Computes derivative of elastic impulse:
+       dn_ε/dvₙ = -δt⋅A₀⋅E* / (1 - ε)² / v_δ. */
+  T dn_e_dv(const int pk, const T& dt, const T& e) const;
+
+  /* Computes elastic impulse as function of penetration:
+     nₑ(ε) = δt⋅A₀⋅E*⋅ε/(1-ε). */
+  T n_e(const int pk, const T& dt, const T& e) const;
+
+  /* Computes elastic impulse using x = 1-ε for numerical stability:
+     n_x(x) = δt⋅A₀⋅E*⋅(1-x)/x. */
+  T n_x(const int pk, const T& dt, const T& x) const;
+
+  /* Computes derivative including near-rigid transition:
+     Uses dn_e_dv if ε + xₙᵣ < 1, otherwise returns -m/ε. */
+  T dn_e_dv_tilde(const int pk, const T& dt, const T& e) const;
+
+  /* Computes impulse including near-rigid transition:
+     Uses nₑ(ε) if ε + xₙᵣ < 1, otherwise uses linear model. */
+  T n_e_tilde(const int pk, const T& dt, const T& e) const;
+
+  /* Computes derivative dn/dvₙ including dissipation:
+     dn/dvₙ = dn_ε/dvₙ⋅(1-d⋅vₙ) - d⋅nₑ(ε). */
+  T calc_dn(const int pk, const T& dt, const T& v) const;
+
+  /* Computes impulse n(vₙ) including dissipation:
+     n(vₙ) = nₑ(ε)⋅(1-d⋅vₙ). */
+  T calc_n(const int pk, const T& dt, const T& v) const;
+
+  /* Computes antiderivative N(vₙ) in the linear (near-rigid) regime. */
+  T calc_N_linear(const int pk, const T& dt, const T& v) const;
+
+  /* Computes antiderivative N(vₙ) in the elastic regime by integrating nₑ. */
+  T calc_N_e(const int pk, const T& dt, const T& v) const;
+
+  /* Computes antiderivative using x-parameterization for numerical stability.
+   */
+  T calc_N_x(const int pk, const T& dt, const T& v, const T& x) const;
+
+  /* Computes full antiderivative N(vₙ), dispatching to appropriate regime. */
+  T calc_N(const int pk, const T& dt, const T& v) const;
+  //@}
+
+ private:
+  // Model parameters (set via SetPair).
+  std::vector<T> e0_;          // Initial relative penetration ε₀.
+  std::vector<T> delta_;       // Characteristic penetration depth δ (m).
+  std::vector<T> d_;           // Hunt-Crossley dissipation coefficient (s/m).
+  std::vector<T> A0_E_star_;   // Contact area × effective modulus A₀⋅E* (N/m).
+  std::vector<T> m_over_eps_;  // Effective mass / regularization: m⋅4π²/β².
+
+  // Computed quantities (updated via UpdateTimeStep).
+  std::vector<T> v_delta_;  // Velocity scale v_δ = 2⋅δ/δt (m/s).
+  std::vector<T> v_hat_;    // Upper velocity limit v̂ = min(vₓ, vₐ) (m/s).
+  std::vector<T> N_v_hat_;  // Antiderivative at upper limit N(v̂).
+  std::vector<T> x_nr_;     // Near-rigid transition point xₙᵣ = 1 - εₙᵣ.
+  std::vector<T> n_x_nr_;   // Impulse at transition n(xₙᵣ).
+  std::vector<T>
+      N_bias_;  // Bias ensuring C¹ continuity: N_bias = N(vₙᵣ) - N_linear(vₙᵣ).
+};
+
 // TODO(#23741): Consider sorting patches by body pair, to improve locality of
 // access of Jacobians.
 // TODO(#23742): Consider moving to a single flat index for patches and pairs,
@@ -110,6 +302,8 @@ class PatchConstraintsPool {
     stiction_tolerance_ = stiction_tolerance;
   }
 
+  void UpdateTimeStep(const T& dt);
+
   /* Resizes this constraint pool to store the given patches and pairs.
 
   @param num_pairs_per_patch Number of contact pairs for each patch.
@@ -131,7 +325,7 @@ class PatchConstraintsPool {
   @pre B is always dynamic (not anchored). */
   void SetPatch(int patch_index, int bodyA, int bodyB, const T& dissipation,
                 const T& static_friction, const T& dynamic_friction,
-                const Vector3<T>& p_AB_W);
+                const Vector3<T>& p_AB_W, const T& beta = T(0.1));
 
   /* Sets the contact pair data for the given patch and pair index.
 
@@ -156,6 +350,10 @@ class PatchConstraintsPool {
                const T& fn0, const T& stiffness,
                const Vector3<T>& v_b_W = Vector3<T>::Zero());
 
+  void SetPairLogBarrier(const int patch_index, const int pair_index,
+                         const Vector3<T>& p_BoC_W, const Vector3<T>& normal_W,
+                         const T& A0_E_star, const T& e0, const T& delta);
+
   /* Computes the sparsity pattern for the pool. That is, clique i is connected
   to clique j > i iff sparsity[i] contains j. */
   void CalcSparsityPattern(std::vector<std::vector<int>>* sparsity) const;
@@ -178,6 +376,10 @@ class PatchConstraintsPool {
                          const EigenPool<Vector6<T>>& U_WB_pool,
                          EigenPool<Vector6<T>>* U_AbB_W_pool, T* dcost,
                          T* d2cost) const;
+
+  const RegularizedBarrierModel<T>& barrier_model() const {
+    return barrier_model_;
+  }
 
   /* Testing only access to pool-wide data. */
   double stiction_tolerance() const { return stiction_tolerance_; }
@@ -217,6 +419,9 @@ class PatchConstraintsPool {
   @param[out] G Contact spatial Hessian for the pair. */
   T CalcLaggedHuntCrossleyModel(int p, int k, const Vector3<T>& v_AcBc_W,
                                 Vector3<T>* gamma_Bc_W, Matrix3<T>* G) const;
+
+  T CalcLaggedLogBarrierModel(int p, int k, const Vector3<T>& v_AcBc_W,
+                              Vector3<T>* gamma_Bc_W, Matrix3<T>* G) const;
 
   /* Computes relative spatial velocities V_AbB_W for each patch, given body
   spatial velocities V_WB. When A is anchored, V_WA = 0 and V_AbB_W = V_WB. */
@@ -260,6 +465,14 @@ class PatchConstraintsPool {
   std::vector<T> static_friction_;
   std::vector<T> dynamic_friction_;
 
+  // Beta parameter per patch for the ICF model.
+  std::vector<T> beta_;
+
+  // Whether the patch's pairs carry log-barrier data (set via
+  // SetPairLogBarrier) rather than discrete Hunt-Crossley data (set via
+  // SetPair); selects the cost model in CalcData().
+  std::vector<bool> is_log_barrier_;
+
   // Starting index for each patch. Holds the global pair index of the first
   // pair in each patch, of size num_patches().
   std::vector<int> pair_data_start_;
@@ -276,11 +489,16 @@ class PatchConstraintsPool {
   std::vector<T> fe0_;
   // Normal force (elastic and damping) at the previous step, in N.
   std::vector<T> fn0_;
+  // Normal velocity at the previous step, in m/s.
+  std::vector<T> vn0_;
 
   // The net friction coefficient for each pair. Computed by interpolating
   // between static and dynamic coefficients based on the relative contact
   // velocity of this pair at the previous time step.
   std::vector<T> net_friction_;
+
+  // The regularized barrier model for all contact pairs.
+  RegularizedBarrierModel<T> barrier_model_;
 };
 static_assert(IsAbstractConstraintsPool<PatchConstraintsPool>);
 

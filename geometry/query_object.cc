@@ -86,6 +86,16 @@ const RigidTransform<T>& QueryObject<T>::GetPoseInWorld(
 }
 
 template <typename T>
+const std::unordered_map<GeometryId, math::RigidTransform<T>>&
+QueryObject<T>::GetAllPosesInWorld() const {
+  ThrowIfNotCallable();
+
+  FullPoseUpdate();
+  const GeometryState<T>& state = geometry_state();
+  return state.get_all_poses_in_world();
+}
+
+template <typename T>
 const VectorX<T>& QueryObject<T>::GetConfigurationsInWorld(
     GeometryId geometry_id) const {
   ThrowIfNotCallable();
@@ -149,6 +159,81 @@ bool QueryObject<T>::HasCollisions() const {
   FullPoseAndConfigurationUpdate();
   const GeometryState<T>& state = geometry_state();
   return state.HasCollisions();
+}
+
+template <typename T>
+internal::HydroelasticMeshStats QueryObject<T>::ComputeHydroelasticMeshStats()
+    const {
+  ThrowIfNotCallable();
+
+  const GeometryState<T>& state = geometry_state();
+  return state.ComputeHydroelasticMeshStats();
+}
+
+template <typename T>
+std::vector<GeometryId> QueryObject<T>::GetCcdParticipantGeometryIds() const {
+  ThrowIfNotCallable();
+
+  const GeometryState<T>& state = geometry_state();
+  return state.GetCcdParticipantGeometryIds();
+}
+
+template <typename T>
+template <typename T1>
+typename std::enable_if_t<scalar_predicate<T1>::is_bool, bool>
+QueryObject<T>::IsFeasibleTrajectory(
+    const std::unordered_map<GeometryId, math::RigidTransform<T>>& X_WGs_prev,
+    const std::unordered_map<GeometryId, math::RigidTransform<T>>& X_WGs_next,
+    double max_substep_rotation) const {
+  ThrowIfNotCallable();
+
+  // N.B. Unlike most queries, this one does NOT FullPoseUpdate(): the poses
+  // it consumes are the caller-provided maps, not the context's kinematics.
+  const GeometryState<T>& state = geometry_state();
+  return state.IsFeasibleTrajectory(X_WGs_prev, X_WGs_next,
+                                    max_substep_rotation);
+}
+
+template <typename T>
+template <typename T1>
+typename std::enable_if_t<scalar_predicate<T1>::is_bool, T>
+QueryObject<T>::FeasibilityTimeOfImpact(
+    const std::unordered_map<GeometryId, math::RigidTransform<T>>& X_WGs_prev,
+    const std::unordered_map<GeometryId, math::RigidTransform<T>>& X_WGs_next,
+    double max_substep_rotation) const {
+  ThrowIfNotCallable();
+
+  const GeometryState<T>& state = geometry_state();
+  return state.FeasibilityTimeOfImpact(X_WGs_prev, X_WGs_next,
+                                       max_substep_rotation);
+}
+
+template <typename T>
+template <typename T1>
+typename std::enable_if_t<scalar_predicate<T1>::is_bool, bool>
+QueryObject<T>::IsFeasibleTrajectoryToCurrent(
+    const std::unordered_map<GeometryId, math::RigidTransform<T>>& X_WGs_prev,
+    double max_substep_rotation) const {
+  ThrowIfNotCallable();
+
+  // The current poses are the trajectory end: they must be up to date.
+  FullPoseUpdate();
+  const GeometryState<T>& state = geometry_state();
+  return state.IsFeasibleTrajectoryToCurrent(X_WGs_prev, max_substep_rotation);
+}
+
+template <typename T>
+template <typename T1>
+typename std::enable_if_t<scalar_predicate<T1>::is_bool, T>
+QueryObject<T>::FeasibilityTimeOfImpactToCurrent(
+    const std::unordered_map<GeometryId, math::RigidTransform<T>>& X_WGs_prev,
+    double max_substep_rotation) const {
+  ThrowIfNotCallable();
+
+  FullPoseUpdate();
+  const GeometryState<T>& state = geometry_state();
+  return state.FeasibilityTimeOfImpactToCurrent(X_WGs_prev,
+                                                max_substep_rotation);
 }
 
 template <typename T>
@@ -299,7 +384,11 @@ const GeometryState<T>& QueryObject<T>::geometry_state() const {
 
 DRAKE_DEFINE_FUNCTION_TEMPLATE_INSTANTIATIONS_ON_DEFAULT_NONSYMBOLIC_SCALARS(
     (&QueryObject<T>::template ComputeContactSurfaces<T>,
-     &QueryObject<T>::template ComputeContactSurfacesWithFallback<T>));
+     &QueryObject<T>::template ComputeContactSurfacesWithFallback<T>,
+     &QueryObject<T>::template IsFeasibleTrajectory<T>,
+     &QueryObject<T>::template FeasibilityTimeOfImpact<T>,
+     &QueryObject<T>::template IsFeasibleTrajectoryToCurrent<T>,
+     &QueryObject<T>::template FeasibilityTimeOfImpactToCurrent<T>));
 
 template void QueryObject<double>::ComputeDeformableContact<double>(
     internal::DeformableContact<double>*) const;

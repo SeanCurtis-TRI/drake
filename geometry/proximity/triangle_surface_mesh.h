@@ -10,6 +10,7 @@
 #include "drake/common/drake_assert.h"
 #include "drake/common/drake_copyable.h"
 #include "drake/common/eigen_types.h"
+#include "drake/common/sorted_pair.h"
 #include "drake/geometry/proximity/mesh_traits.h"
 #include "drake/math/rigid_transform.h"
 
@@ -46,6 +47,8 @@ class SurfaceTriangle {
    @pre 0 <= i < 3
    */
   int vertex(int i) const { return vertex_.at(i); }
+
+  const std::array<int, 3>& vertices() const { return vertex_; }
 
   /** Reverses the order of the vertex indices -- this essentially flips the
    triangle normal based on the right-handed normal rule.
@@ -144,6 +147,8 @@ class TriangleSurfaceMesh {
   /** Returns the vertices. */
   const std::vector<Vector3<T>>& vertices() const { return vertices_M_; }
 
+  const std::vector<SortedPair<int>> edges() const { return edges_; };
+
   /**
    Returns the vertex identified by a given index.
    @param v  The index of the vertex.
@@ -152,6 +157,11 @@ class TriangleSurfaceMesh {
   const Vector3<T>& vertex(int v) const {
     DRAKE_DEMAND(0 <= v && v < num_vertices());
     return vertices_M_[v];
+  }
+
+  const SortedPair<int>& edge(int e) const {
+    DRAKE_DEMAND(0 <= e && e < num_edges());
+    return edges_[e];
   }
 
   /** Returns the number of vertices in the mesh.
@@ -163,6 +173,8 @@ class TriangleSurfaceMesh {
    mesh consumers to be templated on mesh type.
    */
   int num_elements() const { return num_triangles(); }
+
+  int num_edges() const { return ssize(edges_); }
 
   ///@}
 
@@ -177,6 +189,7 @@ class TriangleSurfaceMesh {
     if (triangles_.empty()) {
       throw std::logic_error("A mesh must contain at least one triangle");
     }
+    ConstructEdges();
     ComputePositionDependentQuantities();
   }
 
@@ -409,6 +422,8 @@ class TriangleSurfaceMesh {
   // and the centroid of the surface.
   void ComputePositionDependentQuantities();
 
+  void ConstructEdges();
+
   // Calculates the gradient vector ∇bᵢ of the barycentric coordinate
   // function bᵢ of the i-th vertex of the triangle `t`. The gradient
   // vector ∇bᵢ is expressed in the coordinates frame of this mesh M.
@@ -434,6 +449,7 @@ class TriangleSurfaceMesh {
   std::vector<Vector3<T>> vertices_M_;
 
   // Computed in initialization.
+  std::vector<SortedPair<int>> edges_;
 
   // Area of the triangles.
   std::vector<T> area_;
@@ -484,6 +500,20 @@ void TriangleSurfaceMesh<T>::ComputePositionDependentQuantities() {
 
   // Finalize centroid.
   if (total_area_ != T(0.)) p_MSc_ /= (3. * total_area_);
+}
+
+template <class T>
+void TriangleSurfaceMesh<T>::ConstructEdges() {
+  std::set<SortedPair<int>> seen_edges;
+  for (const SurfaceTriangle& tri : triangles()) {
+    for (int i = 0; i < 3; ++i) {
+      const SortedPair<int> e(tri.vertex(i), tri.vertex((i + 1) % 3));
+      if (!seen_edges.contains(e)) {
+        seen_edges.insert(e);
+        edges_.push_back(e);
+      }
+    }
+  }
 }
 
 template <typename T>

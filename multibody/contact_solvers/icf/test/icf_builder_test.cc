@@ -161,7 +161,7 @@ GTEST_TEST(IcfBuilder, Limits) {
   const double time_step = 0.01;
   IcfBuilder<double> builder(&plant);
   IcfModel<double> model;
-  builder.UpdateModel(plant_context, time_step, nullptr, nullptr, &model);
+  builder.UpdateModel(plant_context, time_step, nullptr, nullptr, 0.1, &model);
   EXPECT_EQ(model.num_cliques(), 2);
   EXPECT_EQ(model.num_velocities(), plant.num_velocities());
   EXPECT_EQ(model.num_limit_constraints(), 2);
@@ -206,7 +206,7 @@ GTEST_TEST(IcfBuilder, Coupler) {
   const double time_step = 0.01;
   IcfBuilder<double> builder(&plant);
   IcfModel<double> model;
-  builder.UpdateModel(plant_context, time_step, nullptr, nullptr, &model);
+  builder.UpdateModel(plant_context, time_step, nullptr, nullptr, 0.1, &model);
   EXPECT_EQ(model.num_cliques(), 2);
   EXPECT_EQ(model.num_velocities(), plant.num_velocities());
   ASSERT_EQ(model.num_coupler_constraints(), 1);
@@ -239,7 +239,7 @@ GTEST_TEST(IcfBuilder, WeldConstraint) {
   const double time_step = 0.01;
   IcfBuilder<double> builder(&plant);
   IcfModel<double> model;
-  builder.UpdateModel(plant_context, time_step, nullptr, nullptr, &model);
+  builder.UpdateModel(plant_context, time_step, nullptr, nullptr, 0.1, &model);
   EXPECT_EQ(model.num_cliques(), 2);
   EXPECT_EQ(model.num_velocities(), plant.num_velocities());
   ASSERT_EQ(model.num_weld_constraints(), 1);
@@ -276,10 +276,11 @@ GTEST_TEST(IcfBuilder, NoWeldBetweenAnchoredBodies) {
   const double time_step = 0.01;
   IcfBuilder<double> icf_builder(&plant);
   IcfModel<double> model;
-  DRAKE_EXPECT_THROWS_MESSAGE(icf_builder.UpdateModel(plant_context, time_step,
-                                                      nullptr, nullptr, &model),
-                              ".*weld constraint.*body1.*body2.*both are "
-                              "welded to the world.*not allowed.*");
+  DRAKE_EXPECT_THROWS_MESSAGE(
+      icf_builder.UpdateModel(plant_context, time_step, nullptr, nullptr, 0.1,
+                              &model),
+      ".*weld constraint.*body1.*body2.*both are "
+      "welded to the world.*not allowed.*");
 }
 
 // TODO(#23992): the limitation checked in this test is a regression from SAP
@@ -306,7 +307,8 @@ GTEST_TEST(IcfBuilder, CouplerBad) {
   IcfBuilder<double> builder(&plant);
   IcfModel<double> model;
   DRAKE_EXPECT_THROWS_MESSAGE(
-      builder.UpdateModel(plant_context, time_step, nullptr, nullptr, &model),
+      builder.UpdateModel(plant_context, time_step, nullptr, nullptr, 0.1,
+                          &model),
       ".*only.*same tree.*");
 }
 
@@ -389,7 +391,7 @@ GTEST_TEST(IcfBuilder, RetryStep) {
 
     // Do a long step to populate all internals.
     builder.UpdateModel(plant_context, 2 * time_step, actuation_feedback,
-                        external_feedback, &model);
+                        external_feedback, 0.1, &model);
     check_gain_constraints(actuation_feedback, external_feedback);
     // Do the "Retry step."
     model.UpdateTimeStep(time_step);
@@ -401,7 +403,7 @@ GTEST_TEST(IcfBuilder, RetryStep) {
 
     // Do an equivalent step to produce the expected values.
     builder.UpdateModel(plant_context, time_step, actuation_feedback,
-                        external_feedback, &model);
+                        external_feedback, 0.1, &model);
     check_gain_constraints(actuation_feedback, external_feedback);
     IcfData<double> data2;
     model.ResizeData(&data2);
@@ -775,7 +777,7 @@ GTEST_TEST(IcfBuilder, JointLockingSupport) {
   {
     // Update a model and check for *no* joint locking effects. The only
     // results of interest are the ReductionParameters at params().reduction.
-    dut.UpdateModel(plant_context, time_step, nullptr, nullptr, &model);
+    dut.UpdateModel(plant_context, time_step, nullptr, nullptr, 0.1, &model);
     const auto& r = model.params().reduction;
     const std::vector<int> expected_unlocked_dofs = {0, 1};
     EXPECT_EQ(r.unlocked_dofs, expected_unlocked_dofs);
@@ -791,7 +793,7 @@ GTEST_TEST(IcfBuilder, JointLockingSupport) {
   {
     // Update a model and check for joint locking effects. The only results of
     // interest are the ReductionParameters at params().reduction.
-    dut.UpdateModel(plant_context, time_step, nullptr, nullptr, &model);
+    dut.UpdateModel(plant_context, time_step, nullptr, nullptr, 0.1, &model);
     const auto& r = model.params().reduction;
     const std::vector<int> expected_unlocked_dofs = {0};
     EXPECT_EQ(r.unlocked_dofs, expected_unlocked_dofs);

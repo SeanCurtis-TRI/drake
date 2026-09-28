@@ -1,8 +1,15 @@
 #pragma once
 
+#include <limits>
 #include <memory>
+#include <string>
+#include <unordered_map>
 #include <vector>
 
+#include "drake/common/fmt.h"
+#include "drake/geometry/geometry_ids.h"
+#include "drake/geometry/proximity/hydroelastic_mesh_stats.h"
+#include "drake/math/rigid_transform.h"
 #include "drake/multibody/contact_solvers/icf/icf_builder.h"
 #include "drake/multibody/contact_solvers/icf/icf_external_systems_linearizer.h"
 #include "drake/multibody/contact_solvers/icf/icf_model.h"
@@ -31,6 +38,34 @@ struct CenicDiagramStructure {
   std::vector<SubsystemPath> non_plant_xc_paths;
 };
 }  // namespace internal
+
+/* Per-step statistics collected when IcfSolverParameters::collect_heavy_stats
+is enabled. Preserved from the thin-objects / barrier CENIC research branch; the
+rolling-sphere and related plotting scripts consume this record. This is
+supplementary to the formal statistics reported by DoGetStatisticsSummary(). */
+struct CenicStepStatistics {
+  std::string step_type;
+  double time;
+  double step_size;
+  int num_solver_iterations;
+  int total_linesearch_iterations;
+  int max_linesearch_iterations;
+  double mean_linesearch_iterations;
+  double max_condition_number;
+  double last_condition_number;
+  double max_e0;
+  double mean_e0;
+  int total_num_constraint_pairs;
+
+  std::string to_string() const {
+    return fmt::format("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+                       step_type, time, step_size, num_solver_iterations,
+                       total_linesearch_iterations, max_linesearch_iterations,
+                       mean_linesearch_iterations, max_condition_number,
+                       last_condition_number, max_e0, mean_e0,
+                       total_num_constraint_pairs);
+  }
+};
 
 // TODO(#23767): Consider applying SIMD optimizations to integrator hot spots,
 // under benchmarking and profiling guidance.
@@ -83,6 +118,13 @@ MultibodyPlant subsystem, at any level of Diagram nesting.
 
 Running CENIC in fixed-step mode (with error-control disabled) recovers the
 "Lagged" variant of discrete-time ICF simulation from [Castro et al., 2023].
+
+This branch additionally supports a non-penetration ("thin objects" / barrier)
+contact model: when error control is enabled, each candidate full and half step
+is checked for a feasible (penetration-free) linear trajectory via a
+continuous-collision-detection (CCD) query, and infeasible steps are rejected
+and the step size shrunk (optionally to a computed time-of-impact; see
+IcfSolverParameters::use_toi). This treatment is currently rigid-bodies-only.
 
 Implementation notes:
 
@@ -146,9 +188,43 @@ class CenicIntegrator final : public systems::IntegratorBase<T> {
   void SetSolverParameters(
       const contact_solvers::icf::IcfSolverParameters& parameters);
 
+  /** Gets the current total number of solver iterations across all time steps.
+   */
+  int get_total_solver_iterations() const {
+    return stats_.total_solver_iterations;
+  }
+
+  /** Gets the current total number of linesearch iterations, across all time
+  steps and solver iterations. */
+  int get_total_ls_iterations() const { return stats_.total_ls_iterations; }
+
+  /** Gets the current total number of Hessian factorizations performed, across
+  all time steps and solver iterations. */
+  int get_total_hessian_factorizations() const {
+    return stats_.total_hessian_factorizations;
+  }
+
+  /** Gets the per-step statistics collected when
+  IcfSolverParameters::collect_heavy_stats is enabled. */
+  const std::vector<CenicStepStatistics>& get_step_statistics() const {
+    return step_statistics_;
+  }
+
   bool supports_error_estimation() const final;
 
   int get_error_estimate_order() const final;
+
+  /** When the barrier/CCD non-penetration model rejects a step, this returns
+  the computed time-of-impact-based step size (if IcfSolverParameters::use_toi
+  is set), otherwise bisects the step. */
+  T ComputeAdjustedStepSize(const T& h) const final {
+    if (this->get_solver_parameters().use_toi &&
+        time_of_impact_ < std::numeric_limits<T>::infinity()) {
+      return time_of_impact_;
+    }
+    // Use a subdivision factor of 0.5 for halving the step size on failure.
+    return 0.5 * h;
+  }
 
  private:
   /* Preallocated scratch space. */
@@ -180,6 +256,16 @@ class CenicIntegrator final : public systems::IntegratorBase<T> {
     std::unique_ptr<systems::ContinuousState<T>> x_next_half_1;
     /* x_{t+h/2+h/2}. */
     std::unique_ptr<systems::ContinuousState<T>> x_next_half_2;
+    /* x_{t}, snapshot used to restore state when the barrier/CCD model rejects
+    a step. */
+    std::unique_ptr<systems::ContinuousState<T>> x_prev;
+
+    /* Trajectory-start poses for the barrier/CCD feasibility checks,
+    restricted to the CCD participant geometries (design-doc X6: previously
+    every check harvested a full copy of *all* geometry poses). Values are
+    overwritten in place each (sub)step; the key set only grows. */
+    std::unordered_map<geometry::GeometryId, math::RigidTransform<T>>
+        X_WGs_ccd_prev;
   };
 
   /* Data for PrintSimulatorStatistics(). */
@@ -187,6 +273,29 @@ class CenicIntegrator final : public systems::IntegratorBase<T> {
     int total_solver_iterations{0};
     int total_hessian_factorizations{0};
     int total_ls_iterations{0};
+    /* Rejections issued by the barrier/CCD feasibility check, per check site
+    in DoStep(). Disambiguates CCD rejections from error-control shrinkages in
+    the collected data. */
+    int num_feasibility_rejections_full{0};
+    int num_feasibility_rejections_half1{0};
+    int num_feasibility_rejections_half2{0};
+    /* Total number of calls, INCLUDING calls made on behalf of steps that
+    were later rejected (by the feasibility check or by error control):
+    convex solves = IcfSolver::SolveWithGuess invocations; feasibility calls =
+    barrier/CCD IsFeasibleTrajectory checks (the rejection counters above are
+    the failing subset). Geometry-query counts/time live in IcfBuilder and are
+    reported alongside these in the statistics summary. */
+    int64_t num_convex_solves{0};
+    int64_t num_feasibility_calls{0};
+    /* Accumulated wall-clock runtime breakdown of DoStep() [seconds]:
+    model_update = IcfBuilder::UpdateModel (geometry queries + constraint
+    assembly); solve = convex solves (ComputeNextContinuousState); feasibility
+    = CCD feasibility checks incl. broadphase and pose harvesting; linearize =
+    external-system linearization. */
+    double time_model_update{0.0};
+    double time_solve{0.0};
+    double time_feasibility{0.0};
+    double time_linearize{0.0};
   };
 
   void DoResetStatistics() final;
@@ -226,6 +335,27 @@ class CenicIntegrator final : public systems::IntegratorBase<T> {
   void AdvancePlantConfiguration(const T& h, const VectorX<T>& v,
                                  VectorX<T>* q) const;
 
+  /* Overwrites `out` with the current world poses of the CCD participant
+  geometries only (evaluated from the plant's geometry query input port at the
+  current context state). The participant id set is discovered on first use
+  and cached. */
+  void SnapshotCcdPoses(
+      std::unordered_map<geometry::GeometryId, math::RigidTransform<T>>* out);
+
+  /* Returns true if the trajectory from geometry poses X_WGs_prev to the
+  *current* context poses is feasible (penetration-free). When
+  IcfSolverParameters::use_toi is set, an infeasible result additionally
+  records the fractional time-of-impact in time_of_impact_factor_. */
+  bool IsFeasibleTrajectory(
+      const std::unordered_map<geometry::GeometryId, math::RigidTransform<T>>&
+          X_WGs_prev);
+
+  /* Appends a CenicStepStatistics record for the given (sub)step to
+  step_statistics_. Only called when collect_heavy_stats is enabled. */
+  void LogStepStatistics(
+      const T& t, const T& h, const std::string& step_type,
+      const contact_solvers::icf::internal::IcfModel<T>& model);
+
   /* Locations of plant and non-plant continuous state. Note that the contained
   `plant` pointer is guaranteed to be non-null by the CenicIntegrator
   constructor .*/
@@ -257,6 +387,30 @@ class CenicIntegrator final : public systems::IntegratorBase<T> {
 
   /* Data for PrintSimulatorStatistics(). */
   Stats stats_;
+
+  /* Per-step statistics for the research plotting pipeline (opt-in via
+  IcfSolverParameters::collect_heavy_stats). */
+  std::vector<CenicStepStatistics> step_statistics_;
+
+  /* Barrier/CCD non-penetration bookkeeping. time_of_impact_factor_ is the
+  fractional time-of-impact in [0, 1] within the most recently rejected
+  (sub)step; time_of_impact_ is the resulting absolute step size fed back to
+  ComputeAdjustedStepSize(). Both are reset to infinity at the start of every
+  DoStep() (design-doc X5: values no longer leak across steps). */
+  T time_of_impact_factor_{std::numeric_limits<T>::infinity()};
+  T time_of_impact_{std::numeric_limits<T>::infinity()};
+
+  /* Cached ids of the CCD participant geometries (see SnapshotCcdPoses()).
+  Discovered once on first use; geometry added after the first step with a
+  connected query port is not picked up. */
+  std::vector<geometry::GeometryId> ccd_participants_;
+  bool ccd_participants_initialized_{false};
+
+  /* Scene mesh-size statistics (surface triangles / tetrahedra over all
+  hydroelastic geometries), computed lazily on the first DoStep with a
+  connected geometry query port and reported by DoGetStatisticsSummary(). */
+  geometry::internal::HydroelasticMeshStats scene_mesh_stats_;
+  bool scene_mesh_stats_initialized_{false};
 };
 
 }  // namespace multibody

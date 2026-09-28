@@ -38,6 +38,14 @@ template <typename T>
 T GetHydroelasticModulus(geometry::GeometryId id, double default_value,
                          const geometry::SceneGraphInspector<T>& inspector);
 
+template <typename T>
+T GetMargin(geometry::GeometryId id, double default_value,
+            const geometry::SceneGraphInspector<T>& inspector);
+
+template <typename T>
+T GetBarrier(geometry::GeometryId id, double default_value,
+            const geometry::SceneGraphInspector<T>& inspector);
+
 /* Returns the Hunt & Crossley dissipation parameter stored in group
  geometry::internal::kMaterialGroup with property
  geometry::internal::kHcDissipation for the specified geometry.

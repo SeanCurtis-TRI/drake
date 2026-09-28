@@ -76,6 +76,14 @@ Running CENIC in fixed-step mode (with error-control disabled)
 recovers the "Lagged" variant of discrete-time ICF simulation from
 [Castro et al., 2023].
 
+This branch additionally supports a non-penetration ("thin objects" /
+barrier) contact model: when error control is enabled, each candidate
+full and half step is checked for a feasible (penetration-free) linear
+trajectory via a continuous-collision-detection (CCD) query, and
+infeasible steps are rejected and the step size shrunk (optionally to
+a computed time-of-impact; see IcfSolverParameters∷use_toi). This
+treatment is currently rigid-bodies-only.
+
 Implementation notes:
 
 Warning:
@@ -119,6 +127,14 @@ Parameter ``system``:
 Parameter ``context``:
     context for the overall system.)""";
         } ctor;
+        // Symbol: drake::multibody::CenicIntegrator::ComputeAdjustedStepSize
+        struct /* ComputeAdjustedStepSize */ {
+          // Source: drake/multibody/cenic/cenic_integrator.h
+          const char* doc =
+R"""(When the barrier/CCD non-penetration model rejects a step, this
+returns the computed time-of-impact-based step size (if
+IcfSolverParameters∷use_toi is set), otherwise bisects the step.)""";
+        } ComputeAdjustedStepSize;
         // Symbol: drake::multibody::CenicIntegrator::SetSolverParameters
         struct /* SetSolverParameters */ {
           // Source: drake/multibody/cenic/cenic_integrator.h
@@ -136,6 +152,34 @@ R"""(Sets the convex solver tolerances and iteration limits.)""";
           const char* doc =
 R"""(Gets the current convex solver tolerances and iteration limits.)""";
         } get_solver_parameters;
+        // Symbol: drake::multibody::CenicIntegrator::get_step_statistics
+        struct /* get_step_statistics */ {
+          // Source: drake/multibody/cenic/cenic_integrator.h
+          const char* doc =
+R"""(Gets the per-step statistics collected when
+IcfSolverParameters∷collect_heavy_stats is enabled.)""";
+        } get_step_statistics;
+        // Symbol: drake::multibody::CenicIntegrator::get_total_hessian_factorizations
+        struct /* get_total_hessian_factorizations */ {
+          // Source: drake/multibody/cenic/cenic_integrator.h
+          const char* doc =
+R"""(Gets the current total number of Hessian factorizations performed,
+across all time steps and solver iterations.)""";
+        } get_total_hessian_factorizations;
+        // Symbol: drake::multibody::CenicIntegrator::get_total_ls_iterations
+        struct /* get_total_ls_iterations */ {
+          // Source: drake/multibody/cenic/cenic_integrator.h
+          const char* doc =
+R"""(Gets the current total number of linesearch iterations, across all
+time steps and solver iterations.)""";
+        } get_total_ls_iterations;
+        // Symbol: drake::multibody::CenicIntegrator::get_total_solver_iterations
+        struct /* get_total_solver_iterations */ {
+          // Source: drake/multibody/cenic/cenic_integrator.h
+          const char* doc =
+R"""(Gets the current total number of solver iterations across all time
+steps.)""";
+        } get_total_solver_iterations;
         // Symbol: drake::multibody::CenicIntegrator::plant
         struct /* plant */ {
           // Source: drake/multibody/cenic/cenic_integrator.h
@@ -149,6 +193,76 @@ optimization problem.)""";
           const char* doc = R"""()""";
         } supports_error_estimation;
       } CenicIntegrator;
+      // Symbol: drake::multibody::CenicStepStatistics
+      struct /* CenicStepStatistics */ {
+        // Source: drake/multibody/cenic/cenic_integrator.h
+        const char* doc = R"""()""";
+        // Symbol: drake::multibody::CenicStepStatistics::last_condition_number
+        struct /* last_condition_number */ {
+          // Source: drake/multibody/cenic/cenic_integrator.h
+          const char* doc = R"""()""";
+        } last_condition_number;
+        // Symbol: drake::multibody::CenicStepStatistics::max_condition_number
+        struct /* max_condition_number */ {
+          // Source: drake/multibody/cenic/cenic_integrator.h
+          const char* doc = R"""()""";
+        } max_condition_number;
+        // Symbol: drake::multibody::CenicStepStatistics::max_e0
+        struct /* max_e0 */ {
+          // Source: drake/multibody/cenic/cenic_integrator.h
+          const char* doc = R"""()""";
+        } max_e0;
+        // Symbol: drake::multibody::CenicStepStatistics::max_linesearch_iterations
+        struct /* max_linesearch_iterations */ {
+          // Source: drake/multibody/cenic/cenic_integrator.h
+          const char* doc = R"""()""";
+        } max_linesearch_iterations;
+        // Symbol: drake::multibody::CenicStepStatistics::mean_e0
+        struct /* mean_e0 */ {
+          // Source: drake/multibody/cenic/cenic_integrator.h
+          const char* doc = R"""()""";
+        } mean_e0;
+        // Symbol: drake::multibody::CenicStepStatistics::mean_linesearch_iterations
+        struct /* mean_linesearch_iterations */ {
+          // Source: drake/multibody/cenic/cenic_integrator.h
+          const char* doc = R"""()""";
+        } mean_linesearch_iterations;
+        // Symbol: drake::multibody::CenicStepStatistics::num_solver_iterations
+        struct /* num_solver_iterations */ {
+          // Source: drake/multibody/cenic/cenic_integrator.h
+          const char* doc = R"""()""";
+        } num_solver_iterations;
+        // Symbol: drake::multibody::CenicStepStatistics::step_size
+        struct /* step_size */ {
+          // Source: drake/multibody/cenic/cenic_integrator.h
+          const char* doc = R"""()""";
+        } step_size;
+        // Symbol: drake::multibody::CenicStepStatistics::step_type
+        struct /* step_type */ {
+          // Source: drake/multibody/cenic/cenic_integrator.h
+          const char* doc = R"""()""";
+        } step_type;
+        // Symbol: drake::multibody::CenicStepStatistics::time
+        struct /* time */ {
+          // Source: drake/multibody/cenic/cenic_integrator.h
+          const char* doc = R"""()""";
+        } time;
+        // Symbol: drake::multibody::CenicStepStatistics::to_string
+        struct /* to_string */ {
+          // Source: drake/multibody/cenic/cenic_integrator.h
+          const char* doc = R"""()""";
+        } to_string;
+        // Symbol: drake::multibody::CenicStepStatistics::total_linesearch_iterations
+        struct /* total_linesearch_iterations */ {
+          // Source: drake/multibody/cenic/cenic_integrator.h
+          const char* doc = R"""()""";
+        } total_linesearch_iterations;
+        // Symbol: drake::multibody::CenicStepStatistics::total_num_constraint_pairs
+        struct /* total_num_constraint_pairs */ {
+          // Source: drake/multibody/cenic/cenic_integrator.h
+          const char* doc = R"""()""";
+        } total_num_constraint_pairs;
+      } CenicStepStatistics;
       // Symbol: drake::multibody::MakeCenicIntegrator
       struct /* MakeCenicIntegrator */ {
         // Source: drake/multibody/cenic/make_cenic_integrator.h

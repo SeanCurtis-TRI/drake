@@ -71,6 +71,15 @@ class TriMeshBuilder {
     return static_cast<int>(vertices_B_.size() - 1);
   }
 
+  int AddOrReturnExistingVertex(const Vector3<T>& p_BV, const T& field_value) {
+    for (int i = 0; i < static_cast<int>(vertices_B_.size()); ++i) {
+      if ((vertices_B_[i] - p_BV).norm() <= 1e-15) {
+        return i;
+      }
+    }
+    return AddVertex(p_BV, field_value);
+  }
+
   /* Adds the polygon to the in-progress mesh. The polygon is defined by
    indices into the set of vertices that have already been added to the builder.
 
@@ -134,6 +143,15 @@ class PolyMeshBuilder {
     vertices_B_.push_back(p_BV);
     pressures_.push_back(field_value);
     return static_cast<int>(vertices_B_.size() - 1);
+  }
+
+  int AddOrReturnExistingVertex(const Vector3<T>& p_BV, const T& field_value) {
+    for (int i = 0; i < static_cast<int>(vertices_B_.size()); ++i) {
+      if ((vertices_B_[i] - p_BV).norm() <= 1e-15) {
+        return i;
+      }
+    }
+    return AddVertex(p_BV, field_value);
   }
 
   /* Adds the polygon to the in-progress mesh. The polygon is defined by

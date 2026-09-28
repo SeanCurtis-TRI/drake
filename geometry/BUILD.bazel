@@ -86,7 +86,9 @@ drake_cc_library(
         ":shape_specification",
         "//common:default_scalars",
         "//common:sorted_pair",
+        "//geometry/proximity:ccd",
         "//geometry/proximity:collision_filter",
+        "//geometry/proximity:hydroelastic_mesh_stats",
         "//geometry/proximity:deformable_contact_internal",
         "//geometry/proximity:hydroelastic_internal",
         "//geometry/query_results",
@@ -100,6 +102,7 @@ drake_cc_library(
         "//geometry/proximity:deformable_contact_geometries",
         "//geometry/proximity:distance_to_point_callback",
         "//geometry/proximity:distance_to_shape_callback",
+        "//geometry/proximity:feasibility_calculator",
         "//geometry/proximity:find_collision_candidates_callback",
         "//geometry/proximity:hydroelastic_calculator",
         "//geometry/proximity:penetration_as_point_pair_callback",
@@ -413,6 +416,8 @@ drake_cc_library(
         ":scene_graph_inspector",
         "//common:essential",
         "//common:nice_type_name",
+        "//geometry/proximity:ccd",
+        "//geometry/proximity:hydroelastic_mesh_stats",
         "//geometry/query_results:contact_surface",
         "//geometry/query_results:penetration_as_point_pair",
         "//geometry/query_results:signed_distance_pair",
@@ -882,6 +887,7 @@ filegroup(
     testonly = 1,
     srcs = [
         "test/bad_geometry_volume_zero.obj",
+        "test/ccd_square.obj",
         "test/convex.obj",
         "test/cube_corners.obj",
         "test/cube_with_hole.obj",
@@ -984,6 +990,21 @@ drake_cc_googletest(
         ":mesh_source",
         "//common:memory_file",
         "//common:temp_directory",
+    ],
+)
+
+drake_cc_googletest(
+    name = "proximity_engine_ccd_test",
+    data = [
+        ":test_obj_files",
+    ],
+    deps = [
+        ":geometry_ids",
+        ":proximity_engine",
+        ":proximity_properties",
+        ":shape_specification",
+        "//common:find_resource",
+        "//math:geometric_transform",
     ],
 )
 

@@ -50,6 +50,9 @@ struct IcfSolverStats {
 
   /* The step size ||Δvₖ|| at each iteration. */
   std::vector<double> step_norm;
+
+  /* The condition number of the Hessian at each iteration. */
+  std::vector<double> condition_numbers;
 };
 
 /* A solver for convex Irrotational Contact Fields (ICF) problems,

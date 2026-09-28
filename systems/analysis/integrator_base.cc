@@ -120,7 +120,8 @@ bool IntegratorBase<T>::StepOnceErrorControlledAtMost(const T& h_max) {
     T adjusted_step_size = step_size_to_attempt;
     while (!Step(adjusted_step_size)) {
       DRAKE_LOGGER_DEBUG("Sub-step failed at {}", adjusted_step_size);
-      adjusted_step_size *= subdivision_factor_;
+
+      adjusted_step_size = ComputeAdjustedStepSize(adjusted_step_size);
 
       // Note: we could give the user more rope to hang themselves by looking
       // for zero rather than machine epsilon, which might be advantageous if

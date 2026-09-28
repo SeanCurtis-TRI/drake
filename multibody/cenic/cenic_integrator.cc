@@ -1,6 +1,15 @@
 #include "drake/multibody/cenic/cenic_integrator.h"
 
+#include <algorithm>
+#include <chrono>
+#include <cmath>
+#include <limits>
+#include <numeric>
+#include <utility>
+
+#include "drake/common/extract_double.h"
 #include "drake/common/text_logging.h"
+#include "drake/geometry/query_object.h"
 #include "drake/multibody/plant/slicing_and_indexing.h"
 #include "drake/systems/framework/system_visitor.h"
 
@@ -11,6 +20,8 @@ using contact_solvers::icf::IcfSolverParameters;
 using contact_solvers::icf::internal::IcfBuilder;
 using contact_solvers::icf::internal::IcfLinearFeedbackGains;
 using contact_solvers::icf::internal::IcfModel;
+using contact_solvers::icf::internal::PatchConstraintsPool;
+using contact_solvers::icf::internal::RegularizedBarrierModel;
 using internal::CenicDiagramStructure;
 using internal::SubsystemPath;
 using multibody::internal::ExpandRows;
@@ -218,11 +229,18 @@ void CenicIntegrator<T>::Scratch::Resize(const MultibodyPlant<T>& plant,
   x_next_full = system.AllocateTimeDerivatives();
   x_next_half_1 = system.AllocateTimeDerivatives();
   x_next_half_2 = system.AllocateTimeDerivatives();
+  x_prev = system.AllocateTimeDerivatives();
 }
 
 template <typename T>
 void CenicIntegrator<T>::DoResetStatistics() {
   stats_ = {};
+  step_statistics_.clear();
+  // The builder owns the geometry-query accumulators; it is null until
+  // DoInitialize().
+  if (builder_ != nullptr) {
+    builder_->ResetQueryStats();
+  }
 }
 
 template <typename T>
@@ -233,6 +251,37 @@ std::vector<NamedStatistic> CenicIntegrator<T>::DoGetStatisticsSummary() const {
   result.emplace_back("cenic_total_hessian_factorizations",
                       stats_.total_hessian_factorizations);
   result.emplace_back("cenic_total_ls_iterations", stats_.total_ls_iterations);
+  result.emplace_back("cenic_num_feasibility_rejections_full",
+                      stats_.num_feasibility_rejections_full);
+  result.emplace_back("cenic_num_feasibility_rejections_half1",
+                      stats_.num_feasibility_rejections_half1);
+  result.emplace_back("cenic_num_feasibility_rejections_half2",
+                      stats_.num_feasibility_rejections_half2);
+  result.emplace_back("cenic_num_convex_solves", stats_.num_convex_solves);
+  result.emplace_back("cenic_num_feasibility_calls",
+                      stats_.num_feasibility_calls);
+  result.emplace_back("cenic_time_model_update", stats_.time_model_update);
+  result.emplace_back("cenic_time_solve", stats_.time_solve);
+  result.emplace_back("cenic_time_feasibility", stats_.time_feasibility);
+  result.emplace_back("cenic_time_linearize", stats_.time_linearize);
+  // Geometry-query share of the model update (the remainder is constraint /
+  // problem building), plus the query count; owned by the builder.
+  const double time_geometry =
+      builder_ != nullptr ? builder_->time_geometry_queries() : 0.0;
+  const int64_t num_geometry_queries =
+      builder_ != nullptr ? builder_->num_geometry_queries() : int64_t{0};
+  result.emplace_back("cenic_time_geometry_queries", time_geometry);
+  result.emplace_back("cenic_time_problem_build",
+                      stats_.time_model_update - time_geometry);
+  result.emplace_back("cenic_num_geometry_queries", num_geometry_queries);
+  // Scene-size statistics (constant per simulation; 0 until the first step
+  // with a connected geometry query port).
+  result.emplace_back("cenic_scene_num_surface_triangles",
+                      scene_mesh_stats_.num_surface_triangles);
+  result.emplace_back("cenic_scene_num_tetrahedra",
+                      scene_mesh_stats_.num_tetrahedra);
+  result.emplace_back("cenic_scene_num_velocities",
+                      static_cast<int64_t>(plant().num_velocities()));
   return result;
 }
 
@@ -301,6 +350,57 @@ bool CenicIntegrator<T>::DoStep(const T& h) {
   ContinuousState<T>& x_next = context.get_mutable_continuous_state();
   const T t0 = context.get_time();
 
+  // Snapshot the state at t₀, so the barrier/CCD model can restore it if it
+  // rejects a candidate (sub)step.
+  scratch_.x_prev->SetFrom(x_next);
+
+  const Context<T>& plant_context = plant().GetMyContextFromRoot(context);
+
+  // The barrier/CCD non-penetration model only applies when the plant's
+  // geometry query port is connected (e.g., to a SceneGraph). Without geometry
+  // there is nothing to check, and CENIC behaves as a pure dynamics integrator
+  // (matching upstream behavior). Fixed-step mode never reaches the
+  // feasibility gates (they live in the error-control branch), so it skips
+  // the trajectory-start pose snapshot too.
+  const bool check_feasibility =
+      !this->get_fixed_step_mode() &&
+      plant().get_geometry_query_input_port().HasValue(plant_context);
+
+  // Capture the scene mesh-size statistics once (they are topology-only and
+  // constant per simulation).
+  if (!scene_mesh_stats_initialized_ &&
+      plant().get_geometry_query_input_port().HasValue(plant_context)) {
+    const auto& query_object =
+        plant()
+            .get_geometry_query_input_port()
+            .template Eval<geometry::QueryObject<T>>(plant_context);
+    scene_mesh_stats_ = query_object.ComputeHydroelasticMeshStats();
+    scene_mesh_stats_initialized_ = true;
+  }
+
+  // Reset the barrier/CCD bookkeeping for this step (X5): a stale
+  // time-of-impact from an earlier rejection must not feed
+  // ComputeAdjustedStepSize() for an unrelated failure.
+  time_of_impact_factor_ = std::numeric_limits<T>::infinity();
+  time_of_impact_ = std::numeric_limits<T>::infinity();
+
+  // Wall-clock accumulators for the runtime breakdown in Stats.
+  using steady_clock = std::chrono::steady_clock;
+  auto tic = []() {
+    return steady_clock::now();
+  };
+  auto toc = [](const steady_clock::time_point& start, double* acc) {
+    *acc += std::chrono::duration<double>(steady_clock::now() - start).count();
+  };
+
+  // Geometry poses at t₀ (CCD participants only), used as the trajectory
+  // start for CCD feasibility.
+  if (check_feasibility) {
+    const auto t_start = tic();
+    SnapshotCcdPoses(&scratch_.X_WGs_ccd_prev);
+    toc(t_start, &stats_.time_feasibility);
+  }
+
   // Linearize any external systems (e.g., controllers, external force elements,
   // etc.) as
   //
@@ -318,15 +418,16 @@ bool CenicIntegrator<T>::DoStep(const T& h) {
       scratch_.external_feedback_storage;
   bool has_actuation_forces;
   bool has_external_forces;
+  const auto t_linearize = tic();
   std::tie(has_actuation_forces, has_external_forces) =
       external_systems_linearizer_.LinearizeExternalSystem(
           h, plant().GetMyMutableContextFromRoot(&context),
           &actuation_feedback_storage, &external_feedback_storage);
+  toc(t_linearize, &stats_.time_linearize);
   const IcfLinearFeedbackGains<T>* const actuation_feedback =
       has_actuation_forces ? &actuation_feedback_storage : nullptr;
   const IcfLinearFeedbackGains<T>* const external_feedback =
       has_external_forces ? &external_feedback_storage : nullptr;
-  const Context<T>& plant_context = plant().GetMyContextFromRoot(context);
   // TODO(#12647) If either of the feedback models has a NaN, reject the step
   // and try again.
 
@@ -347,16 +448,25 @@ bool CenicIntegrator<T>::DoStep(const T& h) {
   } else {
     time_at_last_solve_ = t0;
     // Build the full model around (q₀, v₀, h).
+    const auto t_update = tic();
     builder_->UpdateModel(plant_context, h, actuation_feedback,
-                          external_feedback, &model_at_x0_);
+                          external_feedback, get_solver_parameters().beta,
+                          &model_at_x0_);
+    toc(t_update, &stats_.time_model_update);
   }
 
   // Solve for the full step x_{t+h}. We'll need this regardless of whether
   // error control is enabled or not.
   VectorX<T>& v_guess = scratch_.v_guess;
   v_guess = plant().GetVelocities(plant_context);
-  systems::ContinuousState<T>& x_next_full = *scratch_.x_next_full;
+  ContinuousState<T>& x_next_full = *scratch_.x_next_full;
+  const auto t_solve_full = tic();
   ComputeNextContinuousState(model_at_x0_, v_guess, &x_next_full);
+  toc(t_solve_full, &stats_.time_solve);
+
+  if (get_solver_parameters().collect_heavy_stats) {
+    LogStepStatistics(t0, h, "full_step", model_at_x0_);
+  }
 
   if (this->get_fixed_step_mode()) {
     // We're using fixed step mode, so we can just set the state to x_{t+h} and
@@ -367,6 +477,30 @@ bool CenicIntegrator<T>::DoStep(const T& h) {
     context.SetTimeAndNoteContinuousStateChange(t0 + h);
   } else {
     // We're using error control, and will compare with two half-sized steps.
+
+    // Check feasibility of the full step before proceeding. Set the state to
+    // the result of the full step so the geometry query recomputes poses.
+    x_next.get_mutable_vector().SetFrom(x_next_full.get_vector());
+    context.SetTimeAndNoteContinuousStateChange(t0 + h);
+
+    if (check_feasibility) {
+      const auto t_ccd = tic();
+      const bool feasible = IsFeasibleTrajectory(scratch_.X_WGs_ccd_prev);
+      toc(t_ccd, &stats_.time_feasibility);
+      if (!feasible) {
+        ++stats_.num_feasibility_rejections_full;
+        x_next.get_mutable_vector().SetFrom(scratch_.x_prev->get_vector());
+        context.SetTimeAndNoteContinuousStateChange(t0);
+        if (get_solver_parameters().use_toi) {
+          time_of_impact_ = time_of_impact_factor_ * h * 0.95;
+        }
+        return false;
+      }
+    }
+
+    // Reset the state back to t₀ for the half-steps.
+    x_next.get_mutable_vector().SetFrom(scratch_.x_prev->get_vector());
+    context.SetTimeAndNoteContinuousStateChange(t0);
 
     // First half-step to (t + h/2) uses the average of v_t and v_{t+h} as the
     // initial guess. Note that this solve starts from the same initial state as
@@ -379,31 +513,85 @@ bool CenicIntegrator<T>::DoStep(const T& h) {
                    .get_generalized_velocity()
                    .CopyToVector();
     v_guess /= 2.0;
-    systems::ContinuousState<T>& x_next_half_1 = *scratch_.x_next_half_1;
+    ContinuousState<T>& x_next_half_1 = *scratch_.x_next_half_1;
+    const auto t_solve_h1 = tic();
     ComputeNextContinuousState(model_at_x0_, v_guess, &x_next_half_1);
+    toc(t_solve_h1, &stats_.time_solve);
+
+    if (get_solver_parameters().collect_heavy_stats) {
+      LogStepStatistics(t0, 0.5 * h, "half_step_1", model_at_x0_);
+    }
 
     // For the second half-step to (t + h), we need to start from (t + h/2). So
     // we'll first set the system state to the result of the first half-step.
     x_next.get_mutable_vector().SetFrom(x_next_half_1.get_vector());
     context.SetTimeAndNoteContinuousStateChange(t0 + 0.5 * h);
 
+    // Check the feasibility of the first half-step. N.B. the trajectory-start
+    // poses are the same as those used by the full step (poses at t₀). After
+    // the check passes, re-snapshot at the half-step state — the context
+    // still holds it — to serve as the trajectory start for half-step 2.
+    if (check_feasibility) {
+      const auto t_ccd = tic();
+      const bool feasible = IsFeasibleTrajectory(scratch_.X_WGs_ccd_prev);
+      if (feasible) {
+        SnapshotCcdPoses(&scratch_.X_WGs_ccd_prev);
+      }
+      toc(t_ccd, &stats_.time_feasibility);
+      if (!feasible) {
+        ++stats_.num_feasibility_rejections_half1;
+        x_next.get_mutable_vector().SetFrom(scratch_.x_prev->get_vector());
+        context.SetTimeAndNoteContinuousStateChange(t0);
+        if (get_solver_parameters().use_toi) {
+          time_of_impact_ = time_of_impact_factor_ * 0.5 * h * 0.95;
+        }
+        return false;
+      }
+    }
+
     // Now we can take the second half-step. We'll use the solution of the full
     // step as our initial guess here. We can't reuse the ICF constraints, but
     // we will reuse the linearizations of any external systems, if they exist.
+    const auto t_update_xh = tic();
     builder_->UpdateModel(plant_context, 0.5 * h, actuation_feedback,
-                          external_feedback, &model_at_xh_);
+                          external_feedback, get_solver_parameters().beta,
+                          &model_at_xh_);
+    toc(t_update_xh, &stats_.time_model_update);
     // #created_for_root_system: The `x_next*` state here is the one in
     // `scratch_`, which is always created for the root system.
     v_guess = GetSubstateByPath(*scratch_.x_next_full, structure_.plant_path)
                   .get_generalized_velocity()
                   .CopyToVector();
-    systems::ContinuousState<T>& x_next_half_2 = *scratch_.x_next_half_2;
+    ContinuousState<T>& x_next_half_2 = *scratch_.x_next_half_2;
+    const auto t_solve_h2 = tic();
     ComputeNextContinuousState(model_at_xh_, v_guess, &x_next_half_2);
+    toc(t_solve_h2, &stats_.time_solve);
+
+    if (get_solver_parameters().collect_heavy_stats) {
+      LogStepStatistics(t0 + 0.5 * h, 0.5 * h, "half_step_2", model_at_xh_);
+    }
 
     // Set the state to the result of the second half-step (since this is more
     // accurate than the full step, and we have it anyway).
     x_next.get_mutable_vector().SetFrom(x_next_half_2.get_vector());
     context.SetTimeAndNoteContinuousStateChange(t0 + h);
+
+    // Check the feasibility of the second half-step. N.B. the trajectory
+    // start is now the snapshot taken at the first half-step's state.
+    if (check_feasibility) {
+      const auto t_ccd = tic();
+      const bool feasible = IsFeasibleTrajectory(scratch_.X_WGs_ccd_prev);
+      toc(t_ccd, &stats_.time_feasibility);
+      if (!feasible) {
+        ++stats_.num_feasibility_rejections_half2;
+        x_next.get_mutable_vector().SetFrom(scratch_.x_prev->get_vector());
+        context.SetTimeAndNoteContinuousStateChange(t0);
+        if (get_solver_parameters().use_toi) {
+          time_of_impact_ = 0.5 * h * (1 + time_of_impact_factor_ * 0.95);
+        }
+        return false;
+      }
+    }
 
     // Estimate the error as the difference between the full step and the
     // two half-steps.
@@ -468,6 +656,7 @@ void CenicIntegrator<T>::ComputeNextContinuousState(
   }
 
   // Accumulate solver statistics.
+  ++stats_.num_convex_solves;
   stats_.total_solver_iterations += solver_.stats().num_iterations;
   stats_.total_hessian_factorizations += solver_.stats().num_factorizations;
   stats_.total_ls_iterations +=
@@ -536,6 +725,103 @@ void CenicIntegrator<T>::AdvancePlantConfiguration(const T& h,
   for (int quaternion_start : forest.quaternion_starts()) {
     q->template segment<4>(quaternion_start).normalize();
   }
+}
+
+template <typename T>
+void CenicIntegrator<T>::SnapshotCcdPoses(
+    std::unordered_map<geometry::GeometryId, math::RigidTransform<T>>* out) {
+  const Context<T>& context = this->get_context();
+  const Context<T>& plant_context = plant().GetMyContextFromRoot(context);
+  const auto& query_object =
+      plant()
+          .get_geometry_query_input_port()
+          .template Eval<geometry::QueryObject<T>>(plant_context);
+  if (!ccd_participants_initialized_) {
+    ccd_participants_ = query_object.GetCcdParticipantGeometryIds();
+    ccd_participants_initialized_ = true;
+  }
+  // GetAllPosesInWorld() returns a const reference into the geometry state;
+  // only the participants' poses are copied out.
+  const auto& X_WGs = query_object.GetAllPosesInWorld();
+  for (const geometry::GeometryId id : ccd_participants_) {
+    out->insert_or_assign(id, X_WGs.at(id));
+  }
+}
+
+template <typename T>
+bool CenicIntegrator<T>::IsFeasibleTrajectory(
+    const std::unordered_map<geometry::GeometryId, math::RigidTransform<T>>&
+        X_WGs_prev) {
+  ++stats_.num_feasibility_calls;
+  const Context<T>& context = this->get_context();
+  const Context<T>& plant_context = plant().GetMyContextFromRoot(context);
+  const auto& query_object =
+      plant()
+          .get_geometry_query_input_port()
+          .template Eval<geometry::QueryObject<T>>(plant_context);
+  const double max_substep_rotation =
+      get_solver_parameters().ccd_max_substep_rotation;
+  if (get_solver_parameters().use_toi) {
+    const T toi = query_object.FeasibilityTimeOfImpactToCurrent(
+        X_WGs_prev, max_substep_rotation);
+    if (toi > 1.0) {
+      return true;
+    }
+    time_of_impact_factor_ = toi;
+    return false;
+  } else {
+    return query_object.IsFeasibleTrajectoryToCurrent(X_WGs_prev,
+                                                      max_substep_rotation);
+  }
+}
+
+template <typename T>
+void CenicIntegrator<T>::LogStepStatistics(const T& t, const T& h,
+                                           const std::string& step_type,
+                                           const IcfModel<T>& model) {
+  const auto& stats = solver_.stats();
+
+  const int total_linesearch_iterations = std::accumulate(
+      stats.ls_iterations.begin(), stats.ls_iterations.end(), 0);
+  const int max_linesearch_iterations =
+      stats.ls_iterations.empty()
+          ? 0
+          : *std::max_element(stats.ls_iterations.begin(),
+                              stats.ls_iterations.end());
+  const double mean_linesearch_iterations =
+      stats.ls_iterations.empty()
+          ? 0.0
+          : static_cast<double>(total_linesearch_iterations) /
+                static_cast<double>(stats.ls_iterations.size());
+
+  const double max_condition_number =
+      stats.condition_numbers.empty()
+          ? 0.0
+          : *std::max_element(stats.condition_numbers.begin(),
+                              stats.condition_numbers.end());
+  const double last_condition_number =
+      stats.condition_numbers.empty() ? 0.0 : stats.condition_numbers.back();
+
+  double max_e0 = 0.0;
+  double mean_e0 = 0.0;
+
+  const PatchConstraintsPool<T>& pool = model.patch_constraints_pool();
+  const RegularizedBarrierModel<T>& barrier_model = pool.barrier_model();
+  for (int i = 0; i < pool.total_num_pairs(); ++i) {
+    const double e0 = ExtractDoubleOrThrow(barrier_model.e0(i));
+    max_e0 = std::max(max_e0, e0);
+    mean_e0 += e0;
+  }
+  if (pool.total_num_pairs() > 0) {
+    mean_e0 /= static_cast<double>(pool.total_num_pairs());
+  }
+
+  step_statistics_.emplace_back(
+      step_type, ExtractDoubleOrThrow(t), ExtractDoubleOrThrow(h),
+      stats.num_iterations, total_linesearch_iterations,
+      max_linesearch_iterations, mean_linesearch_iterations,
+      max_condition_number, last_condition_number, max_e0, mean_e0,
+      pool.total_num_pairs());
 }
 
 }  // namespace multibody

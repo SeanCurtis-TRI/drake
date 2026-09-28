@@ -66,6 +66,11 @@ struct IcfParameters {
   // Number of velocities in each clique, indexed by clique, size nc.
   std::vector<int> clique_sizes;
 
+  // Starting index in the velocity vector for each clique, size nc + 1.
+  std::vector<int> clique_start;
+
+  T beta{0.1};  // LogBarrier beta parameter.
+
   // Parameters that are only for model reduction. These do not affect *this*
   // model, but rather describe how to construct a separate, reduced, model.
   struct ReductionParameters {

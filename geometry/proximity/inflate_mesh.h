@@ -2,6 +2,7 @@
 
 #include <map>
 
+#include "drake/geometry/proximity/triangle_surface_mesh.h"
 #include "drake/geometry/proximity/volume_mesh.h"
 
 namespace drake {
@@ -66,6 +67,11 @@ a pair in this mapping.
 VolumeMesh<double> MakeInflatedMesh(
     const VolumeMesh<double>& mesh, double margin,
     std::map<int, int>* split_vertex_to_original);
+
+// Extrudes the surface of the given triangle surface mesh outwards by the given
+// margin.
+VolumeMesh<double> MakeExtrudedMesh(
+    const TriangleSurfaceMesh<double>& mesh_surface, double margin);
 
 }  // namespace internal
 }  // namespace geometry

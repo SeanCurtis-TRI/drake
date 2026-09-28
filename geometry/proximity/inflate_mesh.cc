@@ -7,6 +7,7 @@
 #include <utility>
 #include <vector>
 
+#include "drake/common/sorted_pair.h"
 #include "drake/geometry/proximity/volume_to_surface_mesh.h"
 #include "drake/solvers/choose_best_solver.h"
 #include "drake/solvers/clarabel_solver.h"
@@ -67,6 +68,30 @@ std::unique_ptr<solvers::MathematicalProgram> MakeVertexProgram(
   for (int f = 0; f < num_faces; ++f) {
     const Vector3d& normal = surface.face_normal(incident_faces[f]);
     A.row(f) = normal.transpose();
+  }
+  prog->AddLinearConstraint(A, lb, ub, u);
+
+  return prog;
+}
+
+std::unique_ptr<solvers::MathematicalProgram> MakeVertexProgram(
+    const std::vector<Vector3d>& normals) {
+  DRAKE_DEMAND(normals.size() > 1);
+
+  auto prog = std::make_unique<solvers::MathematicalProgram>();
+  const int nv = 3;
+  auto u = prog->NewContinuousVariables(nv);
+  prog->AddQuadraticCost(MatrixXd::Identity(nv, nv), VectorXd::Zero(nv), u,
+                         true /* it is convex */);
+  /* Add one constraint per incident face, inflating w.r.t. all incident faces
+   simultaneously. */
+  const int num_normals = normals.size();
+  const VectorXd lb = VectorXd::Ones(num_normals);
+  const VectorXd ub =
+      VectorXd::Constant(num_normals, std::numeric_limits<double>::infinity());
+  MatrixXd A(num_normals, 3);
+  for (int i = 0; i < num_normals; ++i) {
+    A.row(i) = normals[i].transpose();
   }
   prog->AddLinearConstraint(A, lb, ub, u);
 
@@ -292,6 +317,245 @@ VolumeMesh<double> MakeInflatedMesh(
   for (int s = 0; s < ssize(u); ++s) {
     int v = surface_to_volume_vertices[s];
     vertices[v] += u[s];
+  }
+
+  return VolumeMesh<double>(std::move(tetrahedra), std::move(vertices));
+}
+
+VolumeMesh<double> MakeExtrudedMesh(
+    const TriangleSurfaceMesh<double>& mesh_surface, double margin) {
+  DRAKE_THROW_UNLESS(margin >= 0);
+  const int num_surface_vertices = mesh_surface.num_vertices();
+
+  // Determine adjacent faces to each vertex on the surface.
+  std::vector<std::vector<int>> adjacent_faces(
+      num_surface_vertices);  // indexed by surface vertex.
+  // number of adjacent faces per edge (to detect boundary edges).
+  std::map<SortedPair<int>, int> num_adjacent_faces;
+  // List of edge normals per-vertex (to extrude along boundary edges).
+  std::vector<std::vector<Vector3d>> edge_normals(num_surface_vertices);
+  // Map from the index of a boundary vertex on the original surface to its
+  // edge-offset vertex in the extruded mesh.
+  std::map<int, int> boundary_vertex_to_offset;
+
+  for (int e = 0; e < mesh_surface.num_elements(); ++e) {
+    const SurfaceTriangle& triangle = mesh_surface.element(e);
+    for (int i = 0; i < 3; ++i) {
+      // Count the number of adjacent faces for each edge.
+      const int v0 = triangle.vertex(i);
+      const int v1 = triangle.vertex((i + 1) % 3);
+
+      // Note the adjacent face for the leading vertex.
+      adjacent_faces[v0].push_back(e);
+
+      // Count adjacent face for this edge.
+      if (num_adjacent_faces.find(SortedPair<int>(v0, v1)) ==
+          num_adjacent_faces.end()) {
+        num_adjacent_faces[SortedPair<int>(v0, v1)] = 0;
+      }
+      num_adjacent_faces[SortedPair<int>(v0, v1)]++;
+    }
+  }
+
+  // Loop over all of the edges again and for the boundary edges, store the edge
+  // normal for each vertex.
+  bool has_boundary_edges = false;
+  for (int e = 0; e < mesh_surface.num_elements(); ++e) {
+    const SurfaceTriangle& triangle = mesh_surface.element(e);
+    for (int i = 0; i < 3; ++i) {
+      // Count the number of adjacent faces for each edge.
+      const int v0 = triangle.vertex(i);
+      const int v1 = triangle.vertex((i + 1) % 3);
+      if (num_adjacent_faces[SortedPair<int>(v0, v1)] == 1) {
+        has_boundary_edges = true;
+
+        // Store the edge normal for each vertex.
+        const Vector3d normal =
+            (mesh_surface.vertex(v1) - mesh_surface.vertex(v0))
+                .cross(mesh_surface.face_normal(e))
+                .normalized();
+        edge_normals[v0].push_back(normal);
+        edge_normals[v1].push_back(normal);
+      }
+    }
+  }
+
+  std::vector<Vector3d> vertices = mesh_surface.vertices();
+  std::vector<VolumeElement> tetrahedra;
+
+  // Choose a solver to solver the MakeVertexProgram QPs. Clarabel is more
+  // accurate, but might not be available (e.g., if Rust is disabled).
+  auto solver =
+      MakeFirstAvailableSolver({ClarabelSolver::id(), OsqpSolver::id()});
+
+  // Extrude outward in the face normal direction.
+  for (int s = 0; s < num_surface_vertices; ++s) {
+    const std::vector<int>& faces = adjacent_faces[s];
+
+    if (faces.size() == 1) {
+      // A single face has a trivial solution.
+      vertices.push_back(vertices[s] +
+                         margin * mesh_surface.face_normal(faces[0]));
+      continue;
+    }
+
+    std::unique_ptr<solvers::MathematicalProgram> prog =
+        MakeVertexProgram(mesh_surface, faces);
+    std::optional<SolverOptions> solver_options;
+    solver_options.emplace();
+    solver_options->SetOption(CommonSolverOption::kMaxThreads, 1);
+    solvers::MathematicalProgramResult result;
+    solver->Solve(*prog, /* initial_guess = */ std::nullopt, solver_options,
+                  &result);
+    if (result.is_success()) {
+      vertices.push_back(vertices[s] + margin * result.get_x_val());
+    } else {
+      throw std::logic_error(
+          "Extrusion failed: unable to compute displacement for a vertex.");
+    }
+  }
+
+  // Partition each "prism" defined by each surface triangle (vi, vj, vk) and
+  // its extruded counterpart (wi, wj, wk) into three tetrahedra.
+  for (const auto& tri : mesh_surface.triangles()) {
+    // Grab the triangle indices such that vi is the min index (and (vi, vj,
+    // vk) is still in CCW order).
+    int min_index = 0;
+    if (tri.vertex(1) < tri.vertex(min_index)) min_index = 1;
+    if (tri.vertex(2) < tri.vertex(min_index)) min_index = 2;
+    const int vi = tri.vertex(min_index);
+    const int vj = tri.vertex((min_index + 1) % 3);
+    const int vk = tri.vertex((min_index + 2) % 3);
+    // Indices for the corresponding top triangle's vertices.
+    const int wi = vi + num_surface_vertices;
+    const int wj = vj + num_surface_vertices;
+    const int wk = vk + num_surface_vertices;
+
+    // We choose vi-wj and vi-wk to always be the diagonals.
+    tetrahedra.emplace_back(vi, wj, wk, wi);
+    if (vj < vk) {
+      tetrahedra.emplace_back(vi, vj, vk, wk);
+      tetrahedra.emplace_back(vi, vj, wk, wj);
+    } else {
+      tetrahedra.emplace_back(vi, vj, vk, wj);
+      tetrahedra.emplace_back(vk, vi, wj, wk);
+    }
+  }
+
+  if (!has_boundary_edges) {
+    // If there are no boundary edges, we are done.
+    return VolumeMesh<double>(std::move(tetrahedra), std::move(vertices));
+  }
+
+  // Surface is not closed; we need to extrude backwards along faces and
+  // outward along boundary edges.
+
+  // Now compute the backwards extruded vertices.
+  std::vector<Vector3d> inverse_face_normals;
+  for (int s = 0; s < num_surface_vertices; ++s) {
+    const std::vector<int>& faces = adjacent_faces[s];
+
+    if (faces.size() == 1) {
+      // A single face has a trivial solution.
+      vertices.push_back(vertices[s] -
+                         margin * mesh_surface.face_normal(faces[0]));
+      continue;
+    }
+
+    inverse_face_normals.clear();
+    for (int f : faces) {
+      inverse_face_normals.push_back(-mesh_surface.face_normal(f));
+    }
+
+    std::unique_ptr<solvers::MathematicalProgram> prog =
+        MakeVertexProgram(inverse_face_normals);
+    std::optional<SolverOptions> solver_options;
+    solver_options.emplace();
+    solver_options->SetOption(CommonSolverOption::kMaxThreads, 1);
+    solvers::MathematicalProgramResult result;
+    solver->Solve(*prog, /* initial_guess = */ std::nullopt, solver_options,
+                  &result);
+    if (result.is_success()) {
+      vertices.push_back(vertices[s] + margin * result.get_x_val());
+    } else {
+      throw std::logic_error(
+          "Extrusion failed: unable to compute displacement for a vertex.");
+    }
+  }
+
+  // Partition each "prism" defined by each surface triangle (vi, vj, vk) and
+  // its extruded counterpart (wi, wj, wk) into three tetrahedra.
+  for (const auto& tri : mesh_surface.triangles()) {
+    // Grab the triangle indices such that vi is the min index (and (vi, vj,
+    // vk) is still in CCW order relative to the original face normal).
+    int min_index = 0;
+    if (tri.vertex(1) < tri.vertex(min_index)) min_index = 1;
+    if (tri.vertex(2) < tri.vertex(min_index)) min_index = 2;
+    const int vi = tri.vertex(min_index);
+    const int vj = tri.vertex((min_index + 1) % 3);
+    const int vk = tri.vertex((min_index + 2) % 3);
+    // Indices for the corresponding top triangle's vertices.
+    const int wi = vi + 2 * num_surface_vertices;
+    const int wj = vj + 2 * num_surface_vertices;
+    const int wk = vk + 2 * num_surface_vertices;
+
+    // We choose vi-wj and vi-wk to always be the diagonals.
+    // We need to reverse the winding order for backwards extrusion.
+    tetrahedra.emplace_back(vi, wj, wi, wk);
+    if (vj < vk) {
+      tetrahedra.emplace_back(vi, vj, wk, vk);
+      tetrahedra.emplace_back(vi, vj, wj, wk);
+    } else {
+      tetrahedra.emplace_back(vi, vj, wj, vk);
+      tetrahedra.emplace_back(vk, vi, wk, wj);
+    }
+  }
+
+  for (int v = 0; v < mesh_surface.num_vertices(); ++v) {
+    if (edge_normals[v].size() > 0) {
+      // Extrude along the boundary edge normals.
+      std::unique_ptr<solvers::MathematicalProgram> prog =
+          MakeVertexProgram(edge_normals[v]);
+      std::optional<SolverOptions> solver_options;
+      solver_options.emplace();
+      solver_options->SetOption(CommonSolverOption::kMaxThreads, 1);
+      solvers::MathematicalProgramResult result;
+      solver->Solve(*prog, /* initial_guess = */ std::nullopt, solver_options,
+                    &result);
+      if (result.is_success()) {
+        boundary_vertex_to_offset[v] = vertices.size();
+        vertices.push_back(vertices[v] + margin * result.get_x_val());
+      } else {
+        throw std::logic_error(
+            "Extrusion failed: unable to compute displacement for a vertex.");
+      }
+    }
+  }
+
+  // Create tetrahedra along the boundary edges.
+  for (int f = 0; f < mesh_surface.num_elements(); ++f) {
+    for (int i = 0; i < 3; ++i) {
+      const int v0 = mesh_surface.element(f).vertex(i);
+      const int v1 = mesh_surface.element(f).vertex((i + 1) % 3);
+      const SortedPair<int> edge(v0, v1);
+      if (num_adjacent_faces[edge] == 1) {
+        const int w0 = boundary_vertex_to_offset[v0];
+        const int w1 = boundary_vertex_to_offset[v1];
+        const int n0 = v0 + num_surface_vertices;
+        const int n1 = v1 + num_surface_vertices;
+        const int b0 = v0 + 2 * num_surface_vertices;
+        const int b1 = v1 + 2 * num_surface_vertices;
+
+        // Forward extrusion tetrahedra.
+        tetrahedra.emplace_back(v0, v1, n1, w1);
+        tetrahedra.emplace_back(v0, w1, n0, w0);
+        tetrahedra.emplace_back(v0, n0, w1, n1);
+        // Backward extrusion tetrahedra.
+        tetrahedra.emplace_back(v0, v1, w1, b1);
+        tetrahedra.emplace_back(v0, w1, w0, b0);
+        tetrahedra.emplace_back(v0, b0, b1, w1);
+      }
+    }
   }
 
   return VolumeMesh<double>(std::move(tetrahedra), std::move(vertices));

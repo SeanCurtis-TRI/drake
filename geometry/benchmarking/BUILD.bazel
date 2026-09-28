@@ -140,4 +140,21 @@ drake_py_experiment_binary(
     googlebench_binary = ":boxes_overlap_benchmark",
 )
 
+drake_cc_googlebench_binary(
+    name = "ccd_benchmark",
+    srcs = ["ccd_benchmark.cc"],
+    deps = [
+        "//common:random",
+        "//geometry/proximity:ccd",
+        "//geometry/proximity:ccd_test_configurations",
+        "//tools/performance:gflags_main",
+    ],
+    add_test_rule = True,
+)
+
+drake_py_experiment_binary(
+    name = "ccd_experiment",
+    googlebench_binary = ":ccd_benchmark",
+)
+
 add_lint_tests()

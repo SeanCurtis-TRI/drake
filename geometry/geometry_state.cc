@@ -38,6 +38,7 @@ using internal::FrameNameSet;
 using internal::HydroelasticType;
 using internal::InternalFrame;
 using internal::InternalGeometry;
+using internal::kBarrier;
 using internal::kComplianceType;
 using internal::kElastic;
 using internal::kFriction;
@@ -252,6 +253,7 @@ bool BackfillDefaults(ProximityProperties* properties,
   result |= backfill(kMaterialGroup, kRelaxationTime, defaults.relaxation_time);
   result |= backfill(kMaterialGroup, kPointStiffness, defaults.point_stiffness);
   result |= backfill(kHydroGroup, kMargin, defaults.margin);
+  result |= backfill(kHydroGroup, kBarrier, defaults.barrier);
   if (defaults.static_friction.has_value()) {
     // DefaultProximityProperties::ValidateOrThrow() enforces invariants on
     // friction quantities.
@@ -901,6 +903,12 @@ const math::RigidTransform<T>& GeometryState<T>::get_pose_in_world(
         "get_configurations_in_world() instead.");
   }
   return kinematics_data_.X_WGs.at(geometry_id);
+}
+
+template <typename T>
+const std::unordered_map<GeometryId, math::RigidTransform<T>>&
+GeometryState<T>::get_all_poses_in_world() const {
+  return kinematics_data_.X_WGs;
 }
 
 template <typename T>

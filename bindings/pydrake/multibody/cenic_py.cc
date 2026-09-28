@@ -20,6 +20,42 @@ PYDRAKE_MODULE(cenic, m) {
   py::module_::import_("pydrake.multibody.plant");
   py::module_::import_("pydrake.systems.analysis");
 
+  py::class_<CenicStepStatistics>(
+      m, "CenicStepStatistics", doc.CenicStepStatistics.doc)
+      .def_readonly("step_type", &CenicStepStatistics::step_type,
+          doc.CenicStepStatistics.step_type.doc)
+      .def_readonly("time", &CenicStepStatistics::time,
+          doc.CenicStepStatistics.time.doc)
+      .def_readonly("step_size", &CenicStepStatistics::step_size,
+          doc.CenicStepStatistics.step_size.doc)
+      .def_readonly("num_solver_iterations",
+          &CenicStepStatistics::num_solver_iterations,
+          doc.CenicStepStatistics.num_solver_iterations.doc)
+      .def_readonly("total_linesearch_iterations",
+          &CenicStepStatistics::total_linesearch_iterations,
+          doc.CenicStepStatistics.total_linesearch_iterations.doc)
+      .def_readonly("max_linesearch_iterations",
+          &CenicStepStatistics::max_linesearch_iterations,
+          doc.CenicStepStatistics.max_linesearch_iterations.doc)
+      .def_readonly("mean_linesearch_iterations",
+          &CenicStepStatistics::mean_linesearch_iterations,
+          doc.CenicStepStatistics.mean_linesearch_iterations.doc)
+      .def_readonly("max_condition_number",
+          &CenicStepStatistics::max_condition_number,
+          doc.CenicStepStatistics.max_condition_number.doc)
+      .def_readonly("last_condition_number",
+          &CenicStepStatistics::last_condition_number,
+          doc.CenicStepStatistics.last_condition_number.doc)
+      .def_readonly("max_e0", &CenicStepStatistics::max_e0,
+          doc.CenicStepStatistics.max_e0.doc)
+      .def_readonly("mean_e0", &CenicStepStatistics::mean_e0,
+          doc.CenicStepStatistics.mean_e0.doc)
+      .def_readonly("total_num_constraint_pairs",
+          &CenicStepStatistics::total_num_constraint_pairs,
+          doc.CenicStepStatistics.total_num_constraint_pairs.doc)
+      .def("to_string", &CenicStepStatistics::to_string,
+          doc.CenicStepStatistics.to_string.doc);
+
   auto bind_nonsymbolic_scalar_types = [&m](auto dummy) {
     using T = decltype(dummy);
 
@@ -35,7 +71,10 @@ PYDRAKE_MODULE(cenic, m) {
             &CenicIntegrator<T>::get_solver_parameters,
             doc.CenicIntegrator.get_solver_parameters.doc)
         .def("SetSolverParameters", &CenicIntegrator<T>::SetSolverParameters,
-            py::arg("parameters"), doc.CenicIntegrator.SetSolverParameters.doc);
+            py::arg("parameters"), doc.CenicIntegrator.SetSolverParameters.doc)
+        .def("get_step_statistics", &CenicIntegrator<T>::get_step_statistics,
+            py::return_value_policy::reference_internal,
+            doc.CenicIntegrator.get_step_statistics.doc);
   };
   type_visit(bind_nonsymbolic_scalar_types, NonSymbolicScalarPack{});
 }

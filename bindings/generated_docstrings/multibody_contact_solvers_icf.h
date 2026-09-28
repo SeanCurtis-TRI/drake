@@ -78,6 +78,29 @@ Serialization" for background.)""";
               const char* doc =
 R"""(Maximum step length for exact linesearch.)""";
             } alpha_max;
+            // Symbol: drake::multibody::contact_solvers::icf::IcfSolverParameters::beta
+            struct /* beta */ {
+              // Source: drake/multibody/contact_solvers/icf/icf_solver_parameters.h
+              const char* doc = R"""(LogBarrier beta parameter.)""";
+            } beta;
+            // Symbol: drake::multibody::contact_solvers::icf::IcfSolverParameters::ccd_max_substep_rotation
+            struct /* ccd_max_substep_rotation */ {
+              // Source: drake/multibody/contact_solvers/icf/icf_solver_parameters.h
+              const char* doc =
+R"""(Maximum per-substep rotation (radians) for the rotation-adaptive
+conservative subdivision of the CCD feasibility check: a step whose
+largest per-geometry rotation is θ is checked in ceil(θ /
+ccd_max_substep_rotation) slerp-interpolated sub-segments (one, on the
+common small-rotation path). Smaller values tighten the chord-vs-arc
+sweep bound for fast-spinning geometry at proportional CCD cost.
+Default: π/2.)""";
+            } ccd_max_substep_rotation;
+            // Symbol: drake::multibody::contact_solvers::icf::IcfSolverParameters::collect_heavy_stats
+            struct /* collect_heavy_stats */ {
+              // Source: drake/multibody/contact_solvers/icf/icf_solver_parameters.h
+              const char* doc =
+R"""(Whether to collect heavy statistics (like condition numbers).)""";
+            } collect_heavy_stats;
             // Symbol: drake::multibody::contact_solvers::icf::IcfSolverParameters::enable_hessian_reuse
             struct /* enable_hessian_reuse */ {
               // Source: drake/multibody/contact_solvers/icf/icf_solver_parameters.h
@@ -140,9 +163,18 @@ R"""(Dense algebra (LDLT) for solving for the search direction H⁻¹⋅g. This
 is primarily useful for debugging and testing: sparse algebra is
 generally much faster.)""";
             } use_dense_algebra;
+            // Symbol: drake::multibody::contact_solvers::icf::IcfSolverParameters::use_toi
+            struct /* use_toi */ {
+              // Source: drake/multibody/contact_solvers/icf/icf_solver_parameters.h
+              const char* doc =
+R"""(Whether to use time of impact from CCD for time step selection.)""";
+            } use_toi;
             auto Serialize__fields() const {
               return std::array{
                 std::make_pair("alpha_max", alpha_max.doc),
+                std::make_pair("beta", beta.doc),
+                std::make_pair("ccd_max_substep_rotation", ccd_max_substep_rotation.doc),
+                std::make_pair("collect_heavy_stats", collect_heavy_stats.doc),
                 std::make_pair("enable_hessian_reuse", enable_hessian_reuse.doc),
                 std::make_pair("hessian_reuse_target_iterations", hessian_reuse_target_iterations.doc),
                 std::make_pair("linesearch_tolerance", linesearch_tolerance.doc),
@@ -151,6 +183,7 @@ generally much faster.)""";
                 std::make_pair("min_tolerance", min_tolerance.doc),
                 std::make_pair("print_solver_stats", print_solver_stats.doc),
                 std::make_pair("use_dense_algebra", use_dense_algebra.doc),
+                std::make_pair("use_toi", use_toi.doc),
               };
             }
           } IcfSolverParameters;

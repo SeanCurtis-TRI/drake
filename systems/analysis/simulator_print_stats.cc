@@ -8,6 +8,7 @@
 
 #include "drake/common/default_scalars.h"
 #include "drake/common/nice_type_name.h"
+#include "drake/multibody/cenic/cenic_integrator.h"
 #include "drake/systems/analysis/implicit_integrator.h"
 #include "drake/systems/analysis/integrator_base.h"
 #include "drake/systems/analysis/simulator.h"
@@ -170,6 +171,23 @@ void PrintSimulatorStatistics(const Simulator<T>& simulator) {
       fmt::print("Number of Newton-Raphson Iterations = {:d}\n",
                  implicit_integrator->get_num_newton_raphson_iterations());
     }
+  }
+
+  // If the integrator is a CenicIntegrator, we can similarly print some more
+  // specific statistics.
+  const multibody::CenicIntegrator<T>* cenic =
+      dynamic_cast<const multibody::CenicIntegrator<T>*>(
+          &(simulator.get_integrator()));
+  const bool integrator_is_cenic = (cenic != nullptr);
+  if (integrator_is_cenic) {
+    const multibody::CenicIntegrator<T>& ci = *cenic;
+    fmt::print("CENIC Statistics:\n");
+    fmt::print("Number of solver iterations = {:d}\n",
+               ci.get_total_solver_iterations());
+    fmt::print("Number of hessian factorizations = {:d}\n",
+               ci.get_total_hessian_factorizations());
+    fmt::print("Number of linesearch iterations = {:d}\n",
+               ci.get_total_ls_iterations());
   }
 
   // Finally, log the machine-readable statistics.

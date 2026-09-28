@@ -1,6 +1,7 @@
 #include "drake/multibody/contact_solvers/icf/icf_builder.h"
 
 #include <algorithm>
+#include <chrono>
 #include <limits>
 #include <map>
 #include <memory>
@@ -85,7 +86,8 @@ template <typename T>
 void IcfBuilder<T>::UpdateModel(
     const systems::Context<T>& context, const T& time_step,
     const IcfLinearFeedbackGains<T>* actuation_feedback,
-    const IcfLinearFeedbackGains<T>* external_feedback, IcfModel<T>* model) {
+    const IcfLinearFeedbackGains<T>* external_feedback, double beta,
+    IcfModel<T>* model) {
   DRAKE_ASSERT(model != nullptr);
   const SpanningForest& forest = GetInternalTree(plant_).forest();
   const int nv = forest.num_velocities();
@@ -148,6 +150,7 @@ void IcfBuilder<T>::UpdateModel(
   // Set the time step δt and initial velocities v₀
   params->time_step = time_step;
   params->v0 = plant_.GetVelocities(context);
+  params->beta = beta;
 
   // Set the (dense) mass matrix M₀.
   MatrixX<T>& M = params->M0;
@@ -240,7 +243,11 @@ void IcfBuilder<T>::UpdateModel(
     CalcGeometryContactData(context);
     AllocatePatchConstraints(model);
     SetPatchConstraintsForPointContact(context, model);
-    SetPatchConstraintsForHydroelasticContact(context, model);
+
+    // TODO(joemasterjohn): For now just hard code the log barrier patches.
+    // Determine later if we will replace the hydroelastic patches with these.
+    // SetPatchConstraintsForHydroelasticContact(context, model);
+    SetPatchConstraintsForLogBarrierContact(context, model);
   }
 
   // Coupler constraints
@@ -335,6 +342,8 @@ template <typename T>
 void IcfBuilder<T>::CalcGeometryContactData(
     const systems::Context<T>& context) {
   DRAKE_DEMAND(plant_.geometry_source_is_registered());
+  const auto query_start = std::chrono::steady_clock::now();
+  ++num_geometry_queries_;
   surfaces_.clear();
   point_pairs_.clear();
 
@@ -359,6 +368,9 @@ void IcfBuilder<T>::CalcGeometryContactData(
       break;
     }
   }
+  time_geometry_queries_ += std::chrono::duration<double>(
+                                std::chrono::steady_clock::now() - query_start)
+                                .count();
 }
 
 template <typename T>
@@ -378,7 +390,7 @@ void IcfBuilder<T>::AllocatePatchConstraints(IcfModel<T>* model) const {
   // pairs in each patch.
   for (int surface = 0; surface < num_surfaces; ++surface) {
     const auto& s = surfaces_[surface];
-    num_pairs_per_patch.push_back(s.num_faces());
+    num_pairs_per_patch.push_back(s.num_vertices());
   }
 
   patches.Resize(num_pairs_per_patch);
@@ -801,6 +813,250 @@ void IcfBuilder<T>::SetPatchConstraintsForPointContact(
                      sorted.bodyB->index(), d, mu.static_friction(),
                      mu.dynamic_friction(), p_AB_W);
     patches.SetPair(point_pair_index, 0, p_BoC_W, nhat_AB_W, fn0, k, v_b_W);
+  }
+}
+
+template <typename T>
+void IcfBuilder<T>::SetPatchConstraintsForLogBarrierContact(
+    const systems::Context<T>& context, IcfModel<T>* model) const {
+  using std::log;
+  using std::max;
+
+  const geometry::SceneGraphInspector<T>& inspector =
+      plant_.EvalSceneGraphInspector(context);
+
+  // Fallback when neither geometry carries the "hunt_crossley_dissipation"
+  // proximity property: Drake's configurable default (which this fork sets
+  // to 50.0 for the barrier formulation), NOT a magic literal — so users can
+  // control it per geometry or via SceneGraphConfig.
+  const double kDefaultDissipation =
+      geometry::DefaultProximityProperties{}.hunt_crossley_dissipation.value();
+
+  const int num_surfaces = surfaces_.size();
+
+  PatchConstraintsPool<T>& patches = model->patch_constraints_pool();
+
+  for (int surface_index = 0; surface_index < num_surfaces; ++surface_index) {
+    // To get the patch index, we need to account for the fact that there may
+    // be some point contact pairs that get added before this
+    const int patch_index = surface_index + point_pairs_.size();
+
+    const auto& s = surfaces_[surface_index];
+    const bool M_is_compliant = s.HasGradE_M();
+    const bool N_is_compliant = s.HasGradE_N();
+    DRAKE_DEMAND(M_is_compliant || N_is_compliant);
+
+    // Retrieve participating geometries and bodies.
+    const geometry::FrameId Mid = inspector.GetFrameId(s.id_M());
+    const geometry::FrameId Nid = inspector.GetFrameId(s.id_N());
+    const RigidBody<T>* bodyM = plant_.GetBodyFromFrameId(Mid);
+    const RigidBody<T>* bodyN = plant_.GetBodyFromFrameId(Nid);
+    DRAKE_DEMAND(bodyM != nullptr && bodyN != nullptr);
+
+    const bool M_not_anchored = !plant_.IsAnchored(*bodyM);
+    const bool N_not_anchored = !plant_.IsAnchored(*bodyN);
+    // Sanity check at least one body is not anchored.
+    DRAKE_DEMAND(M_not_anchored || N_not_anchored);
+
+    // By convention, body B is always not-anchored.
+    const RigidBody<T>* bodyB = N_not_anchored ? bodyN : bodyM;
+    const RigidBody<T>* bodyA = bodyB == bodyN ? bodyM : bodyN;
+
+    // Get compliance properties.
+    const T Em = multibody::internal::GetHydroelasticModulus(
+        s.id_M(), std::numeric_limits<double>::infinity(), inspector);
+    const T En = multibody::internal::GetHydroelasticModulus(
+        s.id_N(), std::numeric_limits<double>::infinity(), inspector);
+    const T d = multibody::internal::GetCombinedHuntCrossleyDissipation(
+        s.id_M(), s.id_N(), Em, En, kDefaultDissipation, inspector);
+
+    // Effective compliance.
+    const T E_star = (Em * En) / (Em + En);
+
+    // Get friction properties
+    const auto& mu_A = GetCoulombFriction(s.id_M(), inspector);
+    const auto& mu_B = GetCoulombFriction(s.id_N(), inspector);
+    CoulombFriction<double> mu =
+        CalcContactFrictionFromSurfaceProperties(mu_A, mu_B);
+
+    const auto& X_WA = bodyA->EvalPoseInWorld(context);
+    const auto& X_WB = bodyB->EvalPoseInWorld(context);
+    const Vector3<T>& p_WAo = X_WA.translation();
+    const Vector3<T>& p_WBo = X_WB.translation();
+    const Vector3<T> p_AB_W = p_WBo - p_WAo;
+
+    patches.SetPatch(patch_index, bodyA->index(), bodyB->index(), d,
+                     mu.static_friction(), mu.dynamic_friction(), p_AB_W,
+                     model->params().beta);
+
+    // TODO(joemasterjohn): Compute barycentric dual in geometry code.
+    // Add a single quadrature point for each face of the barycentric dual of
+    // the contact surface. Choose the vertices as the quadrature point and
+    // use the area of the dual face.
+    const auto& num_face_vertices = [&s](int face) {
+      return s.is_triangle()
+                 ? s.tri_e_MN().mesh().element(face).num_vertices()
+                 : s.poly_e_MN().mesh().element(face).num_vertices();
+    };
+
+    const auto& get_vertex = [&s](int face, int i) {
+      return s.is_triangle()
+                 ? s.tri_e_MN().mesh().vertex(
+                       s.tri_e_MN().mesh().element(face).vertex(i))
+                 : s.poly_e_MN().mesh().vertex(
+                       s.poly_e_MN().mesh().element(face).vertex(i));
+    };
+
+    const auto& get_vertex_index = [&s](int face, int i) {
+      return s.is_triangle() ? s.tri_e_MN().mesh().element(face).vertex(i)
+                             : s.poly_e_MN().mesh().element(face).vertex(i);
+    };
+
+    // const auto& get_e = [&s](int face, int i) {
+    //   return s.is_triangle()
+    //              ? s.tri_e_MN().EvaluateAtVertex(
+    //                    s.tri_e_MN().mesh().element(face).vertex(i))
+    //              : s.poly_e_MN().EvaluateAtVertex(
+    //                    s.poly_e_MN().mesh().element(face).vertex(i));
+    // };
+
+    const auto& get_e_vertex = [&s](int vertex_index) {
+      return s.is_triangle() ? s.tri_e_MN().EvaluateAtVertex(vertex_index)
+                             : s.poly_e_MN().EvaluateAtVertex(vertex_index);
+    };
+
+    const auto& get_v_vertex = [&s](int vertex_index) {
+      return s.is_triangle() ? s.tri_e_MN().mesh().vertex(vertex_index)
+                             : s.poly_e_MN().mesh().vertex(vertex_index);
+    };
+
+    // Stitch together the surface to get connectivity information.
+    // constexpr double tolerance = 1e-16;
+    // std::vector<Vector3<T>> vertices;
+    // std::vector<T> e_vertex;
+    // std::vector<std::vector<int>> polygons;
+
+    // for (int face = 0; face < s.num_faces(); ++face) {
+    //   std::vector<int> polygon;
+    //   for (int i = 0; i < num_face_vertices(face); ++i) {
+    //     const Vector3<T>& a = get_vertex(face, i);
+    //     // Search vertices for a duplicate
+    //     int v_i = -1;
+    //     for (int v = 0; v < ssize(vertices); ++v) {
+    //       if ((a - vertices[v]).norm() <= tolerance) {
+    //         v_i = v;
+    //         break;
+    //       }
+    //     }
+    //     if (v_i == -1) {
+    //       v_i = ssize(vertices);
+    //       vertices.emplace_back(a);
+    //       e_vertex.emplace_back(get_e(face, i));
+    //     }
+    //     polygon.push_back(v_i);
+    //   }
+    //   polygons.push_back(polygon);
+    // }
+
+    const int num_vertices = s.num_vertices();
+    const int num_polygons = s.num_faces();
+
+    std::vector<T> dual_areas(num_vertices, T{0.0});
+    std::vector<T> area_weighted_delta(num_vertices, T{0.0});
+    std::vector<Vector3<T>> area_weighted_nhat_AB_W(num_vertices,
+                                                    Vector3<T>::Zero());
+
+    using std::max;
+    using std::min;
+
+    // Loop over the faces of the contact surface and add its area weighted
+    // contributions to the per-vertex quantities.
+    for (int face = 0; face < num_polygons; ++face) {
+      const Vector3<T>& nhat_NM_W = s.face_normal(face);
+      const Vector3<T>& c = s.centroid(face);
+
+      const Vector3<T> gradE_M_W = s.EvaluateGradE_M_W(face);
+      const Vector3<T> gradE_N_W = s.EvaluateGradE_N_W(face);
+      // const T gM = max(gradE_M_W.dot(nhat_NM_W), 0.0);
+      // const T gN = max(-gradE_N_W.dot(nhat_NM_W), 0.0);
+      // constexpr double kGradientEpsilon = 1.0e-14;
+      // if ( gM < kGradientEpsilon ||
+      //      gN < kGradientEpsilon) {
+      //   continue;
+      // }
+      const T gM = gradE_M_W.norm();
+      const T gN = gradE_N_W.norm();
+
+      const T delta_M = (1 / gM);
+      const T delta_N = (1 / gN);
+      const T delta = 0.5 * (delta_M + delta_N);
+
+      // Normal must always point from A to B, by convention.
+      const Vector3<T> nhat_AB_W = bodyB == bodyN ? -nhat_NM_W : nhat_NM_W;
+
+      const int num_polygon_vertices = num_face_vertices(face);
+      for (int i = 0; i < num_polygon_vertices; ++i) {
+        const int j = (i + 1) % num_polygon_vertices;
+        // Compte the areas of triangles:
+        //  (i, mid, centroid)
+        //  (mid, j, centroid)
+        const int vi = get_vertex_index(face, i);
+        const int vj = get_vertex_index(face, j);
+        const Vector3<T>& a = get_vertex(face, i);
+        const Vector3<T>& b = get_vertex(face, j);
+        const Vector3<T> mid = 0.5 * (a + b);
+        const T Ai = 0.5 * nhat_NM_W.dot((mid - a).cross(c - a));
+        const T Aj = 0.5 * nhat_NM_W.dot((b - mid).cross(c - mid));
+        dual_areas[vi] += Ai;
+        dual_areas[vj] += Aj;
+        area_weighted_nhat_AB_W[vi] += Ai * nhat_AB_W;
+        area_weighted_nhat_AB_W[vj] += Aj * nhat_AB_W;
+        area_weighted_delta[vi] += Ai * delta;
+        area_weighted_delta[vj] += Aj * delta;
+      }
+    }
+
+    // Add a pair for each of the vertices of the contact patch.
+    for (int v = 0; v < num_vertices; ++v) {
+      const T Ae = dual_areas[v];
+      // This vertex had no weighted contributions because it's adjacent faces
+      // were skipped above.
+      if (Ae == 0) {
+        fmt::print("Area 0 for vertex {}\n", v);
+        for (int face = 0; face < num_polygons; ++face) {
+          fmt::print("face {} area {}\n", face, s.area(face));
+          const int num_polygon_vertices = num_face_vertices(face);
+          for (int i = 0; i < num_polygon_vertices; ++i) {
+            const int vi = get_vertex_index(face, i);
+            fmt::print("  vertex {} \n", vi);
+          }
+        }
+        throw std::logic_error("Zero area");
+      }
+
+      // Normalize the area weighted nhat.
+      area_weighted_nhat_AB_W[v].normalize();
+
+      const T delta = area_weighted_delta[v] / Ae;
+
+      // TODO(joemasterjohn): Check if this is needed.
+      // using std::sqrt;
+      // if (sqrt(Ae) < delta * 1e-4) {
+      //   continue;
+      // }
+
+      const Vector3<T>& p_WC = get_v_vertex(v);
+      const Vector3<T> p_BoC_W = p_WC - p_WBo;
+
+      // Normal must always point from A to B, by convention.
+      const Vector3<T>& nhat_AB_W = area_weighted_nhat_AB_W[v];
+
+      // Epsilon at the quadrature point.
+      const T e0 = get_e_vertex(v);
+
+      patches.SetPairLogBarrier(patch_index, v, p_BoC_W, nhat_AB_W, Ae * E_star,
+                                e0, delta);
+    }
   }
 }
 

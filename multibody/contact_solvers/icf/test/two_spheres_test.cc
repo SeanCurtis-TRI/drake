@@ -102,7 +102,8 @@ TEST_P(TwoSpheres, MakeData) {
 
   IcfBuilder<double> builder(plant_);
   IcfModel<double> model;
-  builder.UpdateModel(*plant_context_, time_step, nullptr, nullptr, &model);
+  builder.UpdateModel(*plant_context_, time_step, nullptr, nullptr, 0.1,
+                      &model);
   EXPECT_EQ(model.num_cliques(), 2);
   EXPECT_EQ(model.num_velocities(), nv);
   EXPECT_EQ(model.num_patch_constraints(), 1);
@@ -139,7 +140,8 @@ TEST_P(TwoSpheres, MakeData) {
         .min_num_allocations = 0,
         .ignore_realloc_noops = true,
     });
-    builder.UpdateModel(*plant_context_, time_step, nullptr, nullptr, &model);
+    builder.UpdateModel(*plant_context_, time_step, nullptr, nullptr, 0.1,
+                        &model);
   }
   {
     drake::test::LimitMalloc guard;
@@ -160,7 +162,8 @@ TEST_P(TwoSpheres, ZeroMass) {
   IcfBuilder<double> builder(plant_);
   IcfModel<double> model;
   DRAKE_EXPECT_THROWS_MESSAGE(
-      builder.UpdateModel(*plant_context_, time_step, nullptr, nullptr, &model),
+      builder.UpdateModel(*plant_context_, time_step, nullptr, nullptr, 0.1,
+                          &model),
       ".*sphere1.*zero.*mass.*");
 }
 
@@ -178,7 +181,8 @@ TEST_P(TwoSpheres, SwappedAnchorage) {
 
   IcfBuilder<double> builder(plant_);
   IcfModel<double> model;
-  builder.UpdateModel(*plant_context_, time_step, nullptr, nullptr, &model);
+  builder.UpdateModel(*plant_context_, time_step, nullptr, nullptr, 0.1,
+                      &model);
 
   PatchConstraintsPool<double>& patch_constraints =
       model.patch_constraints_pool();

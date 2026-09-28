@@ -418,6 +418,9 @@ class GeometryState {
   const math::RigidTransform<T>& get_pose_in_world(
       GeometryId geometry_id) const;
 
+  const std::unordered_map<GeometryId, math::RigidTransform<T>>&
+  get_all_poses_in_world() const;
+
   /** Implementation of QueryObject::ComputeAabbInWorld(GeometryId).  */
   std::optional<Aabb> ComputeAabbInWorld(GeometryId geometry_id) const;
 
@@ -615,6 +618,63 @@ class GeometryState {
 
   /** Implementation of QueryObject::HasCollisions().  */
   bool HasCollisions() const { return geometry_engine_->HasCollisions(); }
+
+  /** Implementation of QueryObject::GetCcdParticipantGeometryIds(). */
+  std::vector<GeometryId> GetCcdParticipantGeometryIds() const {
+    return geometry_engine_->GetCcdParticipantGeometryIds();
+  }
+
+  /** Implementation of QueryObject::ComputeHydroelasticMeshStats(). */
+  internal::HydroelasticMeshStats ComputeHydroelasticMeshStats() const {
+    return geometry_engine_->ComputeHydroelasticMeshStats();
+  }
+
+  /** Implementation of QueryObject::IsFeasibleTrajectoryCollisions().
+   */
+  template <typename T1 = T>
+  typename std::enable_if_t<scalar_predicate<T1>::is_bool, bool>
+  IsFeasibleTrajectory(
+      const std::unordered_map<GeometryId, math::RigidTransform<T>>& X_WGs_prev,
+      const std::unordered_map<GeometryId, math::RigidTransform<T>>& X_WGs_next,
+      double max_substep_rotation =
+          internal::kDefaultCcdMaxSubstepRotation) const {
+    return geometry_engine_->IsFeasibleTrajectory(X_WGs_prev, X_WGs_next,
+                                                  max_substep_rotation);
+  }
+
+  template <typename T1 = T>
+  typename std::enable_if_t<scalar_predicate<T1>::is_bool, T>
+  FeasibilityTimeOfImpact(
+      const std::unordered_map<GeometryId, math::RigidTransform<T>>& X_WGs_prev,
+      const std::unordered_map<GeometryId, math::RigidTransform<T>>& X_WGs_next,
+      double max_substep_rotation =
+          internal::kDefaultCcdMaxSubstepRotation) const {
+    return geometry_engine_->FeasibilityTimeOfImpact(X_WGs_prev, X_WGs_next,
+                                                     max_substep_rotation);
+  }
+
+  /** Implementation of QueryObject::IsFeasibleTrajectoryToCurrent(): the
+   trajectory end is this state's own current poses — zero copies. */
+  template <typename T1 = T>
+  typename std::enable_if_t<scalar_predicate<T1>::is_bool, bool>
+  IsFeasibleTrajectoryToCurrent(
+      const std::unordered_map<GeometryId, math::RigidTransform<T>>& X_WGs_prev,
+      double max_substep_rotation =
+          internal::kDefaultCcdMaxSubstepRotation) const {
+    return geometry_engine_->IsFeasibleTrajectory(
+        X_WGs_prev, get_all_poses_in_world(), max_substep_rotation);
+  }
+
+  /** Implementation of QueryObject::FeasibilityTimeOfImpactToCurrent(). */
+  template <typename T1 = T>
+  typename std::enable_if_t<scalar_predicate<T1>::is_bool, T>
+  FeasibilityTimeOfImpactToCurrent(
+      const std::unordered_map<GeometryId, math::RigidTransform<T>>& X_WGs_prev,
+      double max_substep_rotation =
+          internal::kDefaultCcdMaxSubstepRotation) const {
+    return geometry_engine_->FeasibilityTimeOfImpact(
+        X_WGs_prev, get_all_poses_in_world(), max_substep_rotation);
+  }
 
   //@}
 

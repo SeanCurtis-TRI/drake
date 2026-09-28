@@ -14,9 +14,11 @@
 #include "drake/geometry/geometry_roles.h"
 #include "drake/geometry/internal_geometry.h"
 #include "drake/geometry/mesh_deformation_interpolator.h"
+#include "drake/geometry/proximity/ccd.h"
 #include "drake/geometry/proximity/collision_filter.h"
 #include "drake/geometry/proximity/deformable_contact_internal.h"
 #include "drake/geometry/proximity/hydroelastic_internal.h"
+#include "drake/geometry/proximity/hydroelastic_mesh_stats.h"
 #include "drake/geometry/query_results/contact_surface.h"
 #include "drake/geometry/query_results/deformable_contact.h"
 #include "drake/geometry/query_results/penetration_as_point_pair.h"
@@ -337,6 +339,39 @@ class ProximityEngine {
 
   /* Implementation of GeometryState::HasCollisions().  */
   bool HasCollisions() const;
+
+  /* Implementation of GeometryState::GetCcdParticipantGeometryIds(): the
+   (sorted) ids of the geometries that participate in the CCD feasibility
+   queries below — compliant geometries carrying a rigid-core collision
+   mesh. */
+  std::vector<GeometryId> GetCcdParticipantGeometryIds() const;
+
+  /* Implementation of GeometryState::ComputeHydroelasticMeshStats():
+   aggregate mesh-size statistics over all hydroelastic geometries (see
+   HydroelasticMeshStats for the counting rules). */
+  HydroelasticMeshStats ComputeHydroelasticMeshStats() const;
+
+  /* Implementation of GeometryState::IsFeasibleTrajectory().
+   `max_substep_rotation` (radians, > 0) is the per-substep rotation bound
+   for the rotation-adaptive conservative subdivision of the linear-CCD
+   check: a step whose largest per-geometry relative rotation is θ is
+   checked in ceil(θ / max_substep_rotation) slerp-interpolated sub-segments
+   (one, on the common small-rotation path). Note that θ, recovered from the
+   endpoint poses, is inherently in [0, π]; true rotations beyond π are
+   aliased and cannot be resolved by any endpoint-pose method. */
+  template <typename T1 = T>
+  typename std::enable_if_t<scalar_predicate<T1>::is_bool, bool>
+  IsFeasibleTrajectory(
+      const std::unordered_map<GeometryId, math::RigidTransform<T>>& X_WGs_prev,
+      const std::unordered_map<GeometryId, math::RigidTransform<T>>& X_WGs_next,
+      double max_substep_rotation = kDefaultCcdMaxSubstepRotation);
+
+  template <typename T1 = T>
+  typename std::enable_if_t<scalar_predicate<T1>::is_bool, T>
+  FeasibilityTimeOfImpact(
+      const std::unordered_map<GeometryId, math::RigidTransform<T>>& X_WGs_prev,
+      const std::unordered_map<GeometryId, math::RigidTransform<T>>& X_WGs_next,
+      double max_substep_rotation = kDefaultCcdMaxSubstepRotation);
 
   //@}
 

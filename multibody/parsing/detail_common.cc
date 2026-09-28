@@ -69,6 +69,7 @@ geometry::ProximityProperties ParseProximityProperties(
   using geometry::internal::kElastic;
   using geometry::internal::kHydroGroup;
   using geometry::internal::kMargin;
+  using geometry::internal::kBarrier;
   using geometry::internal::kMaterialGroup;
   using geometry::internal::kRelaxationTime;
   using geometry::internal::kRezHint;
@@ -150,6 +151,18 @@ geometry::ProximityProperties ParseProximityProperties(
             "The hydroelastic margin can't be negative; given {}", *margin));
       } else {
         properties.AddProperty(kHydroGroup, kMargin, *margin);
+      }
+    }
+  }
+
+  {
+    std::optional<double> barrier = read_double("drake:hydroelastic_barrier");
+    if (barrier.has_value()) {
+      if (*barrier < 0) {
+        diagnostic.Error(fmt::format(
+            "The hydroelastic barrier can't be negative; given {}", *barrier));
+      } else {
+        properties.AddProperty(kHydroGroup, kBarrier, *barrier);
       }
     }
   }
