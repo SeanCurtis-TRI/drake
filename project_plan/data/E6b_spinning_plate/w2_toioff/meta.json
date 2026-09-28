@@ -1,0 +1,28 @@
+{
+  "experiment": "E6b_spinning_plate",
+  "run_id": "w2_toioff",
+  "kind": "demo",
+  "tier": "B",
+  "argv": [
+    "/home/joemasterjohn/tri/drake-private/bazel-bin/examples/integrators/error_control_demo",
+    "--example=spinning_plate",
+    "--initial_w=2.0",
+    "--accuracy=1e-2",
+    "--stats_file=/home/joemasterjohn/tri/drake-private/project_plan/data/E6b_spinning_plate/w2_toioff/steps.tsv",
+    "--summary_file=/home/joemasterjohn/tri/drake-private/project_plan/data/E6b_spinning_plate/w2_toioff/summary_demo.json"
+  ],
+  "overrides": null,
+  "args": [
+    "--example=spinning_plate",
+    "--initial_w=2.0",
+    "--accuracy=1e-2"
+  ],
+  "git_sha": "06740b1c6f9057e94e32770e5ed8454c3b75e3eb",
+  "host": "PUGET-270565",
+  "start_time": "2026-07-24T00:19:49.759023",
+  "timeout": 1800,
+  "end_time": "2026-07-24T00:19:50.825393",
+  "wall_seconds": 1.066328,
+  "exit_code": 0,
+  "timed_out": false
+}

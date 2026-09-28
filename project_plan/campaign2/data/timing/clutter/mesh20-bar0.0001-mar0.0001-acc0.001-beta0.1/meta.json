@@ -1,0 +1,67 @@
+{
+  "campaign": "campaign2",
+  "experiment": "clutter",
+  "config_id": "mesh20-bar0.0001-mar0.0001-acc0.001-beta0.1",
+  "pass": "timing",
+  "kind": "clutter",
+  "params": {
+    "variant": "mesh20",
+    "accuracy": 0.001,
+    "beta": 0.1,
+    "barrier": 0.0001,
+    "margin": 0.0001
+  },
+  "argv": [
+    "/home/joe/tri/drake-private/bazel-bin/examples/multibody/clutter/clutter",
+    "--config=/home/joe/tri/drake-private/project_plan/campaign2/data/timing/clutter/mesh20-bar0.0001-mar0.0001-acc0.001-beta0.1/config.yaml"
+  ],
+  "overrides": {
+    "simulator_config": {
+      "accuracy": 0.001
+    },
+    "icf_solver_config": {
+      "beta": 0.1,
+      "use_toi": true
+    },
+    "scene_graph_config": {
+      "default_proximity_properties": {
+        "margin": 0.0001,
+        "barrier": 0.0001
+      }
+    },
+    "clutter_config": {
+      "mesh_files": [
+        "/home/joe/tri/drake-private/project_plan/campaign2/meshes/thingi10k_lowpoly20/116891.obj",
+        "/home/joe/tri/drake-private/project_plan/campaign2/meshes/thingi10k_lowpoly20/53882.obj",
+        "/home/joe/tri/drake-private/project_plan/campaign2/meshes/thingi10k_lowpoly20/59560.obj",
+        "/home/joe/tri/drake-private/project_plan/campaign2/meshes/thingi10k_lowpoly20/89913.obj",
+        "/home/joe/tri/drake-private/project_plan/campaign2/meshes/thingi10k_lowpoly20/59559.obj",
+        "/home/joe/tri/drake-private/project_plan/campaign2/meshes/thingi10k_lowpoly20/94733.obj",
+        "/home/joe/tri/drake-private/project_plan/campaign2/meshes/thingi10k_lowpoly20/76202.obj",
+        "/home/joe/tri/drake-private/project_plan/campaign2/meshes/thingi10k_lowpoly20/249521.obj",
+        "/home/joe/tri/drake-private/project_plan/campaign2/meshes/thingi10k_lowpoly20/53435.obj",
+        "/home/joe/tri/drake-private/project_plan/campaign2/meshes/thingi10k_lowpoly20/68646.obj",
+        "/home/joe/tri/drake-private/project_plan/campaign2/meshes/thingi10k_lowpoly20/472143.obj",
+        "/home/joe/tri/drake-private/project_plan/campaign2/meshes/thingi10k_lowpoly20/110173.obj",
+        "/home/joe/tri/drake-private/project_plan/campaign2/meshes/thingi10k_lowpoly20/79184.obj",
+        "/home/joe/tri/drake-private/project_plan/campaign2/meshes/thingi10k_lowpoly20/1452674.obj",
+        "/home/joe/tri/drake-private/project_plan/campaign2/meshes/thingi10k_lowpoly20/693468.obj",
+        "/home/joe/tri/drake-private/project_plan/campaign2/meshes/thingi10k_lowpoly20/43780.obj",
+        "/home/joe/tri/drake-private/project_plan/campaign2/meshes/thingi10k_lowpoly20/74458.obj",
+        "/home/joe/tri/drake-private/project_plan/campaign2/meshes/thingi10k_lowpoly20/255657.obj",
+        "/home/joe/tri/drake-private/project_plan/campaign2/meshes/thingi10k_lowpoly20/472084.obj",
+        "/home/joe/tri/drake-private/project_plan/campaign2/meshes/thingi10k_lowpoly20/69128.obj"
+      ],
+      "mesh_scale": 1.0
+    }
+  },
+  "args": [],
+  "timeout": 7200,
+  "git_sha": "a25f2df330db813dc2206e0ddb9b640bce270370",
+  "host": "joe-puget",
+  "start_time": "2026-08-07T07:44:33.628132+00:00",
+  "end_time": "2026-08-07T07:47:12.238449+00:00",
+  "wall_seconds": 158.6102834334597,
+  "exit_code": 0,
+  "timed_out": false
+}

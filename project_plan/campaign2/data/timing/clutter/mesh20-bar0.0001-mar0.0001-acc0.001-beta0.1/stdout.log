@@ -1,0 +1,48 @@
+AdvanceTo() time [sec]: 158.268379423
+General stats regarding discrete updates:
+Number of time steps taken (simulator stats) = 1077
+Number of publishes = 0
+Number of discrete updates = 0
+Number of "unrestricted" updates = 0
+
+Stats for integrator CenicIntegrator with error control:
+Number of time steps taken (integrator stats) = 1077
+Initial time step taken =       0.01 s
+Largest time step taken =  0.0181735 s
+Smallest adapted step size = 1.18722e-05 s
+Number of steps shrunk due to error control = 516
+Number of derivative evaluations = 0
+Number of steps shrunk due to convergence-based failure = 104
+Number of convergence-based step failures (should match) = 104
+CENIC Statistics:
+Number of solver iterations = 43035
+Number of hessian factorizations = 43035
+Number of linesearch iterations = 94159
+
+JSON Statistics:
+{
+  "cenic_num_convex_solves": 4885,
+  "cenic_num_feasibility_calls": 4885,
+  "cenic_num_feasibility_rejections_full": 103,
+  "cenic_num_feasibility_rejections_half1": 0,
+  "cenic_num_feasibility_rejections_half2": 1,
+  "cenic_num_geometry_queries": 2671,
+  "cenic_scene_num_surface_triangles": 4148,
+  "cenic_scene_num_tetrahedra": 12444,
+  "cenic_scene_num_velocities": 120,
+  "cenic_time_feasibility": 41.49087000100002,
+  "cenic_time_geometry_queries": 34.53734424100003,
+  "cenic_time_linearize": 0.0021764369999999985,
+  "cenic_time_model_update": 36.524998884000006,
+  "cenic_time_problem_build": 1.9876546429999777,
+  "cenic_time_solve": 79.75758508900005,
+  "cenic_total_hessian_factorizations": 43035,
+  "cenic_total_ls_iterations": 94159,
+  "cenic_total_solver_iterations": 43035,
+  "integrator_actual_initial_step_size_taken": 0.010000000000000002,
+  "integrator_largest_step_size_taken": 0.01817347598445831,
+  "integrator_num_derivative_evaluations": 0,
+  "integrator_num_step_shrinkages_from_error_control": 516,
+  "integrator_num_steps_taken": 1077,
+  "integrator_smallest_adapted_step_size_taken": 1.1872177129897881e-05
+}

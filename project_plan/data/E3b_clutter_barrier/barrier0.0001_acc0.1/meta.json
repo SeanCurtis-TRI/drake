@@ -1,0 +1,30 @@
+{
+  "experiment": "E3b_clutter_barrier",
+  "run_id": "barrier0.0001_acc0.1",
+  "kind": "clutter",
+  "tier": "A",
+  "argv": [
+    "/home/joemasterjohn/tri/drake-private/bazel-bin/examples/multibody/clutter/clutter",
+    "--config=/home/joemasterjohn/tri/drake-private/project_plan/data/E3b_clutter_barrier/barrier0.0001_acc0.1/config.yaml",
+    "--log_file=/home/joemasterjohn/tri/drake-private/project_plan/data/E3b_clutter_barrier/barrier0.0001_acc0.1/steps.tsv"
+  ],
+  "overrides": {
+    "simulator_config": {
+      "accuracy": 0.1
+    },
+    "scene_graph_config": {
+      "default_proximity_properties": {
+        "barrier": 0.0001
+      }
+    }
+  },
+  "args": null,
+  "git_sha": "06740b1c6f9057e94e32770e5ed8454c3b75e3eb",
+  "host": "PUGET-270565",
+  "start_time": "2026-07-24T00:18:40.976037",
+  "timeout": 3600,
+  "end_time": "2026-07-24T00:19:00.929201",
+  "wall_seconds": 19.953134,
+  "exit_code": 0,
+  "timed_out": false
+}

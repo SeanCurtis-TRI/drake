@@ -1,0 +1,26 @@
+{
+  "experiment": "E2_wild",
+  "run_id": "teddy_and_torus_acc0.01",
+  "kind": "demo",
+  "tier": "B",
+  "argv": [
+    "/home/joemasterjohn/tri/drake-private/bazel-bin/examples/integrators/error_control_demo",
+    "--example=teddy_and_torus",
+    "--accuracy=0.01",
+    "--stats_file=/home/joemasterjohn/tri/drake-private/project_plan/data/E2_wild/teddy_and_torus_acc0.01/steps.tsv",
+    "--summary_file=/home/joemasterjohn/tri/drake-private/project_plan/data/E2_wild/teddy_and_torus_acc0.01/summary_demo.json"
+  ],
+  "overrides": null,
+  "args": [
+    "--example=teddy_and_torus",
+    "--accuracy=0.01"
+  ],
+  "git_sha": "06740b1c6f9057e94e32770e5ed8454c3b75e3eb",
+  "host": "PUGET-270565",
+  "start_time": "2026-07-24T00:18:58.423250",
+  "timeout": 2700,
+  "end_time": "2026-07-24T00:19:05.156562",
+  "wall_seconds": 6.733243,
+  "exit_code": 0,
+  "timed_out": false
+}

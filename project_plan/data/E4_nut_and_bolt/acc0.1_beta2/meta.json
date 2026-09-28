@@ -1,0 +1,38 @@
+{
+  "experiment": "E4_nut_and_bolt",
+  "run_id": "acc0.1_beta2",
+  "kind": "demo",
+  "tier": "A",
+  "argv": [
+    "/home/joemasterjohn/tri/drake-private/bazel-bin/examples/integrators/error_control_demo",
+    "--example=nut_and_bolt",
+    "--tau=-0.005",
+    "--barrier=2e-5",
+    "--margin=1e-5",
+    "--E=1e8",
+    "--d=50",
+    "--accuracy=0.1",
+    "--beta=2.0",
+    "--stats_file=/home/joemasterjohn/tri/drake-private/project_plan/data/E4_nut_and_bolt/acc0.1_beta2/steps.tsv",
+    "--summary_file=/home/joemasterjohn/tri/drake-private/project_plan/data/E4_nut_and_bolt/acc0.1_beta2/summary_demo.json"
+  ],
+  "overrides": null,
+  "args": [
+    "--example=nut_and_bolt",
+    "--tau=-0.005",
+    "--barrier=2e-5",
+    "--margin=1e-5",
+    "--E=1e8",
+    "--d=50",
+    "--accuracy=0.1",
+    "--beta=2.0"
+  ],
+  "git_sha": "06740b1c6f9057e94e32770e5ed8454c3b75e3eb",
+  "host": "PUGET-270565",
+  "start_time": "2026-07-24T00:18:41.813500",
+  "timeout": 3600,
+  "end_time": "2026-07-24T00:51:49.818789",
+  "wall_seconds": 1988.005219,
+  "exit_code": 0,
+  "timed_out": false
+}

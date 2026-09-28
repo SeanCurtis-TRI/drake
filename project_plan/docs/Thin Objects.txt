@@ -1,0 +1,26 @@
+﻿bCENIC
+Thin objects in the wild
+(barrier) CENIC
+Cases
+Clutter of “objects in the wild”
+Objective: show thorough numerical characterization study in a complex scene relevant to robotics manipulation (clutter)
+1. Fig. one/two keyframes. 
+2. Numerical characterization. Condition number, iterations, etc. vs beta/accuracy (several lines per beta)
+3. Hero Demo
+Objective: show off application and characterize performance for a real robotics application. How does bCENIC compare to ICF with “volumetric hydro”. Compare performance and artifacts.
+1. Fig. RTR vs time
+2. #contacts (mean/max), #steps (total), RTR(mean over full sim)
+Nut & bolt
+Objective: Show a direct comparison with ABD.
+Rolling sphere (or sphere going down a twisty tube)
+Objective: Show (hopefully) that the TOC estimation and strategy to limit the time step, does not drive the integrator into taking very tiny steps when objects move parallel to each other.
+
+
+Table with stats. One column per case. Each heather is a small tile figure. 
+* Mean/max time step
+* RTR
+* #contacts
+
+Other plots (not tied to cases)
+   * Analytic continuation of barrier function (different beta)
+   * Barycentric dual for quadrature points (why it’s needed, force needs to be unbounded)

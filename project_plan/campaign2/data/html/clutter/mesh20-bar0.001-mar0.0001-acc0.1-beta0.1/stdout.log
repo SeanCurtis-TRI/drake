@@ -1,0 +1,49 @@
+AdvanceTo() time [sec]: 30.087316949
+Static HTML written to /home/joe/tri/drake-private/project_plan/campaign2/data/html/clutter/mesh20-bar0.001-mar0.0001-acc0.1-beta0.1/scene.html
+General stats regarding discrete updates:
+Number of time steps taken (simulator stats) = 161
+Number of publishes = 1
+Number of discrete updates = 0
+Number of "unrestricted" updates = 0
+
+Stats for integrator CenicIntegrator with error control:
+Number of time steps taken (integrator stats) = 161
+Initial time step taken =       0.01 s
+Largest time step taken =        0.1 s
+Smallest adapted step size = 0.000674782 s
+Number of steps shrunk due to error control = 8
+Number of derivative evaluations = 0
+Number of steps shrunk due to convergence-based failure = 134
+Number of convergence-based step failures (should match) = 134
+CENIC Statistics:
+Number of solver iterations = 9118
+Number of hessian factorizations = 9118
+Number of linesearch iterations = 28255
+
+JSON Statistics:
+{
+  "cenic_num_convex_solves": 670,
+  "cenic_num_feasibility_calls": 670,
+  "cenic_num_feasibility_rejections_full": 119,
+  "cenic_num_feasibility_rejections_half1": 1,
+  "cenic_num_feasibility_rejections_half2": 14,
+  "cenic_num_geometry_queries": 344,
+  "cenic_scene_num_surface_triangles": 4148,
+  "cenic_scene_num_tetrahedra": 12444,
+  "cenic_scene_num_velocities": 120,
+  "cenic_time_feasibility": 7.368997253,
+  "cenic_time_geometry_queries": 5.5918672570000005,
+  "cenic_time_linearize": 0.0005057700000000001,
+  "cenic_time_model_update": 5.874133847000002,
+  "cenic_time_problem_build": 0.28226659000000165,
+  "cenic_time_solve": 16.721610063000018,
+  "cenic_total_hessian_factorizations": 9118,
+  "cenic_total_ls_iterations": 28255,
+  "cenic_total_solver_iterations": 9118,
+  "integrator_actual_initial_step_size_taken": 0.010000000000000002,
+  "integrator_largest_step_size_taken": 0.10000000000000009,
+  "integrator_num_derivative_evaluations": 0,
+  "integrator_num_step_shrinkages_from_error_control": 8,
+  "integrator_num_steps_taken": 161,
+  "integrator_smallest_adapted_step_size_taken": 0.0006747817993315051
+}

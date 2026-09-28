@@ -1,0 +1,11 @@
+{
+  "example": "hero_dishrack",
+  "integrator": "cenic",
+  "accuracy": 0.1,
+  "max_step_size": 0.1,
+  "margin": 0.0002,
+  "barrier": 0.001,
+  "sim_time": 100.0,
+  "wall_clock": 36.838181018829346,
+  "num_steps_taken": 1269
+}

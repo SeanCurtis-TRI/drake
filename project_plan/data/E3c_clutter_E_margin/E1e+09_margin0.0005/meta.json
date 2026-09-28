@@ -1,0 +1,34 @@
+{
+  "experiment": "E3c_clutter_E_margin",
+  "run_id": "E1e+09_margin0.0005",
+  "kind": "clutter",
+  "tier": "B",
+  "argv": [
+    "/home/joemasterjohn/tri/drake-private/bazel-bin/examples/multibody/clutter/clutter",
+    "--config=/home/joemasterjohn/tri/drake-private/project_plan/data/E3c_clutter_E_margin/E1e+09_margin0.0005/config.yaml",
+    "--log_file=/home/joemasterjohn/tri/drake-private/project_plan/data/E3c_clutter_E_margin/E1e+09_margin0.0005/steps.tsv"
+  ],
+  "overrides": {
+    "simulator_config": {
+      "accuracy": 0.01
+    },
+    "icf_solver_config": {
+      "beta": 1.0
+    },
+    "scene_graph_config": {
+      "default_proximity_properties": {
+        "hydroelastic_modulus": 1000000000.0,
+        "margin": 0.0005
+      }
+    }
+  },
+  "args": null,
+  "git_sha": "06740b1c6f9057e94e32770e5ed8454c3b75e3eb",
+  "host": "PUGET-270565",
+  "start_time": "2026-07-24T00:19:26.596275",
+  "timeout": 1800,
+  "end_time": "2026-07-24T00:19:45.349856",
+  "wall_seconds": 18.753497,
+  "exit_code": 0,
+  "timed_out": false
+}

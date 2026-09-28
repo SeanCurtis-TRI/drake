@@ -1,0 +1,51 @@
+config:
+  simulation_time: 3.0
+  simulator_config:
+    integration_scheme: cenic
+    accuracy: 0.001
+    max_step_size: 0.1
+    use_error_control: true
+  plant_config:
+    time_step: 0.0
+    contact_model: hydroelastic
+    stiction_tolerance: 0.0001
+    discrete_contact_approximation: lagged
+    sap_near_rigid_threshold: 1.0
+  scene_graph_config:
+    default_proximity_properties:
+      compliance_type: compliant
+      hydroelastic_modulus: 1.0e9
+      resolution_hint: 0.01
+      dynamic_friction: 0.5
+      static_friction: 0.5
+      hunt_crossley_dissipation: 10.0
+      relaxation_time: 0.01
+      point_stiffness: 1.0e5
+      margin: 0.0001
+      barrier: 0.001
+  icf_solver_config:
+    min_tolerance: 1e-8
+    enable_hessian_reuse: false
+    hessian_reuse_target_iterations: 10
+    use_dense_algebra: false
+    linesearch_tolerance: 1e-8
+    alpha_max: 1.0
+    print_solver_stats: false
+    beta: 0.01
+    collect_heavy_stats: false
+    use_toi: true
+  clutter_config:
+    density: 1000.0
+    emulate_box_multicontact: false
+    num_spheres_per_face: 3
+    enable_box_box_collision: true
+    add_box_corners: false
+    num_piles: 4
+    objects_per_pile: 5
+    dz: 0.15
+    scale_factor: 1.0
+    add_sink_walls: true
+    enable_boxes: true
+    random_offsets: true
+    mesh_files: []
+    mesh_scale: 1.0

@@ -1,0 +1,28 @@
+{
+  "experiment": "E3a_clutter_beta",
+  "run_id": "beta0.5_acc0.01",
+  "kind": "clutter",
+  "tier": "B",
+  "argv": [
+    "/home/joemasterjohn/tri/drake-private/bazel-bin/examples/multibody/clutter/clutter",
+    "--config=/home/joemasterjohn/tri/drake-private/project_plan/data/E3a_clutter_beta/beta0.5_acc0.01/config.yaml",
+    "--log_file=/home/joemasterjohn/tri/drake-private/project_plan/data/E3a_clutter_beta/beta0.5_acc0.01/steps.tsv"
+  ],
+  "overrides": {
+    "simulator_config": {
+      "accuracy": 0.01
+    },
+    "icf_solver_config": {
+      "beta": 0.5
+    }
+  },
+  "args": null,
+  "git_sha": "06740b1c6f9057e94e32770e5ed8454c3b75e3eb",
+  "host": "PUGET-270565",
+  "start_time": "2026-07-24T00:19:00.941334",
+  "timeout": 3600,
+  "end_time": "2026-07-24T00:19:18.046745",
+  "wall_seconds": 17.105372,
+  "exit_code": 0,
+  "timed_out": false
+}

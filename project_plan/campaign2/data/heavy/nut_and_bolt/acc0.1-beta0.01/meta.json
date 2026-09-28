@@ -1,0 +1,48 @@
+{
+  "campaign": "campaign2",
+  "experiment": "nut_and_bolt",
+  "config_id": "acc0.1-beta0.01",
+  "pass": "heavy",
+  "kind": "demo",
+  "params": {
+    "variant": "nut_and_bolt",
+    "accuracy": 0.1,
+    "beta": 0.01,
+    "barrier": 2e-05,
+    "margin": 1e-05
+  },
+  "argv": [
+    "/home/joe/tri/drake-private/bazel-bin/examples/integrators/error_control_demo",
+    "--example=nut_and_bolt",
+    "--tau=-0.005",
+    "--barrier=2e-5",
+    "--margin=1e-5",
+    "--E=1e8",
+    "--d=50",
+    "--sim_time=5.0",
+    "--accuracy=0.1",
+    "--beta=0.01",
+    "--summary_file=/home/joe/tri/drake-private/project_plan/campaign2/data/heavy/nut_and_bolt/acc0.1-beta0.01/summary_demo.json",
+    "--stats_file=/home/joe/tri/drake-private/project_plan/campaign2/data/heavy/nut_and_bolt/acc0.1-beta0.01/steps.tsv"
+  ],
+  "overrides": {},
+  "args": [
+    "--example=nut_and_bolt",
+    "--tau=-0.005",
+    "--barrier=2e-5",
+    "--margin=1e-5",
+    "--E=1e8",
+    "--d=50",
+    "--sim_time=5.0",
+    "--accuracy=0.1",
+    "--beta=0.01"
+  ],
+  "timeout": 3600,
+  "git_sha": "a25f2df330db813dc2206e0ddb9b640bce270370",
+  "host": "joe-puget",
+  "start_time": "2026-08-07T06:10:59.234621+00:00",
+  "end_time": "2026-08-07T06:11:27.140447+00:00",
+  "wall_seconds": 27.90576306451112,
+  "exit_code": 0,
+  "timed_out": false
+}

@@ -1,0 +1,144 @@
+{
+  "seed": 0,
+  "count": 10,
+  "min_faces": 60,
+  "max_faces": 150,
+  "target_size_m": 0.1,
+  "fixed_ids": null,
+  "dataset": "Thingi10K (https://ten-thousand-models.appspot.com/)",
+  "well_behaved_filter": "vertex_manifold & edge_manifold & oriented & PWN & solid & 1 component & no boundary edges & no self-intersections & no degenerate/duplicated faces",
+  "preflight": "/home/joemasterjohn/tri/drake-private/bazel-bin/examples/multibody/clutter/mesh_preflight",
+  "meshes": [
+    {
+      "file_id": "1344041",
+      "obj": "1344041.obj",
+      "source_url": "https://huggingface.co/datasets/Thingi10K/Thingi10K/resolve/main/raw_meshes/1344041.stl",
+      "num_vertices": 32,
+      "num_faces": 64,
+      "bbox_extents_m": [
+        0.1,
+        0.1,
+        0.060767
+      ],
+      "metadata_num_faces": 64
+    },
+    {
+      "file_id": "43748",
+      "obj": "43748.obj",
+      "source_url": "https://huggingface.co/datasets/Thingi10K/Thingi10K/resolve/main/raw_meshes/43748.stl",
+      "num_vertices": 52,
+      "num_faces": 100,
+      "bbox_extents_m": [
+        0.1,
+        0.029508,
+        0.020492
+      ],
+      "metadata_num_faces": 100
+    },
+    {
+      "file_id": "271872",
+      "obj": "271872.obj",
+      "source_url": "https://huggingface.co/datasets/Thingi10K/Thingi10K/resolve/main/raw_meshes/271872.stl",
+      "num_vertices": 56,
+      "num_faces": 108,
+      "bbox_extents_m": [
+        0.067988,
+        0.041873,
+        0.1
+      ],
+      "metadata_num_faces": 108
+    },
+    {
+      "file_id": "49375",
+      "obj": "49375.obj",
+      "source_url": "https://huggingface.co/datasets/Thingi10K/Thingi10K/resolve/main/raw_meshes/49375.stl",
+      "num_vertices": 70,
+      "num_faces": 136,
+      "bbox_extents_m": [
+        0.1,
+        0.076018,
+        0.005137
+      ],
+      "metadata_num_faces": 136
+    },
+    {
+      "file_id": "85659",
+      "obj": "85659.obj",
+      "source_url": "https://huggingface.co/datasets/Thingi10K/Thingi10K/resolve/main/raw_meshes/85659.stl",
+      "num_vertices": 38,
+      "num_faces": 72,
+      "bbox_extents_m": [
+        0.1,
+        0.017931,
+        0.009091
+      ],
+      "metadata_num_faces": 72
+    },
+    {
+      "file_id": "62860",
+      "obj": "62860.obj",
+      "source_url": "https://huggingface.co/datasets/Thingi10K/Thingi10K/resolve/main/raw_meshes/62860.stl",
+      "num_vertices": 40,
+      "num_faces": 96,
+      "bbox_extents_m": [
+        0.1,
+        0.1,
+        0.1
+      ],
+      "metadata_num_faces": 96
+    },
+    {
+      "file_id": "101558",
+      "obj": "101558.obj",
+      "source_url": "https://huggingface.co/datasets/Thingi10K/Thingi10K/resolve/main/raw_meshes/101558.stl",
+      "num_vertices": 64,
+      "num_faces": 124,
+      "bbox_extents_m": [
+        0.099759,
+        0.1,
+        0.000907
+      ],
+      "metadata_num_faces": 124
+    },
+    {
+      "file_id": "101187",
+      "obj": "101187.obj",
+      "source_url": "https://huggingface.co/datasets/Thingi10K/Thingi10K/resolve/main/raw_meshes/101187.stl",
+      "num_vertices": 72,
+      "num_faces": 144,
+      "bbox_extents_m": [
+        0.1,
+        0.052217,
+        0.000667
+      ],
+      "metadata_num_faces": 144
+    },
+    {
+      "file_id": "1505020",
+      "obj": "1505020.obj",
+      "source_url": "https://huggingface.co/datasets/Thingi10K/Thingi10K/resolve/main/raw_meshes/1505020.stl",
+      "num_vertices": 32,
+      "num_faces": 64,
+      "bbox_extents_m": [
+        0.1,
+        0.1,
+        0.056716
+      ],
+      "metadata_num_faces": 64
+    },
+    {
+      "file_id": "1582414",
+      "obj": "1582414.obj",
+      "source_url": "https://huggingface.co/datasets/Thingi10K/Thingi10K/resolve/main/raw_meshes/1582414.stl",
+      "num_vertices": 42,
+      "num_faces": 80,
+      "bbox_extents_m": [
+        0.031111,
+        0.031111,
+        0.1
+      ],
+      "metadata_num_faces": 80
+    }
+  ],
+  "skipped": []
+}

@@ -1,0 +1,10 @@
+experiment,config,variant,accuracy,beta,barrier,margin,status,heavy_status,success,wall_clock,steps,convex_solves,geometry_queries,feasibility_calls,time_problem_build,time_geometry,time_feasibility,time_solve,surface_triangles,tetrahedra,num_velocities
+nut_and_bolt,acc0.001-beta0.01,nut_and_bolt,0.001,0.01,2e-05,1e-05,heavy-only,ok,yes,,491,1928,1068,1928,,,,,17614,52842,6
+nut_and_bolt,acc0.001-beta0.1,nut_and_bolt,0.001,0.1,2e-05,1e-05,heavy-only,ok,yes,,667,2694,1474,2694,,,,,17614,52842,6
+nut_and_bolt,acc0.001-beta1,nut_and_bolt,0.001,1.0,2e-05,1e-05,heavy-only,ok,yes,,816,4077,2086,4077,,,,,17614,52842,6
+nut_and_bolt,acc0.01-beta0.01,nut_and_bolt,0.01,0.01,2e-05,1e-05,heavy-only,ok,yes,,477,2276,984,2276,,,,,17614,52842,6
+nut_and_bolt,acc0.01-beta0.1,nut_and_bolt,0.01,0.1,2e-05,1e-05,heavy-only,ok,yes,,425,1999,861,1999,,,,,17614,52842,6
+nut_and_bolt,acc0.01-beta1,nut_and_bolt,0.01,1.0,2e-05,1e-05,heavy-only,ok,yes,,495,2256,1011,2256,,,,,17614,52842,6
+nut_and_bolt,acc0.1-beta0.01,nut_and_bolt,0.1,0.01,2e-05,1e-05,heavy-only,ok,NO(jam),,140,674,304,674,,,,,17614,52842,6
+nut_and_bolt,acc0.1-beta0.1,nut_and_bolt,0.1,0.1,2e-05,1e-05,heavy-only,ok,yes,,445,2300,913,2300,,,,,17614,52842,6
+nut_and_bolt,acc0.1-beta1,nut_and_bolt,0.1,1.0,2e-05,1e-05,ok,ok,yes,916.2854762077332,476,2408,957,2408,2.666387101000282,839.4301259909998,47.152960078999925,26.47111474199998,17614,52842,6

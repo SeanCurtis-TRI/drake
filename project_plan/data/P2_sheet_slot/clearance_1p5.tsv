@@ -1,0 +1,2 @@
+clearance_factor	speed	accuracy	use_toi	steps	solver_iterations	hessian_factorizations	ccd_rejections_full	ccd_rejections_half1	ccd_rejections_half2	wall_s	x_final	traversed
+1.5	0.1	0.01	false	302	1565	1565	0	0	0	0.217	0.02946	0

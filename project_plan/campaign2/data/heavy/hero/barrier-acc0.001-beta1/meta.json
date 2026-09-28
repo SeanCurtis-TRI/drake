@@ -1,0 +1,44 @@
+{
+  "campaign": "campaign2",
+  "experiment": "hero",
+  "config_id": "barrier-acc0.001-beta1",
+  "pass": "heavy",
+  "kind": "hero",
+  "params": {
+    "variant": "barrier",
+    "accuracy": 0.001,
+    "beta": 1.0,
+    "barrier": 0.0001,
+    "margin": 0.0002
+  },
+  "argv": [
+    "/home/joe/tri/drake-private/bazel-bin/examples/hero_demo/convex_integrator_playback",
+    "--visualize=0",
+    "--accuracy=0.001",
+    "--beta=1.0",
+    "--margin=0.0002",
+    "--barrier=0.0001",
+    "--sim_time=100.0",
+    "--max_step_size=0.01",
+    "--summary_file=/home/joe/tri/drake-private/project_plan/campaign2/data/heavy/hero/barrier-acc0.001-beta1/summary_demo.json",
+    "--stats_file=/home/joe/tri/drake-private/project_plan/campaign2/data/heavy/hero/barrier-acc0.001-beta1/steps.tsv",
+    "--times_file=/home/joe/tri/drake-private/project_plan/campaign2/data/heavy/hero/barrier-acc0.001-beta1/times.csv"
+  ],
+  "overrides": {},
+  "args": [
+    "--accuracy=0.001",
+    "--beta=1.0",
+    "--margin=0.0002",
+    "--barrier=0.0001",
+    "--sim_time=100.0",
+    "--max_step_size=0.01"
+  ],
+  "timeout": 14400,
+  "git_sha": "a25f2df330db813dc2206e0ddb9b640bce270370",
+  "host": "joe-puget",
+  "start_time": "2026-08-07T05:53:05.646062+00:00",
+  "end_time": "2026-08-07T06:10:59.223536+00:00",
+  "wall_seconds": 1073.577436977066,
+  "exit_code": 0,
+  "timed_out": false
+}

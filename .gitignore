@@ -29,3 +29,9 @@
 
 # User-specified configuration
 /user.bazelrc
+
+# Python bytecode caches
+__pycache__/
+
+# Thingi10K download caches (curated .obj files ARE committed)
+project_plan/data/thingi10k_meshes*/raw/

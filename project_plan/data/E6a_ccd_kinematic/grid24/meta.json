@@ -1,0 +1,26 @@
+{
+  "experiment": "E6a_ccd_kinematic",
+  "run_id": "grid24",
+  "kind": "ccd",
+  "tier": "A",
+  "argv": [
+    "/home/joemasterjohn/tri/drake-private/bazel-bin/examples/integrators/rotational_ccd_study",
+    "--grid_size=24",
+    "--truth_substeps=64",
+    "--grid_output=/home/joemasterjohn/tri/drake-private/project_plan/data/E6a_ccd_kinematic/grid24/ccd_grid.tsv",
+    "--cost_output=/home/joemasterjohn/tri/drake-private/project_plan/data/E6a_ccd_kinematic/grid24/ccd_cost.tsv"
+  ],
+  "overrides": null,
+  "args": [
+    "--grid_size=24",
+    "--truth_substeps=64"
+  ],
+  "git_sha": "06740b1c6f9057e94e32770e5ed8454c3b75e3eb",
+  "host": "PUGET-270565",
+  "start_time": "2026-07-24T00:18:53.305310",
+  "timeout": 1800,
+  "end_time": "2026-07-24T00:18:53.523499",
+  "wall_seconds": 0.218122,
+  "exit_code": 0,
+  "timed_out": false
+}

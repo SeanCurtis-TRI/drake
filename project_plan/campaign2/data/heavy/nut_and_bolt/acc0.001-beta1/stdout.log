@@ -1,0 +1,54 @@
+
+Wall clock time: 4667.283576488495
+
+x_final: 4.888895207763171e-05
+
+Summary written to /home/joe/tri/drake-private/project_plan/campaign2/data/heavy/nut_and_bolt/acc0.001-beta1/summary_demo.json
+Step statistics written to /home/joe/tri/drake-private/project_plan/campaign2/data/heavy/nut_and_bolt/acc0.001-beta1/steps.tsv
+General stats regarding discrete updates:
+Number of time steps taken (simulator stats) = 816
+Number of publishes = 0
+Number of discrete updates = 0
+Number of "unrestricted" updates = 0
+
+Stats for integrator CenicIntegrator with error control:
+Number of time steps taken (integrator stats) = 816
+Initial time step taken =       0.01 s
+Largest time step taken =  0.0293984 s
+Smallest adapted step size = 3.07025e-05 s
+Number of steps shrunk due to error control = 454
+Number of derivative evaluations = 0
+Number of steps shrunk due to convergence-based failure = 267
+Number of convergence-based step failures (should match) = 267
+CENIC Statistics:
+Number of solver iterations = 19944
+Number of hessian factorizations = 19944
+Number of linesearch iterations = 21926
+
+JSON Statistics:
+{
+  "cenic_num_convex_solves": 4077,
+  "cenic_num_feasibility_calls": 4077,
+  "cenic_num_feasibility_rejections_full": 267,
+  "cenic_num_feasibility_rejections_half1": 0,
+  "cenic_num_feasibility_rejections_half2": 0,
+  "cenic_num_geometry_queries": 2086,
+  "cenic_scene_num_surface_triangles": 17614,
+  "cenic_scene_num_tetrahedra": 52842,
+  "cenic_scene_num_velocities": 6,
+  "cenic_time_feasibility": 90.8155769740002,
+  "cenic_time_geometry_queries": 4376.312777801002,
+  "cenic_time_linearize": 0.06160944000000003,
+  "cenic_time_model_update": 4390.273384113005,
+  "cenic_time_problem_build": 13.96060631200271,
+  "cenic_time_solve": 183.14713148099983,
+  "cenic_total_hessian_factorizations": 19944,
+  "cenic_total_ls_iterations": 21926,
+  "cenic_total_solver_iterations": 19944,
+  "integrator_actual_initial_step_size_taken": 0.010000000000000002,
+  "integrator_largest_step_size_taken": 0.02939837173581461,
+  "integrator_num_derivative_evaluations": 0,
+  "integrator_num_step_shrinkages_from_error_control": 454,
+  "integrator_num_steps_taken": 816,
+  "integrator_smallest_adapted_step_size_taken": 3.070249915986838e-05
+}

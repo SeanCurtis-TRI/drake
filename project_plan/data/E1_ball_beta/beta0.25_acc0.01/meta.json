@@ -1,0 +1,30 @@
+{
+  "experiment": "E1_ball_beta",
+  "run_id": "beta0.25_acc0.01",
+  "kind": "demo",
+  "tier": "B",
+  "argv": [
+    "/home/joemasterjohn/tri/drake-private/bazel-bin/examples/integrators/error_control_demo",
+    "--example=ball_on_table",
+    "--sim_time=3",
+    "--beta=0.25",
+    "--accuracy=0.01",
+    "--stats_file=/home/joemasterjohn/tri/drake-private/project_plan/data/E1_ball_beta/beta0.25_acc0.01/steps.tsv",
+    "--summary_file=/home/joemasterjohn/tri/drake-private/project_plan/data/E1_ball_beta/beta0.25_acc0.01/summary_demo.json"
+  ],
+  "overrides": null,
+  "args": [
+    "--example=ball_on_table",
+    "--sim_time=3",
+    "--beta=0.25",
+    "--accuracy=0.01"
+  ],
+  "git_sha": "06740b1c6f9057e94e32770e5ed8454c3b75e3eb",
+  "host": "PUGET-270565",
+  "start_time": "2026-07-24T00:18:53.527549",
+  "timeout": 900,
+  "end_time": "2026-07-24T00:18:56.096167",
+  "wall_seconds": 2.568592,
+  "exit_code": 0,
+  "timed_out": false
+}

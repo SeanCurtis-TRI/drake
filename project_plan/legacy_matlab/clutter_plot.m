@@ -1,0 +1,164 @@
+% === Parameters ===
+E_list = [1e7, 1e8, 1e9, 1e10];
+delta_list = [1e-4, 5e-4, 1e-3];
+datadir = 'clutter_data_beta_0.01';
+
+% Struct to hold results
+results = struct();
+
+% --- global defaults for figures ---
+set (0, "defaultaxesfontname", "Helvetica");
+set (0, "defaultaxesfontsize", 20);     % tick labels
+set (0, "defaulttextfontsize", 26);     % titles, axis labels
+set (0, "defaultlinelinewidth", 1.5);     % plot line thickness
+set (0, "defaultaxeslinewidth", 1.5);   %s axis box thickness
+
+% === Loop over files ===
+for Ei = 1:numel(E_list)
+    for di = 1:numel(delta_list)
+        E = E_list(Ei);
+        d = delta_list(di);
+
+        % Construct filename
+        fname = sprintf('%s/E_%g_d_%.0e.txt', datadir, E, d);
+
+        % Load numeric data (9 columns)
+        data = load(fname);
+
+        time          = data(:,1);
+        timestep      = data(:,2);
+        iterations    = data(:,3);
+        max_condition = data(:,4);
+        last_condition= data(:,5);
+        max_e0        = data(:,6);
+        mean_e0       = data(:,7);
+        max_A0        = data(:,8);
+        mean_A0       = data(:,9);
+        total_fn0           = data(:,10);
+        max_ls_iterations = data(:,11);
+        mean_ls_iterations = data(:,12);
+
+        % Store in struct
+        key = sprintf('E_%g_d_%g', E, d);
+        results.(key).time = time;
+        results.(key).iterations = iterations;
+        results.(key).max_condition = max_condition;
+        results.(key).last_condition = last_condition;
+        results.(key).max_e0 = max_e0;
+        results.(key).mean_e0 = mean_e0;
+        results.(key).max_A0 = max_A0;
+        results.(key).mean_A0 = mean_A0;
+        results.(key).total_fn0 = total_fn0;
+        results.(key).max_ls_iterations = max_ls_iterations;
+        results.(key).mean_ls_iterations = mean_ls_iterations;
+
+        % === Make 5 plots per file ===
+        if Ei == 1 && di == 1
+            figure("position", [100, 100, 1920, 1080]);
+            plot(time, iterations);
+            xlabel('time'); ylabel('iterations');
+            title(sprintf('Iterations vs time (E=%g, delta=%.0e)', E, d));
+            print(sprintf("%s/case_iterations.png", datadir), "-S1920,1080", "-r600", "-dpng")
+
+            
+            figure("position", [100, 100, 1920, 1080]);
+            semilogy(time, max_condition);
+            xlabel('time'); ylabel('Condition number');
+            title(sprintf('Condition number (max of all iterations) vs time (E=%g, delta=%.0e)', E, d));
+            print(sprintf("%s/case_max_condition.png", datadir), "-S1920,1080", "-r600", "-dpng")
+
+            figure("position", [100, 100, 1920, 1080]);
+            semilogy(time, last_condition);
+            xlabel('time'); ylabel('Condition number');
+            title(sprintf('Condition number (last iteration) vs time (E=%g, delta=%.0e)', E, d));
+            print(sprintf("%s/case_last_condition.png", datadir), "-S1920,1080", "-r600", "-dpng")
+
+            figure("position", [100, 100, 1920, 1080]);
+            plot(time, mean_e0, time, max_e0);
+            xlabel('time'); ylabel('e0');
+            legend('mean','max'); legend('boxoff');
+            title(sprintf('Mean and max e0 vs time (E=%g, delta=%.0e)', E, d));
+            print(sprintf("%s/case_e0.png", datadir), "-S1920,1080", "-r600", "-dpng")
+
+            figure("position", [100, 100, 1920, 1080]);
+            plot(time, mean_A0, time, max_A0);
+            xlabel('time'); ylabel('Area_0');
+            legend('mean','max'); legend('boxoff');
+            title(sprintf('Mean and max Area_0 vs time (E=%g, delta=%.0e)', E, d));
+            print(sprintf("%s/case_A0.png", datadir), "-S1920,1080", "-r600", "-dpng")
+            
+            figure("position", [100, 100, 1920, 1080]);
+            plot(time, mean_ls_iterations, time, max_ls_iterations);
+            xlabel('time'); ylabel('ls_iterations');
+            legend('mean','max'); legend('boxoff');
+            title(sprintf('Mean and max ls_iterations vs time (E=%g, delta=%.0e)', E, d));
+            print(sprintf("%s/case_ls_iterations.png", datadir), "-S1920,1080", "-r600", "-dpng")
+        endif
+
+        % === Compute averages over file ===
+        results.(key).mean_iterations    = mean(iterations);
+        results.(key).mean_max_condition = mean(max_condition);
+        results.(key).mean_last_condition= mean(last_condition);
+    end
+end
+
+% === Collect averages into arrays ===
+mean_iter = zeros(numel(E_list), numel(delta_list));
+mean_maxc = zeros(numel(E_list), numel(delta_list));
+mean_lastc= zeros(numel(E_list), numel(delta_list));
+
+for Ei = 1:numel(E_list)
+    for di = 1:numel(delta_list)
+        E = E_list(Ei);
+        d = delta_list(di);
+        key = sprintf('E_%g_d_%g', E, d);
+        mean_iter(Ei,di) = results.(key).mean_iterations;
+        mean_maxc(Ei,di) = results.(key).mean_max_condition;
+        mean_lastc(Ei,di)= results.(key).mean_last_condition;
+    end
+end
+
+% === Summary plots across E ===
+
+% Mean iterations vs E
+figure("position", [100, 100, 1920, 1080]); hold on;
+for di = 1:numel(delta_list)
+    semilogx(E_list, mean_iter(:,di), '-o', 'DisplayName', sprintf('delta=%.0e', delta_list(di)));
+end
+xlabel('E'); ylabel('Mean iterations');
+h = legend('show'); legend('location','southeast');
+set (h, "fontsize", 10);
+title('Mean iterations vs E');
+box on;
+print(sprintf("%s/mean_iterations.png", datadir), "-S1920,1080", "-r600", "-dpng")
+
+% Mean max condition vs E
+figure("position", [100, 100, 1920, 1080]); hold on;
+for di = 1:numel(delta_list)
+    loglog(E_list, mean_maxc(:,di), '-o', 'DisplayName', sprintf('delta=%.0e', delta_list(di)));
+end
+xlabel('E'); ylabel('Mean condition number.');
+h = legend('show'); legend('location','northwest');
+set (h, "fontsize", 10);
+title('Condition number measured at most ill-conditioned iteration.');
+box on;
+print(sprintf("%s/mean_max_condition.png", datadir), "-S1920,1080", "-r600", "-dpng")
+
+% Mean last condition vs E
+figure("position", [100, 100, 1920, 1080]); hold on;
+for di = 1:numel(delta_list)
+    loglog(E_list, mean_lastc(:,di), '-o', 'DisplayName', sprintf('delta=%.0e', delta_list(di)));
+end
+xlabel('E'); ylabel('Mean condition number.');
+h = legend('show'); legend('location','northwest');
+set (h, "fontsize", 10);
+title('Condition number measured at last iteration.');
+box on;
+print(sprintf("%s/mean_last_condition.png", datadir), "-S1920,1080", "-r600", "-dpng")
+
+
+
+
+
+
+

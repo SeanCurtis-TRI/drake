@@ -1,0 +1,43 @@
+{
+  "campaign": "campaign2",
+  "experiment": "hero",
+  "config_id": "volumetric-acc0.001-beta0.01",
+  "pass": "timing",
+  "kind": "hero",
+  "params": {
+    "variant": "volumetric",
+    "accuracy": 0.001,
+    "beta": 0.01,
+    "barrier": 0.0,
+    "margin": 0.0
+  },
+  "argv": [
+    "/home/joe/tri/drake-private/bazel-bin/examples/hero_demo/convex_integrator_playback",
+    "--visualize=0",
+    "--accuracy=0.001",
+    "--beta=0.01",
+    "--margin=0.0",
+    "--barrier=0.0",
+    "--sim_time=100.0",
+    "--max_step_size=0.01",
+    "--summary_file=/home/joe/tri/drake-private/project_plan/campaign2/data/timing/hero/volumetric-acc0.001-beta0.01/summary_demo.json",
+    "--times_file=/home/joe/tri/drake-private/project_plan/campaign2/data/timing/hero/volumetric-acc0.001-beta0.01/times.csv"
+  ],
+  "overrides": {},
+  "args": [
+    "--accuracy=0.001",
+    "--beta=0.01",
+    "--margin=0.0",
+    "--barrier=0.0",
+    "--sim_time=100.0",
+    "--max_step_size=0.01"
+  ],
+  "timeout": 14400,
+  "git_sha": "a25f2df330db813dc2206e0ddb9b640bce270370",
+  "host": "joe-puget",
+  "start_time": "2026-08-07T12:50:40.617642+00:00",
+  "end_time": "2026-08-07T12:53:01.846826+00:00",
+  "wall_seconds": 141.2290623895824,
+  "exit_code": 0,
+  "timed_out": false
+}

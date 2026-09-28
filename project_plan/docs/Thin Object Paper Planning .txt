@@ -1,0 +1,252 @@
+﻿Slides Ideas:
+Hydro explanation , discrete hydro
+Barrier hydro, extent field, 1D compliant constraint
+Barycentric dual and need for it
+Meshing with optimization
+Barrier force, analytic extension
+Near-rigid approximation extension
+
+“paper-critical” ingredients to think about:
+1. A controlled, geometry-simple benchmark where you can isolate the numerical behavior (conditioning, Newton behavior, stiffness limiting, continuation smoothness) without “scene noise”.
+2. A codimension-focused demo that makes it impossible for volumetric hydroelastic to compete, so your novelty is undeniable (codim surfaces-with-boundary, thin wires, sheets, etc.). CENIC itself highlights thin-walled bins + thin wires as a core pain point. (ar5iv)
+________________
+
+
+Paper title
+bCENIC: Thin Objects in the Wild
+(Barrier CENIC)
+Paper positioning in 1 sentence
+A barrier-regularized, error-controlled contact integrator built on CENIC (ar5iv) that extends hydroelastic-style continuous contact to thin volumetric extent layers around general meshes (including codim surfaces with boundary), with provable “force blow-up” non-penetration behavior and practical conditioning via a single β parameter.
+________________
+
+
+What every demo should output (standardized instrumentation)
+Think of each demo as producing:
+* 2 “hero” visuals (keyframes or time-lapse) + ~2 quantitative figures.
+* A shared stats table row (so you can do one big summary table across all demos).
+Always log these signals per accepted step
+Step control / integrator
+* accepted dt, rejected-step count, LTE estimate (or your accuracy proxy), target accuracy
+* #Newton iterations, #line search iterations (if any), termination reason
+* runtime breakdown: broadphase, narrowphase, contact assembly, solve, post-check CCD
+* total simulation wall time, real-time ratio (RTR)
+Contact / barrier
+* #active constraints (mean / max), constraint type counts (V–F, E–E, E–F, etc.)
+* min distance / min “extent gap” to inner boundary (how close you got to e(x)=1)
+* max / percentile(95/99) contact pressure, max contact force magnitude
+* β used, computed “capped stiffness” (your implied max stiffness ∝ 1/(β·dt)²)
+Linear algebra / conditioning
+* KKT/system matrix condition number estimate (or practical proxy: PCG iterations, residual history)
+* solve iterations and final residual
+* (optional but very compelling) smallest eigenvalue / spectral estimate for the contact Hessian block
+Correctness / robustness
+* end-of-step nonpenetration status (pass/fail)
+* #post-check CCD “fixups” triggered
+* max interpenetration detected (should be 0 for guaranteed quantities; report tolerance)
+Standard ablation sweeps (use across all demos, but don’t plot all for all)
+* β sweep: e.g., {0.25, 0.5, 1, 2, 4} (dimensionless)
+* accuracy sweep: 2–3 target accuracies (loose/medium/tight)
+* initial velocity sweep: slow/medium/fast (to trigger step rejection + CCD edge cases)
+________________
+
+
+Core plots you’ll reuse across demos (so figures feel cohesive)
+These are “reviewer comfort food” for contact integrators:
+1. RTR vs time + markers for rejected steps
+2. dt vs time (accepted dt) and optionally a histogram of dt
+3. #contacts vs time (mean/max band)
+4. Newton iterations vs time (or histogram), split accepted vs rejected steps
+5. Solve iterations / residual vs time (or histogram)
+6. Conditioning proxy vs β (PCG iters or cond-est)
+7. Peak pressure/force vs time (show blow-up behavior is handled without instability)
+8. Constraint “stiffness cap” vs dt confirming ∝ 1/(β·dt)² scaling
+________________
+
+
+Proposed 5-demo suite (covers your goals better than 4)
+You can cut to 4 later, but building 5 now gives you room to prune, and makes it harder for reviewers to poke holes.
+Demo 1 — Controlled “Barrier & Continuation” microbenchmark (geometry-simple)
+Objective: isolate your barrier pressure discretization + analytic continuation + β-conditioning in a scene with almost no confounds.
+Setup ideas (pick one):
+* Rotating thin plate vs sharp wedge (codim plate if you want), or
+* Sphere vs thin shell (two-sided contact) with a known contact normal field.
+Ablations:
+* β sweep × 2 accuracies × 2 speeds.
+* Also compare “no continuation” vs “with continuation” (even if “no continuation” is just for analysis).
+Figures (~4):
+1. Barrier function plot: your p(e)=E·e/(1−e) and its analytic continuation branch; overlay several β values (show C¹ continuity at the splice).
+2. Newton convergence: iteration count or residual vs iteration for representative steps near stiff contact (with/without continuation).
+3. Conditioning vs β: cond-proxy (PCG iters) and/or Newton iterations.
+4. Max pressure vs min(1−e): verify controlled approach to the inner boundary without penetration; show stability.
+Why this matters: This is where you “prove” the math choices actually fix solver pathologies, before you throw clutter at it.
+________________
+
+
+Demo 2 — Codimension “thin objects in the wild”: wire rack + thin-walled bin dump (CENIC-style)
+Objective: make the codim claim unavoidable and match the motivating scenario CENIC itself uses (thin bin + thin wires). (ar5iv)
+Setup:
+* A bin with thin walls + a wire dish rack (codim rods/wires), dump mixed objects in.
+* Include at least one “infinitely thin” surface-with-boundary (e.g., sheet metal cutout) to force codim handling.
+Compare:
+* bCENIC vs baseline CENIC ICF/hydroelastic variant (if you have it), plus one “rigid-style” method if feasible.
+* If you can’t run IPC here (too different), that’s okay—this is your capability demo.
+Figures (~4):
+1. Keyframes / montage (2–3 frames) highlighting thin contacts.
+2. dt vs time with contact transitions annotated (dump impact, sliding, settling).
+3. #contacts vs time and breakdown by constraint type.
+4. Runtime breakdown pie/stack averaged over phases (impact vs settle).
+Extra plot if you have room: “post-check CCD triggers vs time” to show it’s not constantly rescuing you.
+________________
+
+
+Demo 3 — Cluttered manipulation-relevant pile (stress scalability + numerical characterization)
+Objective: your original “clutter of objects in the wild,” but make it a numerical study, not just a pretty scene.
+Setup:
+* 50–200 objects, mixed mesh complexity (include thin parts: utensils, clips, brackets).
+* Controlled “shake table” or robot end-effector pushing through.
+Study design (important):
+* Hold geometry fixed, vary β and accuracy.
+* Make sure you hit: high contact count, lots of sliding, repeated impacts.
+Figures (~4):
+1. Keyframe(s) + zoom-in insets of worst contact regions.
+2. Iterations vs β: Newton iters (mean/95%) and solve iters (mean/95%) as lines; separate curves per accuracy.
+3. Conditioning vs β: cond-proxy / PCG iters and failure rate (if any) vs β.
+4. Performance scaling: runtime per step vs #contacts (scatter), include fitted trend line.
+Add a summary table row: mean dt, rejected-step rate, RTR, max #contacts.
+________________
+
+
+Demo 4 — Nut & bolt (head-to-head with ABD + highlights discrete-vs-continuous trajectory issues)
+Objective: a direct “rigid-ish” contact benchmark where ABD is known to shine and reviewers expect a comparison. ABD is explicitly motivated by issues in rigid-body IPC linearization and improves performance by relaxing exact rigidity and enabling piecewise-linear trajectories. (arXiv)
+Setup:
+* Threaded nut spinning onto bolt under torque, with realistic clearances.
+* Include friction (static→dynamic transitions) and occasional jamming contact.
+Compare:
+* bCENIC vs ABD (and optionally a simpler baseline, if you have one).
+Figures (~4):
+1. Montage showing engagement + jam/slip events.
+2. Torque/angle vs time (or progress along thread vs time): show physical plausibility.
+3. Step size behavior: dt vs time; show you don’t collapse dt unnecessarily.
+4. Solver cost: runtime per simulated second + iteration histograms.
+Key metrics:
+* success rate across initial misalignments (robustness)
+* penetration = 0 (or tolerance) across entire run
+________________
+
+
+Demo 5 — “Rotational CCD error” torture test (quantify your linear-CCD approximation risk)
+Objective: you explicitly said you need to mathematically quantify linear CCD error for rotating rigid bodies. This demo becomes the empirical companion to that analysis and preempts reviewer attacks.
+Setup:
+* Two bodies with high angular velocity:
+   * a thin ring rotating past a thin plate edge
+   * or a spinning key-shaped object passing near a slotted bracket
+* Choose initial configurations where nonlinear trajectory CCD would detect contact, but linearized CCD is borderline.
+Protocol:
+* Sweep angular velocity and dt.
+* Measure when linear-CCD misses vs when your barrier still guarantees non-penetration at endpoints.
+Figures (~4):
+1. Schematic figure: true curved trajectory vs linear segment, defining the error measure you’ll bound.
+2. False negative rate heatmap over (ω, dt) for linear CCD, plus region where endpoints remain safe.
+3. “Minimum separation margin” vs dt: how close you get in worst cases.
+4. Cost of safety: additional rejected steps / dt reduction vs ω.
+Deliverable: This is where you justify “false negatives only for small passthroughs” with a quantified bound and an empirical phase diagram.
+________________
+
+
+What to put in the paper as “Other plots not tied to cases”
+These belong in a Method + Ablations section, not the demo section.
+A. Analytic continuation (β family)
+* Plot barrier energy/force derivatives across the splice point for multiple β.
+* Show continuity (C⁰/C¹) and improved Newton stability (fewer line search stalls).
+B. Quadrature / discretization choices (barycentric dual, etc.)
+* A figure comparing:
+   * naive quadrature points vs barycentric dual placement
+   * resulting max pressure / force vs approach-to-boundary
+* A “pathological triangle” example where naive discretization fails to capture blow-up in the right location.
+C. β regularization law
+* Plot max stiffness cap = C/(β·dt)² vs dt for a few β values (straight lines in log-log).
+* Add a plot showing that as dt→0 you recover the original barrier behavior (numerically: peak pressure vs dt at fixed penetration margin).
+________________
+
+
+Your existing planning doc, rewritten and expanded
+Test Cases
+1) Clutter of “objects in the wild”
+Objective: robust numerical characterization in a complex scene relevant to manipulation.
+Figures:
+* 1–2 keyframes (with zoom insets)
+* iterations/conditioning vs β/accuracy
+* dt vs time + rejected steps
+* runtime breakdown + scaling with #contacts
+Data to collect:
+* cond proxy, Newton iters, solve iters, rejected step rate
+* #contacts (mean/max), dt stats (mean/min/max)
+* RTR and wall-time breakdown
+________________
+
+
+2) Hero demo (real robotics application)
+Objective: show application value; compare to baseline ICF/volumetric hydro and highlight artifacts avoided.
+Figures:
+* RTR vs time
+* #contacts vs time (mean/max)
+* dt vs time
+* artifact comparison montage (passthrough/rattling/jitter)
+Core table row metrics:
+* total contacts, total accepted steps, rejected steps, RTR mean, min dt
+(Note: tie this explicitly to “thin bin + wires” since that’s a known failure mode for discrete stepping and is featured in CENIC’s motivation.) (ar5iv)
+________________
+
+
+3) Nut & bolt
+Objective: direct comparison with ABD.
+Figures:
+* assembly progress (angle→depth)
+* dt vs time
+* iterations histogram
+* runtime per sim-second
+Table metrics:
+* success rate across misalignments, total time, RTR, max #contacts
+ABD reference: (arXiv)
+________________
+
+
+4) Rolling sphere / twisty tube
+Objective: show TOC estimation + step-size control doesn’t collapse dt for near-parallel motion.
+I’d sharpen the claim: this is really about “no pathological dt shrinkage under long-duration sliding / grazing contact”.
+Figures:
+* dt vs arc-length (or time)
+* #contacts vs time
+* accepted vs rejected steps cumulative
+* runtime per meter traveled (or per second)
+Add a “grazing contact” variant: sphere nearly touching tube wall with constant tangential velocity.
+________________
+
+
+Table (one row per case)
+Your idea is solid. Make it a single “master table” with:
+* thumbnail image
+* RTR mean (and 95%)
+* mean/min dt, rejected-step %
+* mean/max #contacts
+* mean/95% Newton iters
+* mean/95% solve iters (or residual)
+* #CCD post-check triggers
+________________
+
+
+A few extra simulation examples that may be an even better fit
+If you end up swapping anything out, these are the best candidates:
+1. Thin sheet with boundary sliding through a slot (codim surface-with-boundary, extremely “your method”)
+2. Wire bundle / cable harness draping over pegs (codim + many contacts; great for scalability)
+3. Stack of thin washers (many near-coplanar contacts; brutal for conditioning)
+4. Razor-thin wedge insertion (tests blow-up barrier and continuation under near-singular contact geometry)
+C-IPC exists specifically to unify codim geometries under IPC-style barriers; it’s a relevant “state of the art” reference point for thin structures even if you don’t compare directly. (ipc-sim.github.io)
+________________
+
+
+Are you on the right track?
+Yes—but to make this “paper-proof,” I’d do these two changes:
+* Add Demo 1 (controlled barrier/continuation benchmark). Without it, reviewers can argue your stability is just luck in scenes.
+* Add Demo 5 (rotational CCD error torture test). You already know this is a vulnerability; turning it into a quantified study converts it from “weakness” into “responsible engineering.”
+If you want, I can also propose a figure budget map (20–25 figures) showing exactly which 4 per demo + which method figures are likely to survive the pruning phase.

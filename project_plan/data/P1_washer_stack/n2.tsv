@@ -1,0 +1,2 @@
+num_washers	accuracy	use_toi	steps	solver_iterations	hessian_factorizations	ccd_rejections_full	ccd_rejections_half1	ccd_rejections_half2	wall_s	top_z	stable
+2	0.01	false	56	245	245	9	0	0	8.719	0.00040	1

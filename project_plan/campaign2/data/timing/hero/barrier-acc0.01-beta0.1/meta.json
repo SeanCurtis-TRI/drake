@@ -1,0 +1,43 @@
+{
+  "campaign": "campaign2",
+  "experiment": "hero",
+  "config_id": "barrier-acc0.01-beta0.1",
+  "pass": "timing",
+  "kind": "hero",
+  "params": {
+    "variant": "barrier",
+    "accuracy": 0.01,
+    "beta": 0.1,
+    "barrier": 0.0001,
+    "margin": 0.0002
+  },
+  "argv": [
+    "/home/joe/tri/drake-private/bazel-bin/examples/hero_demo/convex_integrator_playback",
+    "--visualize=0",
+    "--accuracy=0.01",
+    "--beta=0.1",
+    "--margin=0.0002",
+    "--barrier=0.0001",
+    "--sim_time=100.0",
+    "--max_step_size=0.01",
+    "--summary_file=/home/joe/tri/drake-private/project_plan/campaign2/data/timing/hero/barrier-acc0.01-beta0.1/summary_demo.json",
+    "--times_file=/home/joe/tri/drake-private/project_plan/campaign2/data/timing/hero/barrier-acc0.01-beta0.1/times.csv"
+  ],
+  "overrides": {},
+  "args": [
+    "--accuracy=0.01",
+    "--beta=0.1",
+    "--margin=0.0002",
+    "--barrier=0.0001",
+    "--sim_time=100.0",
+    "--max_step_size=0.01"
+  ],
+  "timeout": 7200,
+  "git_sha": "a25f2df330db813dc2206e0ddb9b640bce270370",
+  "host": "joe-puget",
+  "start_time": "2026-08-07T11:53:32.385355+00:00",
+  "end_time": "2026-08-07T11:58:05.742039+00:00",
+  "wall_seconds": 273.3565165307373,
+  "exit_code": 0,
+  "timed_out": false
+}

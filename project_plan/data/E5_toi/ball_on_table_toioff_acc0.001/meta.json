@@ -1,0 +1,26 @@
+{
+  "experiment": "E5_toi",
+  "run_id": "ball_on_table_toioff_acc0.001",
+  "kind": "demo",
+  "tier": "C",
+  "argv": [
+    "/home/joemasterjohn/tri/drake-private/bazel-bin/examples/integrators/error_control_demo",
+    "--example=ball_on_table",
+    "--accuracy=0.001",
+    "--stats_file=/home/joemasterjohn/tri/drake-private/project_plan/data/E5_toi/ball_on_table_toioff_acc0.001/steps.tsv",
+    "--summary_file=/home/joemasterjohn/tri/drake-private/project_plan/data/E5_toi/ball_on_table_toioff_acc0.001/summary_demo.json"
+  ],
+  "overrides": null,
+  "args": [
+    "--example=ball_on_table",
+    "--accuracy=0.001"
+  ],
+  "git_sha": "06740b1c6f9057e94e32770e5ed8454c3b75e3eb",
+  "host": "PUGET-270565",
+  "start_time": "2026-07-24T00:20:54.888311",
+  "timeout": 3600,
+  "end_time": "2026-07-24T00:20:58.112792",
+  "wall_seconds": 3.224325,
+  "exit_code": 0,
+  "timed_out": false
+}

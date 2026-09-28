@@ -1,0 +1,26 @@
+{
+  "experiment": "E2_wild",
+  "run_id": "cones_acc0.1",
+  "kind": "demo",
+  "tier": "A",
+  "argv": [
+    "/home/joemasterjohn/tri/drake-private/bazel-bin/examples/integrators/error_control_demo",
+    "--example=cones",
+    "--accuracy=0.1",
+    "--stats_file=/home/joemasterjohn/tri/drake-private/project_plan/data/E2_wild/cones_acc0.1/steps.tsv",
+    "--summary_file=/home/joemasterjohn/tri/drake-private/project_plan/data/E2_wild/cones_acc0.1/summary_demo.json"
+  ],
+  "overrides": null,
+  "args": [
+    "--example=cones",
+    "--accuracy=0.1"
+  ],
+  "git_sha": "06740b1c6f9057e94e32770e5ed8454c3b75e3eb",
+  "host": "PUGET-270565",
+  "start_time": "2026-07-24T00:18:38.439880",
+  "timeout": 2700,
+  "end_time": "2026-07-24T00:19:01.888387",
+  "wall_seconds": 23.448476,
+  "exit_code": 0,
+  "timed_out": false
+}

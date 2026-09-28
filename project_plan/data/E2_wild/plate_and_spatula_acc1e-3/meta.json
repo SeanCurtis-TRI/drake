@@ -1,0 +1,26 @@
+{
+  "experiment": "E2_wild",
+  "run_id": "plate_and_spatula_acc1e-3",
+  "kind": "demo",
+  "tier": "C",
+  "argv": [
+    "/home/joemasterjohn/tri/drake-private/bazel-bin/examples/integrators/error_control_demo",
+    "--example=plate_and_spatula",
+    "--accuracy=1e-3",
+    "--stats_file=/home/joemasterjohn/tri/drake-private/project_plan/data/E2_wild/plate_and_spatula_acc1e-3/steps.tsv",
+    "--summary_file=/home/joemasterjohn/tri/drake-private/project_plan/data/E2_wild/plate_and_spatula_acc1e-3/summary_demo.json"
+  ],
+  "overrides": null,
+  "args": [
+    "--example=plate_and_spatula",
+    "--accuracy=1e-3"
+  ],
+  "git_sha": "06740b1c6f9057e94e32770e5ed8454c3b75e3eb",
+  "host": "PUGET-270565",
+  "start_time": "2026-07-24T00:19:54.624884",
+  "timeout": 2700,
+  "end_time": "2026-07-24T00:20:01.154572",
+  "wall_seconds": 6.529661,
+  "exit_code": 0,
+  "timed_out": false
+}

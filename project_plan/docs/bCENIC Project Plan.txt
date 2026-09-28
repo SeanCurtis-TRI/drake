@@ -1,0 +1,280 @@
+﻿________________
+
+
+Project Plan
+Barrier CENIC: Robust Simulation of Thin Objects in the Wild
+________________
+
+
+1. Summary
+The Problem
+Modern contact simulation methods struggle with thin objects and codimensional geometry (e.g., wires, thin sheets, surfaces with boundary).
+In robotics-relevant scenes—bins, racks, utensils, clips, sheet metal parts—objects are often:
+* Extremely thin relative to scene scale (sub-millimeter thickness)
+* Open surfaces (not closed volumes)
+* In sustained, sliding, or grazing contact
+* In dense clutter
+Existing methods typically fall into one of two categories:
+1. Volumetric hydroelastic contact
+   * Robust for thick, watertight solids
+   * Cannot naturally represent infinitely thin or co-dimensional objects
+   * Requires artificial thickening of geometry
+2. Barrier-based rigid or deformable contact (e.g., IPC, ABD)
+   * Very robust non-penetration guarantees
+   * Often expensive
+   * Can suffer conditioning challenges in large clutter scenes
+   * Typically designed for different modeling assumptions
+This leaves a gap: robust, well-conditioned, non-penetrating simulation of thin and codimensional objects in robotics-scale clutter scenes.
+________________
+
+
+2. Proposed Solution
+We propose bCENIC (barrier CENIC) — a thin-object extension of the CENIC framework.
+Core Idea
+Instead of representing thin objects as full volumes, we construct:
+* A thin volumetric layer (δ ≈ 0.1–1mm) around a mesh
+* An extent field ( e(x) in [0,1] ):
+   * 0 at the outer boundary
+   * 1 at the original mesh
+* A nonlinear hydroelastic-style pressure law
+p(x) = E e(x) / (1 - e(x))
+
+As a contact surface approaches the inner boundary (e → 1), the pressure blows up, preventing penetration.
+Key Innovations
+   1. Works for:
+   * Closed watertight meshes
+   * Co-dimensional surfaces (meshes with boundary)
+   * Infinitely thin objects
+   2. Nonlinear hydroelastic pressure with guaranteed blow-up near penetration
+   3. Analytic continuation of the barrier function
+→ Ensures smooth Newton solves over velocity search
+   4. Novel β-regularization
+      * Single dimensionless parameter β
+      * Controls max stiffness of contact constraints
+      * Ensures good conditioning
+      * Stiffness cap scales as:
+(m 4π^2) / (dt β)^2
+      * As dt → 0, original barrier behavior is recovered
+         5. End-of-step linear CCD guard
+         * Ensures non-penetration at accepted states
+         * May miss tiny mid-step passthroughs (to be quantified)
+________________
+
+
+3. Benefits
+Practical Benefits
+         * Handles thin wires, sheet metal, racks, clips, etc.
+         * Eliminates need for artificial thickening
+         * Guarantees non-penetration of inner mesh
+         * Maintains good numerical conditioning
+         * Scales to cluttered robotics scenes
+Research Contributions
+         * Thin-layer hydroelastic barrier formulation that is continuous
+         * Codimension-capable contact model
+         * Single-parameter conditioning regularization
+         * Quantified tradeoff between stiffness and timestep
+         * Empirical study of linear CCD error under rotation
+________________
+
+
+4. Known Drawbacks / Risks
+         1. Additional volumetric layer construction
+         * Requires offset meshing and tetrahedralization
+         * Preprocessing cost
+         2. Linear CCD approximation
+         * May miss small rotational passthroughs mid-step
+         * Needs mathematical error bound and empirical validation
+         3. Nonlinear stiffness near boundary
+         * Poor parameter choice (β too small) can cause conditioning issues, excessive timesteps
+         4. Complexity vs simpler rigid contact models
+         * More complex than simple constraint methods using mesh feature pairs (vertex-face, edge-edge).
+________________
+
+
+5. Scientific Objectives
+The paper and project aim to:
+         1. Quantify numerical robustness
+         2. Measure conditioning behavior vs β
+         3. Measure solver iterations and scalability
+         4. Compare to state-of-the-art methods (ABD, IPC variants, volumetric hydroelastic)
+         5. Quantify linear CCD approximation error
+         6. Demonstrate real robotics-relevant capability
+________________
+
+
+6. Evaluation Strategy
+Each demo produces:
+         * 1–2 visual figures
+         * 2–3 quantitative plots
+         * Standardized instrumentation metrics
+We target ~20–25 figures total (can prune later).
+________________
+
+
+7. Standard Metrics Across All Experiments
+For every simulation:
+Integrator Metrics
+         * Accepted timestep dt
+         * Rejected step count
+         * Newton iterations 
+         * Line search iterations
+         * Real-time ratio (RTR)
+         * Runtime breakdown (broadphase, contact assembly, solve, CCD)
+Contact Metrics
+         * active constraints (mean / max)
+         * Min gap to inner boundary (1 − e)
+         * Max pressure
+         * Max contact force
+         * Post-step CCD triggers
+Conditioning Metrics
+         * Solve iterations
+         * Residual convergence
+         * Condition number 
+
+________________
+
+
+8. Simulation Test Suite
+We propose five demos.
+________________
+
+
+Demo 1 — Controlled Barrier & Conditioning Benchmark
+Goal
+Isolate numerical behavior in a simple setting.
+Setup
+Simple contact:
+            * Thin plate vs rigid wedge
+or
+            * Sphere vs thin shell
+Studies
+               * β sweep
+               * Accuracy sweep
+               * With vs without analytic continuation
+Figures
+               1. Barrier function & continuation plot
+               2. Newton convergence behavior
+               3. Conditioning vs β
+               4. Pressure vs approach-to-boundary
+Outcome
+Demonstrates:
+               * Smooth solver behavior
+               * Controlled stiffness
+               * Proper blow-up behavior
+________________
+
+
+Demo 2 — Thin Objects in the Wild (Cluttered Scene)
+Goal
+Show real robotics relevance.
+Setup
+               * Thin-walled bin
+               * Wire rack
+               * Mixed thin objects dumped or manipulated
+Studies
+               * β sweep
+               * Accuracy sweep
+Figures
+               1. Keyframes
+               2. dt vs time
+               3. #contacts vs time
+               4. Runtime breakdown
+Outcome
+Shows:
+               * Scalability
+               * Robustness in clutter
+               * No interpenetration of thin geometry
+________________
+
+
+Demo 3 — Large Clutter Numerical Characterization
+Goal
+Stress solver scaling.
+Setup
+50–200 objects with thin components.
+Studies
+Systematic parameter sweeps.
+Figures
+               1. Iterations vs β
+               2. Conditioning vs β
+               3. Runtime vs #contacts
+               4. Rejected step statistics
+Outcome
+Clear quantitative performance characterization.
+________________
+
+
+Demo 4 — Nut & Bolt (Comparison to ABD)
+Goal
+Head-to-head comparison.
+Setup
+Threaded engagement with friction.
+Metrics
+               * Convergence
+               * Stability
+               * Runtime
+               * Success rate
+Figures
+               1. Assembly progression
+               2. dt vs time
+               3. Solver iteration histogram
+               4. Runtime per simulated second
+Outcome
+Demonstrates competitiveness in rigid-like precision tasks.
+________________
+
+
+Demo 5 — Rotational CCD Error Study
+Goal
+Quantify linear CCD approximation error.
+Setup
+High angular velocity near-grazing configurations.
+Study
+Sweep:
+               * Angular velocity
+               * Timestep size
+Figures
+               1. Geometric illustration
+               2. False-negative heatmap (ω vs dt)
+               3. Minimum separation margin vs dt
+               4. Additional cost due to safeguard
+Outcome
+Converts a potential weakness into a quantified engineering tradeoff.
+________________
+
+
+9. Comparison Targets
+Where possible:
+               * Volumetric hydroelastic
+               * ABD
+               * IPC or codimensional IPC (if feasible)
+Metrics:
+               * Runtime
+               * Iterations
+               * Conditioning
+               * Failure modes
+               * Penetration violations
+________________
+
+
+10. Deliverables
+Research Output
+               * 20–25 figures (prunable)
+               * Comprehensive numerical characterization
+               * Comparison against state of the art
+               * Empirical CCD error quantification
+               * Paper submitted to T-RO or RA-L
+Engineering Output
+               * Robust thin-object simulation module built on top of CENIC
+               * Parameter guidelines (β selection)
+               * Performance scaling data
+________________
+
+
+11. Why This Project Is Worth Doing
+               * Directly addresses thin-object simulation gap
+               * High relevance to robotics manipulation
+               * Provides both theoretical and empirical contributions
+               * Generates a rigorous numerical characterization study
+               * Produces reusable benchmarking infrastructure
+________________

@@ -1,0 +1,46 @@
+{
+  "campaign": "campaign2",
+  "experiment": "clutter",
+  "config_id": "prim-bar0.001-mar0.001-acc0.01-beta1",
+  "pass": "heavy",
+  "kind": "clutter",
+  "params": {
+    "variant": "prim",
+    "accuracy": 0.01,
+    "beta": 1.0,
+    "barrier": 0.001,
+    "margin": 0.001
+  },
+  "argv": [
+    "/home/joe/tri/drake-private/bazel-bin/examples/multibody/clutter/clutter",
+    "--config=/home/joe/tri/drake-private/project_plan/campaign2/data/heavy/clutter/prim-bar0.001-mar0.001-acc0.01-beta1/config.yaml",
+    "--log_file=/home/joe/tri/drake-private/project_plan/campaign2/data/heavy/clutter/prim-bar0.001-mar0.001-acc0.01-beta1/steps.tsv"
+  ],
+  "overrides": {
+    "simulator_config": {
+      "accuracy": 0.01
+    },
+    "icf_solver_config": {
+      "beta": 1.0,
+      "use_toi": true
+    },
+    "scene_graph_config": {
+      "default_proximity_properties": {
+        "margin": 0.001,
+        "barrier": 0.001
+      }
+    },
+    "clutter_config": {
+      "enable_boxes": true
+    }
+  },
+  "args": [],
+  "timeout": 1800,
+  "git_sha": "a25f2df330db813dc2206e0ddb9b640bce270370",
+  "host": "joe-puget",
+  "start_time": "2026-08-07T03:57:55.988998+00:00",
+  "end_time": "2026-08-07T03:58:22.339539+00:00",
+  "wall_seconds": 26.35037415008992,
+  "exit_code": 0,
+  "timed_out": false
+}

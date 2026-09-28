@@ -1,0 +1,29 @@
+{
+  "experiment": "E3d_clutter_scaling",
+  "run_id": "boxes_opp10_acc0.01",
+  "kind": "clutter",
+  "tier": "C",
+  "argv": [
+    "/home/joemasterjohn/tri/drake-private/bazel-bin/examples/multibody/clutter/clutter",
+    "--config=/home/joemasterjohn/tri/drake-private/project_plan/data/E3d_clutter_scaling/boxes_opp10_acc0.01/config.yaml",
+    "--log_file=/home/joemasterjohn/tri/drake-private/project_plan/data/E3d_clutter_scaling/boxes_opp10_acc0.01/steps.tsv"
+  ],
+  "overrides": {
+    "simulator_config": {
+      "accuracy": 0.01
+    },
+    "clutter_config": {
+      "objects_per_pile": 10,
+      "enable_boxes": true
+    }
+  },
+  "args": null,
+  "git_sha": "06740b1c6f9057e94e32770e5ed8454c3b75e3eb",
+  "host": "PUGET-270565",
+  "start_time": "2026-07-24T00:20:42.965766",
+  "timeout": 7200,
+  "end_time": "2026-07-24T00:22:50.814015",
+  "wall_seconds": 127.848219,
+  "exit_code": 0,
+  "timed_out": false
+}

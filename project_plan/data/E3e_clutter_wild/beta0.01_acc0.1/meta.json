@@ -1,0 +1,50 @@
+{
+  "experiment": "E3e_clutter_wild",
+  "run_id": "beta0.01_acc0.1",
+  "kind": "clutter",
+  "tier": "A",
+  "argv": [
+    "/home/joemasterjohn/tri/drake-private/bazel-bin/examples/multibody/clutter/clutter",
+    "--config=/home/joemasterjohn/tri/drake-private/project_plan/data/E3e_clutter_wild/beta0.01_acc0.1/config.yaml",
+    "--log_file=/home/joemasterjohn/tri/drake-private/project_plan/data/E3e_clutter_wild/beta0.01_acc0.1/steps.tsv"
+  ],
+  "overrides": {
+    "simulator_config": {
+      "accuracy": 0.1
+    },
+    "icf_solver_config": {
+      "beta": 0.01,
+      "use_toi": true
+    },
+    "scene_graph_config": {
+      "default_proximity_properties": {
+        "barrier": 0.001
+      }
+    },
+    "clutter_config": {
+      "mesh_files": [
+        "/home/joemasterjohn/tri/drake-private/project_plan/data/thingi10k_meshes/93549.obj",
+        "/home/joemasterjohn/tri/drake-private/project_plan/data/thingi10k_meshes/196123.obj",
+        "/home/joemasterjohn/tri/drake-private/project_plan/data/thingi10k_meshes/238618.obj",
+        "/home/joemasterjohn/tri/drake-private/project_plan/data/thingi10k_meshes/611676.obj",
+        "/home/joemasterjohn/tri/drake-private/project_plan/data/thingi10k_meshes/94150.obj",
+        "/home/joemasterjohn/tri/drake-private/project_plan/data/thingi10k_meshes/639930.obj",
+        "/home/joemasterjohn/tri/drake-private/project_plan/data/thingi10k_meshes/71990.obj",
+        "/home/joemasterjohn/tri/drake-private/project_plan/data/thingi10k_meshes/39208.obj",
+        "/home/joemasterjohn/tri/drake-private/project_plan/data/thingi10k_meshes/500099.obj",
+        "/home/joemasterjohn/tri/drake-private/project_plan/data/thingi10k_meshes/70839.obj"
+      ],
+      "num_piles": 4,
+      "objects_per_pile": 3
+    }
+  },
+  "args": null,
+  "git_sha": "87f8e8b70e044d580119fb2855a0bf7e37355cea",
+  "host": "PUGET-270565",
+  "start_time": "2026-07-24T12:35:34.033835",
+  "timeout": 7200,
+  "end_time": "2026-07-24T12:38:59.722250",
+  "wall_seconds": 205.688339,
+  "exit_code": 0,
+  "timed_out": false
+}

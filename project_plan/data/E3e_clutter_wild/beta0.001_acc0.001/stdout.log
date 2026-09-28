@@ -1,0 +1,40 @@
+AdvanceTo() time [sec]: 1075.868585824
+General stats regarding discrete updates:
+Number of time steps taken (simulator stats) = 582
+Number of publishes = 0
+Number of discrete updates = 0
+Number of "unrestricted" updates = 0
+
+Stats for integrator CenicIntegrator with error control:
+Number of time steps taken (integrator stats) = 582
+Initial time step taken =       0.01 s
+Largest time step taken =  0.0739278 s
+Smallest adapted step size = 0.000210544 s
+Number of steps shrunk due to error control = 225
+Number of derivative evaluations = 0
+Number of steps shrunk due to convergence-based failure = 14
+Number of convergence-based step failures (should match) = 14
+CENIC Statistics:
+Number of solver iterations = 24929
+Number of hessian factorizations = 24929
+Number of linesearch iterations = 60823
+
+JSON Statistics:
+{
+  "cenic_num_feasibility_rejections_full": 14,
+  "cenic_num_feasibility_rejections_half1": 0,
+  "cenic_num_feasibility_rejections_half2": 0,
+  "cenic_time_feasibility": 18.16428963800002,
+  "cenic_time_linearize": 0.001426877,
+  "cenic_time_model_update": 891.4656842689988,
+  "cenic_time_solve": 165.56379362499945,
+  "cenic_total_hessian_factorizations": 24929,
+  "cenic_total_ls_iterations": 60823,
+  "cenic_total_solver_iterations": 24929,
+  "integrator_actual_initial_step_size_taken": 0.010000000000000002,
+  "integrator_largest_step_size_taken": 0.07392782494480565,
+  "integrator_num_derivative_evaluations": 0,
+  "integrator_num_step_shrinkages_from_error_control": 225,
+  "integrator_num_steps_taken": 582,
+  "integrator_smallest_adapted_step_size_taken": 0.00021054351618114543
+}

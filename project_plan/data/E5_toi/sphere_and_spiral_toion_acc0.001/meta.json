@@ -1,0 +1,30 @@
+{
+  "experiment": "E5_toi",
+  "run_id": "sphere_and_spiral_toion_acc0.001",
+  "kind": "demo",
+  "tier": "C",
+  "argv": [
+    "/home/joemasterjohn/tri/drake-private/bazel-bin/examples/integrators/error_control_demo",
+    "--example=sphere_and_spiral",
+    "--accuracy=0.001",
+    "--sim_time=10",
+    "--use_toi",
+    "--stats_file=/home/joemasterjohn/tri/drake-private/project_plan/data/E5_toi/sphere_and_spiral_toion_acc0.001/steps.tsv",
+    "--summary_file=/home/joemasterjohn/tri/drake-private/project_plan/data/E5_toi/sphere_and_spiral_toion_acc0.001/summary_demo.json"
+  ],
+  "overrides": null,
+  "args": [
+    "--example=sphere_and_spiral",
+    "--accuracy=0.001",
+    "--sim_time=10",
+    "--use_toi"
+  ],
+  "git_sha": "06740b1c6f9057e94e32770e5ed8454c3b75e3eb",
+  "host": "PUGET-270565",
+  "start_time": "2026-07-24T00:21:36.019592",
+  "timeout": 3600,
+  "end_time": "2026-07-24T00:22:22.384871",
+  "wall_seconds": 46.365204,
+  "exit_code": 0,
+  "timed_out": false
+}

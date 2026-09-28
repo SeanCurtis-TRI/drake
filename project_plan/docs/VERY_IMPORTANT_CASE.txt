@@ -1,0 +1,2 @@
+❯ bazel run --copt=-g //examples/multibody/clutter:clutter -- --visualize --margin=0 --barrier=1e-4 --simulator_accuracy=1e-1 --beta=0.001 --num_piles=3 --objects_per_pile=3
+

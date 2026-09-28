@@ -1,0 +1,32 @@
+{
+  "experiment": "E7_hero_dishrack",
+  "run_id": "barrier0.0001_margin0.0002_acc0.01",
+  "kind": "hero",
+  "tier": "B",
+  "argv": [
+    "/home/joemasterjohn/tri/drake-private/bazel-bin/examples/hero_demo/convex_integrator_playback",
+    "--visualize=0",
+    "--accuracy=0.01",
+    "--margin=0.0002",
+    "--barrier=0.0001",
+    "--sim_time=100",
+    "--stats_file=/home/joemasterjohn/tri/drake-private/project_plan/data/E7_hero_dishrack/barrier0.0001_margin0.0002_acc0.01/steps.tsv",
+    "--times_file=/home/joemasterjohn/tri/drake-private/project_plan/data/E7_hero_dishrack/barrier0.0001_margin0.0002_acc0.01/times.csv",
+    "--summary_file=/home/joemasterjohn/tri/drake-private/project_plan/data/E7_hero_dishrack/barrier0.0001_margin0.0002_acc0.01/summary_demo.json"
+  ],
+  "overrides": null,
+  "args": [
+    "--accuracy=0.01",
+    "--margin=0.0002",
+    "--barrier=0.0001",
+    "--sim_time=100"
+  ],
+  "git_sha": "4e0d73ca77d6ec2db7f1f9b15d037e16adeda03c",
+  "host": "PUGET-270565",
+  "start_time": "2026-07-24T14:17:17.494634",
+  "timeout": 28800,
+  "end_time": "2026-07-24T14:19:30.171860",
+  "wall_seconds": 132.677187,
+  "exit_code": 0,
+  "timed_out": false
+}

@@ -1,0 +1,46 @@
+{
+  "campaign": "campaign2",
+  "experiment": "spiral",
+  "config_id": "bm0.0001-acc0.1-beta0.01",
+  "pass": "heavy",
+  "kind": "demo",
+  "params": {
+    "variant": "spiral",
+    "accuracy": 0.1,
+    "beta": 0.01,
+    "barrier": 0.0001,
+    "margin": 0.0001
+  },
+  "argv": [
+    "/home/joe/tri/drake-private/bazel-bin/examples/integrators/error_control_demo",
+    "--example=sphere_and_spiral",
+    "--sim_time=10.0",
+    "--E=1e9",
+    "--d=10",
+    "--margin=0.0001",
+    "--barrier=0.0001",
+    "--accuracy=0.1",
+    "--beta=0.01",
+    "--summary_file=/home/joe/tri/drake-private/project_plan/campaign2/data/heavy/spiral/bm0.0001-acc0.1-beta0.01/summary_demo.json",
+    "--stats_file=/home/joe/tri/drake-private/project_plan/campaign2/data/heavy/spiral/bm0.0001-acc0.1-beta0.01/steps.tsv"
+  ],
+  "overrides": {},
+  "args": [
+    "--example=sphere_and_spiral",
+    "--sim_time=10.0",
+    "--E=1e9",
+    "--d=10",
+    "--margin=0.0001",
+    "--barrier=0.0001",
+    "--accuracy=0.1",
+    "--beta=0.01"
+  ],
+  "timeout": 1800,
+  "git_sha": "a25f2df330db813dc2206e0ddb9b640bce270370",
+  "host": "joe-puget",
+  "start_time": "2026-08-07T07:29:50.857442+00:00",
+  "end_time": "2026-08-07T07:30:08.667452+00:00",
+  "wall_seconds": 17.809955921024084,
+  "exit_code": 0,
+  "timed_out": false
+}

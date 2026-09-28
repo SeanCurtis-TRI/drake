@@ -1,0 +1,71 @@
+config:
+  simulation_time: 3.0
+  simulator_config:
+    integration_scheme: cenic
+    accuracy: 0.01
+    max_step_size: 0.1
+    use_error_control: true
+  plant_config:
+    time_step: 0.0
+    contact_model: hydroelastic
+    stiction_tolerance: 0.0001
+    discrete_contact_approximation: lagged
+    sap_near_rigid_threshold: 1.0
+  scene_graph_config:
+    default_proximity_properties:
+      compliance_type: compliant
+      hydroelastic_modulus: 1.0e9
+      resolution_hint: 0.01
+      dynamic_friction: 0.5
+      static_friction: 0.5
+      hunt_crossley_dissipation: 10.0
+      relaxation_time: 0.01
+      point_stiffness: 1.0e5
+      margin: 0.001
+      barrier: 0.0001
+  icf_solver_config:
+    min_tolerance: 1e-8
+    enable_hessian_reuse: false
+    hessian_reuse_target_iterations: 10
+    use_dense_algebra: false
+    linesearch_tolerance: 1e-8
+    alpha_max: 1.0
+    print_solver_stats: false
+    beta: 0.1
+    collect_heavy_stats: true
+    use_toi: true
+  clutter_config:
+    density: 1000.0
+    emulate_box_multicontact: false
+    num_spheres_per_face: 3
+    enable_box_box_collision: true
+    add_box_corners: false
+    num_piles: 4
+    objects_per_pile: 5
+    dz: 0.15
+    scale_factor: 1.0
+    add_sink_walls: true
+    enable_boxes: false
+    random_offsets: true
+    mesh_files:
+    - /home/joe/tri/drake-private/project_plan/campaign2/meshes/thingi10k_lowpoly20/116891.obj
+    - /home/joe/tri/drake-private/project_plan/campaign2/meshes/thingi10k_lowpoly20/53882.obj
+    - /home/joe/tri/drake-private/project_plan/campaign2/meshes/thingi10k_lowpoly20/59560.obj
+    - /home/joe/tri/drake-private/project_plan/campaign2/meshes/thingi10k_lowpoly20/89913.obj
+    - /home/joe/tri/drake-private/project_plan/campaign2/meshes/thingi10k_lowpoly20/59559.obj
+    - /home/joe/tri/drake-private/project_plan/campaign2/meshes/thingi10k_lowpoly20/94733.obj
+    - /home/joe/tri/drake-private/project_plan/campaign2/meshes/thingi10k_lowpoly20/76202.obj
+    - /home/joe/tri/drake-private/project_plan/campaign2/meshes/thingi10k_lowpoly20/249521.obj
+    - /home/joe/tri/drake-private/project_plan/campaign2/meshes/thingi10k_lowpoly20/53435.obj
+    - /home/joe/tri/drake-private/project_plan/campaign2/meshes/thingi10k_lowpoly20/68646.obj
+    - /home/joe/tri/drake-private/project_plan/campaign2/meshes/thingi10k_lowpoly20/472143.obj
+    - /home/joe/tri/drake-private/project_plan/campaign2/meshes/thingi10k_lowpoly20/110173.obj
+    - /home/joe/tri/drake-private/project_plan/campaign2/meshes/thingi10k_lowpoly20/79184.obj
+    - /home/joe/tri/drake-private/project_plan/campaign2/meshes/thingi10k_lowpoly20/1452674.obj
+    - /home/joe/tri/drake-private/project_plan/campaign2/meshes/thingi10k_lowpoly20/693468.obj
+    - /home/joe/tri/drake-private/project_plan/campaign2/meshes/thingi10k_lowpoly20/43780.obj
+    - /home/joe/tri/drake-private/project_plan/campaign2/meshes/thingi10k_lowpoly20/74458.obj
+    - /home/joe/tri/drake-private/project_plan/campaign2/meshes/thingi10k_lowpoly20/255657.obj
+    - /home/joe/tri/drake-private/project_plan/campaign2/meshes/thingi10k_lowpoly20/472084.obj
+    - /home/joe/tri/drake-private/project_plan/campaign2/meshes/thingi10k_lowpoly20/69128.obj
+    mesh_scale: 1.0

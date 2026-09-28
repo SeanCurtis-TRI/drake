@@ -1,0 +1,25 @@
+
+Wall clock time: 0.49350523948669434
+
+x_final: 0.38550845175728327
+
+General stats regarding discrete updates:
+Number of time steps taken (simulator stats) = 113
+Simulator publishes every time step: true
+Number of publishes = 0
+Number of discrete updates = 0
+Number of "unrestricted" updates = 0
+
+Stats for integrator CenicIntegrator with error control:
+Number of time steps taken (integrator stats) = 113
+Initial time step taken =       0.01 s
+Largest time step taken =        0.1 s
+Smallest adapted step size =       0.01 s
+Number of steps shrunk due to error control = 9
+Number of derivative evaluations = 0
+Number of steps shrunk due to convergence-based failure = 0
+Number of convergence-based step failures (should match) = 0
+CENIC Statistics:
+Number of solver iterations = 861
+Number of hessian factorizations = 861
+Number of linesearch iterations = 972
