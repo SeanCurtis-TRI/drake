@@ -2,7 +2,8 @@
 
 #include <memory>
 
-#include <fcl/fcl.h>
+#include <coal/collision_object.h>
+#include <coal/shape/geometric_shapes.h>
 #include <gtest/gtest.h>
 
 #include "drake/common/test_utilities/eigen_matrix_compare.h"
@@ -13,9 +14,9 @@ namespace internal {
 namespace shape_distance {
 namespace {
 
+using coal::Box;
 using Eigen::AngleAxisd;
 using Eigen::Vector3d;
-using fcl::Boxd;
 using math::RigidTransformd;
 using math::RollPitchYawd;
 using std::make_shared;
@@ -34,12 +35,12 @@ GTEST_TEST(CalcGradientWhenTouching, SphereTouch) {
   const double radius = 2;
   const RigidTransformd X_FA(Vector3d(-radius, 0, 0));
   const RigidTransformd X_WA = X_WF * X_FA;
-  const fcl::CollisionObjectd a(make_shared<fcl::Sphered>(radius),
+  const coal::CollisionObject a(make_shared<coal::Sphere>(radius),
                                 X_WA.rotation().matrix(), X_WA.translation());
   const double rx = 2;
   const RigidTransformd X_FB(Vector3d(rx, 0, 0));
   const RigidTransformd X_WB = X_WF * X_FB;
-  const fcl::CollisionObjectd b(make_shared<fcl::Ellipsoidd>(rx, 3, 4),
+  const coal::CollisionObject b(make_shared<coal::Ellipsoid>(rx, 3, 4),
                                 X_WB.rotation().matrix(), X_WB.translation());
   const Vector3d p_ACa(radius, 0, 0);
   const Vector3d p_BCb(-rx, 0, 0);
@@ -62,11 +63,11 @@ GTEST_TEST(CalcGradientWhenTouching, box_touches_box) {
   // Two boxes touch at their faces passing World's origin.
   const double width = 2;
   const RigidTransformd X_WA(Vector3d(-width / 2, 0, 0));
-  const fcl::CollisionObjectd box_A(make_shared<Boxd>(width, 3, 4),
+  const coal::CollisionObject box_A(make_shared<Box>(width, 3, 4),
                                     X_WA.rotation().matrix(),
                                     X_WA.translation());
   const RigidTransformd X_WB(Vector3d(width / 2, 0, 0));
-  const fcl::CollisionObjectd box_B(make_shared<Boxd>(width, 5, 6),
+  const coal::CollisionObject box_B(make_shared<Box>(width, 5, 6),
                                     X_WB.rotation().matrix(),
                                     X_WB.translation());
   const Vector3d p_ACa(width / 2, 0, 0);
@@ -79,7 +80,7 @@ GTEST_TEST(CalcGradientWhenTouching, box_touches_box) {
 }
 
 void PointOnBoxSurfaceHelperTester(
-    const fcl::Boxd& box_B, const Vector3d& p_BCb, int expected_sum,
+    const coal::Box& box_B, const Vector3d& p_BCb, int expected_sum,
     std::optional<int> expected_axis_index,
     std::optional<const Vector3d> expected_normal) {
   const Vector3d v_B = PointOnBoxSurfaceHelper(p_BCb, box_B);
@@ -105,7 +106,7 @@ void PointOnBoxSurfaceHelperTester(
 
 GTEST_TEST(PointInBox, PointOnBoxSurfaceHelper) {
   // The box spans [-1,1]x[-2,2]x[-4,4].
-  const fcl::Boxd box_B(2, 4, 8);
+  const coal::Box box_B(2, 4, 8);
   {
     SCOPED_TRACE("This point is in the interior of the box.");
     PointOnBoxSurfaceHelperTester(box_B, Vector3d(0.01, -0.02, 0.03), 0, {},
@@ -156,7 +157,7 @@ GTEST_TEST(PointInBox, PointOnBoxSurfaceHelper) {
 // It is inspired by issue 21192. This test also shows that we can get
 // incorrect classification due to imperfect numerical precisions.
 GTEST_TEST(PointOnBoxSurfaceHelper, CornerCases) {
-  const fcl::Boxd box_B(0.25, 0.25, 0.25);
+  const coal::Box box_B(0.25, 0.25, 0.25);
   // See documentation of PointOnBoxSurfaceHelper() for the meaning of these
   // encoding vectors.
   const Vector3d kVertexXYZ(1, 1, 1);
@@ -194,7 +195,7 @@ GTEST_TEST(SeparatingAxis, ProjectedMinMax) {
   // This box spans [-2,2]x[-3,3]x[-6,6]. Half the length of its diagonal
   // is 7 because 2² + 3² + 6² = 4 + 9 + 36 = 49 = 7². We will use this fact
   // in the test later.
-  const fcl::Boxd box_B(4, 6, 12);
+  const coal::Box box_B(4, 6, 12);
   // Use the unit vector along the diagonal of the box.
   const Vector3d unit_vector_W = Vector3d(2, 3, 6).normalized();
 
@@ -241,9 +242,9 @@ GTEST_TEST(SeparatingAxis, MaybeMakeSeparatingVector) {
   // Fix box_A at World's origin.
   const RigidTransformd X_WA = RigidTransformd::Identity();
   // box_A spans [-0.5,0.5]x[-0.5,0.5]x[-0.5,0.5].
-  const fcl::Boxd box_A(1, 1, 1);
+  const coal::Box box_A(1, 1, 1);
   // box_B spans [-1.5,1.5]x[-1.5,1.5]x[-1.5,1.5].
-  const fcl::Boxd box_B(3, 3, 3);
+  const coal::Box box_B(3, 3, 3);
   // Place box_B so its face passes through a face of box_A.
   const RigidTransformd X_WB(Vector3d(2, 0, 0));
 
@@ -292,9 +293,9 @@ GTEST_TEST(SeparatingAxis, MaybeMakeSeparatingVector) {
 GTEST_TEST(BoxBoxGradient, Face) {
   const RigidTransformd X_WA = RigidTransformd::Identity();
   // box_A spans [-0.5,0.5]x[-0.5,0.5]x[-0.5,0.5].
-  const fcl::Boxd box_A(1, 1, 1);
+  const coal::Box box_A(1, 1, 1);
   // box_B spans [-1.5,1.5]x[-1.5,1.5]x[-1.5,1.5].
-  const fcl::Boxd box_B(3, 3, 3);
+  const coal::Box box_B(3, 3, 3);
   const RigidTransformd X_WB(Vector3d(2, 0, 0));
   // On Box A, the witness point is at a vertex.
   const Vector3d p_ACa(0.5, 0.5, 0.5);
@@ -326,9 +327,9 @@ GTEST_TEST(BoxBoxGradient, Face) {
 GTEST_TEST(BoxBoxGradient, EdgeCrossEdge) {
   const RigidTransformd X_WA = RigidTransformd::Identity();
   // box_A spans [-1,1]x[-1,1]x[-1,1].
-  const fcl::Boxd box_A(2, 2, 2);
+  const coal::Box box_A(2, 2, 2);
   // box_B spans [-1,1]x[-1,1]x[-1,1].
-  const fcl::Boxd box_B(2, 2, 2);
+  const coal::Box box_B(2, 2, 2);
   // Pose box_B so that each witness point is at the middle of an edge of
   // each box.
   const RigidTransformd X_WB(AngleAxisd(M_PI_2, Vector3d(1, 1, 0)),
@@ -363,11 +364,11 @@ GTEST_TEST(BoxBoxGradient, EdgeCrossEdge) {
 GTEST_TEST(BoxBoxGradient, ParallelEdgeEdge) {
   const RigidTransformd X_WA = RigidTransformd::Identity();
   // box_A spans [-1,1]x[-1,1]x[-1,1].
-  const fcl::Boxd box_A(2, 2, 2);
+  const coal::Box box_A(2, 2, 2);
   // Translate diagonally in X-Y plane
   const RigidTransformd X_WB(Vector3d(2, 2, 0));
   // box_B spans [-1,1]x[-1,1]x[-1,1].
-  const fcl::Boxd box_B(2, 2, 2);
+  const coal::Box box_B(2, 2, 2);
   // The witness point of box_A is in the middle of an edge parallel to Az axis.
   const Vector3d p_ACa(1, 1, 0);
   // The witness point of box_B is in the middle of an edge parallel to Bz axis.
@@ -405,12 +406,12 @@ GTEST_TEST(BoxBoxGradient, ParallelEdgeEdge) {
 GTEST_TEST(BoxBoxGradient, EdgeVertex) {
   const RigidTransformd X_WA = RigidTransformd::Identity();
   // box_A spans [-1,1]x[-1,1]x[-1,1].
-  const fcl::Boxd box_A(2, 2, 2);
+  const coal::Box box_A(2, 2, 2);
   using std::sqrt;
   const RigidTransformd X_WB(AngleAxisd(M_PI_4, Vector3d::UnitZ()),
                              Vector3d(1 + 1 / sqrt(2), 1 + 1 / sqrt(2), 2));
   // box_B spans [-1,1]x[-1,1]x[-1,1].
-  const fcl::Boxd box_B(2, 2, 2);
+  const coal::Box box_B(2, 2, 2);
   // The witness point of box_A is at the most positive +X+Y+Z vertex.
   const Vector3d p_ACa = Vector3d::Ones();
   // The witness point of box_B is in the middle of an edge parallel to By axis.
@@ -442,10 +443,10 @@ GTEST_TEST(BoxBoxGradient, EdgeVertex) {
 GTEST_TEST(BoxBoxGradient, VertexVertexUseFaceNormal) {
   const RigidTransformd X_WA = RigidTransformd::Identity();
   // box_A spans [-1,1]x[-1,1]x[-1,1].
-  const fcl::Boxd box_A(2, 2, 2);
+  const coal::Box box_A(2, 2, 2);
   const RigidTransformd X_WB(Vector3d(2, 2, 2));
   // box_A spans [-1,1]x[-1,1]x[-1,1].
-  const fcl::Boxd box_B(2, 2, 2);
+  const coal::Box box_B(2, 2, 2);
   // The witness point of box_A is at the most positive +X+Y+Z vertex.
   const Vector3d p_ACa = Vector3d::Ones();
   // The witness point of box_B is at the most negative -X-Y-Z vertex.
@@ -479,10 +480,10 @@ GTEST_TEST(BoxBoxGradient, VertexVertexUseFaceNormal) {
 GTEST_TEST(BoxBoxGradient, VertexVetexUseFaceNormalSpecial) {
   const RigidTransformd X_WA = RigidTransformd::Identity();
   // box_A spans [-1,1]x[-1,1]x[-1,1].
-  const fcl::Boxd box_A(2, 2, 2);
+  const coal::Box box_A(2, 2, 2);
   const RigidTransformd X_WB(Vector3d(2, 0, 0));
   // box_B spans [-1,1]x[-1,1]x[-1,1].
-  const fcl::Boxd box_B(2, 2, 2);
+  const coal::Box box_B(2, 2, 2);
   // Witness points are at vertices.
   const Vector3d p_ACa(1, 1, 1);
   const Vector3d p_BCb(-1, 1, 1);
@@ -504,14 +505,14 @@ GTEST_TEST(BoxBoxGradient, VertexVetexUseFaceNormalSpecial) {
 GTEST_TEST(BoxBoxGradient, VertexVertexNeedCrossProduct) {
   const RigidTransformd X_WA = RigidTransformd::Identity();
   // box_A spans [-1,1]x[-1,1]x[-1,1].
-  const fcl::Boxd box_A(2, 2, 2);
+  const coal::Box box_A(2, 2, 2);
   // Rotation around a diagonal direction of the box preserves the two opposite
   // vertices of the box. Translation by the diagonal vector makes one of
   // such vertices touch the identical box at a vertex.
   const RigidTransformd X_WB(AngleAxisd(M_PI_4, Vector3d::Ones()),
                              Vector3d(2, 2, 2));
   // box_B spans [-1,1]x[-1,1]x[-1,1].
-  const fcl::Boxd box_B(2, 2, 2);
+  const coal::Box box_B(2, 2, 2);
   // Witness points are at vertices.
   const Vector3d p_ACa(1, 1, 1);
   const Vector3d p_BCb(-1, -1, -1);
@@ -550,10 +551,10 @@ GTEST_TEST(BoxBoxGradient, VertexVertexNeedCrossProduct) {
 //
 GTEST_TEST(BoxBoxGradient, InputWithNumericalErrors) {
   const RigidTransformd X_WA = RigidTransformd::Identity();
-  const fcl::Boxd box_A(0.2, 0.2, 0.2);
+  const coal::Box box_A(0.2, 0.2, 0.2);
   // Translate diagonally in X-Y plane
   const RigidTransformd X_WB(Vector3d(0.2, 0.2, 0));
-  const fcl::Boxd box_B(0.2, 0.2, 0.2);
+  const coal::Box box_B(0.2, 0.2, 0.2);
   // The witness point of box_A is in the middle of an edge parallel to Az axis.
   const Vector3d p_ACa(0.1 - 1e-13, 0.1 - 1e-13, 0);
   // The witness point of box_B is in the middle of an edge parallel to Bz axis.

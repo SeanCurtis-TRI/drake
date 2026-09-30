@@ -2,24 +2,55 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <vector>
 
-#include <fcl/fcl.h>
+#include <coal/collision_object.h>
+#include <coal/shape/convex.h>
 #include <fmt/format.h>
 
 #include "drake/common/drake_export.h"
 #include "drake/geometry/geometry_ids.h"
 #include "drake/geometry/proximity/volume_mesh.h"
 #include "drake/geometry/shape_specification.h"
+#include "drake/math/rigid_transform.h"
 
 namespace drake {
 namespace geometry {
 namespace internal DRAKE_NO_EXPORT {
 
-// TODO(SeanCurtis-TRI): Given the dependencies on fcl for this file, the name
+// TODO(SeanCurtis-TRI): Given the dependencies on Coal for this file, the name
 //  should reflect it so that it doesn't get included in files that will
 //  eventually get included in the public API.
+
+/* Coal's convex polytope is templated on the polygon type it stores. Drake
+ always uses 32-bit triangles; see MakeCoalTriangles().  */
+using CoalConvex = coal::Convex<coal::Triangle32>;
+
+/* Converts a Drake pose into the rigid transform type that Coal's API
+ consumes.  */
+inline coal::Transform3s ToCoalTransform(const math::RigidTransformd& X_AB) {
+  return coal::Transform3s(X_AB.rotation().matrix(), X_AB.translation());
+}
+
+/* Converts a Coal transform back into a Drake pose. The inverse of
+ ToCoalTransform().  */
+inline math::RigidTransformd FromCoalTransform(const coal::Transform3s& X_AB) {
+  return math::RigidTransformd(math::RotationMatrixd(X_AB.getRotation()),
+                               X_AB.getTranslation());
+}
+
+/* Triangulates the faces of a convex PolygonSurfaceMesh -- given in that
+ class's flat [count, v₀, v₁, ..., count, ...] encoding -- into the triangle
+ list that CoalConvex requires. Each n-gon becomes a fan of n - 2 triangles
+ around its first vertex, which preserves the winding (and therefore the
+ outward normal) of the original face.
+
+ @pre `face_data` is the face_data() of a PolygonSurfaceMesh whose faces are
+      all planar and convex (which is true of a convex hull).  */
+std::vector<coal::Triangle32> MakeCoalTriangles(
+    const std::vector<int>& face_data);
 
 // TODO(SeanCurtis-TRI): Snake case this name.
 /* Calculates an absolute tolerance value conditioned to a problem's
@@ -40,7 +71,7 @@ constexpr double DistanceToPointRelativeTolerance(double size) {
  (proximity engine segregates them). The highest-order bit indicates dynamic (1)
  or anchored (0). The remaining lower bits store the id. The data is stored in a
  pointer-sized integer. This integer is, in turn, stored directly into
- fcl::CollisionObject's void* user data member.  */
+ coal::CollisionObject's void* user data member.  */
 class EncodedData {
  public:
   using ValueType = decltype(GeometryId::get_new_id().get_value());
@@ -59,8 +90,8 @@ class EncodedData {
 
   /* Constructs encoded data by extracting it from the given collision object.
    */
-  explicit EncodedData(const fcl::CollisionObject<double>& fcl_object)
-      : data_(reinterpret_cast<ValueType>(fcl_object.getUserData())) {}
+  explicit EncodedData(const coal::CollisionObject& coal_object)
+      : data_(reinterpret_cast<ValueType>(coal_object.getUserData())) {}
 
   /* Constructs encoded data for the given id identified as dynamic.  */
   static EncodedData encode_dynamic(GeometryId id) { return {id, true}; }
@@ -75,7 +106,7 @@ class EncodedData {
   void set_anchored() { data_ &= ~kIsDynamicMask; }
 
   /* Writes the encoded data into the collision object's user data.  */
-  void write_to(fcl::CollisionObject<double>* object) const {
+  void write_to(coal::CollisionObject* object) const {
     object->setUserData(reinterpret_cast<void*>(data_));
   }
 
@@ -122,7 +153,7 @@ class EncodedData {
 
 /* Returns the name of the geometry associated with the given collision
  `object`.  */
-std::string GetGeometryName(const fcl::CollisionObjectd& object);
+std::string GetGeometryName(const coal::CollisionObject& object);
 
 // TODO(joemasterjohn): Move the below mesh testing utilities to a separate
 // target only used by tests.

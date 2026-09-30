@@ -28,25 +28,16 @@ namespace {
 using std::vector;
 
 // Creates a string containing the OBJ representation of the given convex shape.
-std::string MakeConvexObj(const fcl::Convexd& convex) {
-  namespace sv = std::views;
-
+std::string MakeConvexObj(const CoalConvex& convex) {
   std::string obj;
-  for (const auto& p_MV : convex.getVertices()) {
+  for (const auto& p_MV : *convex.points) {
     obj += fmt::format("v {:#:}\n", fmt_eigen(p_MV.transpose()));
   }
 
-  int cursor = 0;
-  const std::vector<int>& face_data = convex.getFaces();
-  while (cursor + 1 < std::ssize(face_data)) {
-    const int num_vertices = face_data.at(cursor++);
-    DRAKE_DEMAND(num_vertices > 0);
-    auto slice = face_data | sv::drop(cursor) | sv::take(num_vertices) |
-                 sv::transform([](int i) {
-                   return i + 1;
-                 });
-    obj += fmt::format("f {}\n", fmt::join(slice, " "));
-    cursor += num_vertices;
+  // Coal stores the hull's faces as triangles (see MakeCoalTriangles()), so
+  // every face is a three-element list of (1-indexed) vertices.
+  for (const coal::Triangle32& tri : *convex.polygons) {
+    obj += fmt::format("f {} {} {}\n", tri[0] + 1, tri[1] + 1, tri[2] + 1);
   }
 
   return obj;
@@ -56,23 +47,24 @@ std::string MakeConvexObj(const fcl::Convexd& convex) {
 template <typename T>
 class PointDistanceCallback : public DistanceCallback<T> {
  public:
-  bool Invoke(fcl::CollisionObjectd* obj_A, fcl::CollisionObjectd* obj_B,
+  bool Invoke(coal::CollisionObject* obj_A, coal::CollisionObject* obj_B,
               const CollisionFilter*,
               const std::unordered_map<GeometryId, math::RigidTransform<T>>*
                   X_WGs) override {
     // We treat the first sphere as representing the query point.
-    DRAKE_DEMAND(obj_A->collisionGeometry()->getNodeType() == fcl::GEOM_SPHERE);
+    DRAKE_DEMAND(obj_A->collisionGeometry()->getNodeType() ==
+                 coal::GEOM_SPHERE);
     const GeometryId point_id = EncodedData(*obj_A).id();
     const Vector3<T> p_WQ = X_WGs->at(point_id).translation();
     MeshDistanceBoundaryCache mesh_distance_boundary_cache;
-    // Both drake::Convex and drake::Mesh are represented as fcl::GEOM_CONVEX.
-    if (obj_B->collisionGeometry().get()->getNodeType() == fcl::GEOM_CONVEX) {
+    // Both drake::Convex and drake::Mesh are represented as coal::GEOM_CONVEX.
+    if (obj_B->collisionGeometry().get()->getNodeType() == coal::GEOM_CONVEX) {
       // We're making a single assumption: both Mesh and Convex are being tested
       // with a mesh that *is* its own convex hull. If
-      // MakeFclShape::ImplementGeometry(Mesh) (characterization_utilities.cc)
+      // MakeCoalShape::ImplementGeometry(Mesh) (characterization_utilities.cc)
       // ever changes, we'll have to adapt this.
-      const fcl::Convexd& convex =
-          *static_cast<const fcl::Convexd*>(obj_B->collisionGeometry().get());
+      const CoalConvex& convex =
+          *static_cast<const CoalConvex*>(obj_B->collisionGeometry().get());
       const std::string obj_contents = MakeConvexObj(convex);
       Mesh mesh(InMemoryMesh{
           .mesh_file = MemoryFile(obj_contents, ".obj", "test_box.obj")});
@@ -150,7 +142,7 @@ class CharacterizePointDistanceResultTest : public CharacterizeResultTest<T> {
  However, this single test will detect when that condition is no longer true
  and call for implementation of *-Mesh tests. */
 GTEST_TEST(CharacterizePointDistanceResultTest, MeshMesh) {
-  ASSERT_TRUE(MeshIsConvexInFcl());
+  ASSERT_TRUE(MeshIsConvexInCoal());
 }
 
 class DoubleTest : public CharacterizePointDistanceResultTest<double>,

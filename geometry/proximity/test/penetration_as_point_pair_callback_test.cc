@@ -15,7 +15,7 @@
 #include "drake/common/test_utilities/eigen_matrix_compare.h"
 #include "drake/common/test_utilities/expect_throws_message.h"
 #include "drake/geometry/proximity/proximity_utilities.h"
-#include "drake/geometry/proximity/test/fcl_utilities.h"
+#include "drake/geometry/proximity/test/coal_utilities.h"
 #include "drake/math/autodiff.h"
 #include "drake/math/autodiff_gradient.h"
 #include "drake/math/rigid_transform.h"
@@ -27,10 +27,9 @@ namespace internal {
 namespace penetration_as_point_pair {
 namespace {
 
+using coal::CollisionObject;
 using Eigen::AngleAxisd;
 using Eigen::Vector3d;
-using fcl::CollisionObjectd;
-using fcl::Sphered;
 using math::RigidTransform;
 using math::RigidTransformd;
 using math::RotationMatrix;
@@ -63,15 +62,15 @@ class PenetrationAsPointPairCallbackTest : public ::testing::Test {
  public:
   PenetrationAsPointPairCallbackTest()
       : ::testing::Test(),
-        sphere_A_(make_shared<Sphered>(kRadius)),
-        sphere_B_(make_shared<Sphered>(kRadius)),
-        box_(make_shared<fcl::Boxd>(box_size_[0], box_size_[1], box_size_[2])),
+        sphere_A_(make_shared<coal::Sphere>(kRadius)),
+        sphere_B_(make_shared<coal::Sphere>(kRadius)),
+        box_(make_shared<coal::Box>(box_size_[0], box_size_[1], box_size_[2])),
         cylinder_(
-            make_shared<fcl::Cylinderd>(cylinder_size_[0], cylinder_size_[1])),
+            make_shared<coal::Cylinder>(cylinder_size_[0], cylinder_size_[1])),
         halfspace_(
-            make_shared<fcl::Halfspaced>(halfspace_normal_, halfspace_offset_)),
+            make_shared<coal::Halfspace>(halfspace_normal_, halfspace_offset_)),
         capsule_(
-            make_shared<fcl::Capsuled>(capsule_size_[0], capsule_size_[1])),
+            make_shared<coal::Capsule>(capsule_size_[0], capsule_size_[1])),
         id_A_(GeometryId::get_new_id()),
         id_B_(GeometryId::get_new_id()),
         id_box_(GeometryId::get_new_id()),
@@ -82,7 +81,7 @@ class PenetrationAsPointPairCallbackTest : public ::testing::Test {
 
  protected:
   void SetUp() override {
-    auto encode_data = [this](GeometryId id, CollisionObjectd* shape) {
+    auto encode_data = [this](GeometryId id, CollisionObject* shape) {
       const EncodedData data(id, true);
       data.write_to(shape);
       this->collision_filter_.AddGeometry(data.id());
@@ -194,7 +193,7 @@ class PenetrationAsPointPairCallbackTest : public ::testing::Test {
 
   template <typename T>
   void TestSphereShape(double target_depth, const RigidTransform<T>& X_WB,
-                       fcl::CollisionObjectd shape, GeometryId shape_id) {
+                       coal::CollisionObject shape, GeometryId shape_id) {
     // We compute the collision between the shape and the sphere located at the
     // world origin. This shape should in contact with the sphere. If this test
     // is instantiated with T=AutoDiffXd, then this test expect the
@@ -325,8 +324,8 @@ class PenetrationAsPointPairCallbackTest : public ::testing::Test {
   }
 
   template <typename T>
-  void UnsupportedGeometry(fcl::CollisionObjectd shape1,
-                           fcl::CollisionObjectd shape2, GeometryId id1,
+  void UnsupportedGeometry(coal::CollisionObject shape1,
+                           coal::CollisionObject shape2, GeometryId id1,
                            GeometryId id2) {
     const std::unordered_map<GeometryId, RigidTransform<T>> X_WGs{
         {{id1, RigidTransform<T>::Identity()},
@@ -345,12 +344,12 @@ class PenetrationAsPointPairCallbackTest : public ::testing::Test {
   const Eigen::Vector3d halfspace_normal_{0, 0, 1};
   const double halfspace_offset_{0.};
   const std::array<double, 2> capsule_size_{1.3, 2.3};
-  CollisionObjectd sphere_A_;
-  CollisionObjectd sphere_B_;
-  CollisionObjectd box_;
-  CollisionObjectd cylinder_;
-  CollisionObjectd halfspace_;
-  CollisionObjectd capsule_;
+  CollisionObject sphere_A_;
+  CollisionObject sphere_B_;
+  CollisionObject box_;
+  CollisionObject cylinder_;
+  CollisionObject halfspace_;
+  CollisionObject capsule_;
   GeometryId id_A_;
   GeometryId id_B_;
   GeometryId id_box_;
@@ -482,7 +481,7 @@ TEST_F(PenetrationAsPointPairCallbackTest, SphereCapsuleAutoDiffXd) {
 TEST_F(PenetrationAsPointPairCallbackTest, UnsupportedAutoDiffXd) {
   // We don't support penetration query between overlapping box-cylinder with
   // AutoDiffXd yet.
-  std::vector<std::pair<fcl::CollisionObjectd, GeometryId>>
+  std::vector<std::pair<coal::CollisionObject, GeometryId>>
       unsupported_geometries;
   unsupported_geometries.emplace_back(box_, id_box_);
   unsupported_geometries.emplace_back(cylinder_, id_cylinder_);
@@ -501,7 +500,7 @@ TEST_F(PenetrationAsPointPairCallbackTest, UnsupportedAutoDiffXd) {
 
 TEST_F(PenetrationAsPointPairCallbackTest, UnsupportedExpression) {
   // We don't support penetration queries between any shapes for Expression.
-  std::vector<std::pair<fcl::CollisionObjectd, GeometryId>>
+  std::vector<std::pair<coal::CollisionObject, GeometryId>>
       unsupported_geometries;
   unsupported_geometries.emplace_back(sphere_A_, id_A_);
   unsupported_geometries.emplace_back(box_, id_box_);
@@ -524,8 +523,8 @@ TEST_F(PenetrationAsPointPairCallbackTest, UnsupportedExpression) {
 // depth. It is not a useful query to answer.
 TEST_F(PenetrationAsPointPairCallbackTest, UnsupportedHalfSpaceHalfSpace) {
   // Create a second half space.
-  CollisionObjectd halfspace2(
-      make_shared<fcl::Halfspaced>(Vector3d{1, 0, 0}, 0));
+  CollisionObject halfspace2(
+      make_shared<coal::Halfspace>(Vector3d{1, 0, 0}, 0));
   const GeometryId hs2_id = GeometryId::get_new_id();
   const EncodedData data(hs2_id, true);
   data.write_to(&halfspace2);
@@ -563,10 +562,10 @@ TEST_F(PenetrationAsPointPairCallbackTest, Issue10577Regression_Osculation) {
   RigidTransformd X_WA(Eigen::AngleAxisd{M_PI_2, Vector3d::UnitZ()},
                        Vector3d{-0.25, 0, 0});
   RigidTransformd X_WB(Vector3d{0, 0, 0.0085});
-  std::unique_ptr<CollisionObjectd> box =
-      MakeFclObject(Box(0.49, 0.63, 0.015), id_A, /* is_dynamic= */ true, X_WA);
-  std::unique_ptr<CollisionObjectd> cylinder =
-      MakeFclObject(Cylinder(0.08, 0.002), id_B, /* is_dynamic= */ true, X_WB);
+  std::unique_ptr<CollisionObject> box = MakeCoalObject(
+      Box(0.49, 0.63, 0.015), id_A, /* is_dynamic= */ true, X_WA);
+  std::unique_ptr<CollisionObject> cylinder =
+      MakeCoalObject(Cylinder(0.08, 0.002), id_B, /* is_dynamic= */ true, X_WB);
   const unordered_map<GeometryId, RigidTransformd> X_WG{{id_A, X_WA},
                                                         {id_B, X_WB}};
 
@@ -713,12 +712,12 @@ class BoxPenetrationTest : public ::testing::Test {
                      const math::RigidTransformd& X_WB) {
     const GeometryId tangent_id = GeometryId::get_new_id();
     const RigidTransformd X_WA = shape_pose(shape_type);
-    std::unique_ptr<CollisionObjectd> tangent_object = MakeFclObject(
+    std::unique_ptr<CollisionObject> tangent_object = MakeCoalObject(
         shape(shape_type), tangent_id, /* is_dynamic= */ true, X_WA);
 
     const GeometryId box_id = GeometryId::get_new_id();
-    std::unique_ptr<CollisionObjectd> box_object =
-        MakeFclObject(box_, box_id, /* is_dynamic= */ true, X_WB);
+    std::unique_ptr<CollisionObject> box_object =
+        MakeCoalObject(box_, box_id, /* is_dynamic= */ true, X_WB);
 
     // Note: we need a CollisionFilter for the callback data, but we don't need
     // to populate it, because we're not actually filtering anything.

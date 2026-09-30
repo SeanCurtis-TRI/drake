@@ -15,7 +15,8 @@
 #include <utility>
 #include <vector>
 
-#include <fcl/fcl.h>
+#include <coal/collision_object.h>
+#include <coal/shape/convex.h>
 #include <fmt/ranges.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -30,6 +31,7 @@
 #include "drake/geometry/proximity/deformable_contact_internal.h"
 #include "drake/geometry/proximity/make_sphere_mesh.h"
 #include "drake/geometry/proximity/mesh_distance_boundary.h"
+#include "drake/geometry/proximity/proximity_utilities.h"
 #include "drake/geometry/proximity_properties.h"
 #include "drake/geometry/shape_specification.h"
 #include "drake/math/autodiff.h"
@@ -84,17 +86,18 @@ class ProximityEngineTester {
   }
 
   template <typename T>
-  static bool IsFclConvexType(const ProximityEngine<T>& engine, GeometryId id) {
-    return engine.IsFclConvexType(id);
+  static bool IsCoalConvexType(const ProximityEngine<T>& engine,
+                               GeometryId id) {
+    return engine.IsCoalConvexType(id);
   }
 
   template <typename T>
-  static const fcl::CollisionObjectd* GetCollisionObject(
+  static const coal::CollisionObject* GetCollisionObject(
       const ProximityEngine<T>& engine, GeometryId id) {
     void* erase_ptr = engine.GetCollisionObject(id);
     if (erase_ptr != nullptr) {
       // API promises that this is a safe cast.
-      return static_cast<const fcl::CollisionObjectd*>(erase_ptr);
+      return static_cast<const coal::CollisionObject*>(erase_ptr);
     }
     return nullptr;
   }
@@ -295,7 +298,8 @@ TEST_F(ProximityEngineTests, AddGeometry) {
 
 // "Processing" hydroelastic geometry is mostly a case of invoking a method
 // on hydroelastic::Geometries. Assuming Geometries successfully adds a
-// geometry, ProximityEngine has an additional task to inflate fcl AABB bounding
+// geometry, ProximityEngine has an additional task to inflate Coal AABB
+// bounding
 // volumes for compliant hydroelastic geometries with non-zero margins. This
 // test merely confirms that meshes with hydroelastic properties invoke
 // hydroelastic::Geometries (relying on its tests to cover the details). So,
@@ -394,7 +398,8 @@ TEST_F(ProximityEngineTests, ProcessHydroelasticProperties) {
 }
 
 // When compliant hydroelastic geometries have a positive margin value,
-// ProximityEngine must inflate the AABB that fcl uses. This test confirms that
+// ProximityEngine must inflate the AABB that Coal uses. This test confirms
+// that
 // inflations happen as expected. Our expectations are as follows:
 //
 //    1. Geometry that has no hydro representation does not get inflated.
@@ -477,9 +482,9 @@ TEST_F(ProximityEngineTests, HydroelasticAabbInflation) {
   for (const auto& test_case : cases) {
     const GeometryId id =
         AddDynamic(*test_case.shape, {}, test_case.properties);
-    const auto* fcl = Tester::GetCollisionObject(engine_, id);
-    DRAKE_DEMAND(fcl != nullptr);
-    const auto& aabb = fcl->collisionGeometry()->aabb_local;
+    const auto* object = Tester::GetCollisionObject(engine_, id);
+    DRAKE_DEMAND(object != nullptr);
+    const auto& aabb = object->collisionGeometry()->aabb_local;
     if (test_case.expect_exact) {
       EXPECT_TRUE(CompareMatrices(aabb.min_, test_case.expected_min))
           << test_case.description;
@@ -613,7 +618,7 @@ TEST_F(ProximityEngineTests, ProcessVtkUndefHydro) {
 }
 
 // Tests that registering the same mesh source multiple times reuses the same
-// underlying fcl::Convex collision geometry object (i.e. the convex hull cache
+// underlying Coal convex collision geometry object (i.e. the convex hull cache
 // is working).
 TEST_F(ProximityEngineTests, ConvexHullCacheDuplicatesShareGeometry) {
   const std::string path_a =
@@ -630,16 +635,16 @@ TEST_F(ProximityEngineTests, ConvexHullCacheDuplicatesShareGeometry) {
     } else {
       id = AddAnchored(shape);
     }
-    const fcl::CollisionObjectd* obj = Tester::GetCollisionObject(engine_, id);
+    const coal::CollisionObject* obj = Tester::GetCollisionObject(engine_, id);
     DRAKE_DEMAND(obj != nullptr);
     return obj->collisionGeometry().get();
   };
 
   // We'll register one path as multiple geometry (some Mesh, some Convex).
-  const fcl::CollisionGeometryd* convex_a1 = add_geometry(Convex(path_a));
-  const fcl::CollisionGeometryd* convex_a2 = add_geometry(Convex(path_a));
-  const fcl::CollisionGeometryd* mesh_a1 = add_geometry(Mesh(path_a));
-  const fcl::CollisionGeometryd* mesh_a2 = add_geometry(Mesh(path_a));
+  const coal::CollisionGeometry* convex_a1 = add_geometry(Convex(path_a));
+  const coal::CollisionGeometry* convex_a2 = add_geometry(Convex(path_a));
+  const coal::CollisionGeometry* mesh_a1 = add_geometry(Mesh(path_a));
+  const coal::CollisionGeometry* mesh_a2 = add_geometry(Mesh(path_a));
 
   // Start by confirming our reference geometry isn't null.
   ASSERT_NE(convex_a1, nullptr);
@@ -653,8 +658,8 @@ TEST_F(ProximityEngineTests, ConvexHullCacheDuplicatesShareGeometry) {
   // We'll use a second mesh to show that not all meshes get cached the same.
   // We'll also use the second mesh to show that anchored/dynamic doesn't
   // matter.
-  const fcl::CollisionGeometryd* convex_b = add_geometry(Convex(path_b));
-  const fcl::CollisionGeometryd* mesh_b =
+  const coal::CollisionGeometry* convex_b = add_geometry(Convex(path_b));
+  const coal::CollisionGeometry* mesh_b =
       add_geometry(Mesh(path_b), /* is_dynamic= */ false);
 
   // From a different path, we should get a different geometry.
@@ -665,7 +670,7 @@ TEST_F(ProximityEngineTests, ConvexHullCacheDuplicatesShareGeometry) {
 
 // Tests that the convex hull cache correctly handles multiple registrations of
 // the same mesh file with different anisotropic scale factors. The cache must
-// produce a distinct fcl::Convexd—with correctly-scaled vertex positions for
+// produce a distinct CoalConvex—with correctly-scaled vertex positions for
 // each unique scale, rather than reusing the hull built for the first scale
 // seen.
 //
@@ -712,7 +717,7 @@ TEST_F(ProximityEngineTests, ConvexHullCacheScaleIsRespected) {
 
   // All three geometries must appear in results with their correct distances.
   // If any cache entry returned the wrong scale, the corresponding geometry's
-  // FCL AABB would be too far from the origin to pass the threshold and it
+  // Coal AABB would be too far from the origin to pass the threshold and it
   // would be missing from results.
   ASSERT_EQ(results.size(), 3);
   std::unordered_map<GeometryId, double> dist_by_id;
@@ -729,7 +734,7 @@ TEST_F(ProximityEngineTests, ConvexHullCacheScaleIsRespected) {
 // all Convex().
 
 // Tests that Convex shapes sourced from the same file but registered with
-// different margins receive distinct fcl::Convexd objects (as each Convexd
+// different margins receive distinct CoalConvex objects (as each CoalConvex
 // stores a local AABB encompassing the geometry *and* its margin). The
 // declarations can't interfere with each other.
 //
@@ -849,7 +854,7 @@ TEST_F(ProximityEngineTests,
 
   // UpdateWorldPoses triggers computeAABB() on all dynamic objects (A and B).
   // In the bug case, B's aabb_local was reset when A's was updated (shared
-  // Convexd), so B would lose its inflation here.
+  // CoalConvex), so B would lose its inflation here.
   engine_.UpdateWorldPoses(X_WGs_);
 
   // A-sphere overlap is gone; B-sphere overlap must persist.
@@ -1115,9 +1120,10 @@ TEST_F(ProximityEngineTests, FailedParsing) {
 // Tests for copy/move semantics.  ---------------------------------------------
 
 // Tests the copy semantics of the ProximityEngine -- the copy is a complete
-// copy. Each CollisionObjectd (and its transform, user data, and AABB) is
-// individually duplicated, but the underlying fcl collision geometry is shared
-// rather than deep-copied, since FCL geometry is treated as immutable after
+// copy. Each CollisionObject (and its transform, user data, and AABB) is
+// individually duplicated, but the underlying Coal collision geometry is
+// shared rather than deep-copied, since Coal geometry is treated as immutable
+// after
 // construction. As cloning makes no special effort based on geometry type, we
 // can use one or two arbitrary, representative shapes for this test.
 TEST_F(ProximityEngineTests, CopySemantics) {
@@ -1339,7 +1345,7 @@ TEST_F(ProximityEngineTests, ComputeSignedDistancePairClosestPoints) {
   1. Report no results for an empty engine.
   2. The threshold parameter makes a difference (i.e., it is passed to the
      callback).
-  3. Correct fcl formulation of query point produces expected distance
+  3. Correct Coal formulation of query point produces expected distance
      (specifically, calls computeAABB() on the query sphere).
   4. Report distance to dynamic geometry.
   5. Report distance to anchored geometry.
@@ -1450,7 +1456,7 @@ TEST_F(ProximityEngineTests, ComputeSignedDistanceToPoint) {
    1. Report no results for an empty engine.
    2. Reports no results for an empty geometry list.
    3. Throws for invalid geometry ids.
-   4. Correct fcl formulation of query point produces expected distance
+   4. Correct Coal formulation of query point produces expected distance
       (specifically, calls computeAABB() on the query sphere).
    5. Report distance to dynamic geometry.
    6. Report distance to anchored geometry.
@@ -1796,11 +1802,11 @@ TEST_F(ProximityEngineTests, InactiveGeometryStaleSemantics) {
              std::function<void(GeometryId, const Vector3d& p_WO)> set_pose,
              std::function<void()> dut, const std::string& description) {
         SCOPED_TRACE(description);
-        const fcl::CollisionObjectd* obj =
+        const coal::CollisionObject* obj =
             Tester::GetCollisionObject(engine_, id);
         ASSERT_NE(obj, nullptr);
         // Start with translation and AABB in agreement.
-        const_cast<fcl::CollisionObjectd*>(obj)->computeAABB();
+        const_cast<coal::CollisionObject*>(obj)->computeAABB();
         const Vector3d p_WO_before = obj->getTranslation();
         const Vector3d min_before = obj->getAABB().min_;
 
@@ -1836,10 +1842,10 @@ TEST_F(ProximityEngineTests, InactiveGeometryStaleSemantics) {
   // hood, preventing the staleness of the inactive set from changing.
   auto update_pose = [this](const GeometryId id, const Vector3d& p_WQ) {
     const bool pre_staleness = Tester::is_inactive_dynamic_stale(engine_);
-    const fcl::CollisionObjectd* obj = Tester::GetCollisionObject(engine_, id);
+    const coal::CollisionObject* obj = Tester::GetCollisionObject(engine_, id);
     ASSERT_NE(obj, nullptr);
     // Start with translation and AABB in agreement.
-    const_cast<fcl::CollisionObjectd*>(obj)->setTranslation(p_WQ);
+    const_cast<coal::CollisionObject*>(obj)->setTranslation(p_WQ);
     // We did not change staleness.
     EXPECT_EQ(pre_staleness, Tester::is_inactive_dynamic_stale(engine_));
   };
@@ -2286,7 +2292,7 @@ TEST_F(ProximityEngineTests, FindCollisionCandidates) {
   };
   ASSERT_THAT(eval_dut(), ::testing::UnorderedElementsAreArray(expected));
 
-  // (6) - the five spheres we have in the engine are enough to expose FCL
+  // (6) - the five spheres we have in the engine are enough to expose
   // ordering instability. A second invocation will be sufficient to show
   // ordering consistency despite that instability.
   const vector<SortedPair<GeometryId>> results2 = eval_dut();
@@ -2846,42 +2852,43 @@ TEST_F(ProximityEngineTests, NeedsConvexHull) {
       f_id, g_id, "name", {}, /* resolution_hint= */ 1.0)));
 }
 
-// ProximityEngine creates fcl::Convexd for all Mesh and Convex. For Convex,
+// ProximityEngine creates CoalConvex for all Mesh and Convex. For Convex,
 // it's part of the contract. For Mesh, it is the current handicapped
 // implementation.
 //
 // This confirms that the input mesh is ignored in favor of the convex hull
 // provided to ProximityEngine.
-TEST_F(ProximityEngineTests, ImplementedAsFclConvex) {
+TEST_F(ProximityEngineTests, ImplementedAsCoalConvex) {
   // This mesh has 8 small wedges jammed into the corners of a cube 2-units on
   // the side, centered on the origin. It is decidedly non-convex.
   // In collision queries, it should respond like a solid cube.
   const std::string obj_path =
       FindResourceOrThrow("drake/geometry/test/cube_corners.obj");
 
-  auto expect_fcl_convex_is_cube = [this](GeometryId id) {
-    const fcl::CollisionObjectd* object =
+  auto expect_coal_convex_is_cube = [this](GeometryId id) {
+    const coal::CollisionObject* object =
         ProximityEngineTester::GetCollisionObject(engine_, id);
     DRAKE_DEMAND(object != nullptr);
-    ASSERT_EQ(object->getNodeType(), fcl::GEOM_CONVEX);
-    const fcl::Convexd* fcl_shape =
-        dynamic_cast<const fcl::Convexd*>(object->collisionGeometry().get());
-    DRAKE_DEMAND(fcl_shape != nullptr);
-    // If we have a cube's 8 vertices and six faces, we'll assume it's a cube.
-    EXPECT_EQ(fcl_shape->getVertices().size(), 8);
-    EXPECT_EQ(fcl_shape->getFaceCount(), 6);
+    ASSERT_EQ(object->getNodeType(), coal::GEOM_CONVEX);
+    const CoalConvex* coal_shape =
+        dynamic_cast<const CoalConvex*>(object->collisionGeometry().get());
+    DRAKE_DEMAND(coal_shape != nullptr);
+    // If we have a cube's 8 vertices and six faces (triangulated into 12
+    // triangles for Coal), we'll assume it's a cube.
+    EXPECT_EQ(coal_shape->points->size(), 8);
+    EXPECT_EQ(coal_shape->num_polygons, 12);
   };
 
   {
-    SCOPED_TRACE("Mesh as fcl::Convexd");
+    SCOPED_TRACE("Mesh as CoalConvex");
 
     const GeometryId id = AddAnchored(Mesh(obj_path));
-    expect_fcl_convex_is_cube(id);
+    expect_coal_convex_is_cube(id);
   }
   {
-    SCOPED_TRACE("Convex as fcl::Convexd");
+    SCOPED_TRACE("Convex as CoalConvex");
     const GeometryId id = AddAnchored(Convex(obj_path));
-    expect_fcl_convex_is_cube(id);
+    expect_coal_convex_is_cube(id);
   }
 }
 

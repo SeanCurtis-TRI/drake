@@ -3,6 +3,8 @@
 #include <limits>
 #include <utility>
 
+#include <coal/collision.h>
+
 #include "drake/common/default_scalars.h"
 #include "drake/common/eigen_types.h"
 #include "drake/common/nice_type_name.h"
@@ -60,29 +62,29 @@ class PenetrationPairFunctor {
    3. Na = Ao - r * ∇φ_B(Ao)  */
   //@{
 
-  void operator()(const fcl::Sphered& sphere_A, const fcl::Sphered& sphere_B,
+  void operator()(const coal::Sphere& sphere_A, const coal::Sphere& sphere_B,
                   PenetrationAsPointPair<T>* result) {
     SphereShapePenetration(sphere_A, sphere_B, result);
   }
 
-  void operator()(const fcl::Sphered& sphere_A, const fcl::Boxd& box_B,
+  void operator()(const coal::Sphere& sphere_A, const coal::Box& box_B,
                   PenetrationAsPointPair<T>* result) {
     SphereShapePenetration(sphere_A, box_B, result);
   }
 
-  void operator()(const fcl::Sphered& sphere_A,
-                  const fcl::Cylinderd& cylinder_B,
+  void operator()(const coal::Sphere& sphere_A,
+                  const coal::Cylinder& cylinder_B,
                   PenetrationAsPointPair<T>* result) {
     SphereShapePenetration(sphere_A, cylinder_B, result);
   }
 
-  void operator()(const fcl::Sphered& sphere_A,
-                  const fcl::Halfspaced& halfspace_B,
+  void operator()(const coal::Sphere& sphere_A,
+                  const coal::Halfspace& halfspace_B,
                   PenetrationAsPointPair<T>* result) {
     SphereShapePenetration(sphere_A, halfspace_B, result);
   }
 
-  void operator()(const fcl::Sphered& sphere_A, const fcl::Capsuled& capsule_B,
+  void operator()(const coal::Sphere& sphere_A, const coal::Capsule& capsule_B,
                   PenetrationAsPointPair<T>* result) {
     SphereShapePenetration(sphere_A, capsule_B, result);
   }
@@ -93,9 +95,9 @@ class PenetrationPairFunctor {
   // Penetration computation between a sphere A and a generic shape B. We use
   // the overloaded call operators above to limit the kinds of queries, and
   // they all call this private template function to minimize code duplication.
-  template <typename FclShape>
-  void SphereShapePenetration(const fcl::Sphered& sphere_A,
-                              const FclShape& shape_B,
+  template <typename CoalShape>
+  void SphereShapePenetration(const coal::Sphere& sphere_A,
+                              const CoalShape& shape_B,
                               PenetrationAsPointPair<T>* result) {
     DRAKE_ASSERT(result != nullptr);
     const SignedDistanceToPoint<T> shape_B_to_point_Ao =
@@ -130,8 +132,8 @@ class PenetrationPairFunctor {
  particular geometry pair does not mean we have no recourse for computing
  signed distance. Instead, we have the "fallback" function.
 
- The fallback function is a simple interface that takes two fcl collision
- objects (called `a` and `b`), fcl distance request parameters, and a pointer
+ The fallback function is a simple interface that takes two Coal collision
+ objects (called `a` and `b`), Coal distance request parameters, and a pointer
  to the SignedDistancePair which will be populated with the results of the
  query.
 
@@ -144,9 +146,9 @@ class PenetrationPairFunctor {
  exception declaring the unsupported combination of geometry types and scalar
  type.  */
 template <typename T>
-void CalcDistanceFallback(const fcl::CollisionObjectd& a,
-                          const fcl::CollisionObjectd& b,
-                          const fcl::CollisionRequestd&,
+void CalcDistanceFallback(const coal::CollisionObject& a,
+                          const coal::CollisionObject& b,
+                          const coal::CollisionRequest&,
                           PenetrationAsPointPair<T>* /* pair_data */) {
   // By default, there is no fallback. For every scalar type for which one
   // actually exists, it should be specialized below.
@@ -161,27 +163,29 @@ void CalcDistanceFallback(const fcl::CollisionObjectd& a,
 /* For the double scalar, computes the signed distance between the two objects.
  */
 template <>
-void CalcDistanceFallback<double>(const fcl::CollisionObjectd& a,
-                                  const fcl::CollisionObjectd& b,
-                                  const fcl::CollisionRequestd& request,
+void CalcDistanceFallback<double>(const coal::CollisionObject& a,
+                                  const coal::CollisionObject& b,
+                                  const coal::CollisionRequest& request,
                                   PenetrationAsPointPair<double>* pair_data) {
   DRAKE_DEMAND(pair_data != nullptr);
-  fcl::CollisionResult<double> result;
+  coal::CollisionResult result;
 
   // Perform nearphase collision detection
-  collide(&a, &b, request, result);
+  coal::collide(&a, &b, request, result);
 
   if (!result.isCollision()) return;
 
   // Process the contact points
   // NOTE: This assumes that the request is configured to use a single contact.
-  const fcl::Contact<double>& contact = result.getContact(0);
+  const coal::Contact& contact = result.getContact(0);
 
-  // Signed distance is negative when penetration depth is positive.
-  const double depth = contact.penetration_depth;
+  // Coal reports Contact::penetration_depth as a *signed distance*: negative
+  // when the shapes overlap. Drake's PenetrationAsPointPair::depth is a
+  // positive overlap, so we negate.
+  const double depth = -contact.penetration_depth;
 
   // TODO(SeanCurtis-TRI): Remove this test when FCL issue 375 is fixed.
-  // FCL returns osculation as contact but doesn't guarantee a non-zero
+  // The solver reports osculation as contact but doesn't guarantee a non-zero
   // normal. Drake isn't really in a position to define that normal from the
   // geometry or contact results so, if the geometry is sufficiently close
   // to osculation, we consider the geometries to be non-penetrating.
@@ -189,10 +193,10 @@ void CalcDistanceFallback<double>(const fcl::CollisionObjectd& a,
   pair_data->depth = depth;
 
   // By convention, Drake requires the contact normal to point out of B
-  // and into A. FCL uses the opposite convention.
+  // and into A. Coal uses the opposite convention.
   pair_data->nhat_BA_W = -contact.normal;
 
-  // FCL returns a single contact point centered between the two
+  // Coal returns a single contact point centered between the two
   // penetrating surfaces. PenetrationAsPointPair expects
   // two, one on the surface of body A (Ac) and one on the surface of body
   // B (Bc). Choose points along the line defined by the contact point and
@@ -222,17 +226,17 @@ void CalcDistanceFallback<double>(const fcl::CollisionObjectd& a,
  @tparam T Computation scalar type.
  @pre The pair should *not* be (Halfspace, X), unless X is Sphere.  */
 template <typename T>
-void ComputeNarrowPhasePenetration(const fcl::CollisionObjectd& a,
+void ComputeNarrowPhasePenetration(const coal::CollisionObject& a,
                                    const math::RigidTransform<T>& X_WA,
-                                   const fcl::CollisionObjectd& b,
+                                   const coal::CollisionObject& b,
                                    const math::RigidTransform<T>& X_WB,
-                                   const fcl::CollisionRequestd& request,
+                                   const coal::CollisionRequest& request,
                                    PenetrationAsPointPair<T>* result) {
   DRAKE_DEMAND(result != nullptr);
-  const fcl::CollisionGeometryd* a_geometry = a.collisionGeometry().get();
-  const fcl::CollisionGeometryd* b_geometry = b.collisionGeometry().get();
-  const bool a_is_sphere = a_geometry->getNodeType() == fcl::GEOM_SPHERE;
-  const bool b_is_sphere = b_geometry->getNodeType() == fcl::GEOM_SPHERE;
+  const coal::CollisionGeometry* a_geometry = a.collisionGeometry().get();
+  const coal::CollisionGeometry* b_geometry = b.collisionGeometry().get();
+  const bool a_is_sphere = a_geometry->getNodeType() == coal::GEOM_SPHERE;
+  const bool b_is_sphere = b_geometry->getNodeType() == coal::GEOM_SPHERE;
   const bool no_sphere = !(a_is_sphere || b_is_sphere);
   if (no_sphere) {
     CalcDistanceFallback<T>(a, b, request, result);
@@ -245,69 +249,72 @@ void ComputeNarrowPhasePenetration(const fcl::CollisionObjectd& a,
   // that takes (sphere, other) but not (other, sphere).  This scheme helps us
   // keep the code compact; however, we might have to re-order the result
   // afterwards.
-  const fcl::CollisionObjectd& s = a_is_sphere ? a : b;
-  const fcl::CollisionObjectd& o = a_is_sphere ? b : a;
-  const fcl::CollisionGeometryd* s_geometry = s.collisionGeometry().get();
-  const fcl::CollisionGeometryd* o_geometry = o.collisionGeometry().get();
+  const coal::CollisionObject& s = a_is_sphere ? a : b;
+  const coal::CollisionObject& o = a_is_sphere ? b : a;
+  const coal::CollisionGeometry* s_geometry = s.collisionGeometry().get();
+  const coal::CollisionGeometry* o_geometry = o.collisionGeometry().get();
   const math::RigidTransform<T>& X_WS(a_is_sphere ? X_WA : X_WB);
   const math::RigidTransform<T>& X_WO(a_is_sphere ? X_WB : X_WA);
   const auto id_S = EncodedData(s).id();
   const auto id_O = EncodedData(o).id();
   PenetrationPairFunctor<T> calc_penetration_pair(id_S, id_O, X_WS, X_WO);
-  const auto& sphere_S = *static_cast<const fcl::Sphered*>(s_geometry);
+  const auto& sphere_S = *static_cast<const coal::Sphere*>(s_geometry);
   switch (o_geometry->getNodeType()) {
-    case fcl::GEOM_SPHERE: {
+    case coal::GEOM_SPHERE: {
       // TODO(sean.curtis@tri.global) Here we use signed distance computation
       // but we actually only need to perform penetration query. This could
       // incur unnecessary computation. Depending on the data types, we can
       // potentially use collision query for double type, and signed distance
       // query for autodiff scalar.
-      const auto& sphere_O = *static_cast<const fcl::Sphered*>(o_geometry);
+      const auto& sphere_O = *static_cast<const coal::Sphere*>(o_geometry);
       calc_penetration_pair(sphere_S, sphere_O, result);
       break;
     }
-    case fcl::GEOM_BOX: {
-      const auto& box_O = *static_cast<const fcl::Boxd*>(o_geometry);
+    case coal::GEOM_BOX: {
+      const auto& box_O = *static_cast<const coal::Box*>(o_geometry);
       calc_penetration_pair(sphere_S, box_O, result);
       break;
     }
-    case fcl::GEOM_CYLINDER: {
-      const auto& cylinder_O = *static_cast<const fcl::Cylinderd*>(o_geometry);
+    case coal::GEOM_CYLINDER: {
+      const auto& cylinder_O = *static_cast<const coal::Cylinder*>(o_geometry);
       calc_penetration_pair(sphere_S, cylinder_O, result);
       break;
     }
-    case fcl::GEOM_HALFSPACE: {
+    case coal::GEOM_HALFSPACE: {
       const auto& halfspace_O =
-          *static_cast<const fcl::Halfspaced*>(o_geometry);
+          *static_cast<const coal::Halfspace*>(o_geometry);
       calc_penetration_pair(sphere_S, halfspace_O, result);
       break;
     }
-    case fcl::GEOM_CAPSULE: {
-      const auto& capsule_O = *static_cast<const fcl::Capsuled*>(o_geometry);
+    case coal::GEOM_CAPSULE: {
+      const auto& capsule_O = *static_cast<const coal::Capsule*>(o_geometry);
       calc_penetration_pair(sphere_S, capsule_O, result);
       break;
     }
-    case fcl::GEOM_ELLIPSOID:
-    case fcl::GEOM_CONVEX:
+    case coal::GEOM_ELLIPSOID:
+    case coal::GEOM_CONVEX32:
       // We don't have a closed form solution for these geometries, so we
-      // call FCL.
+      // call Coal.
       CalcDistanceFallback<T>(a, b, request, result);
       break;
-    case fcl::GEOM_PLANE:
-    case fcl::BV_AABB:
-    case fcl::BV_OBB:
-    case fcl::BV_RSS:
-    case fcl::BV_kIOS:
-    case fcl::BV_OBBRSS:
-    case fcl::BV_KDOP16:
-    case fcl::BV_KDOP18:
-    case fcl::BV_KDOP24:
-    case fcl::GEOM_CONE:
-    case fcl::GEOM_TRIANGLE:
-    case fcl::GEOM_OCTREE:
-    case fcl::BV_UNKNOWN:
-    case fcl::NODE_COUNT:
-      // Fcl NodeTypes that are *not* currently supported by Drake.
+    case coal::GEOM_PLANE:
+    case coal::BV_AABB:
+    case coal::BV_OBB:
+    case coal::BV_RSS:
+    case coal::BV_kIOS:
+    case coal::BV_OBBRSS:
+    case coal::BV_KDOP16:
+    case coal::BV_KDOP18:
+    case coal::BV_KDOP24:
+    case coal::GEOM_CONE:
+    case coal::GEOM_CONVEX16:
+    case coal::GEOM_TRIANGLE:
+    case coal::GEOM_OCTREE:
+    case coal::HF_AABB:
+    case coal::HF_OBBRSS:
+    case coal::BV_UNKNOWN:
+    case coal::NODE_COUNT:
+      // Coal NodeTypes that are *not* currently supported by Drake.
       DRAKE_UNREACHABLE();
   }
   // If needed, re-order the result for (s,o) back to the result for (a,b).
@@ -329,59 +336,59 @@ void ComputeNarrowPhasePenetration(const fcl::CollisionObjectd& a,
 //@{
 template <typename T>
 struct ScalarSupport {
-  static bool is_supported(fcl::NODE_TYPE, fcl::NODE_TYPE) { return false; }
+  static bool is_supported(coal::NODE_TYPE, coal::NODE_TYPE) { return false; }
 };
 
 /* Primitive support for double-valued query.  */
 template <>
 struct ScalarSupport<double> {
-  static bool is_supported(fcl::NODE_TYPE node1, fcl::NODE_TYPE node2) {
+  static bool is_supported(coal::NODE_TYPE node1, coal::NODE_TYPE node2) {
     // Doubles (via its fallback) can support *almost* anything. Here, we
     // enumerate the *very* limited unsupported cases. We can't meaningfully
-    // collide two half spaces, but fcl doesn't have an intelligent response.
+    // collide two half spaces, but Coal doesn't have an intelligent response.
     // So, we simply short circuit at this point.
-    return !(node1 == fcl::GEOM_HALFSPACE && node2 == fcl::GEOM_HALFSPACE);
+    return !(node1 == coal::GEOM_HALFSPACE && node2 == coal::GEOM_HALFSPACE);
   }
 };
 
 /* Primitive support for AutoDiff-valued query.  */
 template <>
 struct ScalarSupport<AutoDiffXd> {
-  static bool is_supported(fcl::NODE_TYPE node1, fcl::NODE_TYPE node2) {
+  static bool is_supported(coal::NODE_TYPE node1, coal::NODE_TYPE node2) {
     // Explicitly permit the following pair types (with ordering permutations):
     //  (sphere, sphere)
     //  (sphere, box)
     //  (sphere, cylinder)
     //  (sphere, halfspace)
     //  (sphere, capsule)
-    return (node1 == fcl::GEOM_SPHERE &&
-            (node2 == fcl::GEOM_SPHERE || node2 == fcl::GEOM_BOX ||
-             node2 == fcl::GEOM_HALFSPACE || node2 == fcl::GEOM_CYLINDER ||
-             node2 == fcl::GEOM_CAPSULE)) ||
-           (node2 == fcl::GEOM_SPHERE &&
-            (node1 == fcl::GEOM_BOX || node1 == fcl::GEOM_HALFSPACE ||
-             node1 == fcl::GEOM_CYLINDER || node1 == fcl::GEOM_CAPSULE));
+    return (node1 == coal::GEOM_SPHERE &&
+            (node2 == coal::GEOM_SPHERE || node2 == coal::GEOM_BOX ||
+             node2 == coal::GEOM_HALFSPACE || node2 == coal::GEOM_CYLINDER ||
+             node2 == coal::GEOM_CAPSULE)) ||
+           (node2 == coal::GEOM_SPHERE &&
+            (node1 == coal::GEOM_BOX || node1 == coal::GEOM_HALFSPACE ||
+             node1 == coal::GEOM_CYLINDER || node1 == coal::GEOM_CAPSULE));
   }
 };
 //@}
 
 template <typename T>
-bool Callback(fcl::CollisionObjectd* fcl_object_A_ptr,
-              fcl::CollisionObjectd* fcl_object_B_ptr, void* callback_data) {
+bool Callback(coal::CollisionObject* object_A_ptr,
+              coal::CollisionObject* object_B_ptr, void* callback_data) {
   auto& data = *static_cast<CallbackData<T>*>(callback_data);
 
-  // Extract the collision filter keys from the fcl collision objects. These
-  // keys will also be used to map the fcl collision object back to the Drake
+  // Extract the collision filter keys from the Coal collision objects. These
+  // keys will also be used to map the Coal collision object back to the Drake
   // GeometryId for colliding geometries.
-  EncodedData encoding_A(*fcl_object_A_ptr);
-  EncodedData encoding_B(*fcl_object_B_ptr);
+  EncodedData encoding_A(*object_A_ptr);
+  EncodedData encoding_B(*object_B_ptr);
 
   // Guarantee for geometries A and B, we always evaluate the collision between
   // them in a fixed order (e.g., the first geometry gets transformed into the
   // second geometry's frame for evaluation).
   if (encoding_B.id() < encoding_A.id()) {
     std::swap(encoding_A, encoding_B);
-    std::swap(fcl_object_A_ptr, fcl_object_B_ptr);
+    std::swap(object_A_ptr, object_B_ptr);
   }
 
   const bool can_collide =
@@ -392,7 +399,7 @@ bool Callback(fcl::CollisionObjectd* fcl_object_A_ptr,
   // Since we want *all* collisions, we return false.
   if (!can_collide) return false;
 
-  auto result = MaybeMakePointPair(fcl_object_A_ptr, fcl_object_B_ptr, data);
+  auto result = MaybeMakePointPair(object_A_ptr, object_B_ptr, data);
   if (result.has_value()) {
     data.point_pairs.push_back(std::move(*result));
   }
@@ -402,41 +409,41 @@ bool Callback(fcl::CollisionObjectd* fcl_object_A_ptr,
 
 template <typename T>
 std::optional<PenetrationAsPointPair<T>> MaybeMakePointPair(
-    fcl::CollisionObjectd* fcl_object_A_ptr,
-    fcl::CollisionObjectd* fcl_object_B_ptr, const CallbackData<T>& data) {
-  // Extract the collision filter keys from the fcl collision objects. These
-  // keys will also be used to map the fcl collision object back to the Drake
+    coal::CollisionObject* object_A_ptr, coal::CollisionObject* object_B_ptr,
+    const CallbackData<T>& data) {
+  // Extract the collision filter keys from the Coal collision objects. These
+  // keys will also be used to map the Coal collision object back to the Drake
   // GeometryId for colliding geometries.
-  EncodedData encoding_A(*fcl_object_A_ptr);
-  EncodedData encoding_B(*fcl_object_B_ptr);
+  EncodedData encoding_A(*object_A_ptr);
+  EncodedData encoding_B(*object_B_ptr);
 
   // Guarantee for geometries A and B, we always evaluate the collision between
   // them in a fixed order (e.g., the first geometry gets transformed into the
   // second geometry's frame for evaluation).
   if (encoding_B.id() < encoding_A.id()) {
     std::swap(encoding_A, encoding_B);
-    std::swap(fcl_object_A_ptr, fcl_object_B_ptr);
+    std::swap(object_A_ptr, object_B_ptr);
   }
 
   // NOTE: Although this function *takes* non-const pointers to satisfy the
-  // fcl api, it should not exploit the non-constness to modify the collision
+  // Coal api, it should not exploit the non-constness to modify the collision
   // objects. We ensure this by immediately assigning to a const version and
   // not directly using the provided parameters.
   const GeometryId id_A = encoding_A.id();
   const GeometryId id_B = encoding_B.id();
 
   if (ScalarSupport<T>::is_supported(
-          fcl_object_A_ptr->collisionGeometry()->getNodeType(),
-          fcl_object_B_ptr->collisionGeometry()->getNodeType())) {
+          object_A_ptr->collisionGeometry()->getNodeType(),
+          object_B_ptr->collisionGeometry()->getNodeType())) {
     // Unpack the callback data
-    const fcl::CollisionRequestd& request = data.request;
+    const coal::CollisionRequest& request = data.request;
 
     // This callback only works for a single contact, this confirms a request
     // hasn't been made for more contacts.
     DRAKE_ASSERT(request.num_max_contacts == 1);
     PenetrationAsPointPair<T> penetration;
-    ComputeNarrowPhasePenetration(*fcl_object_A_ptr, data.X_WGs.at(id_A),
-                                  *fcl_object_B_ptr, data.X_WGs.at(id_B),
+    ComputeNarrowPhasePenetration(*object_A_ptr, data.X_WGs.at(id_A),
+                                  *object_B_ptr, data.X_WGs.at(id_B),
                                   data.request, &penetration);
     if (ExtractDoubleOrThrow(penetration.depth) >= 0) {
       return penetration;
@@ -447,7 +454,7 @@ std::optional<PenetrationAsPointPair<T>> MaybeMakePointPair(
         "are not supported for scalar type {}. See the documentation for "
         "QueryObject::ComputePointPairPenetration() for the full status of "
         "supported geometries.",
-        GetGeometryName(*fcl_object_A_ptr), GetGeometryName(*fcl_object_B_ptr),
+        GetGeometryName(*object_A_ptr), GetGeometryName(*object_B_ptr),
         NiceTypeName::Get<T>()));
   }
   return {};

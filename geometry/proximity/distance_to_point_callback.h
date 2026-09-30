@@ -6,7 +6,8 @@
 #include <unordered_map>
 #include <vector>
 
-#include <fcl/fcl.h>
+#include <coal/collision_object.h>
+#include <coal/shape/geometric_shapes.h>
 
 #include "drake/common/drake_assert.h"
 #include "drake/common/drake_export.h"
@@ -24,7 +25,7 @@ namespace point_distance DRAKE_NO_EXPORT {
 
 /* Supporting data for the distance-to-point callback (see Callback below).
  It includes:
-    - The fcl collision object representing the query point, Q.
+    - The Coal collision object representing the query point, Q.
     - A distance threshold beyond which distances will not be reported.
     - The query point Q, measured and expressed in the world frame, `p_WQ_W`.
     - The T-valued poses of _all_ geometries in the corresponding SceneGraph
@@ -50,7 +51,7 @@ struct CallbackData {
    @param distances_in[out] The output results. Aliased.
    */
   CallbackData(
-      fcl::CollisionObjectd* query_in, const double threshold_in,
+      coal::CollisionObject* query_in, const double threshold_in,
       const Vector3<T>& p_WQ_W_in,
       const std::unordered_map<GeometryId, math::RigidTransform<T>>* X_WGs_in,
       const MeshDistanceBoundaryCache* mesh_distance_boundary_cache_in,
@@ -68,8 +69,8 @@ struct CallbackData {
     DRAKE_DEMAND(distances_in != nullptr);
   }
 
-  /* The query fcl object.  */
-  const fcl::CollisionObjectd& query_point;
+  /* The query Coal object.  */
+  const coal::CollisionObject& query_point;
 
   /* The query threshold.  */
   const double threshold;
@@ -112,27 +113,27 @@ struct CallbackData {
  quantities are measured and expressed in the sphere's frame, S. Otherwise, the
  semantics of the parameters are as documented as above.  */
 template <typename T>
-void SphereDistanceInSphereFrame(const fcl::Sphered& sphere,
+void SphereDistanceInSphereFrame(const coal::Sphere& sphere,
                                  const Vector3<T>& p_SQ, Vector3<T>* p_SN,
                                  T* distance, Vector3<T>* grad_S);
 
 /* Overload of ComputeDistanceToPrimitive() for sphere primitive. */
 template <typename T>
-void ComputeDistanceToPrimitive(const fcl::Sphered& sphere,
+void ComputeDistanceToPrimitive(const coal::Sphere& sphere,
                                 const math::RigidTransform<T>& X_WG,
                                 const Vector3<T>& p_WQ, Vector3<T>* p_GN,
                                 T* distance, Vector3<T>* grad_W);
 
 /* Overload of ComputeDistanceToPrimitive() for halfspace primitive. */
 template <typename T>
-void ComputeDistanceToPrimitive(const fcl::Halfspaced& halfspace,
+void ComputeDistanceToPrimitive(const coal::Halfspace& halfspace,
                                 const math::RigidTransform<T>& X_WG,
                                 const Vector3<T>& p_WQ, Vector3<T>* p_GN,
                                 T* distance, Vector3<T>* grad_W);
 
 /* Overload of ComputeDistanceToPrimitive() for capsule primitive. */
 template <typename T>
-void ComputeDistanceToPrimitive(const fcl::Capsuled& capsule,
+void ComputeDistanceToPrimitive(const coal::Capsule& capsule,
                                 const math::RigidTransform<T>& X_WG,
                                 const Vector3<T>& p_WQ, Vector3<T>* p_GN,
                                 T* distance, Vector3<T>* grad_W);
@@ -161,22 +162,22 @@ class DistanceToPoint {
   //  issue: https://github.com/RobotLocomotion/drake/issues/11227
 
   /* Overload to compute distance to a box.  */
-  SignedDistanceToPoint<T> operator()(const fcl::Boxd& box);
+  SignedDistanceToPoint<T> operator()(const coal::Box& box);
 
   /* Overload to compute distance to a capsule.  */
-  SignedDistanceToPoint<T> operator()(const fcl::Capsuled& capsule);
+  SignedDistanceToPoint<T> operator()(const coal::Capsule& capsule);
 
   /* Overload to compute distance to a cylinder.  */
-  SignedDistanceToPoint<T> operator()(const fcl::Cylinderd& cylinder);
+  SignedDistanceToPoint<T> operator()(const coal::Cylinder& cylinder);
 
   /* Overload to compute distance to an ellipsoid.  */
-  SignedDistanceToPoint<T> operator()(const fcl::Ellipsoidd& ellipsoid);
+  SignedDistanceToPoint<T> operator()(const coal::Ellipsoid& ellipsoid);
 
   /* Overload to compute distance to a halfspace.  */
-  SignedDistanceToPoint<T> operator()(const fcl::Halfspaced& halfspace);
+  SignedDistanceToPoint<T> operator()(const coal::Halfspace& halfspace);
 
   /* Overload to compute distance to a sphere.  */
-  SignedDistanceToPoint<T> operator()(const fcl::Sphered& sphere);
+  SignedDistanceToPoint<T> operator()(const coal::Sphere& sphere);
 
   /* Overload to compute distance to a mesh represented as a
    water-tight boundary surface enclosing a volume.  */
@@ -246,22 +247,22 @@ class DistanceToPoint {
 
 template <typename T>
 struct ScalarSupport {
-  static bool is_supported(fcl::NODE_TYPE) { return false; }
+  static bool is_supported(coal::NODE_TYPE) { return false; }
 };
 
 /* Primitive support for double-valued query.  */
 template <>
 struct ScalarSupport<double> {
-  static bool is_supported(fcl::NODE_TYPE node_type) {
+  static bool is_supported(coal::NODE_TYPE node_type) {
     switch (node_type) {
-      case fcl::GEOM_BOX:
-      case fcl::GEOM_CAPSULE:
-      // drake::geometry::{Mesh, Convex} use fcl::GEOM_CONVEX.
-      case fcl::GEOM_CONVEX:
-      case fcl::GEOM_CYLINDER:
-      case fcl::GEOM_ELLIPSOID:
-      case fcl::GEOM_HALFSPACE:
-      case fcl::GEOM_SPHERE:
+      case coal::GEOM_BOX:
+      case coal::GEOM_CAPSULE:
+      // drake::geometry::{Mesh, Convex} use coal::GEOM_CONVEX.
+      case coal::GEOM_CONVEX:
+      case coal::GEOM_CYLINDER:
+      case coal::GEOM_ELLIPSOID:
+      case coal::GEOM_HALFSPACE:
+      case coal::GEOM_SPHERE:
         return true;
       default:
         return false;
@@ -272,12 +273,12 @@ struct ScalarSupport<double> {
 /* Primitive support for AutoDiff-valued query.  */
 template <>
 struct ScalarSupport<AutoDiffXd> {
-  static bool is_supported(fcl::NODE_TYPE node_type) {
+  static bool is_supported(coal::NODE_TYPE node_type) {
     switch (node_type) {
-      case fcl::GEOM_BOX:
-      case fcl::GEOM_CAPSULE:
-      case fcl::GEOM_HALFSPACE:
-      case fcl::GEOM_SPHERE:
+      case coal::GEOM_BOX:
+      case coal::GEOM_CAPSULE:
+      case coal::GEOM_HALFSPACE:
+      case coal::GEOM_SPHERE:
         return true;
       default:
         return false;
@@ -296,16 +297,16 @@ struct ScalarSupport<AutoDiffXd> {
                                is the output.
 
  @param[out] threshold_out  An output parameter (pass-by-reference) back to
-                            FCL's BVH culling. It will be set to the
+                            Coal's BVH culling. It will be set to the
                             CallbackData::threshold (or an internal lower
                             bound proportional to the machine epsilon).
 
  @pre The `callback_data` is an instance of point_distance::CallbackData.
- @pre One of the two fcl objects matches the CallbackData.query_point object.
+ @pre One of the two Coal objects matches the CallbackData.query_point object.
  */
 template <typename T>
-bool Callback(fcl::CollisionObjectd* object_A_ptr,
-              fcl::CollisionObjectd* object_B_ptr,
+bool Callback(coal::CollisionObject* object_A_ptr,
+              coal::CollisionObject* object_B_ptr,
               // NOLINTNEXTLINE
               void* callback_data, double& threshold_out);
 

@@ -4,6 +4,8 @@
 #include <utility>
 #include <vector>
 
+#include <coal/shape/geometric_shapes.h>
+
 #include "drake/common/default_scalars.h"
 #include "drake/common/eigen_types.h"
 #include "drake/geometry/proximity/distance_to_point_callback.h"
@@ -40,20 +42,20 @@ VolumeMeshFieldLinear<T, T> MakeCylinderPressureField(
   std::vector<T> pressure_values;
   pressure_values.reserve(mesh_C->num_vertices());
   // TODO(DamrongGuoy): The following three const variables (unused_id,
-  //  identity, and fcl_cylinder) are needed for applying DistanceToPoint
+  //  identity, and coal_cylinder) are needed for applying DistanceToPoint
   //  functor in the for loop. They are awkward to use here and introduce an
-  //  unnecessary dependency on FCL. In the future, we should either refactor
+  //  unnecessary dependency on Coal. In the future, we should either refactor
   //  the distance-to-boundary calculation or use a different calculation (for
   //  example, offset-based distance).
   const GeometryId unused_id;
   const auto identity = math::RigidTransform<T>::Identity();
-  const fcl::Cylinderd fcl_cylinder(radius, length);
+  const coal::Cylinder coal_cylinder(radius, length);
   for (const Vector3<T>& vertex : mesh_C->vertices()) {
     // V is a vertex of the cylinder mesh with frame C.
     const Vector3<T>& r_CV = vertex;
     point_distance::DistanceToPoint<T> signed_distance_functor(unused_id,
                                                                identity, r_CV);
-    const T signed_distance = signed_distance_functor(fcl_cylinder).distance;
+    const T signed_distance = signed_distance_functor(coal_cylinder).distance;
     // Map signed_distance ∈ [-min_half_size, 0] to extent e ∈ [0, 1],
     // -min_half_size ⇝ 1, 0 ⇝ 0.
     const T extent = (-signed_distance - margin) / T(min_half_size - margin);

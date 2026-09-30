@@ -26,14 +26,13 @@ using std::vector;
 template <typename T>
 class SignedDistanceCallback : public DistanceCallback<T> {
  public:
-  bool Invoke(fcl::CollisionObjectd* obj_A, fcl::CollisionObjectd* obj_B,
+  bool Invoke(coal::CollisionObject* obj_A, coal::CollisionObject* obj_B,
               const CollisionFilter* collision_filter,
               const std::unordered_map<GeometryId, math::RigidTransform<T>>*
                   X_WGs) override {
     CallbackData<T> data(collision_filter, X_WGs,
                          std::numeric_limits<double>::infinity(), &results_);
     data.request.enable_signed_distance = true;
-    data.request.gjk_solver_type = fcl::GJKSolverType::GST_LIBCCD;
     /* TODO(#14731) This reflects the fact that ProximityEngine hard
      codes this value to 1e-6. However, the results of multiple characterization
      tests depend on this value. Specifically:
@@ -46,7 +45,7 @@ class SignedDistanceCallback : public DistanceCallback<T> {
       If/when that parameter is exposed in the public API, the table should be
       updated to reflect the results that depend on that parameter and the test
       here should be expressed relative to this quantity in support. */
-    data.request.distance_tolerance = 1e-6;
+    data.request.gjk_tolerance = 1e-6;
     /* We're not testing the logic for limiting results based on a maximum
      distance. So, we'll simply set it to infinity. */
     double max_distance = std::numeric_limits<double>::infinity();
@@ -80,7 +79,7 @@ class CharacterizeShapeDistanceResultTest : public CharacterizeResultTest<T> {
  However, this single test will detect when that condition is no longer true
  and call for implementation of *-Mesh tests. */
 GTEST_TEST(CharacterizeShapeDistanceResultTest, MeshMesh) {
-  ASSERT_TRUE(MeshIsConvexInFcl());
+  ASSERT_TRUE(MeshIsConvexInCoal());
 }
 
 class DoubleTest : public CharacterizeShapeDistanceResultTest<double>,

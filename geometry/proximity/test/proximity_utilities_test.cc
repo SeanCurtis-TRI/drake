@@ -5,7 +5,7 @@
 #include <utility>
 #include <vector>
 
-#include <fcl/fcl.h>
+#include <coal/collision_object.h>
 #include <gtest/gtest.h>
 
 namespace drake {
@@ -13,8 +13,8 @@ namespace geometry {
 namespace internal {
 namespace {
 
-using fcl::CollisionGeometryd;
-using fcl::CollisionObjectd;
+using coal::CollisionGeometry;
+using coal::CollisionObject;
 
 // Construct a couple of encodings and test their properties.
 GTEST_TEST(EncodedData, ConstructorAndProperties) {
@@ -41,11 +41,11 @@ GTEST_TEST(EncodedData, FactoryConstruction) {
   EXPECT_FALSE(anchored.is_dynamic());
 }
 
-// This tests writing to and extracting from an fcl object,
-GTEST_TEST(EncodedData, ConstructionFromFclObject) {
+// This tests writing to and extracting from a Coal object,
+GTEST_TEST(EncodedData, ConstructionFromCoalObject) {
   GeometryId id_A = GeometryId::get_new_id();
   EncodedData data_A(id_A, true);
-  CollisionObjectd object(std::shared_ptr<CollisionGeometryd>(nullptr));
+  CollisionObject object(std::shared_ptr<CollisionGeometry>(nullptr));
 
   data_A.write_to(&object);
   {

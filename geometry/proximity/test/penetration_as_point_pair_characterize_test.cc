@@ -29,7 +29,7 @@ using std::vector;
 template <typename T>
 class PenetrationCallback : public DistanceCallback<T> {
  public:
-  bool Invoke(fcl::CollisionObjectd* obj_A, fcl::CollisionObjectd* obj_B,
+  bool Invoke(coal::CollisionObject* obj_A, coal::CollisionObject* obj_B,
               const CollisionFilter* collision_filter,
               const std::unordered_map<GeometryId, math::RigidTransform<T>>*
                   X_WGs) override {
@@ -62,7 +62,7 @@ class CharacterizePointPairResultTest : public CharacterizeResultTest<T> {
  However, this single test will detect when that condition is no longer true
  and call for implementation of *-Mesh tests. */
 GTEST_TEST(CharacterizePointPairResultTest, MeshMesh) {
-  ASSERT_TRUE(MeshIsConvexInFcl());
+  ASSERT_TRUE(MeshIsConvexInCoal());
 }
 
 class DoubleTest : public CharacterizePointPairResultTest<double>,

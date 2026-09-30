@@ -394,19 +394,20 @@ class ProximityEngine {
   // Facilitate testing.
   friend class ProximityEngineTester;
 
-  // Reports if the geometry with the given id is represented by an fcl::Convex.
+  // Reports if the geometry with the given id is represented by a Coal convex
+  // hull.
   // This function exists solely for the purpose tracking the "represent Mesh
   // as Convex" logic in other unit tests. When we represent meshes as
   // non-convex entities in their own right, we can remove this method.
   // This very specifically does *not* answer the question of whether the
   // underlying shape is *mathematically* convex, just that it is implemented
-  // as fcl::Convex.
-  bool IsFclConvexType(GeometryId id) const;
+  // as a Coal convex hull.
+  bool IsCoalConvexType(GeometryId id) const;
 
-  // Returns the fcl::CollisionObjectd associated with the geometry id. In order
-  // to keep the fcl dependency in the implementation only, we type erase the
+  // Returns the coal::CollisionObject associated with the geometry id. In order
+  // to keep the Coal dependency in the implementation only, we type erase the
   // pointer type. But if the return value is not null, it can be safely cast to
-  // fcl::CollisionObjectd*. This is for testing only.
+  // coal::CollisionObject*. This is for testing only.
   void* GetCollisionObject(GeometryId id) const;
 
   // Returns the number of top-level file entries in the convex hull cache.

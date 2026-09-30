@@ -5,7 +5,9 @@
 #include <unordered_map>
 #include <vector>
 
-#include <fcl/fcl.h>
+#include <coal/collision_object.h>
+#include <coal/shape/convex.h>
+#include <coal/shape/geometric_shapes.h>
 #include <gtest/gtest.h>
 
 #include "drake/common/drake_assert.h"
@@ -13,7 +15,7 @@
 #include "drake/common/test_utilities/eigen_matrix_compare.h"
 #include "drake/common/test_utilities/expect_throws_message.h"
 #include "drake/geometry/proximity/proximity_utilities.h"
-#include "drake/geometry/proximity/test/fcl_utilities.h"
+#include "drake/geometry/proximity/test/coal_utilities.h"
 #include "drake/geometry/shape_specification.h"
 #include "drake/geometry/utilities.h"
 #include "drake/math/autodiff_gradient.h"
@@ -198,8 +200,8 @@ GTEST_TEST(DistanceToPoint, Box) {
       AngleAxis<double>(M_PI / 5, Vector3d{1, 2, 3}.normalized()));
   const Vector3d p_WG{0.5, 1.25, -2};
   const RigidTransformd X_WG(R_WG, p_WG);
-  const fcl::Boxd box(1.0, 2.0, 3.0);
-  PointShapeAutoDiffSignedDistanceTester<fcl::Boxd> tester(&box, X_WG, kEps);
+  const coal::Box box(1.0, 2.0, 3.0);
+  PointShapeAutoDiffSignedDistanceTester<coal::Box> tester(&box, X_WG, kEps);
 
   // Case: Nearest point is a vertex.
   {
@@ -207,7 +209,7 @@ GTEST_TEST(DistanceToPoint, Box) {
       for (double y : {-1, 1}) {
         for (double z : {-1, 1}) {
           const Vector3d p_NQ_G{x, y, z};
-          const Vector3d p_GN_G = p_NQ_G.cwiseProduct(box.side / 2);
+          const Vector3d p_GN_G = p_NQ_G.cwiseProduct(box.halfSide);
           // The query point lies outside the box.
           EXPECT_TRUE(tester.Test(p_GN_G, p_NQ_G));
           // The query point lies on the vertex of the box.
@@ -231,7 +233,7 @@ GTEST_TEST(DistanceToPoint, Box) {
         p_NQ_G(coord1) = 0;
         p_NQ_G(coord2) = coord2_val;
         p_NQ_G(coord3) = coord3_val;
-        const Vector3d p_GN_G = p_NQ_G.cwiseProduct(box.side / 2);
+        const Vector3d p_GN_G = p_NQ_G.cwiseProduct(box.halfSide);
         // The query point lies outside the box.
         EXPECT_TRUE(tester.Test(p_GN_G, p_NQ_G));
         // The query point lies on the edge of the box.
@@ -251,7 +253,7 @@ GTEST_TEST(DistanceToPoint, Box) {
         Vector3d vhat_NG = Vector3d::Zero();
         vhat_NG(axis) = sign;
         Vector3d p_NQ_G = 1.5 * vhat_NG;
-        const Vector3d p_GN_G = vhat_NG.cwiseProduct(box.side / 2);
+        const Vector3d p_GN_G = vhat_NG.cwiseProduct(box.halfSide);
 
         // The query point lies outside the box.
         EXPECT_TRUE(tester.Test(p_GN_G, p_NQ_G));
@@ -281,8 +283,8 @@ GTEST_TEST(DistanceToPoint, Capsule) {
       AngleAxis<double>(M_PI / 5, Vector3d{1, 2, 3}.normalized()));
   const Vector3d p_WG{0.5, 1.25, -2};
   const RigidTransform<double> X_WG(R_WG, p_WG);
-  const fcl::Capsuled capsule(0.7, 1.3);
-  PointShapeAutoDiffSignedDistanceTester<fcl::Capsuled> tester(&capsule, X_WG,
+  const coal::Capsule capsule(0.7, 1.3);
+  PointShapeAutoDiffSignedDistanceTester<coal::Capsule> tester(&capsule, X_WG,
                                                                kEps);
   // We want to test the 3 sections for when the point Q is nearest to:
   //   1. The top end cap of the capsule.
@@ -296,9 +298,9 @@ GTEST_TEST(DistanceToPoint, Capsule) {
       Vector3d{2, -3, -6}.normalized()  // Downwards and away.
   };
   const Vector3d p_GN_Gs[3] = {
-      capsule.radius * vhat_NQ_Gs[0] + Vector3d{0, 0, capsule.lz / 2},
-      capsule.radius * vhat_NQ_Gs[1] + Vector3d{0, 0, capsule.lz / 4},
-      capsule.radius * vhat_NQ_Gs[2] + Vector3d{0, 0, -capsule.lz / 2}};
+      capsule.radius * vhat_NQ_Gs[0] + Vector3d{0, 0, capsule.halfLength},
+      capsule.radius * vhat_NQ_Gs[1] + Vector3d{0, 0, capsule.halfLength / 2},
+      capsule.radius * vhat_NQ_Gs[2] + Vector3d{0, 0, -capsule.halfLength}};
 
   for (int i = 0; i < 3; ++i) {
     const Vector3d& vhat_NQ_G = vhat_NQ_Gs[i];
@@ -353,7 +355,7 @@ GTEST_TEST(DistanceToPoint, Ellipsoid) {
   // variable error across the point samples, we'll keep the ellipsoid "close"
   // to a sphere. If we stretch it out, we need either a) a larger tolerance
   // value for the vectors or b) a per-sample tolerance values.
-  const fcl::Ellipsoidd ellipsoid(1.5, 0.75, 1.25);
+  const coal::Ellipsoid ellipsoid(1.5, 0.75, 1.25);
 
   // TODO(SeanCurtis-TRI): When point-to-ellipsoid supports AutoDiffXd, modify
   //  this to exercise PointShapeAutoDiffSignedDistanceTester.
@@ -415,7 +417,7 @@ GTEST_TEST(DistanceToPoint, Ellipsoid) {
   }
 
   // Special case where the query point lies on the medial axis of
-  // the ellipsoid. We don't know what FCL will produce as the nearest point.
+  // the ellipsoid. We don't know what Coal will produce as the nearest point.
   // However, we can confirm:
   //   - distance from query to nearest point.
   //   - gradient is perpendicular to a known circle.
@@ -453,8 +455,8 @@ GTEST_TEST(DistanceToPoint, Halfspace) {
       AngleAxis<double>(M_PI / 5, Vector3d{1, 2, 3}.normalized()));
   const Vector3d p_WG{0.5, 1.25, -2};
   const RigidTransformd X_WG(R_WG, p_WG);
-  const fcl::Halfspaced hs(Vector3d::UnitZ(), 0);
-  PointShapeAutoDiffSignedDistanceTester<fcl::Halfspaced> tester(&hs, X_WG,
+  const coal::Halfspace hs(Vector3d::UnitZ(), 0);
+  PointShapeAutoDiffSignedDistanceTester<coal::Halfspace> tester(&hs, X_WG,
                                                                  kEps);
 
   // An arbitrary direction away from the origin that *isn't* aligned with the
@@ -537,8 +539,8 @@ GTEST_TEST(DistanceToPoint, Sphere) {
       AngleAxis<double>(M_PI / 5, Vector3d{1, 2, 3}.normalized()));
   const Vector3d p_WG{0.5, 1.25, -2};
   const RigidTransform<double> X_WG(R_WG, p_WG);
-  const fcl::Sphered sphere(0.7);
-  PointShapeAutoDiffSignedDistanceTester<fcl::Sphered> tester(&sphere, X_WG,
+  const coal::Sphere sphere(0.7);
+  PointShapeAutoDiffSignedDistanceTester<coal::Sphere> tester(&sphere, X_WG,
                                                               kEps);
 
   // An arbitrary direction away from the origin that *isn't* aligned with the
@@ -584,8 +586,8 @@ GTEST_TEST(DistanceToPoint, Cylinder) {
       AngleAxis<double>(M_PI / 5, Vector3d{1, 2, 3}.normalized()));
   const Vector3d p_WG{0.5, 1.25, -2};
   const RigidTransform<double> X_WG(R_WG, p_WG);
-  const fcl::Cylinderd cylinder(0.75, 2.5);
-  PointShapeAutoDiffSignedDistanceTester<fcl::Cylinderd> tester(&cylinder, X_WG,
+  const coal::Cylinder cylinder(0.75, 2.5);
+  PointShapeAutoDiffSignedDistanceTester<coal::Cylinder> tester(&cylinder, X_WG,
                                                                 kEps);
 
   // Case: Nearest point is on the cap.
@@ -595,7 +597,7 @@ GTEST_TEST(DistanceToPoint, Cylinder) {
       // The nearest point N is the cap of the cylinder -- slightly perturbed to
       // be away from the cap center.
       const Vector3d p_GN_G{cylinder.radius * 0.25, cylinder.radius * 0.25,
-                            sign * cylinder.lz / 2};
+                            sign * cylinder.halfLength};
 
       // The query point lies outside the cylinder
       EXPECT_TRUE(tester.Test(p_GN_G, Vector3d{0, 0, sign * 0.75}));
@@ -608,11 +610,11 @@ GTEST_TEST(DistanceToPoint, Cylinder) {
                               true /* is inside */));
 
       // The query point lies outside, but *on* the central axis.
+      EXPECT_TRUE(tester.Test(Vector3d{0, 0, cylinder.halfLength},
+                              Vector3d{0, 0, 1.5}));
       EXPECT_TRUE(
-          tester.Test(Vector3d{0, 0, cylinder.lz / 2}, Vector3d{0, 0, 1.5}));
-      EXPECT_TRUE(
-          tester.Test(Vector3d{0, 0, cylinder.lz / 2}, Vector3d{0, 0, 0}));
-      EXPECT_TRUE(tester.Test(Vector3d{0, 0, cylinder.lz / 2},
+          tester.Test(Vector3d{0, 0, cylinder.halfLength}, Vector3d{0, 0, 0}));
+      EXPECT_TRUE(tester.Test(Vector3d{0, 0, cylinder.halfLength},
                               Vector3d{0, 0, -0.1}, true /* is inside */));
     }
   }
@@ -621,7 +623,7 @@ GTEST_TEST(DistanceToPoint, Cylinder) {
   {
     // The dimensions of the boundary of the cylinder. Used to find the
     // "support" point on the cylinder rim in an arbitrary direction.
-    const Vector3d dim{cylinder.radius, cylinder.radius, cylinder.lz / 2};
+    const Vector3d dim{cylinder.radius, cylinder.radius, cylinder.halfLength};
 
     // Test top and bottom rims.
     for (double sign : {-1, 1}) {
@@ -644,7 +646,8 @@ GTEST_TEST(DistanceToPoint, Cylinder) {
   {
     // The dimensions of the cylinder -- note it's shorter to make sure that the
     // query points are well within the region of the barrel.
-    const Vector3d dim{cylinder.radius, cylinder.radius, cylinder.lz / 4};
+    const Vector3d dim{cylinder.radius, cylinder.radius,
+                       cylinder.halfLength / 2};
 
     // Test upper- and lower-halves of the barrel.
     for (double sign : {-1, 1}) {
@@ -670,15 +673,15 @@ GTEST_TEST(DistanceToPoint, Cylinder) {
 #endif
 
 // Helper function to indicate expectation on whether I get a distance result
-// based on scalar type T and fcl shape S.
+// based on scalar type T and Coal shape S.
 template <typename T, typename S>
 int ExpectedResult() {
   if constexpr (std::is_same_v<T, double>) {
     return 1;
   }
   if constexpr (std::is_same_v<T, AutoDiffXd>) {
-    if (std::is_same_v<S, fcl::Convexd> || std::is_same_v<S, fcl::Cylinderd> ||
-        std::is_same_v<S, fcl::Ellipsoidd>) {
+    if (std::is_same_v<S, CoalConvex> || std::is_same_v<S, coal::Cylinder> ||
+        std::is_same_v<S, coal::Ellipsoid>) {
       return 0;
     }
     return 1;
@@ -691,8 +694,8 @@ int ExpectedResult() {
 
 // Makes the callback's representation of the query point Q.
 template <typename T>
-fcl::CollisionObjectd MakeQueryPoint(const Vector3<T>& p_WQ) {
-  fcl::CollisionObjectd query_point(make_shared<fcl::Sphered>(0.0));
+coal::CollisionObject MakeQueryPoint(const Vector3<T>& p_WQ) {
+  coal::CollisionObject query_point(make_shared<coal::Sphere>(0.0));
   query_point.setTranslation(convert_to_double(p_WQ));
   return query_point;
 }
@@ -726,7 +729,7 @@ void TestScalarShapeSupport() {
   RigidTransform<T> X_WQ{Eigen::Translation<T, 3>{p_WQ}};
 
   const GeometryId point_id = GeometryId::get_new_id();
-  fcl::CollisionObjectd query_point = MakeQueryPoint(p_WQ);
+  coal::CollisionObject query_point = MakeQueryPoint(p_WQ);
 
   std::vector<SignedDistanceToPoint<T>> distances;
   double threshold = std::numeric_limits<double>::max();
@@ -745,7 +748,7 @@ void TestScalarShapeSupport() {
     // need to reset it each time.
     threshold = std::numeric_limits<double>::max();
     distances.clear();
-    fcl::CollisionObjectd object(geometry_shared_ptr);
+    coal::CollisionObject object(geometry_shared_ptr);
     EncodedData object_encoding(other_id, true);
     object_encoding.write_to(&object);
     Callback<T>(&query_point, &object, &data, threshold);
@@ -753,49 +756,49 @@ void TestScalarShapeSupport() {
 
   // Box
   {
-    run_callback(make_shared<fcl::Boxd>(1.0, 2.0, 3.5));
-    EXPECT_EQ(distances.size(), (ExpectedResult<T, fcl::Boxd>()));
+    run_callback(make_shared<coal::Box>(1.0, 2.0, 3.5));
+    EXPECT_EQ(distances.size(), (ExpectedResult<T, coal::Box>()));
   }
 
   // Capsule
   {
-    run_callback(make_shared<fcl::Capsuled>(1.0, 2.0));
-    EXPECT_EQ(distances.size(), (ExpectedResult<T, fcl::Capsuled>()));
+    run_callback(make_shared<coal::Capsule>(1.0, 2.0));
+    EXPECT_EQ(distances.size(), (ExpectedResult<T, coal::Capsule>()));
   }
 
-  // Convex and Mesh. Both Mesh and Convex use fcl::Convexd in the broadphase.
-  // The callback maps the fcl::Convexd to the corresponding
+  // Convex and Mesh. Both Mesh and Convex use CoalConvex in the broadphase.
+  // The callback maps the CoalConvex to the corresponding
   // MeshDistanceBoundary in the cache. So, we just need a minimally viable
-  // fcl::Convexd to trigger the callback logic: a single vertex with no faces.
+  // CoalConvex to trigger the callback logic: a single vertex with no faces.
   {
-    run_callback(make_shared<fcl::Convexd>(
-        make_shared<const std::vector<Vector3d>>(1, Vector3d{0, 0, 0}), 0,
-        make_shared<const std::vector<int>>()));
-    EXPECT_EQ(distances.size(), (ExpectedResult<T, fcl::Convexd>()));
+    run_callback(make_shared<CoalConvex>(
+        make_shared<std::vector<Vector3d>>(1, Vector3d{0, 0, 0}), 1,
+        make_shared<std::vector<coal::Triangle32>>(), 0));
+    EXPECT_EQ(distances.size(), (ExpectedResult<T, CoalConvex>()));
   }
 
   // Cylinder
   {
-    run_callback(make_shared<fcl::Cylinderd>(1.0, 2.0));
-    EXPECT_EQ(distances.size(), (ExpectedResult<T, fcl::Cylinderd>()));
+    run_callback(make_shared<coal::Cylinder>(1.0, 2.0));
+    EXPECT_EQ(distances.size(), (ExpectedResult<T, coal::Cylinder>()));
   }
 
   // Ellipsoid
   {
-    run_callback(make_shared<fcl::Ellipsoidd>(1.5, 0.7, 3));
-    EXPECT_EQ(distances.size(), (ExpectedResult<T, fcl::Ellipsoidd>()));
+    run_callback(make_shared<coal::Ellipsoid>(1.5, 0.7, 3));
+    EXPECT_EQ(distances.size(), (ExpectedResult<T, coal::Ellipsoid>()));
   }
 
   // HalfSpace
   {
-    run_callback(make_shared<fcl::Halfspaced>(Vector3d::UnitZ(), 0));
-    EXPECT_EQ(distances.size(), (ExpectedResult<T, fcl::Halfspaced>()));
+    run_callback(make_shared<coal::Halfspace>(Vector3d::UnitZ(), 0));
+    EXPECT_EQ(distances.size(), (ExpectedResult<T, coal::Halfspace>()));
   }
 
   // Sphere
   {
-    run_callback(make_shared<fcl::Sphered>(1.0));
-    EXPECT_EQ(distances.size(), (ExpectedResult<T, fcl::Sphered>()));
+    run_callback(make_shared<coal::Sphere>(1.0));
+    EXPECT_EQ(distances.size(), (ExpectedResult<T, coal::Sphere>()));
   }
 }
 
@@ -817,29 +820,29 @@ GTEST_TEST(DistanceToPoint, ScalarShapeSupportExpression) {
 }
 
 // Test point_distance::Callback() for meshes (Mesh and Convex).
-// If the fcl representation is fcl::GEOM_CONVEX, check to see if it has
+// If the Coal representation is coal::GEOM_CONVEX, check to see if it has
 // the corresponding MeshDistanceBoundary in the CallbackData.
 // 1. If so, dispatch it to the DistanceToPoint functor.
 // 2. Otherwise, it's a no-op.
 GTEST_TEST(Callback, MeshAndConvex) {
   const Vector3d p_WQ{0, 1, 2};
-  fcl::CollisionObjectd query_point = MakeQueryPoint(p_WQ);
+  coal::CollisionObject query_point = MakeQueryPoint(p_WQ);
 
-  // Both drake::geometry::Mesh and Convex use fcl::Convexd. Its content
+  // Both drake::geometry::Mesh and Convex use CoalConvex. Its content
   // is irrelevant for this test because the mesh data is in CallbackData.
   // For simplicity, we use a minimally valid convex shape: a single vertex.
-  auto mesh_fcl_geometry = make_shared<fcl::Convexd>(
-      make_shared<const std::vector<Vector3d>>(1, Vector3d{0, 0, 0}), 0,
-      make_shared<const std::vector<int>>());
+  auto mesh_coal_geometry = make_shared<CoalConvex>(
+      make_shared<std::vector<Vector3d>>(1, Vector3d{0, 0, 0}), 1,
+      make_shared<std::vector<coal::Triangle32>>(), 0);
   const GeometryId mesh_id = GeometryId::get_new_id();
   // The pose of the mesh's frame M in World frame.
   const RigidTransformd X_WM{Vector3d{1, 2, 3}};
   // For completeness, we set the pose of the mesh in the CollisionObject
   // even though we don't need it for this test. For calculation in drake, we
-  // use the pose in CallbackData. For calculation in FCL, it uses the pose
+  // use the pose in CallbackData. For calculation in Coal, it uses the pose
   // in CollisionObject.
-  fcl::CollisionObjectd mesh_collision_object(
-      mesh_fcl_geometry, X_WM.rotation().matrix(), X_WM.translation());
+  coal::CollisionObject mesh_collision_object(
+      mesh_coal_geometry, X_WM.rotation().matrix(), X_WM.translation());
   EncodedData(mesh_id, true).write_to(&mesh_collision_object);
 
   // Remaining components of CallbackData other than the mesh_boundaries.
@@ -856,7 +859,7 @@ GTEST_TEST(Callback, MeshAndConvex) {
         &X_WGs,       &mesh_distance_boundary_cache, &distances};
 
     double threshold_out = 0;
-    // Expect Callback() to return false, so the broad-phase fcl will continue
+    // Expect Callback() to return false, so the Coal broadphase will continue
     // to other objects.
     EXPECT_FALSE(Callback<double>(&query_point, &mesh_collision_object,
                                   &callback_data, threshold_out));
@@ -876,7 +879,7 @@ GTEST_TEST(Callback, MeshAndConvex) {
                                        &distances};
 
     double threshold_out = 0;
-    // Expect Callback() to return false, so the broad-phase fcl will continue
+    // Expect Callback() to return false, so the Coal broadphase will continue
     // to other objects.
     EXPECT_FALSE(Callback<double>(&query_point, &mesh_collision_object,
                                   &callback_data, threshold_out));
@@ -1538,15 +1541,15 @@ struct SignedDistanceToPointTest
     X_WGs[data.expected_result.id_G] = data.X_WG;
   }
 
-  // Creates the FCL objects, invokes Callback<double>, and returns results.
+  // Creates the Coal objects, invokes Callback<double>, and returns results.
   vector<SignedDistanceToPoint<double>> RunCallback(double threshold) {
     const auto& data = GetParam();
     const GeometryId id = data.expected_result.id_G;
 
-    fcl::CollisionObjectd query_point = MakeQueryPoint(data.p_WQ);
+    coal::CollisionObject query_point = MakeQueryPoint(data.p_WQ);
 
-    std::unique_ptr<fcl::CollisionObjectd> geometry_object =
-        MakeFclObject(*data.geometry, id, /* is_dynamic= */ true);
+    std::unique_ptr<coal::CollisionObject> geometry_object =
+        MakeCoalObject(*data.geometry, id, /* is_dynamic= */ true);
 
     vector<SignedDistanceToPoint<double>> distances;
     MeshDistanceBoundaryCache no_meshes;
@@ -1593,10 +1596,10 @@ TEST_P(SignedDistanceToPointTest, SingleQueryPointSymbolic) {
   const GeometryId id = data.expected_result.id_G;
   double threshold = data.expected_result.distance + 0.01;
 
-  fcl::CollisionObjectd query_point = MakeQueryPoint(data.p_WQ);
+  coal::CollisionObject query_point = MakeQueryPoint(data.p_WQ);
 
-  std::unique_ptr<fcl::CollisionObjectd> geometry_object =
-      MakeFclObject(*data.geometry, id, /* is_dynamic= */ true);
+  std::unique_ptr<coal::CollisionObject> geometry_object =
+      MakeCoalObject(*data.geometry, id, /* is_dynamic= */ true);
 
   vector<SignedDistanceToPoint<Expression>> sym_distances;
   unordered_map<GeometryId, RigidTransform<Expression>> X_WGs_sym{

@@ -69,7 +69,7 @@ struct SignedDistancePair {
   // TODO(SeanCurtis-TRI): Determine if this is the *right* API. Should we
   // really be returning the points in geometry frame and not the world frame?
   //  1. Penetration as point pair returns the points in world frame.
-  //  2. FCL computes it in world frame.
+  //  2. Coal computes it in world frame.
   //  3. Generally, MBP would want the points in *body* frame. MBP has access
   //     to X_WB but does *not* generally have access to X_BG (it would have to
   //     query QueryObject for that information). Although, such a query can

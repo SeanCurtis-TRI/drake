@@ -4,7 +4,8 @@
 #include <utility>
 #include <vector>
 
-#include <fcl/fcl.h>
+#include <coal/collision_object.h>
+#include <coal/shape/geometric_shapes.h>
 
 #include "drake/common/drake_export.h"
 #include "drake/common/eigen_types.h"
@@ -12,7 +13,8 @@
 
 /* @file
  Support distance queries between shapes when they barely touch (have zero
- signed distance) by providing a reasonable distance gradient in fcl fallback
+ signed distance) by providing a reasonable distance gradient in the Coal
+ fallback
  CalcDistanceFallback() in distance_to_shape_callback.cc.
  */
 
@@ -49,12 +51,13 @@ namespace shape_distance {
  @param p_ACa  Witness point of object `a` measured and expressed in frame A.
  @param p_BCb  Witness point of object `b` measured and expressed in frame B.
 
- @note  This function is used only in fcl fallback CalcDistanceFallback() in
+ @note  This function is used only in the Coal fallback
+        CalcDistanceFallback() in
         distance_to_shape_callback.cc.  */
 // clang-format on
-Eigen::Vector3d CalcGradientWhenTouching(const fcl::CollisionObjectd& a,
+Eigen::Vector3d CalcGradientWhenTouching(const coal::CollisionObject& a,
                                          const math::RigidTransformd& X_WA,
-                                         const fcl::CollisionObjectd& b,
+                                         const coal::CollisionObject& b,
                                          const math::RigidTransformd& X_WB,
                                          const Eigen::Vector3d& p_ACa,
                                          const Eigen::Vector3d& p_BCb);
@@ -72,9 +75,9 @@ Eigen::Vector3d CalcGradientWhenTouching(const fcl::CollisionObjectd& a,
  @note Since we use an internal tolerance, the classification of the location
  of `p_BQ` (face, edge, or vertex of `box_B`) depends on its precision.
  For example, if p_BQ is on a face normal to Bx axis, p_BQ.x() should be
- within the internal tolerance from box_B.side.x()/2.  */
+ within the internal tolerance from box_B.halfSide.x().  */
 Eigen::Vector3d PointOnBoxSurfaceHelper(const Eigen::Vector3d& p_BQ,
-                                        const fcl::Boxd& box_B);
+                                        const coal::Box& box_B);
 
 /* Returns the projected interval [min, max] of a box on a line through
  World's origin. The line is defined by the parametric function s(t) = û_W⋅t
@@ -86,7 +89,7 @@ Eigen::Vector3d PointOnBoxSurfaceHelper(const Eigen::Vector3d& p_BQ,
 
  @note  Assume the caller already normalized the unit_vector_W. This function
         will give wrong answer if it's not a unit vector. */
-std::pair<double, double> ProjectedMinMax(const fcl::Boxd& box_A,
+std::pair<double, double> ProjectedMinMax(const coal::Box& box_A,
                                           const math::RigidTransformd& X_WA,
                                           const Eigen::Vector3d& unit_vector_W);
 
@@ -107,7 +110,7 @@ std::pair<double, double> ProjectedMinMax(const fcl::Boxd& box_A,
  @pre The signed distance between the two boxes is zero (or within an
       internal tolerance), i.e., the two boxes barely touch.  */
 std::optional<Eigen::Vector3d> MaybeMakeSeparatingVector(
-    const fcl::Boxd& box_A, const fcl::Boxd& box_B,
+    const coal::Box& box_A, const coal::Box& box_B,
     const math::RigidTransformd& X_WA, const math::RigidTransformd& X_WB,
     const std::vector<Eigen::Vector3d>& v_Ws);
 
@@ -128,7 +131,7 @@ std::optional<Eigen::Vector3d> MaybeMakeSeparatingVector(
  @pre The signed distance between the two boxes is zero (or within an
       internal tolerance), i.e., the two witness points are at the same
       location (or within an internal tolerance) in World frame. */
-Eigen::Vector3d BoxBoxGradient(const fcl::Boxd& box_A, const fcl::Boxd& box_B,
+Eigen::Vector3d BoxBoxGradient(const coal::Box& box_A, const coal::Box& box_B,
                                const math::RigidTransformd& X_WA,
                                const math::RigidTransformd& X_WB,
                                const Eigen::Vector3d& p_ACa,

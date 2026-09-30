@@ -1,6 +1,7 @@
 #pragma once
 
-#include <fcl/fcl.h>
+#include <coal/collision_data.h>
+#include <coal/collision_object.h>
 
 #include "drake/common/drake_assert.h"
 #include "drake/common/drake_export.h"
@@ -28,8 +29,8 @@ struct CallbackData {
   /* The collision filter system.  */
   const CollisionFilter& collision_filter;
 
-  /* The parameters for the fcl object-object collision function.  */
-  fcl::CollisionRequestd request;
+  /* The parameters for the Coal object-object collision function.  */
+  coal::CollisionRequest request;
 
   /* The result of the collisions exist query.  */
   bool collisions_exist{false};
@@ -45,8 +46,8 @@ struct CallbackData {
  @returns true if there is a collision so that the broadphase can terminate its
           process early.
   */
-bool Callback(fcl::CollisionObjectd* object_A_ptr,
-              fcl::CollisionObjectd* object_B_ptr, void* callback_data);
+bool Callback(coal::CollisionObject* object_A_ptr,
+              coal::CollisionObject* object_B_ptr, void* callback_data);
 
 // clang-format off
 }  // namespace has_collisions

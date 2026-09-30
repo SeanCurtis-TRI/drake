@@ -5,7 +5,8 @@
 #include <unordered_map>
 #include <vector>
 
-#include <fcl/fcl.h>
+#include <coal/collision_data.h>
+#include <coal/collision_object.h>
 #include <fmt/ostream.h>
 #include <gtest/gtest.h>
 
@@ -15,7 +16,7 @@
 #include "drake/common/test_utilities/expect_throws_message.h"
 #include "drake/geometry/geometry_ids.h"
 #include "drake/geometry/proximity/proximity_utilities.h"
-#include "drake/geometry/proximity/test/fcl_utilities.h"
+#include "drake/geometry/proximity/test/coal_utilities.h"
 #include "drake/geometry/shape_specification.h"
 #include "drake/math/rigid_transform.h"
 #include "drake/math/roll_pitch_yaw.h"
@@ -39,15 +40,13 @@ namespace {
 
 // Specify a DistanceRequest that matches the request that ProximityEngine uses
 // prior to calling this Callback.
-fcl::DistanceRequestd MakeProximityEngineRequest() {
-  fcl::DistanceRequestd request;
-  request.enable_nearest_points = true;
+coal::DistanceRequest MakeProximityEngineRequest() {
+  coal::DistanceRequest request;
   request.enable_signed_distance = true;
-  request.gjk_solver_type = fcl::GJKSolverType::GST_LIBCCD;
   // Note: Proximity engine passes ProximityEngine::Impl::distance_tolerance_.
   // However, that is not yet externally configurable and currently defaults to
   // 1e-6.
-  request.distance_tolerance = 1e-6;
+  request.gjk_tolerance = 1e-6;
   return request;
 }
 
@@ -58,10 +57,10 @@ GTEST_TEST(SignedDistanceCallbackTests, ExpressionUnsupported) {
   // Add two geometries that can't be queried.
   const GeometryId id1 = GeometryId::get_new_id();
   const GeometryId id2 = GeometryId::get_new_id();
-  std::unique_ptr<fcl::CollisionObjectd> obj1 =
-      MakeFclObject(Box(1, 2, 3), id1, /* is_dynamic= */ true);
-  std::unique_ptr<fcl::CollisionObjectd> obj2 =
-      MakeFclObject(Box(2, 4, 6), id2, /* is_dynamic= */ true);
+  std::unique_ptr<coal::CollisionObject> obj1 =
+      MakeCoalObject(Box(1, 2, 3), id1, /* is_dynamic= */ true);
+  std::unique_ptr<coal::CollisionObject> obj2 =
+      MakeCoalObject(Box(2, 4, 6), id2, /* is_dynamic= */ true);
 
   const unordered_map<GeometryId, math::RigidTransform<Expression>> X_WGs{
       {id1, math::RigidTransform<Expression>::Identity()},
@@ -94,12 +93,12 @@ GTEST_TEST(SignedDistanceCallbackTests,
       {id3, RigidTransformd{Vector3d{kRadius * 0.9, 0, 0}}}};
 
   Sphere sphere{kRadius};
-  std::unique_ptr<fcl::CollisionObjectd> obj1 =
-      MakeFclObject(sphere, id1, /* is_dynamic= */ true);
-  std::unique_ptr<fcl::CollisionObjectd> obj2 =
-      MakeFclObject(sphere, id2, /* is_dynamic= */ true);
-  std::unique_ptr<fcl::CollisionObjectd> obj3 =
-      MakeFclObject(sphere, id3, /* is_dynamic= */ true);
+  std::unique_ptr<coal::CollisionObject> obj1 =
+      MakeCoalObject(sphere, id1, /* is_dynamic= */ true);
+  std::unique_ptr<coal::CollisionObject> obj2 =
+      MakeCoalObject(sphere, id2, /* is_dynamic= */ true);
+  std::unique_ptr<coal::CollisionObject> obj3 =
+      MakeCoalObject(sphere, id3, /* is_dynamic= */ true);
 
   // Calls shape_distance::Callback for all three pairs with the given threshold
   // and returns the collected results.
@@ -851,15 +850,16 @@ class SignedDistancePairTest
  public:
   SignedDistancePairTest() {
     const auto& data = GetParam();
-    fcl_object_A_ = MakeFclObject(*data.a_, data.expected_result_.id_A, false);
-    fcl_object_B_ = MakeFclObject(*data.b_, data.expected_result_.id_B, true);
+    coal_object_A_ =
+        MakeCoalObject(*data.a_, data.expected_result_.id_A, false);
+    coal_object_B_ = MakeCoalObject(*data.b_, data.expected_result_.id_B, true);
     X_WGs_[data.expected_result_.id_A] = data.X_WA_;
     X_WGs_[data.expected_result_.id_B] = data.X_WB_;
   }
 
  protected:
-  std::unique_ptr<fcl::CollisionObjectd> fcl_object_A_;
-  std::unique_ptr<fcl::CollisionObjectd> fcl_object_B_;
+  std::unique_ptr<coal::CollisionObject> coal_object_A_;
+  std::unique_ptr<coal::CollisionObject> coal_object_B_;
   unordered_map<GeometryId, RigidTransformd> X_WGs_;
 
  public:
@@ -877,7 +877,7 @@ TEST_P(SignedDistancePairTest, SinglePair) {
                                                      &witness_pairs};
   callback_data.request = MakeProximityEngineRequest();
   double max_dist = kInf;
-  shape_distance::Callback<double>(fcl_object_A_.get(), fcl_object_B_.get(),
+  shape_distance::Callback<double>(coal_object_A_.get(), coal_object_B_.get(),
                                    &callback_data, max_dist);
   ASSERT_EQ(witness_pairs.size(), 1);
   const auto& result = witness_pairs[0];
@@ -979,10 +979,10 @@ GTEST_TEST(SignedDistancePairError, HalfspaceException) {
   // We can't use sphere, because sphere-halfspace is supported.
   const GeometryId id_box = GeometryId::get_new_id();
   const GeometryId id_hs = GeometryId::get_new_id();
-  std::unique_ptr<fcl::CollisionObjectd> box_obj =
-      MakeFclObject(Box{0.5, 0.25, 0.75}, id_box, true);
-  std::unique_ptr<fcl::CollisionObjectd> hs_obj =
-      MakeFclObject(HalfSpace{}, id_hs, false);
+  std::unique_ptr<coal::CollisionObject> box_obj =
+      MakeCoalObject(Box{0.5, 0.25, 0.75}, id_box, true);
+  std::unique_ptr<coal::CollisionObject> hs_obj =
+      MakeCoalObject(HalfSpace{}, id_hs, false);
 
   // NOTE: It's not necessary to put any poses into X_WGs; they never get
   // evaluated due to the error condition.
@@ -1011,7 +1011,7 @@ TEST_P(SignedDistancePairConcentricTest, DistanceInvariance) {
                                                      &witness_pairs};
   callback_data.request = MakeProximityEngineRequest();
   double max_dist = kInf;
-  shape_distance::Callback<double>(fcl_object_A_.get(), fcl_object_B_.get(),
+  shape_distance::Callback<double>(coal_object_A_.get(), coal_object_B_.get(),
                                    &callback_data, max_dist);
   ASSERT_EQ(witness_pairs.size(), 1);
   const auto& result = witness_pairs[0];

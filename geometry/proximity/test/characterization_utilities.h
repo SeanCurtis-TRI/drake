@@ -17,7 +17,7 @@
 #include <utility>
 #include <vector>
 
-#include <fcl/fcl.h>
+#include <coal/collision_object.h>
 #include <fmt/ostream.h>
 #include <gtest/gtest.h>
 
@@ -47,7 +47,7 @@ class DistanceCallback {
    responsible for calling ClearResults() if it wants the results of this
    invocation to be distinct from other invocations. */
   virtual bool Invoke(
-      fcl::CollisionObjectd*, fcl::CollisionObjectd*, const CollisionFilter*,
+      coal::CollisionObject*, coal::CollisionObject*, const CollisionFilter*,
       const std::unordered_map<GeometryId, math::RigidTransform<T>>*) = 0;
 
   /* Forces all results to be cleared. */
@@ -220,10 +220,10 @@ class ShapeConfigurations : public ShapeReifier {
   std::vector<ShapeTangentPlane<T>> configs_;
 };
 
-/* @name Fcl geometry from drake shape specifications. */
-class DRAKE_NO_EXPORT MakeFclShape : public ShapeReifier {
+/* @name Coal geometry from drake shape specifications. */
+class DRAKE_NO_EXPORT MakeCoalShape : public ShapeReifier {
  public:
-  explicit MakeFclShape(const Shape& shape);
+  explicit MakeCoalShape(const Shape& shape);
 
   /* Implementation of ShapeReifier interface  */
   using ShapeReifier::ImplementGeometry;
@@ -236,16 +236,14 @@ class DRAKE_NO_EXPORT MakeFclShape : public ShapeReifier {
   void ImplementGeometry(const Mesh& mesh, void*) final;
   void ImplementGeometry(const Sphere& sphere, void*) final;
 
-  std::shared_ptr<fcl::CollisionGeometry<double>> object() const {
-    return object_;
-  }
+  std::shared_ptr<coal::CollisionGeometry> object() const { return object_; }
 
  private:
-  std::shared_ptr<fcl::CollisionGeometry<double>> object_{};
+  std::shared_ptr<coal::CollisionGeometry> object_{};
 };
 
 /* Reports if the Mesh shape is represented as a Convex shape under the hood. */
-::testing::AssertionResult MeshIsConvexInFcl();
+::testing::AssertionResult MeshIsConvexInCoal();
 
 /* Creates a transform to align two planes. The planes are defined by a
  (point, normal) pair -- the point lies on the plane and the normal is
@@ -296,8 +294,8 @@ class CharacterizeResultTest : public ::testing::Test {
    single result. Otherwise, confirms that the callback throws with a common
    "unsupported operation" type exception message. */
   void RunCallback(
-      const QueryInstance& query, fcl::CollisionObjectd* obj_A,
-      fcl::CollisionObjectd* obj_B, const CollisionFilter* collision_filter,
+      const QueryInstance& query, coal::CollisionObject* obj_A,
+      coal::CollisionObject* obj_B, const CollisionFilter* collision_filter,
       const std::unordered_map<GeometryId, math::RigidTransform<T>>* X_WGs)
       const;
 
@@ -391,7 +389,7 @@ class CharacterizeResultTest : public ::testing::Test {
 
   /* Generates a geometry id for the given collision object, encodes the id
    into the object, and returns the id.  */
-  GeometryId EncodeData(fcl::CollisionObjectd* obj);
+  GeometryId EncodeData(coal::CollisionObject* obj);
 
   /* Returns a collection of transforms to map an experiment expressed in a
    shape A's frame A, to the world frame. The transforms are arbitrary but

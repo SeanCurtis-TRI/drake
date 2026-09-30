@@ -4,7 +4,8 @@
 #include <unordered_map>
 #include <vector>
 
-#include <fcl/fcl.h>
+#include <coal/collision_data.h>
+#include <coal/collision_object.h>
 
 #include "drake/common/drake_export.h"
 #include "drake/geometry/proximity/collision_filter.h"
@@ -20,7 +21,7 @@ namespace penetration_as_point_pair DRAKE_NO_EXPORT {
  them as a pair of points (see PenetrationAsPointPair). It includes:
 
     - A collision filter instance. Aliased.
-    - An fcl collision request. Aliased.
+    - A Coal collision request. Aliased.
     - The poses. Aliased.
     - A vector of point pairs -- one instance of PenetrationAsPointPair for
       every supported, unfiltered penetrating pair. Aliased. */
@@ -38,20 +39,21 @@ struct CallbackData {
     DRAKE_DEMAND(point_pairs_in != nullptr);
     request.num_max_contacts = 1;
     request.enable_contact = true;
-    // NOTE: As of 5/1/2018 the GJK implementation of Libccd appears to be
-    // superior to FCL's "independent" implementation. Furthermore, libccd
-    // appears to behave badly if its gjk tolerance is much tighter than
-    // 2e-12. Until this changes, we explicitly specify these parameters rather
-    // than relying on FCL's defaults.
+    // This is the tolerance Drake has historically asked of the GJK solver.
+    // Note that we deliberately leave `epa_tolerance` at Coal's default; see
+    // the note on penetration depth in CalcDistanceFallback().
     request.gjk_tolerance = 2e-12;
-    request.gjk_solver_type = fcl::GJKSolverType::GST_LIBCCD;
+    // Coal defaults this to 1e-12, which would report pairs that are
+    // separated by a positive distance as colliding. Drake wants strict
+    // penetration, so we ask for it explicitly.
+    request.collision_distance_threshold = 0;
   }
 
   /* The collision filter system.  */
   const CollisionFilter& collision_filter;
 
-  /* The parameters for the fcl object-object collision function.  */
-  fcl::CollisionRequestd request;
+  /* The parameters for the Coal object-object collision function.  */
+  coal::CollisionRequest request;
 
   /** The pose of each geometry in the scene. */
   const std::unordered_map<GeometryId, math::RigidTransform<T>>& X_WGs;
@@ -60,21 +62,21 @@ struct CallbackData {
   std::vector<PenetrationAsPointPair<T>>& point_pairs;
 };
 
-/* Callback function for FCL's collide() function for retrieving a *single*
+/* Callback function for Coal's collide() function for retrieving a *single*
  contact. As documented by QueryObject::ComputePointPairPenetration(), the
  result added to the output data is the same, regardless of the order of
- the two fcl objects.  */
+ the two Coal objects.  */
 template <typename T>
-bool Callback(fcl::CollisionObjectd* fcl_object_A_ptr,
-              fcl::CollisionObjectd* fcl_object_B_ptr, void* callback_data);
+bool Callback(coal::CollisionObject* object_A_ptr,
+              coal::CollisionObject* object_B_ptr, void* callback_data);
 
 /* Given two objects that are candidates for a collision, returns the
  point-pair contact result. If the penetration depth turns out to be negative
  (no collision), returns nullopt. */
 template <typename T>
 std::optional<PenetrationAsPointPair<T>> MaybeMakePointPair(
-    fcl::CollisionObjectd* fcl_object_A_ptr,
-    fcl::CollisionObjectd* fcl_object_B_ptr, const CallbackData<T>& data);
+    coal::CollisionObject* object_A_ptr, coal::CollisionObject* object_B_ptr,
+    const CallbackData<T>& data);
 
 // clang-format off
 }  // namespace penetration_as_point_pair

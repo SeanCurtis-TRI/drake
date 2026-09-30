@@ -5,7 +5,8 @@
 #include <utility>
 #include <vector>
 
-#include <fcl/fcl.h>
+#include <coal/collision_object.h>
+#include <coal/shape/geometric_shapes.h>
 #include <gtest/gtest.h>
 
 #include "drake/common/eigen_types.h"
@@ -23,11 +24,10 @@ namespace internal {
 namespace hydroelastic {
 namespace {
 
+using coal::Box;
+using coal::CollisionObject;
+using coal::Halfspace;
 using Eigen::Vector3d;
-using fcl::Boxd;
-using fcl::CollisionObjectd;
-using fcl::Halfspaced;
-using fcl::Sphered;
 using math::RigidTransform;
 using math::RollPitchYaw;
 using math::RotationMatrix;
@@ -120,24 +120,25 @@ class TestScene {
   }
 
   // Given the "description" of the shape to be added, does the work of
-  // instantiating an FCL and hydroelastic representation. Returns the
-  // fcl representation.
-  unique_ptr<CollisionObjectd> MakeShape(GeometryId id, HydroelasticType type,
-                                         ShapeType shape_type,
-                                         EncodedData* data) {
-    unique_ptr<CollisionObjectd> shape;
+  // instantiating a Coal and hydroelastic representation. Returns the
+  // Coal representation.
+  unique_ptr<CollisionObject> MakeShape(GeometryId id, HydroelasticType type,
+                                        ShapeType shape_type,
+                                        EncodedData* data) {
+    unique_ptr<CollisionObject> shape;
     switch (shape_type) {
       case ShapeType::kSphere:
-        shape = make_unique<CollisionObjectd>(make_shared<Sphered>(kRadius));
+        shape =
+            make_unique<CollisionObject>(make_shared<coal::Sphere>(kRadius));
         MakeHydroelastic(id, type, Sphere(kRadius));
         break;
       case ShapeType::kHalfSpace:
-        shape = make_unique<CollisionObjectd>(make_shared<Halfspaced>());
+        shape = make_unique<CollisionObject>(make_shared<Halfspace>());
         MakeHydroelastic(id, type, HalfSpace());
         break;
       case ShapeType::kTinySphere:
-        shape =
-            make_unique<CollisionObjectd>(make_shared<Sphered>(kTinyRadius));
+        shape = make_unique<CollisionObject>(
+            make_shared<coal::Sphere>(kTinyRadius));
         MakeHydroelastic(id, type, Sphere(kTinyRadius));
         break;
     }
@@ -218,9 +219,9 @@ class TestScene {
   }
 
   // Note: these are non const because the callback takes non-const pointers
-  // (due to FCL's API).
-  CollisionObjectd& shape_A() { return *shape_A_; }
-  CollisionObjectd& shape_B() { return *shape_B_; }
+  // (due to Coal's API).
+  CollisionObject& shape_A() { return *shape_A_; }
+  CollisionObject& shape_B() { return *shape_B_; }
   ContactCalculator<T>& calculator() { return calculator_; }
   const vector<ContactSurface<T>>& surfaces() const { return surfaces_; }
   const Geometries& hydroelastic_geometries() const {
@@ -241,8 +242,8 @@ class TestScene {
   static constexpr double kTinyRadius{1e-7};
   const ShapeType shape_A_type_;
   const ShapeType shape_B_type_;
-  unique_ptr<CollisionObjectd> shape_A_;
-  unique_ptr<CollisionObjectd> shape_B_;
+  unique_ptr<CollisionObject> shape_A_;
+  unique_ptr<CollisionObject> shape_B_;
   vector<ContactSurface<T>> surfaces_;
   ContactCalculator<T> calculator_;
 };

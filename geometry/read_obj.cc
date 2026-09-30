@@ -18,22 +18,22 @@ namespace {
 
 using drake::internal::DiagnosticPolicy;
 
-// TODO(SeanCurtis-TRI) Move this tinyobj->fcl code into its own library that
+// TODO(SeanCurtis-TRI) Move this tinyobj->hull code into its own library that
 //  can be built and tested separately.
 
 //
-// Convert vertices from tinyobj format to FCL format.
+// Convert vertices from tinyobj format to the collision library's format.
 //
 // Vertices from tinyobj are in a vector of floating-points like this:
 //     attrib.vertices = {c0,c1,c2, c3,c4,c5, c6,c7,c8,...}
 //                     = {x, y, z,  x, y, z,  x, y, z,...}
-// We will convert to a vector of Vector3d for FCL like this:
+// We will convert to a vector of Vector3d like this:
 //     vertices = {{c0,c1,c2}, {c3,c4,c5}, {c6,c7,c8},...}
 //              = {    v0,         v1,         v2,    ...}
 //
 // The size of `attrib.vertices` is three times the number of vertices.
 //
-std::vector<Eigen::Vector3d> TinyObjToFclVertices(
+std::vector<Eigen::Vector3d> TinyObjToCoalVertices(
     const tinyobj::attrib_t& attrib, const Eigen::Vector3d& scale) {
   int num_coords = attrib.vertices.size();
   DRAKE_DEMAND(num_coords % 3 == 0);
@@ -53,7 +53,7 @@ std::vector<Eigen::Vector3d> TinyObjToFclVertices(
 }
 
 // Returns the `mesh`'s faces re-encoded in a format consistent with what
-// fcl::Convex expects.
+// a convex hull geometry expects.
 //
 // A tinyobj mesh has an integer array storing the number of vertices of
 // each polygonal face.
@@ -71,7 +71,7 @@ std::vector<Eigen::Vector3d> TinyObjToFclVertices(
 //         face1 has vertices v1_0, v1_1,...,v1_n1-1.
 //         face2 has vertices v2_0, v2_1,...,v2_n2-1.
 //         ...
-// For fcl::Convex, faces are encoded as an array of integers in this format.
+// Faces are encoded as an array of integers in this format.
 //     faces = { n0, v0_0,v0_1,...,v0_n0-1,
 //               n1, v1_0,v1_1,...,v1_n1-1,
 //               n2, v2_0,v2_1,...,v2_n2-1,
@@ -81,8 +81,8 @@ std::vector<Eigen::Vector3d> TinyObjToFclVertices(
 // The actual number of faces returned will be equal to:
 // mesh.num_face_vertices.size() which *cannot* be easily inferred from the
 // *size* of the returned vector.
-std::vector<int> TinyObjToFclFaces(const std::vector<tinyobj::shape_t>& shapes,
-                                   bool reverse_winding) {
+std::vector<int> TinyObjToCoalFaces(const std::vector<tinyobj::shape_t>& shapes,
+                                    bool reverse_winding) {
   // Estimate (to an order of magnitude) how much space we need for face data.
   int estimated_face_data_size = 0;
   for (const auto& shape : shapes) {
@@ -136,7 +136,7 @@ ReadObjContents(const MemoryFile& file, const Eigen::Vector3d& scale,
 
   const tinyobj::attrib_t& attrib = reader.GetAttrib();
   auto vertices = std::make_shared<std::vector<Eigen::Vector3d>>(
-      TinyObjToFclVertices(attrib, scale));
+      TinyObjToCoalVertices(attrib, scale));
 
   if (vertices_only) {
     return {vertices, std::make_shared<std::vector<int>>(), 0};
@@ -164,7 +164,7 @@ ReadObjContents(const MemoryFile& file, const Eigen::Vector3d& scale,
     num_faces += shape.mesh.num_face_vertices.size();
   }
   auto faces = std::make_shared<std::vector<int>>(
-      TinyObjToFclFaces(shapes, reverse_winding));
+      TinyObjToCoalFaces(shapes, reverse_winding));
   return {vertices, faces, num_faces};
 }
 
