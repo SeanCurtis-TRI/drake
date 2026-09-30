@@ -3,6 +3,8 @@
 #include <string>
 #include <variant>
 
+#include <coal/distance.h>
+
 #include "drake/common/default_scalars.h"
 #include "drake/common/drake_bool.h"
 #include "drake/geometry/proximity/calc_signed_distance_to_surface_mesh.h"
@@ -13,7 +15,7 @@ namespace internal {
 namespace point_distance {
 
 template <typename T>
-void SphereDistanceInSphereFrame(const fcl::Sphered& sphere,
+void SphereDistanceInSphereFrame(const coal::Sphere& sphere,
                                  const Vector3<T>& p_SQ, Vector3<T>* p_SN,
                                  T* distance, Vector3<T>* grad_S) {
   const double radius = sphere.radius;
@@ -45,7 +47,7 @@ void SphereDistanceInSphereFrame(const fcl::Sphered& sphere,
 }
 
 template <typename T>
-void ComputeDistanceToPrimitive(const fcl::Sphered& sphere,
+void ComputeDistanceToPrimitive(const coal::Sphere& sphere,
                                 const math::RigidTransform<T>& X_WG,
                                 const Vector3<T>& p_WQ, Vector3<T>* p_GN,
                                 T* distance, Vector3<T>* grad_W) {
@@ -58,11 +60,11 @@ void ComputeDistanceToPrimitive(const fcl::Sphered& sphere,
 }
 
 template <typename T>
-void ComputeDistanceToPrimitive(const fcl::Halfspaced& halfspace,
+void ComputeDistanceToPrimitive(const coal::Halfspace& halfspace,
                                 const math::RigidTransform<T>& X_WG,
                                 const Vector3<T>& p_WQ, Vector3<T>* p_GN,
                                 T* distance, Vector3<T>* grad_W) {
-  // FCL stores the halfspace as {x | nᵀ * x > d}, with n being a unit length
+  // Coal stores the halfspace as {x | nᵀ * x > d}, with n being a unit length
   // normal vector. Both n and x are expressed in the halfspace frame.
   // In Drake, the halfspace is *always* defined as n_G = (0, 0, 1), d = 0.
   // That means the distance to the plane is merely the z-component of p_GQ and
@@ -77,12 +79,12 @@ void ComputeDistanceToPrimitive(const fcl::Halfspaced& halfspace,
 }
 
 template <typename T>
-void ComputeDistanceToPrimitive(const fcl::Capsuled& capsule,
+void ComputeDistanceToPrimitive(const coal::Capsule& capsule,
                                 const math::RigidTransform<T>& X_WG,
                                 const Vector3<T>& p_WQ, Vector3<T>* p_GN,
                                 T* distance, Vector3<T>* grad_W) {
   const double radius = capsule.radius;
-  const double half_length = capsule.lz / 2;
+  const double half_length = capsule.halfLength;
 
   // If the query point Q is closest to the end caps of the capsule, then we can
   // re-use the distance to sphere calculations since they are effectively the
@@ -103,7 +105,7 @@ void ComputeDistanceToPrimitive(const fcl::Capsuled& capsule,
   const Vector3<T> p_GQ = X_WG.inverse() * p_WQ;
   if (p_GQ.z() >= half_length || p_GQ.z() <= -half_length) {
     // Represent the end cap of the capsule using a sphere S of the same radius.
-    const fcl::Sphered sphere_S(radius);
+    const coal::Sphere sphere_S(radius);
     // The sphere is defined centered on the origin of frame S. Frame S and G
     // are related by a simple translation (their bases are perfectly aligned).
     // So, a vector quantity expressed in frame G is the same as when expressed
@@ -149,7 +151,7 @@ void ComputeDistanceToPrimitive(const fcl::Capsuled& capsule,
     // TODO(SeanCurtis-TRI): For further efficiency, consider doing these
     //  calculations in 2D and then promoting them back into 3D.
     const Vector3<T> p_GR{p_GQ.x(), p_GQ.y(), 0};
-    const fcl::Sphered sphere_S(radius);
+    const coal::Sphere sphere_S(radius);
     Vector3<T> p_GM;
     Vector3<T> grad_G;
     SphereDistanceInSphereFrame(sphere_S, p_GR, &p_GM, distance, &grad_G);
@@ -159,13 +161,13 @@ void ComputeDistanceToPrimitive(const fcl::Capsuled& capsule,
 }
 
 template <typename T>
-SignedDistanceToPoint<T> DistanceToPoint<T>::operator()(const fcl::Boxd& box) {
+SignedDistanceToPoint<T> DistanceToPoint<T>::operator()(const coal::Box& box) {
   // Express the given query point Q in the frame of the box geometry G.
   const Vector3<T> p_GQ_G = X_WG_.inverse() * p_WQ_;
   // The box G is an axis-aligned box [-h(0),h(0)]x[-h(1),h(1)]x[-h(2),h(2)]
   // centered at the origin, where h(i) is half the size of the box in the
   // i-th coordinate.
-  const Eigen::Vector3d h = box.side / 2.0;
+  const Eigen::Vector3d h = box.halfSide;
   Vector3<T> p_GN_G, grad_G;
   bool is_Q_on_edge_or_vertex{};
   std::tie(p_GN_G, grad_G, is_Q_on_edge_or_vertex) =
@@ -178,7 +180,7 @@ SignedDistanceToPoint<T> DistanceToPoint<T>::operator()(const fcl::Boxd& box) {
 
 template <typename T>
 SignedDistanceToPoint<T> DistanceToPoint<T>::operator()(
-    const fcl::Capsuled& capsule) {
+    const coal::Capsule& capsule) {
   // TODO(SeanCurtis-TRI): This would be better if `SignedDistanceToPoint`
   //  could be default constructed in an uninitialized state and then
   //  pointers to its contents could be passed directly to ComputeDistance...
@@ -193,7 +195,7 @@ SignedDistanceToPoint<T> DistanceToPoint<T>::operator()(
 
 template <typename T>
 SignedDistanceToPoint<T> DistanceToPoint<T>::operator()(
-    const fcl::Cylinderd& cylinder) {
+    const coal::Cylinder& cylinder) {
   using std::sqrt;
   // TODO(SeanCurtis-TRI): This is not a good algorithm for differentiation.
   //  Replace it with one that is.
@@ -208,7 +210,7 @@ SignedDistanceToPoint<T> DistanceToPoint<T>::operator()(
   const Vector3<T> p_GQ = X_WG_.inverse() * p_WQ_;
   // The 2D cross section B is the box [-h(0),h(0)]x[-h(1),h(1)], where
   // h(0) and h(1) are the radius and the half length of the cylinder.
-  const Eigen::Vector2d h(cylinder.radius, cylinder.lz / 2.0);
+  const Eigen::Vector2d h(cylinder.radius, cylinder.halfLength);
   // Transform coordinates between (x,y,z) in G's frame and (r,z) in B's
   // frame. The basis vector `Bz` is aligned with `Gz`, and `r` is the
   // distance to the z-axis (i.e., √(x² + y²)), and z transfers unchanged. The
@@ -288,31 +290,32 @@ SignedDistanceToPoint<T> DistanceToPoint<T>::operator()(
 
 template <typename T>
 SignedDistanceToPoint<T> DistanceToPoint<T>::operator()(
-    const fcl::Ellipsoidd& ellipsoid) {
+    const coal::Ellipsoid& ellipsoid) {
   if constexpr (std::is_same_v<T, double>) {
     // TODO(SeanCurtis-TRI): Replace this short-term hack with something that
     //  provides higher precision. Can an iterative method provide derivatives?
     //  See:
     //  https://www.geometrictools.com/Documentation/DistancePointEllipseEllipsoid.pdf
 
-    // For now, we'll simply use FCL's sphere-ellipsoid algorithm to compute
+    // For now, we'll simply use Coal's sphere-ellipsoid algorithm to compute
     // the signed distance for a zero-radius sphere. (Note: this uses the
     // generic GJK-EPA algorithm pair).
-    const fcl::Sphered sphere_Q(0.0);
+    const coal::Sphere sphere_Q(0.0);
 
-    fcl::DistanceRequestd request;
-    request.enable_nearest_points = true;
+    coal::DistanceRequest request;
     request.enable_signed_distance = true;
-    request.distance_tolerance = 1e-6;
-    request.gjk_solver_type = fcl::GJKSolverType::GST_LIBCCD;
+    // Coal has no distance_tolerance; the knob that governs the accuracy of
+    // the separated-distance answer is the GJK tolerance. We leave
+    // `epa_tolerance` at its default.
+    request.gjk_tolerance = 1e-6;
 
     // By passing in poses X_WG and X_WQ, the result will likewise be in the
     // world frame.
-    fcl::DistanceResultd result_W;
+    coal::DistanceResult result_W;
 
-    fcl::distance(&ellipsoid, X_WG_.GetAsIsometry3(), &sphere_Q,
-                  math::RigidTransformd(p_WQ_).GetAsIsometry3(), request,
-                  result_W);
+    coal::distance(&ellipsoid, ToCoalTransform(X_WG_), &sphere_Q,
+                   ToCoalTransform(math::RigidTransformd(p_WQ_)), request,
+                   result_W);
 
     const Vector3d& p_WN = result_W.nearest_points[0];
     const Vector3d p_GN = X_WG_.inverse() * p_WN;
@@ -349,7 +352,7 @@ SignedDistanceToPoint<T> DistanceToPoint<T>::operator()(
 
 template <typename T>
 SignedDistanceToPoint<T> DistanceToPoint<T>::operator()(
-    const fcl::Halfspaced& halfspace) {
+    const coal::Halfspace& halfspace) {
   T distance{};
   Vector3<T> p_GN_G, grad_W;
   ComputeDistanceToPrimitive(halfspace, X_WG_, p_WQ_, &p_GN_G, &distance,
@@ -360,7 +363,7 @@ SignedDistanceToPoint<T> DistanceToPoint<T>::operator()(
 
 template <typename T>
 SignedDistanceToPoint<T> DistanceToPoint<T>::operator()(
-    const fcl::Sphered& sphere) {
+    const coal::Sphere& sphere) {
   T distance{};
   Vector3<T> p_GN_G, grad_W;
   ComputeDistanceToPrimitive(sphere, X_WG_, p_WQ_, &p_GN_G, &distance, &grad_W);
@@ -494,8 +497,8 @@ DistanceToPoint<T>::ComputeDistanceToBox(const Vector<double, dim>& h,
 }
 
 template <typename T>
-bool Callback(fcl::CollisionObjectd* object_A_ptr,
-              fcl::CollisionObjectd* object_B_ptr,
+bool Callback(coal::CollisionObject* object_A_ptr,
+              coal::CollisionObject* object_B_ptr,
               // NOLINTNEXTLINE
               void* callback_data, double& threshold_out) {
   auto& data = *static_cast<CallbackData<T>*>(callback_data);
@@ -504,7 +507,8 @@ bool Callback(fcl::CollisionObjectd* object_A_ptr,
   //   1. We repeatedly set `threshold_out` in each call to the callback because
   //   we can't initialize it. The cost is negligible but maximizes any culling
   //   benefit.
-  //   2. Due to how FCL is implemented, passing a value <= 0 will cause results
+  //   2. Due to how the broadphase is implemented, passing a value <= 0 will
+  //   cause results
   //   to be omitted because the bounding box test only considers *separating*
   //   distance and doesn't do any work if the distance between bounding boxes
   //   is zero.
@@ -517,13 +521,13 @@ bool Callback(fcl::CollisionObjectd* object_A_ptr,
   threshold_out = std::max(data.threshold, kEps);
 
   // We use `const` to prevent modification of the collision objects.
-  const fcl::CollisionObjectd* geometry_object =
+  const coal::CollisionObject* geometry_object =
       (&data.query_point == object_A_ptr) ? object_B_ptr : object_A_ptr;
 
   const EncodedData encoding(*geometry_object);
   GeometryId geometry_id = encoding.id();
 
-  const fcl::CollisionGeometryd* collision_geometry =
+  const coal::CollisionGeometry* collision_geometry =
       geometry_object->collisionGeometry().get();
   if (ScalarSupport<T>::is_supported(collision_geometry->getNodeType())) {
     const math::RigidTransform<T> typed_X_WG(data.X_WGs.at(geometry_id));
@@ -531,44 +535,44 @@ bool Callback(fcl::CollisionObjectd* object_A_ptr,
 
     SignedDistanceToPoint<T> distance;
     switch (collision_geometry->getNodeType()) {
-      case fcl::GEOM_BOX:
+      case coal::GEOM_BOX:
         distance = distance_to_point(
-            *static_cast<const fcl::Boxd*>(collision_geometry));
+            *static_cast<const coal::Box*>(collision_geometry));
         break;
-      case fcl::GEOM_CAPSULE:
+      case coal::GEOM_CAPSULE:
         distance = distance_to_point(
-            *static_cast<const fcl::Capsuled*>(collision_geometry));
+            *static_cast<const coal::Capsule*>(collision_geometry));
         break;
-      // Both drake::geometry::Mesh and Convex use fcl::GEOM_CONVEX.
-      case fcl::GEOM_CONVEX:
+      // Both drake::geometry::Mesh and Convex use coal::GEOM_CONVEX.
+      case coal::GEOM_CONVEX:
         if (data.mesh_distance_boundary_cache.GetBoundary(geometry_id) !=
             nullptr) {
           distance = distance_to_point(
               *data.mesh_distance_boundary_cache.GetBoundary(geometry_id));
         } else {
-          // Unsupported mesh types. Returning false tells fcl to continue
+          // Unsupported mesh types. Returning false tells Coal to continue
           // to other objects.
           return false;
         }
         break;
-      case fcl::GEOM_CYLINDER:
+      case coal::GEOM_CYLINDER:
         distance = distance_to_point(
-            *static_cast<const fcl::Cylinderd*>(collision_geometry));
+            *static_cast<const coal::Cylinder*>(collision_geometry));
         break;
-      case fcl::GEOM_ELLIPSOID:
+      case coal::GEOM_ELLIPSOID:
         distance = distance_to_point(
-            *static_cast<const fcl::Ellipsoidd*>(collision_geometry));
+            *static_cast<const coal::Ellipsoid*>(collision_geometry));
         break;
-      case fcl::GEOM_HALFSPACE:
+      case coal::GEOM_HALFSPACE:
         distance = distance_to_point(
-            *static_cast<const fcl::Halfspaced*>(collision_geometry));
+            *static_cast<const coal::Halfspace*>(collision_geometry));
         break;
-      case fcl::GEOM_SPHERE:
+      case coal::GEOM_SPHERE:
         distance = distance_to_point(
-            *static_cast<const fcl::Sphered*>(collision_geometry));
+            *static_cast<const coal::Sphere*>(collision_geometry));
         break;
       default:
-        // Unsupported shapes.  Returning false tells fcl to continue to
+        // Unsupported shapes.  Returning false tells Coal to continue to
         // other objects.
         return false;
     }
@@ -578,7 +582,7 @@ bool Callback(fcl::CollisionObjectd* object_A_ptr,
     }
   }
 
-  return false;  // Returning false tells fcl to continue to other objects.
+  return false;  // Returning false tells Coal to continue to other objects.
 }
 
 DRAKE_DEFINE_FUNCTION_TEMPLATE_INSTANTIATIONS_ON_DEFAULT_SCALARS(

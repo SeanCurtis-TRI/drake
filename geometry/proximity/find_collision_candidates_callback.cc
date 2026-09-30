@@ -14,8 +14,8 @@ CallbackData::CallbackData(const CollisionFilter* collision_filter_in,
   DRAKE_DEMAND(pairs_in != nullptr);
 }
 
-bool Callback(fcl::CollisionObjectd* object_A_ptr,
-              fcl::CollisionObjectd* object_B_ptr,
+bool Callback(coal::CollisionObject* object_A_ptr,
+              coal::CollisionObject* object_B_ptr,
               // NOLINTNEXTLINE
               void* callback_data) {
   auto& data = *static_cast<CallbackData*>(callback_data);

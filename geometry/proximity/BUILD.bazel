@@ -205,7 +205,7 @@ drake_cc_library(
         ":proximity_utilities",
         "//common:drake_export",
         "//geometry:geometry_ids",
-        "@fcl_internal//:fcl",
+        "@coal_internal//:coal",
     ],
 )
 
@@ -325,7 +325,7 @@ drake_cc_library(
         "//geometry:shape_specification",
         "//geometry/query_results:signed_distance_to_point",
         "//math:geometric_transform",
-        "@fcl_internal//:fcl",
+        "@coal_internal//:coal",
     ],
     implementation_deps = [
         ":obj_to_surface_mesh",
@@ -366,7 +366,7 @@ drake_cc_library(
         "//common:drake_export",
         "//common:essential",
         "//math:geometric_transform",
-        "@fcl_internal//:fcl",
+        "@coal_internal//:coal",
     ],
 )
 
@@ -404,7 +404,7 @@ drake_cc_library(
         ":proximity_utilities",
         "//common:drake_export",
         "//common:sorted_pair",
-        "@fcl_internal//:fcl",
+        "@coal_internal//:coal",
         "@fmt",
     ],
 )
@@ -860,7 +860,7 @@ drake_cc_library(
         "//common:nice_type_name",
         "//geometry/query_results:penetration_as_point_pair",
         "//geometry/query_results:signed_distance_to_point",
-        "@fcl_internal//:fcl",
+        "@coal_internal//:coal",
     ],
 )
 
@@ -926,7 +926,7 @@ drake_cc_library(
         "//common:sorted_pair",
         "//geometry:geometry_ids",
         "//geometry:shape_specification",
-        "@fcl_internal//:fcl",
+        "@coal_internal//:coal",
         "@fmt",
     ],
 )
@@ -1179,13 +1179,29 @@ drake_cc_library(
         "//geometry:utilities",
         "//geometry/proximity:proximity_utilities",
         "//math:geometric_transform",
-        "@fcl_internal//:fcl",
+        "@coal_internal//:coal",
     ],
 )
 
 drake_cc_googletest(
     name = "characterization_utilities_test",
     deps = [":characterization_utilities"],
+)
+
+drake_cc_library(
+    name = "coal_utilities",
+    testonly = 1,
+    srcs = ["test/coal_utilities.cc"],
+    hdrs = ["test/coal_utilities.h"],
+    visibility = ["//visibility:private"],
+    deps = [
+        ":polygon_surface_mesh",
+        ":proximity_utilities",
+        "//geometry:geometry_ids",
+        "//geometry:shape_specification",
+        "//math:geometric_transform",
+        "@coal_internal//:coal",
+    ],
 )
 
 drake_cc_googletest(
@@ -1300,8 +1316,8 @@ drake_cc_googletest(
 drake_cc_googletest(
     name = "distance_to_point_callback_test",
     deps = [
+        ":coal_utilities",
         ":distance_to_point_callback",
-        ":fcl_utilities",
         "//common/test_utilities",
         "//geometry:shape_specification",
         "//geometry:utilities",
@@ -1331,8 +1347,8 @@ drake_cc_googletest(
 drake_cc_googletest(
     name = "distance_to_shape_callback_test",
     deps = [
+        ":coal_utilities",
         ":distance_to_shape_callback",
-        ":fcl_utilities",
         ":proximity_utilities",
         "//common/test_utilities",
         "//geometry:shape_specification",
@@ -1358,22 +1374,6 @@ drake_cc_googletest(
         "//common:essential",
         "//common/test_utilities",
         "//math:geometric_transform",
-    ],
-)
-
-drake_cc_library(
-    name = "fcl_utilities",
-    testonly = 1,
-    srcs = ["test/fcl_utilities.cc"],
-    hdrs = ["test/fcl_utilities.h"],
-    visibility = ["//visibility:private"],
-    deps = [
-        ":polygon_surface_mesh",
-        ":proximity_utilities",
-        "//geometry:geometry_ids",
-        "//geometry:shape_specification",
-        "//math:geometric_transform",
-        "@fcl_internal//:fcl",
     ],
 )
 
@@ -1759,7 +1759,7 @@ drake_cc_googletest(
         "//geometry:test_obj_files",
     ],
     deps = [
-        ":fcl_utilities",
+        ":coal_utilities",
         ":penetration_as_point_pair_callback",
         "//common:find_resource",
         "//common/test_utilities:eigen_matrix_compare",

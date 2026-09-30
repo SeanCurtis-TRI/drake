@@ -2,6 +2,7 @@
 
 #include <set>
 #include <unordered_set>
+#include <vector>
 
 #include "drake/common/sorted_pair.h"
 #include "drake/geometry/proximity/sorted_triplet.h"
@@ -10,44 +11,65 @@ namespace drake {
 namespace geometry {
 namespace internal {
 
-std::string GetGeometryName(const fcl::CollisionObjectd& object) {
+std::string GetGeometryName(const coal::CollisionObject& object) {
+  // Note: coal::GEOM_CONVEX is an alias for coal::GEOM_CONVEX32, so it cannot
+  // appear as a case of its own.
   switch (object.collisionGeometry()->getNodeType()) {
-    case fcl::BV_UNKNOWN:
-    case fcl::BV_AABB:
-    case fcl::BV_OBB:
-    case fcl::BV_RSS:
-    case fcl::BV_kIOS:
-    case fcl::BV_OBBRSS:
-    case fcl::BV_KDOP16:
-    case fcl::BV_KDOP18:
-    case fcl::BV_KDOP24:
+    case coal::BV_UNKNOWN:
+    case coal::BV_AABB:
+    case coal::BV_OBB:
+    case coal::BV_RSS:
+    case coal::BV_kIOS:
+    case coal::BV_OBBRSS:
+    case coal::BV_KDOP16:
+    case coal::BV_KDOP18:
+    case coal::BV_KDOP24:
+    case coal::HF_AABB:
+    case coal::HF_OBBRSS:
       return "Unsupported";
-    case fcl::GEOM_BOX:
+    case coal::GEOM_BOX:
       return "Box";
-    case fcl::GEOM_SPHERE:
+    case coal::GEOM_SPHERE:
       return "Sphere";
-    case fcl::GEOM_ELLIPSOID:
+    case coal::GEOM_ELLIPSOID:
       return "Ellipsoid";
-    case fcl::GEOM_CAPSULE:
+    case coal::GEOM_CAPSULE:
       return "Capsule";
-    case fcl::GEOM_CONE:
+    case coal::GEOM_CONE:
       return "Cone";
-    case fcl::GEOM_CYLINDER:
+    case coal::GEOM_CYLINDER:
       return "Cylinder";
-    case fcl::GEOM_CONVEX:
+    case coal::GEOM_CONVEX16:
+    case coal::GEOM_CONVEX32:
       return "Convex";
-    case fcl::GEOM_PLANE:
+    case coal::GEOM_PLANE:
       return "Plane";
-    case fcl::GEOM_HALFSPACE:
+    case coal::GEOM_HALFSPACE:
       return "Halfspace";
-    case fcl::GEOM_TRIANGLE:
+    case coal::GEOM_TRIANGLE:
       return "Mesh";
-    case fcl::GEOM_OCTREE:
+    case coal::GEOM_OCTREE:
       return "Octtree";
-    case fcl::NODE_COUNT:
+    case coal::NODE_COUNT:
       return "Unsupported";
   }
   DRAKE_UNREACHABLE();
+}
+
+std::vector<coal::Triangle32> MakeCoalTriangles(
+    const std::vector<int>& face_data) {
+  std::vector<coal::Triangle32> triangles;
+  int i = 0;
+  while (i < ssize(face_data)) {
+    const int count = face_data[i];
+    DRAKE_DEMAND(count >= 3);
+    const int first = face_data[i + 1];
+    for (int t = 1; t < count - 1; ++t) {
+      triangles.emplace_back(first, face_data[i + 1 + t], face_data[i + 2 + t]);
+    }
+    i += count + 1;
+  }
+  return triangles;
 }
 
 int CountEdges(const VolumeMesh<double>& mesh) {

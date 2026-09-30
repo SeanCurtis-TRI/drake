@@ -7,9 +7,12 @@
 #include <utility>
 #include <vector>
 
+#include <coal/shape/convex.h>
+#include <coal/shape/geometric_shapes.h>
 #include <gtest/gtest.h>
 
 #include "drake/common/test_utilities/eigen_matrix_compare.h"
+#include "drake/geometry/proximity/proximity_utilities.h"
 #include "drake/math/rigid_transform.h"
 
 namespace drake {
@@ -31,30 +34,30 @@ namespace {
  are controlled by the test to make sure that the test is detecting error that
  is *known* to exist.  */
 
-/* The MakeFclShapeTest tests confirm that Drake shape specifications turn into
- the expected fcl geometries. */
+/* The MakeCoalShapeTest tests confirm that Drake shape specifications turn into
+ the expected Coal geometries. */
 
-GTEST_TEST(MakeFclShapeTest, Box) {
+GTEST_TEST(MakeCoalShapeTest, Box) {
   const Box box(1, 2, 3);
-  auto fcl_geometry = MakeFclShape(box).object();
-  const auto& fcl_box = dynamic_cast<fcl::Boxd&>(*fcl_geometry);
-  EXPECT_EQ(fcl_box.side, box.size());
+  auto coal_geometry = MakeCoalShape(box).object();
+  const auto& coal_box = dynamic_cast<coal::Box&>(*coal_geometry);
+  EXPECT_EQ(coal_box.halfSide, box.size() / 2);
 }
 
-GTEST_TEST(MakeFclShapeTest, Capsule) {
+GTEST_TEST(MakeCoalShapeTest, Capsule) {
   const Capsule capsule(0.25, 0.75);
-  auto fcl_geometry = MakeFclShape(capsule).object();
-  const auto& fcl_capsule = dynamic_cast<fcl::Capsuled&>(*fcl_geometry);
-  EXPECT_EQ(fcl_capsule.radius, capsule.radius());
-  EXPECT_EQ(fcl_capsule.lz, capsule.length());
+  auto coal_geometry = MakeCoalShape(capsule).object();
+  const auto& coal_capsule = dynamic_cast<coal::Capsule&>(*coal_geometry);
+  EXPECT_EQ(coal_capsule.radius, capsule.radius());
+  EXPECT_EQ(coal_capsule.halfLength, capsule.length() / 2);
 }
 
-GTEST_TEST(MakeFclShapeTest, Convex) {
-  auto fcl_geometry = MakeFclShape(Convex("ignored", 1.0)).object();
-  const auto& fcl_convex = dynamic_cast<fcl::Convexd&>(*fcl_geometry);
+GTEST_TEST(MakeCoalShapeTest, Convex) {
+  auto coal_geometry = MakeCoalShape(Convex("ignored", 1.0)).object();
+  const auto& coal_convex = dynamic_cast<CoalConvex&>(*coal_geometry);
   /* The convex shape is actually a box with fixed dimensions. We won't *prove*
    it's the expected box. But we'll confirm:
-     - the number of faces (6) and vertices (8)
+     - the number of faces (six quads triangulated into 12) and vertices (8)
      - all vertices are a fixed distance from the origin
      - The extent of an axis-aligned bounding box is that of the expected box.
    This won't guarantee a box, but would require an overt, adversarial effort
@@ -62,12 +65,12 @@ GTEST_TEST(MakeFclShapeTest, Convex) {
   const Box box = CharacterizeResultTest<double>::box();
   const Vector3d half_size = box.size() / 2;
   const double dist_to_corner = half_size.norm();
-  ASSERT_EQ(fcl_convex.getVertices().size(), 8);
-  ASSERT_EQ(fcl_convex.getFaceCount(), 6);
+  ASSERT_EQ(coal_convex.points->size(), 8);
+  ASSERT_EQ(coal_convex.num_polygons, 12);
   constexpr double kEps = std::numeric_limits<double>::epsilon();
   Vector3d min_corner = Vector3d::Constant(1e8);
   Vector3d max_corner = -min_corner;
-  for (const auto& v : fcl_convex.getVertices()) {
+  for (const auto& v : *coal_convex.points) {
     ASSERT_NEAR(v.norm(), dist_to_corner, kEps);
     min_corner = min_corner.cwiseMin(v);
     max_corner = max_corner.cwiseMax(v);
@@ -76,35 +79,35 @@ GTEST_TEST(MakeFclShapeTest, Convex) {
   EXPECT_TRUE(CompareMatrices(max_corner, half_size, kEps));
 }
 
-GTEST_TEST(MakeFclShapeTest, Cylinder) {
+GTEST_TEST(MakeCoalShapeTest, Cylinder) {
   const Cylinder cylinder(0.25, 0.75);
-  auto fcl_geometry = MakeFclShape(cylinder).object();
-  const auto& fcl_cylinder = dynamic_cast<fcl::Cylinderd&>(*fcl_geometry);
-  EXPECT_EQ(fcl_cylinder.radius, cylinder.radius());
-  EXPECT_EQ(fcl_cylinder.lz, cylinder.length());
+  auto coal_geometry = MakeCoalShape(cylinder).object();
+  const auto& coal_cylinder = dynamic_cast<coal::Cylinder&>(*coal_geometry);
+  EXPECT_EQ(coal_cylinder.radius, cylinder.radius());
+  EXPECT_EQ(coal_cylinder.halfLength, cylinder.length() / 2);
 }
 
-GTEST_TEST(MakeFclShapeTest, Ellipsoid) {
+GTEST_TEST(MakeCoalShapeTest, Ellipsoid) {
   const Ellipsoid ellipsoid(0.25, 0.75, 0.6);
-  auto fcl_geometry = MakeFclShape(ellipsoid).object();
-  const auto& fcl_ellipsoid = dynamic_cast<fcl::Ellipsoidd&>(*fcl_geometry);
-  EXPECT_EQ(fcl_ellipsoid.radii[0], ellipsoid.a());
-  EXPECT_EQ(fcl_ellipsoid.radii[1], ellipsoid.b());
-  EXPECT_EQ(fcl_ellipsoid.radii[2], ellipsoid.c());
+  auto coal_geometry = MakeCoalShape(ellipsoid).object();
+  const auto& coal_ellipsoid = dynamic_cast<coal::Ellipsoid&>(*coal_geometry);
+  EXPECT_EQ(coal_ellipsoid.radii[0], ellipsoid.a());
+  EXPECT_EQ(coal_ellipsoid.radii[1], ellipsoid.b());
+  EXPECT_EQ(coal_ellipsoid.radii[2], ellipsoid.c());
 }
 
-GTEST_TEST(MakeFclShapeTest, HalfSpace) {
-  auto fcl_geometry = MakeFclShape(HalfSpace{}).object();
-  const auto& fcl_half_space = dynamic_cast<fcl::Halfspaced&>(*fcl_geometry);
-  EXPECT_EQ(fcl_half_space.n, Vector3d(0, 0, 1));
-  EXPECT_EQ(fcl_half_space.d, 0);
+GTEST_TEST(MakeCoalShapeTest, HalfSpace) {
+  auto coal_geometry = MakeCoalShape(HalfSpace{}).object();
+  const auto& coal_half_space = dynamic_cast<coal::Halfspace&>(*coal_geometry);
+  EXPECT_EQ(coal_half_space.n, Vector3d(0, 0, 1));
+  EXPECT_EQ(coal_half_space.d, 0);
 }
 
-GTEST_TEST(MakeFclShapeTest, Sphere) {
+GTEST_TEST(MakeCoalShapeTest, Sphere) {
   const Sphere sphere(0.7);
-  auto fcl_geometry = MakeFclShape(sphere).object();
-  const auto& fcl_sphere = dynamic_cast<fcl::Sphered&>(*fcl_geometry);
-  EXPECT_EQ(fcl_sphere.radius, sphere.radius());
+  auto coal_geometry = MakeCoalShape(sphere).object();
+  const auto& coal_sphere = dynamic_cast<coal::Sphere&>(*coal_geometry);
+  EXPECT_EQ(coal_sphere.radius, sphere.radius());
 }
 
 /* The SampleShapeSurfaceTest tests confirm the two important properties of
@@ -509,7 +512,7 @@ template <typename T>
 vector<T> DummyCallbackData<T>::sequence;
 
 template <typename T>
-bool DummyCallback(fcl::CollisionObjectd*, fcl::CollisionObjectd*, void* data) {
+bool DummyCallback(coal::CollisionObject*, coal::CollisionObject*, void* data) {
   auto& dummy_data = *static_cast<DummyCallbackData<T>*>(data);
   dummy_data.results().push_back(DummyCallbackData<T>::NextValue());
   return false;
@@ -546,7 +549,7 @@ template <typename T>
 class DummyImplementation : public DistanceCallback<T> {
  public:
   bool Invoke(
-      fcl::CollisionObjectd* obj_A, fcl::CollisionObjectd* obj_B,
+      coal::CollisionObject* obj_A, coal::CollisionObject* obj_B,
       const CollisionFilter*,
       const std::unordered_map<GeometryId, math::RigidTransform<T>>*) override {
     DummyCallbackData<T> data(&results_);

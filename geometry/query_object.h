@@ -261,14 +261,14 @@ class QueryObject {
 
    |           |   %Box  | %Capsule | %Convex | %Cylinder | %Ellipsoid | %HalfSpace |  %Mesh  | %Sphere |
    | --------: | :-----: | :------: | :-----: | :-------: | :--------: | :--------: | :-----: | :-----: |
-   | Box       |  2e-15  |  ░░░░░░  |  ░░░░░  |  ░░░░░░░  |   ░░░░░░   |   ░░░░░░   |  ░░░░░  |  ░░░░░  |
-   | Capsule   |  3e-5ᶜ  |   2e-5ᶜ  |  ░░░░░  |  ░░░░░░░  |   ░░░░░░   |   ░░░░░░   |  ░░░░░  |  ░░░░░  |
-   | Convex    |  2e-15ᶜ |   3e-5ᶜ  | 2e-15ᶜ  |  ░░░░░░░  |   ░░░░░░   |   ░░░░░░   |  ░░░░░  |  ░░░░░  |
-   | Cylinder  |  1e-3ᶜ  |   4e-5ᶜ  |  1e-3ᶜ  |   2e-3ᶜ   |   ░░░░░░   |   ░░░░░░   |  ░░░░░  |  ░░░░░  |
-   | Ellipsoid |  4e-4ᶜ  |   2e-4ᶜ  |  4e-4ᶜ  |   2e-3ᶜ   |    5e-4ᶜ   |   ░░░░░░   |  ░░░░░  |  ░░░░░  |
-   | HalfSpace |  6e-15  |   4e-15  | 3e-15ᶜ  |   4e-15   |   3e-15    |   throwsᵃ  |  ░░░░░  |  ░░░░░  |
+   | Box       | 5e-13ᶜ  |  ░░░░░░  |  ░░░░░  |  ░░░░░░░  |   ░░░░░░   |   ░░░░░░   |  ░░░░░  |  ░░░░░  |
+   | Capsule   | 2e-11ᶜ  |  4e-15   |  ░░░░░  |  ░░░░░░░  |   ░░░░░░   |   ░░░░░░   |  ░░░░░  |  ░░░░░  |
+   | Convex    | 5e-13ᶜ  |  8e-15ᶜ  | 2e-15ᶜ  |  ░░░░░░░  |   ░░░░░░   |   ░░░░░░   |  ░░░░░  |  ░░░░░  |
+   | Cylinder  |  9e-7ᶜ  |  4e-12ᶜ  |  2e-6ᶜ  |   2e-6ᶜ   |   ░░░░░░   |   ░░░░░░   |  ░░░░░  |  ░░░░░  |
+   | Ellipsoid |  2e-6ᶜ  |  2e-12ᶜ  |  2e-6ᶜ  |   1e-6ᶜ   |   2e-6ᶜ    |   ░░░░░░   |  ░░░░░  |  ░░░░░  |
+   | HalfSpace |  2e-11  |  1e-14   |  3e-15  |   5e-11   |   3e-15    |   throwsᵃ  |  ░░░░░  |  ░░░░░  |
    | Mesh      |    ᵇ    |    ᵇ     |    ᵇ    |     ᵇ     |      ᵇ     |     ᵇ      |    ᵇ    |  ░░░░░  |
-   | Sphere    |  4e-15  |   5e-15  |  3e-5ᶜ  |   5e-15   |    2e-4ᶜ   |   3e-15    |    ᵇ    |  5e-15  |
+   | Sphere    |  4e-15  |   5e-15  | 5e-15ᶜ  |   5e-15   |   4e-12ᶜ   |   3e-15    |    ᵇ    |  5e-15  |
    __*Table 1*__: Worst observed error (in m) for 2mm penetration between
    geometries approximately 20cm in size for `T` = `double`.
 
@@ -582,14 +582,14 @@ class QueryObject {
 
    |           |   %Box  | %Capsule | %Convex | %Cylinder | %Ellipsoid | %HalfSpace |  %Mesh  | %Sphere |
    | --------: | :-----: | :------: | :-----: | :-------: | :--------: | :--------: | :-----: | :-----: |
-   | Box       |  4e-15  |  ░░░░░░  |  ░░░░░  |  ░░░░░░░  |   ░░░░░░   |   ░░░░░░   |  ░░░░░  |  ░░░░░  |
-   | Capsule   |  3e-6   |   2e-5   |  ░░░░░  |  ░░░░░░░  |   ░░░░░░   |   ░░░░░░   |  ░░░░░  |  ░░░░░  |
-   | Convex    |  3e-15  |   2e-5   |  3e-15  |  ░░░░░░░  |   ░░░░░░   |   ░░░░░░   |  ░░░░░  |  ░░░░░  |
-   | Cylinder  |  6e-6   |   1e-5   |   6e-6  |   2e-5    |   ░░░░░░   |   ░░░░░░   |  ░░░░░  |  ░░░░░  |
-   | Ellipsoid |  9e-6   |   5e-6   |   9e-6  |   5e-5    |    2e-5    |   ░░░░░░   |  ░░░░░  |  ░░░░░  |
+   | Box       |  5e-13  |  ░░░░░░  |  ░░░░░  |  ░░░░░░░  |   ░░░░░░   |   ░░░░░░   |  ░░░░░  |  ░░░░░  |
+   | Capsule   |  7e-15  |  2e-14   |  ░░░░░  |  ░░░░░░░  |   ░░░░░░   |   ░░░░░░   |  ░░░░░  |  ░░░░░  |
+   | Convex    |  5e-13  |  8e-15   |  3e-15  |  ░░░░░░░  |   ░░░░░░   |   ░░░░░░   |  ░░░░░  |  ░░░░░  |
+   | Cylinder  |  6e-6   |   1e-5   |   6e-6  |   2e-6    |   ░░░░░░   |   ░░░░░░   |  ░░░░░  |  ░░░░░  |
+   | Ellipsoid |  9e-6   |   5e-6   |   9e-6  |   1e-6    |    2e-6    |   ░░░░░░   |  ░░░░░  |  ░░░░░  |
    | HalfSpace | throwsᵃ |  throwsᵃ | throwsᵃ |  throwsᵃ  |  throwsᵃ   |   throwsᵃ  |  ░░░░░  |  ░░░░░  |
    | Mesh      |    ᶜ    |    ᶜ     |    ᶜ    |     ᶜ     |      ᶜ     |   throwsᵃ  |    ᶜ    |  ░░░░░  |
-   | Sphere    |  4e-15  |  6e-15   |   3e-6  |   5e-15   |    4e-5    |    3e-15   |    ᶜ    |  6e-15  |
+   | Sphere    |  4e-15  |  6e-15   |  5e-15  |   5e-15   |    2e-6    |    3e-15   |    ᶜ    |  6e-15  |
    __*Table 4*__: Worst observed error (in m) for 2mm penetration/separation
    between geometries approximately 20cm in size for `T` = `double`.
 
@@ -765,7 +765,7 @@ class QueryObject {
 
    |   Scalar   |   %Box  | %Capsule | %Convex | %Cylinder | %Ellipsoid | %HalfSpace |  %Mesh  | %Sphere |
    | :--------: | :-----: | :------: | :-----: | :-------: | :--------: | :--------: | :-----: | :-----: |
-   |   double   |  2e-15  |   5e-15  |  6e-15  |   3e-15   |    3e-5ᵇ   |    5e-15   | 6e-15ᶜ  |  4e-15  |
+   |   double   |  2e-15  |   5e-15  |  6e-15  |   3e-15   |   2e-6ᵇ    |    5e-15   | 6e-15ᶜ  |  4e-15  |
    | AutoDiffXd |  1e-15  |   7e-15  |    ᵃ    |     ᵃ     |      ᵃ     |    5e-15   |    ᵃ    |  4e-15  |
    | Expression |   ᵃ     |    ᵃ     |    ᵃ    |     ᵃ     |      ᵃ     |      ᵃ     |    ᵃ    |    ᵃ    |
    __*Table 8*__: Worst observed error (in m) for 2mm penetration/separation
@@ -773,12 +773,18 @@ class QueryObject {
 
    - ᵃ Unsupported geometry/scalar combinations are simply ignored; no results
        are reported for that geometry.
-   - ᵇ This uses an *iterative* algorithm which introduces a relatively large
-       and variable error. For example, as the eccentricity of the ellipsoid
-       increases, this error may get worse. It also depends on the location of
-       the projection of the query point on the ellipsoid; the closer that point
-       is to the high curvature area, the bigger the effect. It is not
-       immediately clear how much worse the answer will get.
+   - ᵇ This uses an *iterative* algorithm. For query points *outside* the
+       ellipsoid, the error is governed by the solver's convergence tolerance
+       rather than by the ellipsoid's shape. For query points *inside*, the
+       error grows as the point approaches the ellipsoid's medial axis -- the
+       set of interior points having more than one nearest point on the
+       surface -- where the problem becomes ill conditioned. Two consequences
+       follow: at a fixed penetration depth, a more eccentric ellipsoid shows
+       larger errors, because its high-curvature ends bring the medial axis
+       closer to the surface; and the largest errors of all occur for query
+       points near the center of a nearly *spherical* ellipsoid, where every
+       direction is equally near. It is not immediately clear how much worse
+       the answer will get.
    - ᶜ Only supports OBJ and tetrahedral VTK meshes. Unsupported meshes are
        simply ignored; no results are reported for that geometry. For OBJ meshes
        the surface mesh must satisfy specific requirements (see below). Unlike

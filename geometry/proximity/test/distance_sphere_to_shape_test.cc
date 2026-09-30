@@ -8,7 +8,10 @@
 #include <utility>
 #include <vector>
 
-#include <fcl/fcl.h>
+#include <coal/collision_data.h>
+#include <coal/collision_object.h>
+#include <coal/shape/convex.h>
+#include <coal/shape/geometric_shapes.h>
 #include <fmt/format.h>
 #include <gtest/gtest.h>
 
@@ -39,15 +42,14 @@ namespace shape_distance {
 
 namespace {
 
+using coal::Box;
+using coal::Capsule;
+using coal::CollisionObject;
+using coal::Cylinder;
+using coal::Ellipsoid;
+using coal::Halfspace;
+using coal::Sphere;
 using Eigen::Vector3d;
-using fcl::Boxd;
-using fcl::Capsuled;
-using fcl::CollisionObjectd;
-using fcl::Convexd;
-using fcl::Cylinderd;
-using fcl::Ellipsoidd;
-using fcl::Halfspaced;
-using fcl::Sphered;
 using math::RigidTransform;
 using math::RigidTransformd;
 using math::RotationMatrix;
@@ -65,10 +67,10 @@ constexpr double kInf = std::numeric_limits<double>::infinity();
 // numerical values.
 GTEST_TEST(SphereShapeDistance, FallbackSupport) {
   // NOTE: The shape type or pose are unimportant to this test.
-  auto sphere = make_shared<Sphered>(0);
-  CollisionObjectd obj_a(sphere);
-  CollisionObjectd obj_b(sphere);
-  fcl::DistanceRequestd request{};
+  auto sphere = make_shared<Sphere>(0);
+  CollisionObject obj_a(sphere);
+  CollisionObject obj_b(sphere);
+  coal::DistanceRequest request{};
   const GeometryId id_a = GeometryId::get_new_id();
   const GeometryId id_b = GeometryId::get_new_id();
   EncodedData(id_a, true).write_to(&obj_a);
@@ -314,7 +316,7 @@ class DistancePairGeometryTest : public ::testing::Test {
   Vector3d p_WSphere_;
   RigidTransformd X_WShape_;
   static const double kRadius;
-  Sphered query_sphere_{kRadius};
+  Sphere query_sphere_{kRadius};
 };
 
 const double DistancePairGeometryTest::kRadius = 0.75;
@@ -325,49 +327,49 @@ Vector3<AutoDiffXd> DistancePairGeometryTest::p_WSphere<AutoDiffXd>() {
 }
 
 TEST_F(DistancePairGeometryTest, SphereSphereDouble) {
-  EXPECT_TRUE((ResultsMatch<double, Sphered>(Sphered(1.3))));
+  EXPECT_TRUE((ResultsMatch<double, Sphere>(Sphere(1.3))));
 }
 
 TEST_F(DistancePairGeometryTest, SphereBoxDouble) {
-  EXPECT_TRUE((ResultsMatch<double, Boxd>(Boxd{1.3, 2.3, 0.7})));
+  EXPECT_TRUE((ResultsMatch<double, Box>(Box{1.3, 2.3, 0.7})));
 }
 
 TEST_F(DistancePairGeometryTest, SphereCapsuleDouble) {
-  EXPECT_TRUE((ResultsMatch<double, Capsuled>(Capsuled{1.3, 2.3})));
+  EXPECT_TRUE((ResultsMatch<double, Capsule>(Capsule{1.3, 2.3})));
 }
 
 TEST_F(DistancePairGeometryTest, SphereCylinderDouble) {
-  EXPECT_TRUE((ResultsMatch<double, Cylinderd>(Cylinderd{1.3, 2.3})));
+  EXPECT_TRUE((ResultsMatch<double, Cylinder>(Cylinder{1.3, 2.3})));
 }
 
 TEST_F(DistancePairGeometryTest, SphereSphereAutoDiff) {
-  EXPECT_TRUE((ResultsMatch<AutoDiffXd, Sphered>(Sphered(1.3))));
+  EXPECT_TRUE((ResultsMatch<AutoDiffXd, Sphere>(Sphere(1.3))));
 }
 
 TEST_F(DistancePairGeometryTest, SphereBoxAutoDiffXd) {
-  EXPECT_TRUE((ResultsMatch<AutoDiffXd, Boxd>(Boxd{1.3, 2.3, 0.7})));
+  EXPECT_TRUE((ResultsMatch<AutoDiffXd, Box>(Box{1.3, 2.3, 0.7})));
 }
 
 TEST_F(DistancePairGeometryTest, SphereCapsuleAutoDiffXd) {
-  EXPECT_TRUE((ResultsMatch<AutoDiffXd, Capsuled>(Capsuled{1.3, 2.3})));
+  EXPECT_TRUE((ResultsMatch<AutoDiffXd, Capsule>(Capsule{1.3, 2.3})));
 }
 
 TEST_F(DistancePairGeometryTest, SphereCylinderAutoDiffXd) {
-  EXPECT_TRUE((ResultsMatch<AutoDiffXd, Cylinderd>(Cylinderd{1.3, 2.3})));
+  EXPECT_TRUE((ResultsMatch<AutoDiffXd, Cylinder>(Cylinder{1.3, 2.3})));
 }
 
 // Test the fallback logic. It is not  invoked for (sphere-X) pairs
 // where X is in {Box, Capsule, Cylinder, HalfSpace, Sphere}.
 GTEST_TEST(ComputeNarrowPhaseDistance, NoFallbackInvocation) {
-  const CollisionObjectd box(make_shared<Boxd>(1, 2, 3));
-  const CollisionObjectd capsule(make_shared<Capsuled>(1, 2));
-  const CollisionObjectd cylinder(make_shared<Cylinderd>(1, 2));
-  const CollisionObjectd half_space(
-      make_shared<Halfspaced>(Vector3d{0, 0, 1}, 0));
-  const CollisionObjectd sphere(make_shared<Sphered>(1));
+  const CollisionObject box(make_shared<Box>(1, 2, 3));
+  const CollisionObject capsule(make_shared<Capsule>(1, 2));
+  const CollisionObject cylinder(make_shared<Cylinder>(1, 2));
+  const CollisionObject half_space(
+      make_shared<Halfspace>(Vector3d{0, 0, 1}, 0));
+  const CollisionObject sphere(make_shared<Sphere>(1));
 
   // All pairs which have Drake implementations.
-  for (const CollisionObjectd* other :
+  for (const CollisionObject* other :
        {&box, &capsule, &cylinder, &half_space, &sphere}) {
     EXPECT_FALSE(RequiresFallback(sphere, *other));
   }
@@ -375,26 +377,26 @@ GTEST_TEST(ComputeNarrowPhaseDistance, NoFallbackInvocation) {
 
 // Confirms that the fallback *is* invoked for all other geometry pairs.
 GTEST_TEST(ComputeNarrowPhaseDistance, FallbackInvocation) {
-  const CollisionObjectd box(make_shared<Boxd>(1, 2, 3));
-  const CollisionObjectd capsule(make_shared<Capsuled>(1, 2));
+  const CollisionObject box(make_shared<Box>(1, 2, 3));
+  const CollisionObject capsule(make_shared<Capsule>(1, 2));
   // A minimally valid convex shape: a single vertex.
-  const CollisionObjectd convex(make_shared<Convexd>(
-      make_shared<const std::vector<Vector3d>>(1, Vector3d{0, 0, 0}), 0,
-      make_shared<const std::vector<int>>()));
-  const CollisionObjectd cylinder(make_shared<Cylinderd>(1, 2));
-  const CollisionObjectd ellipsoid(make_shared<Ellipsoidd>(1, 2, 3));
-  const CollisionObjectd half_space(
-      make_shared<Halfspaced>(Vector3d{0, 0, 1}, 0));
-  const CollisionObjectd sphere(make_shared<Sphered>(1));
+  const CollisionObject convex(make_shared<CoalConvex>(
+      make_shared<std::vector<Vector3d>>(1, Vector3d{0, 0, 0}), 1,
+      make_shared<std::vector<coal::Triangle32>>(), 0));
+  const CollisionObject cylinder(make_shared<Cylinder>(1, 2));
+  const CollisionObject ellipsoid(make_shared<Ellipsoid>(1, 2, 3));
+  const CollisionObject half_space(
+      make_shared<Halfspace>(Vector3d{0, 0, 1}, 0));
+  const CollisionObject sphere(make_shared<Sphere>(1));
 
   // The two exceptions involving a sphere.
-  for (const CollisionObjectd* other : {&convex, &ellipsoid}) {
+  for (const CollisionObject* other : {&convex, &ellipsoid}) {
     EXPECT_TRUE(RequiresFallback(sphere, *other));
   }
 
   // All other cases.
-  const std::vector<const CollisionObjectd*> others{&box, &capsule, &convex,
-                                                    &cylinder, &half_space};
+  const std::vector<const CollisionObject*> others{&box, &capsule, &convex,
+                                                   &cylinder, &half_space};
   for (const auto* s1 : others) {
     for (const auto* s2 : others) {
       EXPECT_TRUE(RequiresFallback(*s1, *s2));
@@ -406,16 +408,16 @@ GTEST_TEST(ComputeNarrowPhaseDistance, FallbackInvocation) {
 // two geometries using Sphere-Box as a representative sample.
 GTEST_TEST(ComputeNarrowPhaseDistance, OrderInvariance) {
   // Sphere
-  CollisionObjectd sphere(make_shared<Sphered>(1));
+  CollisionObject sphere(make_shared<Sphere>(1));
   const GeometryId sphere_id = GeometryId::get_new_id();
   EncodedData(sphere_id, true).write_to(&sphere);
 
   // Box
-  CollisionObjectd box(make_shared<Boxd>(1, 1, 1));
+  CollisionObject box(make_shared<Box>(1, 1, 1));
   const GeometryId box_id = GeometryId::get_new_id();
   EncodedData(box_id, true).write_to(&box);
 
-  fcl::DistanceRequestd request{};
+  coal::DistanceRequest request{};
   const RigidTransformd X_WS(Vector3d{2, 2, 2});
   const RigidTransformd X_WB(
       AngleAxis<double>(M_PI / 5, Vector3d{2, 4, 7}.normalized()),
@@ -447,17 +449,17 @@ GTEST_TEST(ComputeNarrowPhaseDistance, OrderInvariance) {
 GTEST_TEST(ComputeNarrowPhaseDistance, sphere_touches_shape) {
   // Sphere
   const double radius = 1;
-  CollisionObjectd sphere(make_shared<Sphered>(radius));
+  CollisionObject sphere(make_shared<Sphere>(radius));
   const GeometryId sphere_id = GeometryId::get_new_id();
   EncodedData(sphere_id, true).write_to(&sphere);
 
   // Box [-1,1]x[-1,1]x[-1,1].
   const double side = 2;
-  CollisionObjectd box(make_shared<Boxd>(side, side, side));
+  CollisionObject box(make_shared<Box>(side, side, side));
   const GeometryId box_id = GeometryId::get_new_id();
   EncodedData(box_id, true).write_to(&box);
   const RigidTransformd X_WB(RigidTransformd::Identity());
-  const fcl::DistanceRequestd request{};
+  const coal::DistanceRequest request{};
 
   // The sphere touches the box in the middle of a face of the box.
   const RigidTransformd X_WS(Vector3d{radius + side / 2., 0, 0});
@@ -498,36 +500,35 @@ class CallbackScalarSupport : public ::testing::Test {
       data_B.write_to(&shapes[1]);
     };
 
-    spheres_.emplace_back(make_shared<Sphered>(0.25));
-    spheres_.emplace_back(make_shared<Sphered>(0.75));
+    spheres_.emplace_back(make_shared<Sphere>(0.25));
+    spheres_.emplace_back(make_shared<Sphere>(0.75));
     apply_data(spheres_);
 
-    boxes_.emplace_back(make_shared<Boxd>(0.25, 0.3, 0.4));
-    boxes_.emplace_back(make_shared<Boxd>(0.4, 0.3, 0.2));
+    boxes_.emplace_back(make_shared<Box>(0.25, 0.3, 0.4));
+    boxes_.emplace_back(make_shared<Box>(0.4, 0.3, 0.2));
     apply_data(boxes_);
 
-    capsules_.emplace_back(make_shared<Capsuled>(0.25, 0.75));
-    capsules_.emplace_back(make_shared<Capsuled>(0.75, 0.25));
+    capsules_.emplace_back(make_shared<Capsule>(0.25, 0.75));
+    capsules_.emplace_back(make_shared<Capsule>(0.75, 0.25));
     apply_data(capsules_);
 
-    cylinders_.emplace_back(make_shared<Cylinderd>(0.3, 0.4));
-    cylinders_.emplace_back(make_shared<Cylinderd>(0.3, 0.2));
+    cylinders_.emplace_back(make_shared<Cylinder>(0.3, 0.4));
+    cylinders_.emplace_back(make_shared<Cylinder>(0.3, 0.2));
     apply_data(cylinders_);
 
-    // NOTE: The mapping from drake::geometry::HalfSpace to fcl::Halfspaced
+    // NOTE: The mapping from drake::geometry::HalfSpace to coal::Halfspace
     // always encodes the normal as UnitZ() and the offset as zero.
-    halfspaces_.emplace_back(make_shared<Halfspaced>(Vector3d{0, 0, 1}, 0));
-    halfspaces_.emplace_back(make_shared<Halfspaced>(Vector3d{0, 0, 1}, 0));
+    halfspaces_.emplace_back(make_shared<Halfspace>(Vector3d{0, 0, 1}, 0));
+    halfspaces_.emplace_back(make_shared<Halfspace>(Vector3d{0, 0, 1}, 0));
     apply_data(halfspaces_);
   }
 
-  std::vector<std::pair<CollisionObjectd&, CollisionObjectd&>>
-  supported_pairs() {
+  std::vector<std::pair<CollisionObject&, CollisionObject&>> supported_pairs() {
     throw std::logic_error(
         "No supported pairs implemented -- check scalar type");
   }
 
-  std::vector<std::pair<CollisionObjectd&, CollisionObjectd&>>
+  std::vector<std::pair<CollisionObject&, CollisionObject&>>
   unsupported_pairs() {
     throw std::logic_error(
         "No unsupported pairs implemented -- check scalar type");
@@ -538,15 +539,15 @@ class CallbackScalarSupport : public ::testing::Test {
   std::unordered_map<GeometryId, RigidTransform<T>> X_WGs_;
   std::vector<SignedDistancePair<T>> results_;
   CallbackData<T> data_;
-  std::vector<CollisionObjectd> spheres_;
-  std::vector<CollisionObjectd> boxes_;
-  std::vector<CollisionObjectd> capsules_;
-  std::vector<CollisionObjectd> cylinders_;
-  std::vector<CollisionObjectd> halfspaces_;
+  std::vector<CollisionObject> spheres_;
+  std::vector<CollisionObject> boxes_;
+  std::vector<CollisionObject> capsules_;
+  std::vector<CollisionObject> cylinders_;
+  std::vector<CollisionObject> halfspaces_;
 };
 
 template <>
-std::vector<std::pair<CollisionObjectd&, CollisionObjectd&>>
+std::vector<std::pair<CollisionObject&, CollisionObject&>>
 CallbackScalarSupport<double>::supported_pairs() {
   // Given the shared geometry ids, it is important that the indices in each
   // pair include 0 and 1 (as shapes with a common index share a geometry id).
@@ -559,7 +560,7 @@ CallbackScalarSupport<double>::supported_pairs() {
 }
 
 template <>
-std::vector<std::pair<CollisionObjectd&, CollisionObjectd&>>
+std::vector<std::pair<CollisionObject&, CollisionObject&>>
 CallbackScalarSupport<double>::unsupported_pairs() {
   return {
       {boxes_[0], halfspaces_[1]},
@@ -570,7 +571,7 @@ CallbackScalarSupport<double>::unsupported_pairs() {
 }
 
 template <>
-std::vector<std::pair<CollisionObjectd&, CollisionObjectd&>>
+std::vector<std::pair<CollisionObject&, CollisionObject&>>
 CallbackScalarSupport<AutoDiffXd>::supported_pairs() {
   return {{spheres_[0], spheres_[1]},
           {spheres_[0], boxes_[1]},
@@ -578,7 +579,7 @@ CallbackScalarSupport<AutoDiffXd>::supported_pairs() {
 }
 
 template <>
-std::vector<std::pair<CollisionObjectd&, CollisionObjectd&>>
+std::vector<std::pair<CollisionObject&, CollisionObject&>>
 CallbackScalarSupport<AutoDiffXd>::unsupported_pairs() {
   return {
       {spheres_[0], cylinders_[1]},     {boxes_[0], boxes_[1]},
@@ -644,9 +645,9 @@ GTEST_TEST(Callback, ScalarSupportWithFilters) {
       {id_A, RigidTransform<T>::Identity()},
       {id_B, RigidTransform<T>::Identity()}};
 
-  CollisionObjectd box_A(make_shared<fcl::Boxd>(0.25, 0.3, 0.4));
+  CollisionObject box_A(make_shared<coal::Box>(0.25, 0.3, 0.4));
   data_A.write_to(&box_A);
-  CollisionObjectd box_B(make_shared<fcl::Boxd>(0.4, 0.3, 0.2));
+  CollisionObject box_B(make_shared<coal::Box>(0.4, 0.3, 0.2));
   data_B.write_to(&box_B);
 
   std::vector<SignedDistancePair<T>> results;
@@ -659,8 +660,8 @@ GTEST_TEST(Callback, ScalarSupportWithFilters) {
 GTEST_TEST(Callback, RespectCollisionFiltering) {
   const GeometryId id_A = GeometryId::get_new_id();
   const GeometryId id_B = GeometryId::get_new_id();
-  CollisionObjectd sphere_A(make_shared<Sphered>(0.25));
-  CollisionObjectd sphere_B(make_shared<Sphered>(0.25));
+  CollisionObject sphere_A(make_shared<Sphere>(0.25));
+  CollisionObject sphere_B(make_shared<Sphere>(0.25));
   EncodedData data_A(id_A, true);
   EncodedData data_B(id_B, true);
   data_A.write_to(&sphere_A);
@@ -710,8 +711,8 @@ GTEST_TEST(Callback, RespectCollisionFiltering) {
 GTEST_TEST(Callback, ABOrdering) {
   const GeometryId id_A = GeometryId::get_new_id();
   const GeometryId id_B = GeometryId::get_new_id();
-  CollisionObjectd sphere_A(make_shared<Sphered>(0.25));
-  CollisionObjectd sphere_B(make_shared<Sphered>(0.25));
+  CollisionObject sphere_A(make_shared<Sphere>(0.25));
+  CollisionObject sphere_B(make_shared<Sphere>(0.25));
   EncodedData data_A(id_A, true);
   EncodedData data_B(id_B, true);
   data_A.write_to(&sphere_A);
@@ -774,9 +775,9 @@ TYPED_TEST(CallbackMaxDistanceTest, MaxDistanceThreshold) {
   const double radius_A = 0.5;
   const double radius_B = 0.4;
   const double kEps = 2 * std::numeric_limits<double>::epsilon();
-  CollisionObjectd sphere_A(make_shared<fcl::Sphered>(radius_A));
+  CollisionObject sphere_A(make_shared<coal::Sphere>(radius_A));
   data_A.write_to(&sphere_A);
-  CollisionObjectd sphere_B(make_shared<fcl::Sphered>(radius_B));
+  CollisionObject sphere_B(make_shared<coal::Sphere>(radius_B));
   data_B.write_to(&sphere_B);
   const Vector3<T> p_WB = Vector3<T>(2, 3, 4).normalized() *
                           (kMaxDistance + radius_A + radius_B - kEps);

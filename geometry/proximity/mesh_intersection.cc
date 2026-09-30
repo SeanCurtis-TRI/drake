@@ -36,7 +36,7 @@ namespace internal {
 // TODO(DamrongGuoy): Take care of special cases when `p` lies on the
 //  plane of the half space to help with the double counting problem. Right
 //  now it is taken as being inside the half space.
-//    Instead of fcl::Halfspace(normal, distance), we might want to specify
+//    Instead of coal::Halfspace(normal, distance), we might want to specify
 //  the half space using a pair (face, element), i.e., a triangular face of a
 //  tetrahedral element. It will identify the half space bounded by the plane
 //  of the triangular `face` that contains the tetrahedral `element`, and will

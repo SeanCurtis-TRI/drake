@@ -26,14 +26,13 @@ using std::vector;
 template <typename T>
 class SignedDistanceCallback : public DistanceCallback<T> {
  public:
-  bool Invoke(fcl::CollisionObjectd* obj_A, fcl::CollisionObjectd* obj_B,
+  bool Invoke(coal::CollisionObject* obj_A, coal::CollisionObject* obj_B,
               const CollisionFilter* collision_filter,
               const std::unordered_map<GeometryId, math::RigidTransform<T>>*
                   X_WGs) override {
     CallbackData<T> data(collision_filter, X_WGs,
                          std::numeric_limits<double>::infinity(), &results_);
     data.request.enable_signed_distance = true;
-    data.request.gjk_solver_type = fcl::GJKSolverType::GST_LIBCCD;
     /* TODO(#14731) This reflects the fact that ProximityEngine hard
      codes this value to 1e-6. However, the results of multiple characterization
      tests depend on this value. Specifically:
@@ -46,7 +45,7 @@ class SignedDistanceCallback : public DistanceCallback<T> {
       If/when that parameter is exposed in the public API, the table should be
       updated to reflect the results that depend on that parameter and the test
       here should be expressed relative to this quantity in support. */
-    data.request.distance_tolerance = 1e-6;
+    data.request.gjk_tolerance = 1e-6;
     /* We're not testing the logic for limiting results based on a maximum
      distance. So, we'll simply set it to infinity. */
     double max_distance = std::numeric_limits<double>::infinity();
@@ -80,7 +79,7 @@ class CharacterizeShapeDistanceResultTest : public CharacterizeResultTest<T> {
  However, this single test will detect when that condition is no longer true
  and call for implementation of *-Mesh tests. */
 GTEST_TEST(CharacterizeShapeDistanceResultTest, MeshMesh) {
-  ASSERT_TRUE(MeshIsConvexInFcl());
+  ASSERT_TRUE(MeshIsConvexInCoal());
 }
 
 class DoubleTest : public CharacterizeShapeDistanceResultTest<double>,
@@ -90,16 +89,16 @@ class DoubleTest : public CharacterizeShapeDistanceResultTest<double>,
 INSTANTIATE_TEST_SUITE_P(
     ShapeDistance, DoubleTest,
     testing::Values(
-        QueryInstance(kBox, kBox, 4e-15),
-        QueryInstance(kBox, kCapsule, 3e-6),
-        QueryInstance(kBox, kConvex, 3e-15),
+        QueryInstance(kBox, kBox, 5e-13),
+        QueryInstance(kBox, kCapsule, 7e-15),
+        QueryInstance(kBox, kConvex, 5e-13),
         QueryInstance(kBox, kCylinder, 6e-6),
         QueryInstance(kBox, kEllipsoid, 9e-6),
         QueryInstance(kBox, kHalfSpace, kThrows),
         QueryInstance(kBox, kSphere, 4e-15),
 
-        QueryInstance(kCapsule, kCapsule, 2e-5),
-        QueryInstance(kCapsule, kConvex, 2e-5),
+        QueryInstance(kCapsule, kCapsule, 2e-14),
+        QueryInstance(kCapsule, kConvex, 8e-15),
         QueryInstance(kCapsule, kCylinder, 1e-5),
         QueryInstance(kCapsule, kEllipsoid, 5e-6),
         QueryInstance(kCapsule, kHalfSpace, kThrows),
@@ -109,16 +108,16 @@ INSTANTIATE_TEST_SUITE_P(
         QueryInstance(kConvex, kCylinder, 6e-6),
         QueryInstance(kConvex, kEllipsoid, 9e-6),
         QueryInstance(kConvex, kHalfSpace, kThrows),
-        QueryInstance(kConvex, kSphere, 3e-6),
+        QueryInstance(kConvex, kSphere, 5e-15),
 
-        QueryInstance(kCylinder, kCylinder, 2e-5),
-        QueryInstance(kCylinder, kEllipsoid, 5e-5),
+        QueryInstance(kCylinder, kCylinder, 2e-6),
+        QueryInstance(kCylinder, kEllipsoid, 1e-6),
         QueryInstance(kCylinder, kHalfSpace, kThrows),
         QueryInstance(kCylinder, kSphere, 5e-15),
 
-        QueryInstance(kEllipsoid, kEllipsoid, 2e-5),
+        QueryInstance(kEllipsoid, kEllipsoid, 2e-6),
         QueryInstance(kEllipsoid, kHalfSpace, kThrows),
-        QueryInstance(kEllipsoid, kSphere, 4e-5),
+        QueryInstance(kEllipsoid, kSphere, 2e-6),
 
         QueryInstance(kHalfSpace, kHalfSpace, kThrows),
         QueryInstance(kHalfSpace, kSphere, 3e-15),

@@ -5,7 +5,8 @@
 #include <utility>
 #include <vector>
 
-#include <fcl/fcl.h>
+#include <coal/collision_object.h>
+#include <coal/shape/geometric_shapes.h>
 #include <gtest/gtest.h>
 
 #include "drake/geometry/proximity/proximity_utilities.h"
@@ -16,8 +17,8 @@ namespace internal {
 namespace find_collision_candidates {
 namespace {
 
-using fcl::Boxd;
-using fcl::CollisionObjectd;
+using coal::Box;
+using coal::CollisionObject;
 using std::make_shared;
 using std::vector;
 
@@ -33,9 +34,9 @@ GTEST_TEST(Callback, PairsProperlyFormed) {
   collision_filter.AddGeometry(data_A.id());
   collision_filter.AddGeometry(data_B.id());
 
-  CollisionObjectd box_A(make_shared<Boxd>(0.25, 0.3, 0.4));
+  CollisionObject box_A(make_shared<Box>(0.25, 0.3, 0.4));
   data_A.write_to(&box_A);
-  CollisionObjectd box_B(make_shared<Boxd>(0.4, 0.3, 0.2));
+  CollisionObject box_B(make_shared<Box>(0.4, 0.3, 0.2));
   data_B.write_to(&box_B);
 
   vector<SortedPair<GeometryId>> pairs;
@@ -72,9 +73,9 @@ GTEST_TEST(Callback, RespectsCollisionFilter) {
                              GeometrySet{data_A.id(), data_B.id()}),
                          extract, false /* is_invariant */);
 
-  CollisionObjectd box_A(make_shared<Boxd>(0.25, 0.3, 0.4));
+  CollisionObject box_A(make_shared<Box>(0.25, 0.3, 0.4));
   data_A.write_to(&box_A);
-  CollisionObjectd box_B(make_shared<Boxd>(0.4, 0.3, 0.2));
+  CollisionObject box_B(make_shared<Box>(0.4, 0.3, 0.2));
   data_B.write_to(&box_B);
 
   vector<SortedPair<GeometryId>> pairs;

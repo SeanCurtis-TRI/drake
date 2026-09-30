@@ -4,7 +4,8 @@
 #include <unordered_set>
 #include <utility>
 
-#include <fcl/fcl.h>
+#include <coal/collision_object.h>
+#include <coal/shape/geometric_shapes.h>
 #include <gtest/gtest.h>
 
 #include "drake/geometry/proximity/proximity_utilities.h"
@@ -15,8 +16,8 @@ namespace internal {
 namespace has_collisions {
 namespace {
 
-using fcl::Boxd;
-using fcl::CollisionObjectd;
+using coal::Box;
+using coal::CollisionObject;
 using std::make_shared;
 
 // TODO(tehbelinda - #10227): Add a test to ensure broad-phase culling exits
@@ -55,11 +56,11 @@ GTEST_TEST(CollisionsExistCallback, Exist) {
   collision_filter.AddGeometry(data_B.id());
   collision_filter.AddGeometry(data_C.id());
 
-  CollisionObjectd box_A(make_shared<Boxd>(0.25, 0.3, 0.4));
+  CollisionObject box_A(make_shared<Box>(0.25, 0.3, 0.4));
   data_A.write_to(&box_A);
-  CollisionObjectd box_B(make_shared<Boxd>(0.4, 0.3, 0.2));
+  CollisionObject box_B(make_shared<Box>(0.4, 0.3, 0.2));
   data_B.write_to(&box_B);
-  CollisionObjectd box_C(make_shared<Boxd>(0.4, 0.3, 0.2));
+  CollisionObject box_C(make_shared<Box>(0.4, 0.3, 0.2));
   box_C.setTranslation(Vector3<double>(1., 1., 1.));
   data_C.write_to(&box_C);
 
@@ -95,9 +96,9 @@ GTEST_TEST(CollisionsExistCallback, RespectsCollisionFilter) {
   collision_filter.AddGeometry(data_A.id());
   collision_filter.AddGeometry(data_B.id());
 
-  CollisionObjectd box_A(make_shared<Boxd>(0.25, 0.3, 0.4));
+  CollisionObject box_A(make_shared<Box>(0.25, 0.3, 0.4));
   data_A.write_to(&box_A);
-  CollisionObjectd box_B(make_shared<Boxd>(0.4, 0.3, 0.2));
+  CollisionObject box_B(make_shared<Box>(0.4, 0.3, 0.2));
   data_B.write_to(&box_B);
 
   // Make sure the pair collide.

@@ -13,9 +13,11 @@ namespace drake {
 namespace geometry {
 namespace internal {
 
-// TODO(SeanCurtis-TRI): We no longer use this function to populate fcl::Convex.
+// TODO(SeanCurtis-TRI): We no longer use this function to populate a convex
+// hull geometry.
 // This should be rolled into obj_to_surface_mesh.* and eliminate this
-// intermediate representation (tailored specifically for FCL).
+// intermediate representation (tailored specifically for the collision
+// library).
 
 /* Reads the OBJ file data from the given `mesh_source` into a collection of
  data. It includes the vertex positions and, optionally, the face data.

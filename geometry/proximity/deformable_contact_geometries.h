@@ -129,7 +129,7 @@ class DeformableGeometry {
 /* Defines a non-deformable geometry -- a compliant hydroelastic mesh repurposed
  to compute deformable vs. non-deformable contact, along with local data to keep
  track of the pose of the mesh. We need to locally store the pose of the mesh
- because right now we aren't relying on FCL's broadphase. */
+ because right now we aren't relying on Coal's broadphase. */
 class RigidGeometry {
  public:
   DRAKE_DEFAULT_COPY_AND_MOVE_AND_ASSIGN(RigidGeometry);

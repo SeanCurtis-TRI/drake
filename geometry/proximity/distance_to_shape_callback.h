@@ -3,7 +3,9 @@
 #include <unordered_map>
 #include <vector>
 
-#include <fcl/fcl.h>
+#include <coal/collision_data.h>
+#include <coal/collision_object.h>
+#include <coal/shape/geometric_shapes.h>
 
 #include "drake/common/drake_export.h"
 #include "drake/common/eigen_types.h"
@@ -35,7 +37,8 @@ namespace shape_distance DRAKE_NO_EXPORT {
  @tparam T The computation scalar.  */
 template <typename T>
 struct CallbackData {
-  /* Constructs the mostly-specified callback data. The fcl distance request is
+  /* Constructs the mostly-specified callback data. The Coal distance request
+   is
    left in its default constructed state for subsequent configuration. The
    values are as described in the class documentation. The parameters are almost
    all aliased in the data and require the aliased parameters to remain valid at
@@ -70,7 +73,7 @@ struct CallbackData {
   const double max_distance{};
 
   /* The distance query parameters.  */
-  fcl::DistanceRequestd request;
+  coal::DistanceRequest request;
 
   /* The results of the distance query.  */
   std::vector<SignedDistancePair<T>>& nearest_pairs{};
@@ -123,17 +126,17 @@ class DistancePairGeometry {
    3. Na = Ao - r * ∇φ_B(Ao)  */
   //@{
 
-  void operator()(const fcl::Sphered& sphere_A, const fcl::Sphered& sphere_B);
+  void operator()(const coal::Sphere& sphere_A, const coal::Sphere& sphere_B);
 
-  void operator()(const fcl::Sphered& sphere_A, const fcl::Boxd& box_B);
+  void operator()(const coal::Sphere& sphere_A, const coal::Box& box_B);
 
-  void operator()(const fcl::Sphered& sphere_A,
-                  const fcl::Cylinderd& cylinder_B);
+  void operator()(const coal::Sphere& sphere_A,
+                  const coal::Cylinder& cylinder_B);
 
-  void operator()(const fcl::Sphered& sphere_A,
-                  const fcl::Halfspaced& halfspace_B);
+  void operator()(const coal::Sphere& sphere_A,
+                  const coal::Halfspace& halfspace_B);
 
-  void operator()(const fcl::Sphered& sphere_A, const fcl::Capsuled& capsule_B);
+  void operator()(const coal::Sphere& sphere_A, const coal::Capsule& capsule_B);
 
   //@}
 
@@ -141,9 +144,9 @@ class DistancePairGeometry {
   // Distance computation between a sphere A and a generic shape B. We use
   // the overloaded call operators above to limit the kinds of queries, and
   // they all call this private template function to minimize code duplication.
-  template <typename FclShape>
-  void SphereShapeDistance(const fcl::Sphered& sphere_A,
-                           const FclShape& shape_B);
+  template <typename CoalShape>
+  void SphereShapeDistance(const coal::Sphere& sphere_A,
+                           const CoalShape& shape_B);
 
   GeometryId id_A_;
   GeometryId id_B_;
@@ -159,8 +162,8 @@ class DistancePairGeometry {
  particular geometry pair does not mean we have no recourse for computing
  signed distance. Instead, we have the "fallback" function.
 
- The fallback function is a simple interface that takes two fcl collision
- objects (called `a` and `b`), fcl distance request parameters, and a pointer
+ The fallback function is a simple interface that takes two Coal collision
+ objects (called `a` and `b`), Coal distance request parameters, and a pointer
  to the SignedDistancePair which will be populated with the results of the
  query.
 
@@ -173,11 +176,11 @@ class DistancePairGeometry {
 /* For all non-whitelisted scalar types T, throws an exception declaring the
  unsupported combination of geometry types and scalar type.  */
 template <typename T>
-void CalcDistanceFallback(const fcl::CollisionObjectd& a,
+void CalcDistanceFallback(const coal::CollisionObject& a,
                           const math::RigidTransform<T>&,
-                          const fcl::CollisionObjectd& b,
+                          const coal::CollisionObject& b,
                           const math::RigidTransform<T>&,
-                          const fcl::DistanceRequestd&,
+                          const coal::DistanceRequest&,
                           SignedDistancePair<T>* /* pair_data */) {
   // By default, there is no fallback. For every scalar type for which one
   // actually exists, it should be specialized below.
@@ -192,18 +195,18 @@ void CalcDistanceFallback(const fcl::CollisionObjectd& a,
 /* For the double scalar, computes the signed distance between the two objects.
  */
 template <>
-void CalcDistanceFallback<double>(const fcl::CollisionObjectd& a,
+void CalcDistanceFallback<double>(const coal::CollisionObject& a,
                                   const math::RigidTransformd& X_WA,
-                                  const fcl::CollisionObjectd& b,
+                                  const coal::CollisionObject& b,
                                   const math::RigidTransformd& X_WB,
-                                  const fcl::DistanceRequestd& request,
+                                  const coal::DistanceRequest& request,
                                   SignedDistancePair<double>* pair_data);
 
 //@}
 
 /* Reports if the given geometries require using the fallback. */
-bool RequiresFallback(const fcl::CollisionObjectd& a,
-                      const fcl::CollisionObjectd& b);
+bool RequiresFallback(const coal::CollisionObject& a,
+                      const coal::CollisionObject& b);
 
 /* Dispatches the narrowphase shape-shape query for the object pair (`a`, `b`)
  to the appropriate primitive-primitive function (optionally defaulting to the
@@ -218,11 +221,11 @@ bool RequiresFallback(const fcl::CollisionObjectd& a,
  @tparam T Computation scalar type.
  @pre The pair should *not* be (Halfspace, X), unless X is Sphere.  */
 template <typename T>
-void ComputeNarrowPhaseDistance(const fcl::CollisionObjectd& a,
+void ComputeNarrowPhaseDistance(const coal::CollisionObject& a,
                                 const math::RigidTransform<T>& X_WA,
-                                const fcl::CollisionObjectd& b,
+                                const coal::CollisionObject& b,
                                 const math::RigidTransform<T>& X_WB,
-                                const fcl::DistanceRequestd& request,
+                                const coal::DistanceRequest& request,
                                 SignedDistancePair<T>* result);
 
 // TODO(SeanCurtis-TRI): Replace this clunky mechanism with a new mechanism
@@ -238,30 +241,30 @@ void ComputeNarrowPhaseDistance(const fcl::CollisionObjectd& a,
 
 template <typename T>
 struct ScalarSupport {
-  static bool is_supported(fcl::NODE_TYPE, fcl::NODE_TYPE) { return false; }
+  static bool is_supported(coal::NODE_TYPE, coal::NODE_TYPE) { return false; }
 };
 
 /* Primitive support for double-valued query.  */
 template <>
 struct ScalarSupport<double> {
-  static bool is_supported(fcl::NODE_TYPE, fcl::NODE_TYPE);
+  static bool is_supported(coal::NODE_TYPE, coal::NODE_TYPE);
 };
 
 /* Primitive support for AutoDiff-valued query.  */
 template <>
 struct ScalarSupport<AutoDiffXd> {
-  static bool is_supported(fcl::NODE_TYPE node1, fcl::NODE_TYPE node2) {
+  static bool is_supported(coal::NODE_TYPE node1, coal::NODE_TYPE node2) {
     // TODO(SeanCurtis-TRI): Confirm derivatives for sphere-capsule.
     // Explicitly permit the following pair types (with ordering
     // permutations):
     //  (sphere, sphere)
     //  (sphere, box)
     //  (sphere, halfspace)
-    return (node1 == fcl::GEOM_SPHERE &&
-            (node2 == fcl::GEOM_SPHERE || node2 == fcl::GEOM_BOX ||
-             node2 == fcl::GEOM_HALFSPACE)) ||
-           (node2 == fcl::GEOM_SPHERE &&
-            (node1 == fcl::GEOM_BOX || node1 == fcl::GEOM_HALFSPACE));
+    return (node1 == coal::GEOM_SPHERE &&
+            (node2 == coal::GEOM_SPHERE || node2 == coal::GEOM_BOX ||
+             node2 == coal::GEOM_HALFSPACE)) ||
+           (node2 == coal::GEOM_SPHERE &&
+            (node1 == coal::GEOM_BOX || node1 == coal::GEOM_HALFSPACE));
   }
 };
 
@@ -272,7 +275,7 @@ struct ScalarSupport<AutoDiffXd> {
 
  This callback is used in the context where we're going to report the distance
  between all O(N²) objects, regardless of the results. The final parameter
- in the callback serves as a threshold to the FCL broadphase -- any objects
+ in the callback serves as a threshold to the Coal broadphase -- any objects
  that are known to be farther than the `dist` value will not be dispatched to
  this narrow phase callback. This query does not *reduce* the distance so
  it does not set it.
@@ -288,8 +291,8 @@ struct ScalarSupport<AutoDiffXd> {
                         for candidate pairs.
  @returns False; the broadphase should *not* terminate its process.  */
 template <typename T>
-bool Callback(fcl::CollisionObjectd* object_A_ptr,
-              fcl::CollisionObjectd* object_B_ptr,
+bool Callback(coal::CollisionObject* object_A_ptr,
+              coal::CollisionObject* object_B_ptr,
               // NOLINTNEXTLINE
               void* callback_data, double& max_distance);
 

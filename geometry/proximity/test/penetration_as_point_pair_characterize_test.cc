@@ -29,7 +29,7 @@ using std::vector;
 template <typename T>
 class PenetrationCallback : public DistanceCallback<T> {
  public:
-  bool Invoke(fcl::CollisionObjectd* obj_A, fcl::CollisionObjectd* obj_B,
+  bool Invoke(coal::CollisionObject* obj_A, coal::CollisionObject* obj_B,
               const CollisionFilter* collision_filter,
               const std::unordered_map<GeometryId, math::RigidTransform<T>>*
                   X_WGs) override {
@@ -62,7 +62,7 @@ class CharacterizePointPairResultTest : public CharacterizeResultTest<T> {
  However, this single test will detect when that condition is no longer true
  and call for implementation of *-Mesh tests. */
 GTEST_TEST(CharacterizePointPairResultTest, MeshMesh) {
-  ASSERT_TRUE(MeshIsConvexInFcl());
+  ASSERT_TRUE(MeshIsConvexInCoal());
 }
 
 class DoubleTest : public CharacterizePointPairResultTest<double>,
@@ -72,35 +72,35 @@ class DoubleTest : public CharacterizePointPairResultTest<double>,
 INSTANTIATE_TEST_SUITE_P(
     PenetrationAsPointPair, DoubleTest,
     testing::Values(
-        QueryInstance(kBox, kBox, 2e-15),
-        QueryInstance(kBox, kCapsule, 3e-5),
-        QueryInstance(kBox, kConvex, 2e-15),
-        QueryInstance(kBox, kCylinder, 1e-3),
-        QueryInstance(kBox, kEllipsoid, 4e-4),
-        QueryInstance(kBox, kHalfSpace, 6e-15),
+        QueryInstance(kBox, kBox, 5e-13),
+        QueryInstance(kBox, kCapsule, 2e-11),
+        QueryInstance(kBox, kConvex, 5e-13),
+        QueryInstance(kBox, kCylinder, 9e-7),
+        QueryInstance(kBox, kEllipsoid, 2e-6),
+        QueryInstance(kBox, kHalfSpace, 2e-11),
         QueryInstance(kBox, kSphere, 4e-15),
 
-        QueryInstance(kCapsule, kCapsule, 2e-5),
-        QueryInstance(kCapsule, kConvex, 3e-5),
-        QueryInstance(kCapsule, kCylinder, 4e-5),
-        QueryInstance(kCapsule, kEllipsoid, 2e-4),
-        QueryInstance(kCapsule, kHalfSpace, 4e-15),
+        QueryInstance(kCapsule, kCapsule, 4e-15),
+        QueryInstance(kCapsule, kConvex, 8e-15),
+        QueryInstance(kCapsule, kCylinder, 4e-12),
+        QueryInstance(kCapsule, kEllipsoid, 2e-12),
+        QueryInstance(kCapsule, kHalfSpace, 1e-14),
         QueryInstance(kCapsule, kSphere, 5e-15),
 
         QueryInstance(kConvex, kConvex, 2e-15),
-        QueryInstance(kConvex, kCylinder, 1e-3),
-        QueryInstance(kConvex, kEllipsoid, 4e-4),
+        QueryInstance(kConvex, kCylinder, 2e-6),
+        QueryInstance(kConvex, kEllipsoid, 2e-6),
         QueryInstance(kConvex, kHalfSpace, 3e-15),
-        QueryInstance(kConvex, kSphere, 3e-5),
+        QueryInstance(kConvex, kSphere, 5e-15),
 
-        QueryInstance(kCylinder, kCylinder, 2e-3),
-        QueryInstance(kCylinder, kEllipsoid, 2e-3),
-        QueryInstance(kCylinder, kHalfSpace, 4e-15),
+        QueryInstance(kCylinder, kCylinder, 2e-6),
+        QueryInstance(kCylinder, kEllipsoid, 1e-6),
+        QueryInstance(kCylinder, kHalfSpace, 5e-11),
         QueryInstance(kCylinder, kSphere, 5e-15),
 
-        QueryInstance(kEllipsoid, kEllipsoid, 5e-4),
+        QueryInstance(kEllipsoid, kEllipsoid, 2e-6),
         QueryInstance(kEllipsoid, kHalfSpace, 3e-15),
-        QueryInstance(kEllipsoid, kSphere, 2e-4),
+        QueryInstance(kEllipsoid, kSphere, 4e-12),
 
         QueryInstance(kHalfSpace, kHalfSpace, kThrows),
         QueryInstance(kHalfSpace, kSphere, 3e-15),

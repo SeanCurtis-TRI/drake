@@ -37,7 +37,8 @@ class GeometryId : public drake::Identifier<class GeometryTag> {
  private:
   explicit GeometryId(int64_t value) : Base(value) {}
 
-  // EncodedData needs to be able to create GeometryId from FCL-encoded data.
+  // EncodedData needs to be able to create GeometryId from Coal-encoded
+  // data.
   // This gives it access to the otherwise inaccessible constructor.
   friend class internal::EncodedData;
 };

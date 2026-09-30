@@ -271,19 +271,19 @@ void ShapeConfigurations<T>::ImplementGeometry(const Sphere& sphere, void*) {
                                    {p2, n2, r, "sphere's +x/-y/+z octant"}};
 }
 
-MakeFclShape::MakeFclShape(const Shape& shape) : ShapeReifier() {
+MakeCoalShape::MakeCoalShape(const Shape& shape) : ShapeReifier() {
   shape.Reify(this);
 }
 
-void MakeFclShape::ImplementGeometry(const Box& box, void*) {
-  object_ = std::make_shared<fcl::Boxd>(box.size());
+void MakeCoalShape::ImplementGeometry(const Box& box, void*) {
+  object_ = std::make_shared<coal::Box>(box.size());
 }
 
-void MakeFclShape::ImplementGeometry(const Capsule& capsule, void*) {
-  object_ = std::make_shared<fcl::Capsuled>(capsule.radius(), capsule.length());
+void MakeCoalShape::ImplementGeometry(const Capsule& capsule, void*) {
+  object_ = std::make_shared<coal::Capsule>(capsule.radius(), capsule.length());
 }
 
-void MakeFclShape::ImplementGeometry(const Convex&, void*) {
+void MakeCoalShape::ImplementGeometry(const Convex&, void*) {
   /* Note: we're ignoring the contents of the convex declaration. Instead,
     we're outputting a mesh representing a box with known dimensions.
 
@@ -312,46 +312,52 @@ void MakeFclShape::ImplementGeometry(const Convex&, void*) {
     }
   }
   // clang-format off
-    auto faces = std::make_shared<vector<int>>(vector<int>{
+    const vector<int> face_data{
       4, 0, 4, 5, 1,   // -y face
       4, 5, 7, 3, 1,   // +z face
       4, 3, 7, 6, 2,   // +y face
       4, 0, 2, 6, 4,   // -z face
       4, 4, 6, 7, 5,   // +x face
       4, 1, 3, 2, 0    // -x face.
-    });
+    };
   // clang-format on
+  auto faces =
+      std::make_shared<vector<coal::Triangle32>>(MakeCoalTriangles(face_data));
 
-  object_ = std::make_shared<fcl::Convexd>(vertices, 6, faces);
-}
-
-void MakeFclShape::ImplementGeometry(const Cylinder& cylinder, void*) {
+  const int num_vertices = ssize(*vertices);
+  const int num_faces = ssize(*faces);
   object_ =
-      std::make_shared<fcl::Cylinderd>(cylinder.radius(), cylinder.length());
+      std::make_shared<CoalConvex>(vertices, num_vertices, faces, num_faces);
 }
 
-void MakeFclShape::ImplementGeometry(const Ellipsoid& ellipsoid, void*) {
-  object_ = std::make_shared<fcl::Ellipsoidd>(ellipsoid.a(), ellipsoid.b(),
+void MakeCoalShape::ImplementGeometry(const Cylinder& cylinder, void*) {
+  object_ =
+      std::make_shared<coal::Cylinder>(cylinder.radius(), cylinder.length());
+}
+
+void MakeCoalShape::ImplementGeometry(const Ellipsoid& ellipsoid, void*) {
+  object_ = std::make_shared<coal::Ellipsoid>(ellipsoid.a(), ellipsoid.b(),
                                               ellipsoid.c());
 }
 
-void MakeFclShape::ImplementGeometry(const HalfSpace&, void*) {
-  object_ = std::make_shared<fcl::Halfspaced>(Vector3d{0, 0, 1}, 0);
+void MakeCoalShape::ImplementGeometry(const HalfSpace&, void*) {
+  object_ = std::make_shared<coal::Halfspace>(Vector3d{0, 0, 1}, 0);
 }
 
-void MakeFclShape::ImplementGeometry(const Mesh&, void*) {
+void MakeCoalShape::ImplementGeometry(const Mesh&, void*) {
   // For these tests, we use the same box mesh for Mesh and Convex. Therefore,
-  // the fcl representation of the Mesh type is simply that of the Convex type.
+  // the Coal representation of the Mesh type is simply that of the Convex
+  // type.
   // NOTE: PointDistanceCallback::Invoke() in
   // distance_to_point_characterize_test.cc builds a MeshDistanceBoundaryCache
-  // entry that must match the geometry. It does so by turning the fcl::Convexd
+  // entry that must match the geometry. It does so by turning the CoalConvex
   // back into a Mesh. If this ever introduces a Mesh that is not its own convex
   // hull, that logic will need to change.
   ImplementGeometry(Convex("ignored for this test", 1.0), nullptr);
 }
 
-void MakeFclShape::ImplementGeometry(const Sphere& sphere, void*) {
-  object_ = std::make_shared<fcl::Sphered>(sphere.radius());
+void MakeCoalShape::ImplementGeometry(const Sphere& sphere, void*) {
+  object_ = std::make_shared<coal::Sphere>(sphere.radius());
 }
 
 /* Allow a sneak peek into ProximityEngine's inner workings so we can detect
@@ -359,12 +365,13 @@ void MakeFclShape::ImplementGeometry(const Sphere& sphere, void*) {
 class ProximityEngineTester {
  public:
   template <typename T>
-  static bool IsFclConvexType(const ProximityEngine<T>& engine, GeometryId id) {
-    return engine.IsFclConvexType(id);
+  static bool IsCoalConvexType(const ProximityEngine<T>& engine,
+                               GeometryId id) {
+    return engine.IsCoalConvexType(id);
   }
 };
 
-::testing::AssertionResult MeshIsConvexInFcl() {
+::testing::AssertionResult MeshIsConvexInCoal() {
   // Create a small obj in a temp directory.
   const std::string obj_path = temp_directory() + "/tri.obj";
   {
@@ -382,15 +389,15 @@ class ProximityEngineTester {
   }
 
   // Add the mesh into a proximity engine and confirm it is represented by a
-  // fcl::Convex.
+  // CoalConvex.
   ProximityEngine<double> engine;
   const GeometryId id = GeometryId::get_new_id();
   engine.AddDynamicGeometry(Mesh(obj_path, 1.0), {}, id);
-  if (ProximityEngineTester::IsFclConvexType(engine, id)) {
+  if (ProximityEngineTester::IsCoalConvexType(engine, id)) {
     return ::testing::AssertionSuccess();
   }
   return ::testing::AssertionFailure()
-         << "A Mesh shape is no longer represented by an fcl::Convex in "
+         << "A Mesh shape is no longer represented by a CoalConvex in "
          << "ProximityEngine. We need to explicitly characterize Mesh-Shape "
          << "queries for all Shape types.";
 }
@@ -438,8 +445,8 @@ RigidTransform<T> AlignPlanes(const Vector3<T>& P, const Vector3<T>& m,
 
 template <typename T>
 void CharacterizeResultTest<T>::RunCallback(
-    const QueryInstance& query, fcl::CollisionObjectd* obj_A,
-    fcl::CollisionObjectd* obj_B, const CollisionFilter* collision_filter,
+    const QueryInstance& query, coal::CollisionObject* obj_A,
+    coal::CollisionObject* obj_B, const CollisionFilter* collision_filter,
     const std::unordered_map<GeometryId, RigidTransform<T>>* X_WGs) const {
   callback_->ClearResults();
   ASSERT_EQ(callback_->GetNumResults(), 0);
@@ -520,10 +527,10 @@ template <typename T>
 void CharacterizeResultTest<T>::RunCharacterization(
     const QueryInstance& query, const Shape& shape_A, const Shape& shape_B,
     const vector<Configuration<T>>& configs, bool is_symmetric) {
-  fcl::CollisionObjectd object_A = MakeFclShape(shape_A).object();
+  coal::CollisionObject object_A = MakeCoalShape(shape_A).object();
   const GeometryId id_A = EncodeData(&object_A);
 
-  fcl::CollisionObjectd object_B = MakeFclShape(shape_B).object();
+  coal::CollisionObject object_B = MakeCoalShape(shape_B).object();
   const GeometryId id_B = EncodeData(&object_B);
 
   const auto& X_WAs = this->X_WAs();
@@ -532,8 +539,8 @@ void CharacterizeResultTest<T>::RunCharacterization(
 
   auto evaluate_callback =
       [this, &query, &worst_error, &worst_config](
-          char first, fcl::CollisionObjectd* obj_A, char second,
-          fcl::CollisionObjectd* obj_B, auto test_config,
+          char first, coal::CollisionObject* obj_A, char second,
+          coal::CollisionObject* obj_B, auto test_config,
           const std::unordered_map<GeometryId, RigidTransform<T>>&
               world_poses) {
         SCOPED_TRACE(fmt::format(
@@ -559,8 +566,8 @@ void CharacterizeResultTest<T>::RunCharacterization(
     for (const auto& config : configs) {
       const std::unordered_map<GeometryId, RigidTransform<T>> X_WGs{
           {{id_A, X_WA}, {id_B, X_WA * config.X_AB}}};
-      object_A.setTransform(convert_to_double(X_WGs.at(id_A)).GetAsIsometry3());
-      object_B.setTransform(convert_to_double(X_WGs.at(id_B)).GetAsIsometry3());
+      object_A.setTransform(ToCoalTransform(convert_to_double(X_WGs.at(id_A))));
+      object_B.setTransform(ToCoalTransform(convert_to_double(X_WGs.at(id_B))));
 
       evaluate_callback('A', &object_A, 'B', &object_B, config, X_WGs);
       if (is_symmetric) {
@@ -611,7 +618,7 @@ void CharacterizeResultTest<T>::RunCharacterization(const QueryInstance& query,
 }
 
 template <typename T>
-GeometryId CharacterizeResultTest<T>::EncodeData(fcl::CollisionObjectd* obj) {
+GeometryId CharacterizeResultTest<T>::EncodeData(coal::CollisionObject* obj) {
   const GeometryId id = GeometryId::get_new_id();
   const EncodedData data(id, true);
   data.write_to(obj);

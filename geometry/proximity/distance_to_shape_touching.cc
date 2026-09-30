@@ -13,9 +13,9 @@ namespace shape_distance {
 using Eigen::Vector3d;
 using math::RigidTransformd;
 
-Vector3d CalcGradientWhenTouching(const fcl::CollisionObjectd& a,
+Vector3d CalcGradientWhenTouching(const coal::CollisionObject& a,
                                   const math::RigidTransformd& X_WA,
-                                  const fcl::CollisionObjectd& b,
+                                  const coal::CollisionObject& b,
                                   const math::RigidTransformd& X_WB,
                                   const Eigen::Vector3d& p_ACa,
                                   const Eigen::Vector3d& p_BCb) {
@@ -23,26 +23,26 @@ Vector3d CalcGradientWhenTouching(const fcl::CollisionObjectd& a,
   // necessarily expect that it is used for all those pairs. For example, some
   // sphere-X touching pairs are resolved by DistancePairGeometry in
   // distance_to_shape_callback.h.
-  if (a.collisionGeometry()->getNodeType() == fcl::GEOM_SPHERE &&
-      static_cast<const fcl::Sphered*>(a.collisionGeometry().get())->radius >
+  if (a.collisionGeometry()->getNodeType() == coal::GEOM_SPHERE &&
+      static_cast<const coal::Sphere*>(a.collisionGeometry().get())->radius >
           0) {
     const Vector3d nhat_AB_A = p_ACa.normalized();
     const Vector3d nhat_BA_W = X_WA.rotation() * (-nhat_AB_A);
     return nhat_BA_W;
   }
-  if (b.collisionGeometry()->getNodeType() == fcl::GEOM_SPHERE &&
-      static_cast<const fcl::Sphered*>(b.collisionGeometry().get())->radius >
+  if (b.collisionGeometry()->getNodeType() == coal::GEOM_SPHERE &&
+      static_cast<const coal::Sphere*>(b.collisionGeometry().get())->radius >
           0) {
     const Vector3d nhat_BA_B = p_BCb.normalized();
     const Vector3d nhat_BA_W = X_WB.rotation() * nhat_BA_B;
     return nhat_BA_W;
   }
-  if (a.collisionGeometry()->getNodeType() == fcl::GEOM_BOX &&
-      b.collisionGeometry()->getNodeType() == fcl::GEOM_BOX) {
+  if (a.collisionGeometry()->getNodeType() == coal::GEOM_BOX &&
+      b.collisionGeometry()->getNodeType() == coal::GEOM_BOX) {
     const auto& box_A =
-        *static_cast<const fcl::Boxd*>(a.collisionGeometry().get());
+        *static_cast<const coal::Box*>(a.collisionGeometry().get());
     const auto& box_B =
-        *static_cast<const fcl::Boxd*>(b.collisionGeometry().get());
+        *static_cast<const coal::Box*>(b.collisionGeometry().get());
     return BoxBoxGradient(box_A, box_B, X_WA, X_WB, p_ACa, p_BCb);
   }
   // TODO(14789): Take care of other shapes and zero-radius spheres. For now,
@@ -51,8 +51,8 @@ Vector3d CalcGradientWhenTouching(const fcl::CollisionObjectd& a,
   return Vector3d(kNan, kNan, kNan);
 }
 
-Vector3d PointOnBoxSurfaceHelper(const Vector3d& p_BQ, const fcl::Boxd& box_B) {
-  const Vector3d half_size = box_B.side / 2.0;
+Vector3d PointOnBoxSurfaceHelper(const Vector3d& p_BQ, const coal::Box& box_B) {
+  const Vector3d half_size = box_B.halfSide;
   Vector3d n{0.0, 0.0, 0.0};
   // Our classification is sensitive to the precision of p_BQ and this
   // internal tolerance. We assume that the caller always passes p_BQ on the
@@ -73,10 +73,10 @@ Vector3d PointOnBoxSurfaceHelper(const Vector3d& p_BQ, const fcl::Boxd& box_B) {
   return n;
 }
 
-std::pair<double, double> ProjectedMinMax(const fcl::Boxd& box_A,
+std::pair<double, double> ProjectedMinMax(const coal::Box& box_A,
                                           const RigidTransformd& X_WA,
                                           const Vector3d& unit_vector_W) {
-  const Vector3d half_size_A = box_A.side / 2.0;
+  const Vector3d half_size_A = box_A.halfSide;
   const Vector3d unit_vector_A = X_WA.rotation().transpose() * unit_vector_W;
   double max_value = half_size_A.dot(unit_vector_A.cwiseAbs());
   double d = X_WA.translation().dot(unit_vector_W);
@@ -84,7 +84,7 @@ std::pair<double, double> ProjectedMinMax(const fcl::Boxd& box_A,
 }
 
 std::optional<Vector3d> MaybeMakeSeparatingVector(
-    const fcl::Boxd& box_A, const fcl::Boxd& box_B, const RigidTransformd& X_WA,
+    const coal::Box& box_A, const coal::Box& box_B, const RigidTransformd& X_WA,
     const RigidTransformd& X_WB, const std::vector<Vector3d>& v_Ws) {
   constexpr double kEps = 1e-14;
   for (const Vector3d& v_W : v_Ws) {
@@ -112,7 +112,7 @@ std::optional<Vector3d> MaybeMakeSeparatingVector(
   return {};
 }
 
-Vector3d BoxBoxGradient(const fcl::Boxd& box_A, const fcl::Boxd& box_B,
+Vector3d BoxBoxGradient(const coal::Box& box_A, const coal::Box& box_B,
                         const math::RigidTransformd& X_WA,
                         const math::RigidTransformd& X_WB,
                         const Eigen::Vector3d& p_ACa,
