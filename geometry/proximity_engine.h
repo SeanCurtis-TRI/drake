@@ -415,6 +415,8 @@ class ProximityEngine {
   template <typename>
   friend class ProximityEngine;
 
+  friend class GeometryState<T>;
+
   // Facilitate testing.
   friend class ProximityEngineTester;
 

@@ -7,6 +7,7 @@
 #include "drake/common/test_utilities/eigen_matrix_compare.h"
 #include "drake/geometry/proximity/coal_backend.h"
 #include "drake/geometry/proximity/fcl_backend.h"
+#include "drake/geometry/proximity/test/backend_test_utilities.h"
 
 namespace drake {
 namespace geometry {
@@ -24,16 +25,7 @@ using std::make_shared;
 // object. Use the Ellipsoid as indicative. Inspection of the calling code
 // should make it apparent that the correctness of Sphere-X contact doesn't
 // depend on what the X is, so we don't bother testing other, redundant types.
-/* The gradients computed here are Drake's own geometry -- the backends supply
- only the shape types the values are read out of -- so both must agree
- exactly. */
-template <typename Backend>
-class TouchingTest : public ::testing::Test {};
-using Backends = ::testing::Types<FclBackend, CoalBackend>;
-TYPED_TEST_SUITE(TouchingTest, Backends);
-
-TYPED_TEST(TouchingTest, SphereTouch) {
-  using Backend = TypeParam;
+DRAKE_BACKEND_GTEST(TouchingTest, SphereTouch) {
   // Strengthen the test by an arbitrary frame F, so we can use simple poses
   // X_FA and X_FB of the sphere's frame A in F and the ellipsoid's frame B in
   // F in such a way that X_WA and X_WB are complex.
@@ -70,8 +62,7 @@ TYPED_TEST(TouchingTest, SphereTouch) {
 // box touches a box. There are more comprehensive test cases at the level of
 // BoxBoxGradient<Backend>(), which is a subroutine of
 // CalcGradientWhenTouching<Backend>().
-TYPED_TEST(TouchingTest, box_touches_box) {
-  using Backend = TypeParam;
+DRAKE_BACKEND_GTEST(TouchingTest, box_touches_box) {
   // Two boxes touch at their faces passing World's origin.
   const double width = 2;
   const RigidTransformd X_WA(Vector3d(-width / 2, 0, 0));
@@ -118,8 +109,7 @@ void PointOnBoxSurfaceHelperTester(
   }
 }
 
-TYPED_TEST(TouchingTest, PointOnBoxSurfaceHelper) {
-  using Backend = TypeParam;
+DRAKE_BACKEND_GTEST(TouchingTest, PointOnBoxSurfaceHelper) {
   // The box spans [-1,1]x[-2,2]x[-4,4].
   const typename Backend::Box box_B(2, 4, 8);
   {
@@ -176,8 +166,7 @@ TYPED_TEST(TouchingTest, PointOnBoxSurfaceHelper) {
 // Test corner cases of PointOnBoxSurfaceHelper<Backend>() due to numerical
 // errors. It is inspired by issue 21192. This test also shows that we can get
 // incorrect classification due to imperfect numerical precisions.
-TYPED_TEST(TouchingTest, CornerCases) {
-  using Backend = TypeParam;
+DRAKE_BACKEND_GTEST(TouchingTest, CornerCases) {
   const typename Backend::Box box_B(0.25, 0.25, 0.25);
   // See documentation of PointOnBoxSurfaceHelper<Backend>() for the meaning
   // of these encoding vectors.
@@ -212,8 +201,7 @@ TYPED_TEST(TouchingTest, CornerCases) {
   }
 }
 
-TYPED_TEST(TouchingTest, ProjectedMinMax) {
-  using Backend = TypeParam;
+DRAKE_BACKEND_GTEST(TouchingTest, ProjectedMinMax) {
   // This box spans [-2,2]x[-3,3]x[-6,6]. Half the length of its diagonal
   // is 7 because 2² + 3² + 6² = 4 + 9 + 36 = 49 = 7². We will use this fact
   // in the test later.
@@ -260,8 +248,7 @@ TYPED_TEST(TouchingTest, ProjectedMinMax) {
 //          |              |
 //          +--------------+
 //
-TYPED_TEST(TouchingTest, MaybeMakeSeparatingVector) {
-  using Backend = TypeParam;
+DRAKE_BACKEND_GTEST(TouchingTest, MaybeMakeSeparatingVector) {
   // Fix box_A at World's origin.
   const RigidTransformd X_WA = RigidTransformd::Identity();
   // box_A spans [-0.5,0.5]x[-0.5,0.5]x[-0.5,0.5].
@@ -315,8 +302,7 @@ TYPED_TEST(TouchingTest, MaybeMakeSeparatingVector) {
 //          |              |
 //          +--------------+
 //
-TYPED_TEST(TouchingTest, Face) {
-  using Backend = TypeParam;
+DRAKE_BACKEND_GTEST(TouchingTest, Face) {
   const RigidTransformd X_WA = RigidTransformd::Identity();
   // box_A spans [-0.5,0.5]x[-0.5,0.5]x[-0.5,0.5].
   const typename Backend::Box box_A(1, 1, 1);
@@ -350,8 +336,7 @@ TYPED_TEST(TouchingTest, Face) {
 //     | A  |\/ --------→ X
 //     +----+
 //
-TYPED_TEST(TouchingTest, EdgeCrossEdge) {
-  using Backend = TypeParam;
+DRAKE_BACKEND_GTEST(TouchingTest, EdgeCrossEdge) {
   const RigidTransformd X_WA = RigidTransformd::Identity();
   // box_A spans [-1,1]x[-1,1]x[-1,1].
   const typename Backend::Box box_A(2, 2, 2);
@@ -388,8 +373,7 @@ TYPED_TEST(TouchingTest, EdgeCrossEdge) {
 //     | A  |  --------→ X
 //     +----+
 //
-TYPED_TEST(TouchingTest, ParallelEdgeEdge) {
-  using Backend = TypeParam;
+DRAKE_BACKEND_GTEST(TouchingTest, ParallelEdgeEdge) {
   const RigidTransformd X_WA = RigidTransformd::Identity();
   // box_A spans [-1,1]x[-1,1]x[-1,1].
   const typename Backend::Box box_A(2, 2, 2);
@@ -432,8 +416,7 @@ TYPED_TEST(TouchingTest, ParallelEdgeEdge) {
 //     +--+(*)+--+
 //     | A  | ----------→ X
 //     +----+
-TYPED_TEST(TouchingTest, EdgeVertex) {
-  using Backend = TypeParam;
+DRAKE_BACKEND_GTEST(TouchingTest, EdgeVertex) {
   const RigidTransformd X_WA = RigidTransformd::Identity();
   // box_A spans [-1,1]x[-1,1]x[-1,1].
   const typename Backend::Box box_A(2, 2, 2);
@@ -470,8 +453,7 @@ TYPED_TEST(TouchingTest, EdgeVertex) {
 //     | A  |  --------→ X
 //     +----+
 //
-TYPED_TEST(TouchingTest, VertexVertexUseFaceNormal) {
-  using Backend = TypeParam;
+DRAKE_BACKEND_GTEST(TouchingTest, VertexVertexUseFaceNormal) {
   const RigidTransformd X_WA = RigidTransformd::Identity();
   // box_A spans [-1,1]x[-1,1]x[-1,1].
   const typename Backend::Box box_A(2, 2, 2);
@@ -509,8 +491,7 @@ TYPED_TEST(TouchingTest, VertexVertexUseFaceNormal) {
 //     | A  | B  | -----→ X
 //     +----+----+
 //
-TYPED_TEST(TouchingTest, VertexVetexUseFaceNormalSpecial) {
-  using Backend = TypeParam;
+DRAKE_BACKEND_GTEST(TouchingTest, VertexVetexUseFaceNormalSpecial) {
   const RigidTransformd X_WA = RigidTransformd::Identity();
   // box_A spans [-1,1]x[-1,1]x[-1,1].
   const typename Backend::Box box_A(2, 2, 2);
@@ -536,8 +517,7 @@ TYPED_TEST(TouchingTest, VertexVetexUseFaceNormalSpecial) {
 // Tests BoxBoxGradient<Backend>() when two boxes touch at their vertices in
 // such a way that the separating axis is along the cross product of their
 // edges.
-TYPED_TEST(TouchingTest, VertexVertexNeedCrossProduct) {
-  using Backend = TypeParam;
+DRAKE_BACKEND_GTEST(TouchingTest, VertexVertexNeedCrossProduct) {
   const RigidTransformd X_WA = RigidTransformd::Identity();
   // box_A spans [-1,1]x[-1,1]x[-1,1].
   const typename Backend::Box box_A(2, 2, 2);
@@ -584,8 +564,7 @@ TYPED_TEST(TouchingTest, VertexVertexNeedCrossProduct) {
 //     | A  |  --------→ X
 //     +----+
 //
-TYPED_TEST(TouchingTest, InputWithNumericalErrors) {
-  using Backend = TypeParam;
+DRAKE_BACKEND_GTEST(TouchingTest, InputWithNumericalErrors) {
   const RigidTransformd X_WA = RigidTransformd::Identity();
   const typename Backend::Box box_A(0.2, 0.2, 0.2);
   // Translate diagonally in X-Y plane
