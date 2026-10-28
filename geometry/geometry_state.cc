@@ -411,11 +411,8 @@ int GeometryState<T>::NumDynamicGeometries() const {
 template <typename T>
 int GeometryState<T>::NumDynamicNonDeformableGeometries() const {
   int count = 0;
-  for (const auto& pair : frames_) {
-    const InternalFrame& frame = pair.second;
-    if (frame.id() != InternalFrame::world_frame_id()) {
-      count += frame.num_child_geometries();
-    }
+  for (const auto& [geometry_id, geometry] : geometries_) {
+    if (geometry.is_dynamic() && !geometry.is_deformable()) ++count;
   }
   return count;
 }
@@ -433,14 +430,13 @@ int GeometryState<T>::NumDeformableGeometries() const {
 
 template <typename T>
 int GeometryState<T>::NumAnchoredGeometries() const {
-  const InternalFrame& frame = frames_.at(InternalFrame::world_frame_id());
+  // Anchored is now the complement of dynamic over all geometry, rather than
+  // "attached to the world frame": geometry on a frame anchored via
+  // AnchorFrames() counts here too. Deformable geometry is always dynamic, so
+  // it is excluded by the same test.
   int count = 0;
-  const std::unordered_set<GeometryId>& child_geometries =
-      frame.child_geometries();
-  for (auto geometry_id : child_geometries) {
-    if (!geometries_.at(geometry_id).is_deformable()) {
-      ++count;
-    }
+  for (const auto& [geometry_id, geometry] : geometries_) {
+    if (!geometry.is_dynamic()) ++count;
   }
   return count;
 }
@@ -1123,10 +1119,16 @@ GeometryId GeometryState<T>::RegisterGeometry(
   const InternalFrame& frame = frames_[frame_id];
   kinematics_data_.X_WGs[geometry_id] =
       kinematics_data_.X_WFs[frame.index()] * geometry->pose().cast<T>();
-  geometries_.emplace(
+  auto [iter, inserted] = geometries_.emplace(
       geometry_id,
       InternalGeometry(source_id, geometry->release_shape(), frame_id,
                        geometry_id, geometry->name(), geometry->pose()));
+  DRAKE_DEMAND(inserted);
+  // InternalGeometry knows only about the world frame; a frame anchored after
+  // the fact (see AnchorFrames()) has to be reported here. Doing it before
+  // AssignAllDefinedRoles() means AssignRole() already sees the geometry as
+  // anchored and routes it into the engine's anchored collection.
+  if (frame.is_anchored()) iter->second.set_frame_is_anchored();
 
   AssignAllDefinedRoles(source_id, std::move(geometry));
 
@@ -1336,7 +1338,9 @@ void GeometryState<T>::AssignRole(SourceId source_id, GeometryId geometry_id,
                                              geometry_id,
                                              *geometry.proximity_properties());
       } else {
-        geometry_engine_->AddAnchoredGeometry(geometry.shape(), geometry.X_FG(),
+        const RigidTransformd& X_WG =
+            convert_to_double(kinematics_data_.X_WGs.at(geometry_id));
+        geometry_engine_->AddAnchoredGeometry(geometry.shape(), X_WG,
                                               geometry_id,
                                               *geometry.proximity_properties());
       }
@@ -1843,13 +1847,72 @@ void GeometryState<T>::ValidateRegistrationAndSetTopology(
 }
 
 template <typename T>
+void GeometryState<T>::AnchorFrames(const std::vector<FrameId>& frame_ids) {
+  // Validate everything, then mutate everything.
+
+  // The check is a single order-free pass: requiring each frame's parent to be
+  // anchored *or* a member of the set implies the transitive property, because
+  // the frame tree is finite, acyclic, and rooted at the world frame, which is
+  // anchored. No topological sort, and no ordering requirement on the caller.
+  const std::unordered_set<FrameId> new_set(frame_ids.begin(), frame_ids.end());
+  for (const FrameId frame_id : new_set) {
+    if (!frames_.contains(frame_id)) {
+      throw std::logic_error(fmt::format(
+          "AnchorFrames(): no frame is registered with the id {}.", frame_id));
+    }
+    const InternalFrame& frame = frames_.at(frame_id);
+    const FrameId parent_id = frame.parent_frame_id();
+    if (frames_.at(parent_id).is_anchored() || new_set.contains(parent_id)) {
+      continue;
+    }
+    throw std::logic_error(fmt::format(
+        "AnchorFrames(): cannot anchor frame '{}'; its parent frame '{}' is "
+        "neither anchored nor part of the set being anchored.",
+        frame.name(), frames_.at(parent_id).name()));
+  }
+
+  // Collect the geometries to move before touching anything, so the flag flip
+  // and the engine-side move happen together and the engine work can be
+  // batched into one tree rebuild.
+  std::vector<GeometryId> proximity_ids;
+  for (const FrameId frame_id : new_set) {
+    InternalFrame& frame = frames_.at(frame_id);
+    if (frame.is_anchored()) continue;  // Already anchored: a no-op.
+    frame.set_anchored();
+    for (const GeometryId geometry_id : frame.child_geometries()) {
+      InternalGeometry& geometry = geometries_.at(geometry_id);
+      geometry.set_frame_is_anchored();
+      // Deformable geometry always reports as dynamic, even if we mark its
+      // frame as anchored. They are exempt from this operation.
+      if (geometry.is_dynamic()) continue;
+      if (geometry.has_proximity_role()) proximity_ids.push_back(geometry_id);
+    }
+  }
+  if (proximity_ids.empty()) return;
+
+  // This also updates the filter: the geometries join its anchored set, and
+  // the sibling filters AssignRole() declared for them are reclaimed.
+  geometry_engine_->AnchorGeometries(proximity_ids);
+  // Born set: the objects just moved still hold their registration-time poses.
+  // See KinematicsData::anchored_poses_dirty.
+  kinematics_data_.anchored_poses_dirty = true;
+  geometry_version_.modify_proximity();
+}
+
+template <typename T>
 void GeometryState<T>::FinalizePoseUpdate(
-    const internal::KinematicsData<T>& kinematics_data,
+    internal::KinematicsData<T>* kinematics_data,
     internal::ProximityEngine<T>* proximity_engine,
     std::vector<render::RenderEngine*> render_engines) const {
-  proximity_engine->UpdateWorldPoses(kinematics_data.X_WGs);
+  proximity_engine->UpdateWorldPoses(kinematics_data->X_WGs);
+  // Anchored poses depend on parameters, not state, so they are refreshed only
+  // when UpdatePosesRecursively() saw an anchored frame actually move.
+  if (kinematics_data->anchored_poses_dirty) {
+    proximity_engine->RefreshAnchoredPoses(kinematics_data->X_WGs);
+    kinematics_data->anchored_poses_dirty = false;
+  }
   for (auto* render_engine : render_engines) {
-    render_engine->UpdatePoses(kinematics_data.X_WGs);
+    render_engine->UpdatePoses(kinematics_data->X_WGs);
   }
 }
 
@@ -1907,6 +1970,20 @@ void GeometryState<T>::UpdatePosesRecursively(
   // Cache this transform for later use.
   kinematics_data->X_PFs[frame.index()] = X_PF;
   RigidTransform<T> X_WF = X_WP * X_PF;
+  if (frame.is_anchored() && !kinematics_data->anchored_poses_dirty) {
+    // An anchored frame's pose is a function of parameters, so it changes
+    // rarely -- but it does change, and nothing upstream tells us when. Detect
+    // it here, against the value the engine currently reflects, *before*
+    // overwriting it.
+    //
+    // The comparison is on the double-valued pose. For AutoDiffXd that
+    // compares values only, which is right because fcl never sees gradients;
+    // for Expression it avoids operator== yielding a Formula.
+    if (!convert_to_double(X_WF).IsExactlyEqualTo(
+            convert_to_double(kinematics_data->X_WFs[frame.index()]))) {
+      kinematics_data->anchored_poses_dirty = true;
+    }
+  }
   kinematics_data->X_WFs[frame.index()] = X_WF;
   // Update the geometry which belong to *this* frame.
   for (auto child_id : frame.child_geometries()) {
@@ -2076,8 +2153,9 @@ void GeometryState<T>::AddToProximityEngineUnchecked(
     geometry_engine_->AddDynamicGeometry(geometry.shape(), X_WG, geometry_id,
                                          *geometry.proximity_properties());
   } else {
-    geometry_engine_->AddAnchoredGeometry(geometry.shape(), geometry.X_FG(),
-                                          geometry_id,
+    const RigidTransformd& X_WG =
+        convert_to_double(kinematics_data_.X_WGs.at(geometry_id));
+    geometry_engine_->AddAnchoredGeometry(geometry.shape(), X_WG, geometry_id,
                                           *geometry.proximity_properties());
   }
   geometry_version_.modify_proximity();

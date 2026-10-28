@@ -234,6 +234,53 @@ class ProximityEngineTests : public ::testing::Test {
   unordered_map<GeometryId, RigidTransform<double>> X_WGs_;
 };
 
+// A half space's AABB spans +/-max() in its unbounded directions, so the
+// AABB's *extent* overflows to infinity. fcl's topdown rebalancing sorts and
+// merges leaves by those AABBs, and the resulting comparisons are not a strict
+// weak ordering, so std::nth_element reads out of bounds -- a segfault, not a
+// wrong answer. Whether the topdown path is reached depends on the tree's
+// shape, so this is order-sensitive and looks intermittent.
+//
+// Note that this is reachable without anchoring anything: enough anchored
+// geometry in a scene containing a half space is sufficient. Both the ordinary
+// registration path and the bulk anchoring path must survive it.
+TEST_F(ProximityEngineTests, HalfSpaceDoesNotBreakTreeRebalancing) {
+  const Sphere sphere{0.5};
+  const int kCount = 100;  // Comfortably past fcl's bottom-up threshold of 16.
+
+  {
+    // The registration path.
+    AddAnchored(HalfSpace(), V3{0, 0, 0});
+    for (int i = 0; i < kCount; ++i) {
+      AddAnchored(sphere, V3{2.0 * i, 0, 1});
+    }
+    EXPECT_EQ(engine_.num_anchored(), kCount + 1);
+    // The tree is still usable.
+    DRAKE_EXPECT_NO_THROW(engine_.ComputePointPairPenetration(X_WGs_));
+  }
+
+  {
+    // The bulk anchoring path, on a fresh engine.
+    ProximityEngine<double> engine;
+    unordered_map<GeometryId, RigidTransformd> X_WGs;
+    const GeometryId half_space_id = GeometryId::get_new_id();
+    X_WGs.insert({half_space_id, RigidTransformd{}});
+    engine.AddAnchoredGeometry(HalfSpace(), RigidTransformd{}, half_space_id,
+                               {});
+    std::vector<GeometryId> ids;
+    for (int i = 0; i < kCount; ++i) {
+      const GeometryId id = GeometryId::get_new_id();
+      const RigidTransformd X_WG{V3{2.0 * i, 0, 1}};
+      X_WGs.insert({id, X_WG});
+      engine.AddDynamicGeometry(sphere, X_WG, id, {});
+      ids.push_back(id);
+    }
+    DRAKE_EXPECT_NO_THROW(engine.AnchorGeometries(ids));
+    EXPECT_EQ(engine.num_anchored(), kCount + 1);
+    DRAKE_EXPECT_NO_THROW(engine.ComputePointPairPenetration(X_WGs));
+  }
+}
+
 // AnchorGeometries() moves a geometry's fcl object from the dynamic
 // collections into the anchored ones, and marks it anchored in the filter.
 // The two must happen together: the engine routes object lookup, removal and

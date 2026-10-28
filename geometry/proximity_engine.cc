@@ -515,6 +515,31 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
     return {&anchored_objects_, &anchored_tree_};
   }
 
+  // fcl's topdown rebalancing sorts and merges leaves by their AABBs. A half
+  // space's AABB spans +/-max() in the unbounded directions, so its *extent*
+  // overflows to infinity, and the resulting comparisons are not a strict weak
+  // ordering; std::nth_element then reads out of bounds. Whether it is reached
+  // depends on the tree's shape, hence on insertion order, which makes it look
+  // intermittent.
+  //
+  // Once such an object is in a tree, pin that tree to incremental rebalancing
+  // so the topdown path is never chosen for it. The tree stays less balanced
+  // than it might, but a tree containing an infinite AABB was never going to
+  // be well balanced.
+  //
+  // TODO(SeanCurtis-TRI): This belongs in fcl, or in how we bound half spaces.
+  // Note that this crash predates anchored frames: ~100 anchored geometries in
+  // a scene containing a half space is enough to hit it.
+  static void DisableTopdownRebalanceIfUnbounded(
+      const CollisionObjectd& object,
+      fcl::DynamicAABBTreeCollisionManager<double>* tree) {
+    const fcl::AABB<double>& aabb = object.getAABB();
+    if (!std::isfinite(aabb.width()) || !std::isfinite(aabb.height()) ||
+        !std::isfinite(aabb.depth())) {
+      tree->max_tree_nonbalanced_level = std::numeric_limits<int>::max();
+    }
+  }
+
   // Moves the given rigid geometries into the anchored collections. Ids that
   // are already anchored are skipped, so the caller need not filter them out.
   //
@@ -542,6 +567,7 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
       // Only register objects with a current AABB, so the tree is consistent
       // the moment the loop ends (see ApplyActiveStatusChange()).
       object->computeAABB();
+      DisableTopdownRebalanceIfUnbounded(*object, &anchored_tree_);
       anchored_tree_.registerObject(object);
       anchored_objects_[id] = std::move(iter->second);
       dynamic_objects_.erase(iter);
@@ -1326,6 +1352,7 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
     EncodedData encoding(id, is_dynamic);
     encoding.write_to(data.fcl_object.get());
 
+    DisableTopdownRebalanceIfUnbounded(*data.fcl_object, tree);
     tree->registerObject(data.fcl_object.get());
     tree->update();
     (*objects)[id] = std::move(data.fcl_object);
