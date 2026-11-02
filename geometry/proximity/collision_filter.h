@@ -161,7 +161,7 @@ class CollisionFilter {
    GeometryState::AnchorFrames(). Like AddGeometry()'s `is_anchored`, it is a
    one-way trip: there is no un-anchor.
 
-   @throws std::exception if there are any transient declarations active. */
+   @pre There are no transient declarations active. */
   void SetAnchored(const std::vector<GeometryId>& ids);
 
   /* Removes a geometry from the filter system. All filtered collision pairs

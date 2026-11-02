@@ -86,6 +86,9 @@ class ProximityEngine {
   /* Provides access to the mutable collision filter this engine uses. */
   CollisionFilter& collision_filter();
 
+  /* Provides const access to this engine's collision filter. */
+  const CollisionFilter& collision_filter() const;
+
   /* Updates the engine's broadphase culling of inactive dynamic geometries to
    reflect the given net change to the collision filter's inactive set (see
    CollisionFilterManager::Deactivate()) -- a mechanism to resolve issue #24607.
@@ -198,8 +201,8 @@ class ProximityEngine {
    the caller must arrange for one refresh after this call: the objects moved
    here still carry their registration-time poses.
 
-   @throws std::exception if the collision filter has any active transient
-           declarations. */
+   @pre The collision filter has no active transient declarations (see
+        CollisionFilter::SetAnchored()). */
   void AnchorGeometries(const std::vector<GeometryId>& ids);
 
   /* Pushes the given world poses into the anchored geometries and refits the

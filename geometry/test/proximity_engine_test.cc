@@ -384,17 +384,6 @@ TEST_F(ProximityEngineTests, AnchorGeometries) {
   EXPECT_EQ(engine_.num_anchored(), 1);
 }
 
-// AnchorGeometries() is refused while transient filter declarations are active.
-TEST_F(ProximityEngineTests, AnchorGeometriesThrowsForTransients) {
-  const Sphere sphere{0.5};
-  const GeometryId dynamic_id = AddDynamic(sphere, V3{0, 0, 0});
-  const GeometryId promoted_id = AddDynamic(sphere, V3{4, 0, 0});
-  ExcludeCollisionsWithin({dynamic_id, promoted_id}, /* is_temporary= */ true);
-
-  DRAKE_EXPECT_THROWS_MESSAGE(engine_.AnchorGeometries({promoted_id}),
-                              ".*cannot anchor geometries.*transient.*");
-}
-
 // Anchoring an *inactive* geometry: two independent properties (anchored,
 // inactive) span three trees, and this combination is the one that is easy to
 // leave undefined. The geometry leaves the inactive dynamic partition for the

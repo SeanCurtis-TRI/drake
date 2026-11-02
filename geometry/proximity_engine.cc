@@ -521,17 +521,6 @@ class ProximityEngine<T>::Impl : public ShapeReifier {
   }
 
   void AnchorGeometries(const std::vector<GeometryId>& ids) {
-    // The filter refuses to anchor while transients are active.
-    //
-    // TODO(SeanCurtis-TRI): The user-facing error belongs in the public
-    // anchoring API (not yet implemented); once it exists, this becomes a
-    // DRAKE_DEMAND safeguard (or redundant with
-    // CollisionFilter::SetAnchored()).
-    if (collision_filter_.has_transient_history()) {
-      throw std::runtime_error(
-          "You cannot anchor geometries when there are active, transient "
-          "collision filter declarations");
-    }
     // We'll prefilter the input ids. CollisionFilter::SetAnchored() can handle
     // the ids that are already anchored, but it can't handle deformable
     // geometries; we need to filter them ourselves.
@@ -1786,6 +1775,11 @@ std::unique_ptr<ProximityEngine<U>> ProximityEngine<T>::ToScalarType() const {
 
 template <typename T>
 CollisionFilter& ProximityEngine<T>::collision_filter() {
+  return impl_->collision_filter();
+}
+
+template <typename T>
+const CollisionFilter& ProximityEngine<T>::collision_filter() const {
   return impl_->collision_filter();
 }
 
