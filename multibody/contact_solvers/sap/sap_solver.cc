@@ -11,14 +11,16 @@
 #include "drake/common/extract_double.h"
 #include "drake/common/text_logging.h"
 #include "drake/math/linear_solve.h"
+#include "drake/math/newton_with_bisection.h"
 #include "drake/multibody/contact_solvers/block_sparse_supernodal_solver.h"
-#include "drake/multibody/contact_solvers/newton_with_bisection.h"
 
 namespace drake {
 namespace multibody {
 namespace contact_solvers {
 namespace internal {
 
+using drake::math::internal::Bracket;
+using drake::math::internal::DoNewtonWithBisectionFallback;
 using drake::systems::Context;
 
 namespace {

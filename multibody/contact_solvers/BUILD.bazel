@@ -27,7 +27,6 @@ drake_cc_package_library(
         ":linear_operator",
         ":matrix_block",
         ":minimum_degree_ordering",
-        ":newton_with_bisection",
         ":pgs_solver",
         ":point_contact_data",
         ":schur_complement",
@@ -161,15 +160,6 @@ drake_cc_library(
         ":block_sparse_lower_triangular_or_symmetric_matrix",
         "//common:essential",
         "//math:partial_permutation",
-    ],
-)
-
-drake_cc_library(
-    name = "newton_with_bisection",
-    srcs = ["newton_with_bisection.cc"],
-    hdrs = ["newton_with_bisection.h"],
-    deps = [
-        "//common:essential",
     ],
 )
 
@@ -348,13 +338,6 @@ drake_cc_googletest(
     name = "minimum_degree_ordering_test",
     deps = [
         ":minimum_degree_ordering",
-    ],
-)
-
-drake_cc_googletest(
-    name = "newton_with_bisection_test",
-    deps = [
-        ":newton_with_bisection",
     ],
 )
 

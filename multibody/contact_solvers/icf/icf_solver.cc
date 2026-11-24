@@ -6,7 +6,7 @@
 #include <span>
 
 #include "drake/common/text_logging.h"
-#include "drake/multibody/contact_solvers/newton_with_bisection.h"
+#include "drake/math/newton_with_bisection.h"
 
 namespace drake {
 namespace multibody {
@@ -16,10 +16,10 @@ namespace internal {
 
 using contact_solvers::internal::BlockSparseCholeskySolver;
 using contact_solvers::internal::BlockSparsityPattern;
-using contact_solvers::internal::Bracket;
-using contact_solvers::internal::DoNewtonWithBisectionFallback;
 using Eigen::MatrixXd;
 using Eigen::VectorXd;
+using math::internal::Bracket;
+using math::internal::DoNewtonWithBisectionFallback;
 
 namespace {
 

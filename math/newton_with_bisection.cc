@@ -1,4 +1,4 @@
-#include "drake/multibody/contact_solvers/newton_with_bisection.h"
+#include "drake/math/newton_with_bisection.h"
 
 #include <functional>
 #include <utility>
@@ -7,8 +7,7 @@
 #include "drake/common/text_logging.h"
 
 namespace drake {
-namespace multibody {
-namespace contact_solvers {
+namespace math {
 namespace internal {
 
 std::pair<double, int> DoNewtonWithBisectionFallback(
@@ -113,6 +112,5 @@ std::pair<double, int> DoNewtonWithBisectionFallback(
 }
 
 }  // namespace internal
-}  // namespace contact_solvers
-}  // namespace multibody
+}  // namespace math
 }  // namespace drake

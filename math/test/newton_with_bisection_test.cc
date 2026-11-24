@@ -1,4 +1,4 @@
-#include "drake/multibody/contact_solvers/newton_with_bisection.h"
+#include "drake/math/newton_with_bisection.h"
 
 #include <iostream>
 #include <limits>
@@ -12,8 +12,7 @@
 #include "drake/common/eigen_types.h"
 
 namespace drake {
-namespace multibody {
-namespace contact_solvers {
+namespace math {
 namespace internal {
 namespace {
 
@@ -276,6 +275,5 @@ INSTANTIATE_TEST_SUITE_P(AllCases, RootFindingTest,
 
 }  // namespace
 }  // namespace internal
-}  // namespace contact_solvers
-}  // namespace multibody
+}  // namespace math
 }  // namespace drake

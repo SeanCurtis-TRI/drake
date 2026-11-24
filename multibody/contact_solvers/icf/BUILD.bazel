@@ -194,8 +194,8 @@ drake_cc_library(
         ":icf_solver_parameters",
         "//common:essential",
         "//common:name_value",
+        "//math:newton_with_bisection",
         "//multibody/contact_solvers:block_sparse_cholesky_solver",
-        "//multibody/contact_solvers:newton_with_bisection",
     ],
 )
 

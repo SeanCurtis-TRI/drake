@@ -8,8 +8,7 @@
 #include "drake/common/drake_copyable.h"
 
 namespace drake {
-namespace multibody {
-namespace contact_solvers {
+namespace math {
 namespace internal {
 
 // Class to represent an interval [x_lower, x_upper] within which we know there
@@ -110,6 +109,5 @@ std::pair<double, int> DoNewtonWithBisectionFallback(
     int max_iterations);
 
 }  // namespace internal
-}  // namespace contact_solvers
-}  // namespace multibody
+}  // namespace math
 }  // namespace drake
